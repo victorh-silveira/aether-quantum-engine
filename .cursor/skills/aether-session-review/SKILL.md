@@ -31,7 +31,7 @@ Ordem obrigatoria:
 
 1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF micro **M5** (300 s); anotar `live_n`
 2. SCALE — MACRO (D1)/MICRO (M5)/MINI (M5)/MILI (ticks) + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `why=tcn_candle_agree` = TCN==janela ops N=3 (switch bloqueado); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS` com microestrutura estrita (EMA slope M5, zero bypass vela M5 contrária, RSI momentum); por fim NEG_EDGE (hard se Cal<=0 ou trava de pânico Z-score bilateral). Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M5 last-bar = log; confirmacao = janela N=3.**
+3. GATES — `[GATES] || FUSION` (`ev_c`/`ev_p`/`why`) **antes** de loss-clf; `fusion_block_when_tcn_candle_agree` **false** (fusao livre mesmo se janela ops==TCN); depois `LOSS_CLF` SOFT vs FLIP (ref TCN); `FLIP_BLOCK:seed_candle|tcn_edge|seed|scale`; depois `[GATES] || ANTI_LOSS` com ancora hibrida + microestrutura M5 (EMA slope 2-pontos, RSI 0.35/0.65); por fim NEG_EDGE (hard se Cal<=0 ou trava de pânico Z-score bilateral). Caveat: `fusion_loss_weight` nao ve `p_loss` do mesmo ciclo (FLIP apos fusao); seed `loss_bonus=0`. Se `auto=0` e FUSION != TCN com janela==TCN → regressao (seed nao pode puxar lado via loss_bonus). **M5 last-bar = log; confirmacao = janela N=3 / ancora hibrida.**
 4. EXEC / EMPTY / PAUSE / COOLDOWN — `gate_reason` tecnico (`anti_loss_ema_slope`, `anti_loss_rsi_momentum`, `live_exec_discord`, `neg_edge_zscore_panic`, `neutral_zone`) ou `signal_skip` 1.1; SIDE_EQ / scale = soft sizing; stop-win = `EXEC_PAUSE`; cooldown pós-loss = 1 ciclo (300s) se $L_2+$.
 5. RESOLVED / RISK — pending, linear, pnl_sess vs alvo **4,31%**; polling de 2.0s em caso de estagnação de liquidação.
 
@@ -45,7 +45,7 @@ Notas: `raw_extreme` mantem Cal para Kelly (nao e override MACRO TF). Escopo **1
 2. Mlodinow: `live_n` suficiente para a conclusao?
 3. Ellenberg: taxa-base / ACC / Bayes respeitados? Comparar taxa-base do **lado no treino** (`label_call_frac`) vs distribuicao live CALL/PUT — vies de treino ≠ motivo para rearmar quality gate.
 4. Duke: julgamos processo ou so P&L de poucos ciclos?
-5. Bernstein: risco estava limitado (caps, pending, amort **1/1**, cover **1.50**)? SIDE_EQ / scale soft Kelly vs SKIP indevido?
+5. Bernstein: risco estava limitado (caps, pending, amort **2/3**, cover **1.10**)? SIDE_EQ / scale soft Kelly vs SKIP indevido?
 6. Douglas: houve revenge sizing ou troca de regras mid-session?
 7. PlayBook: setup e bloqueio tecnico estavam escritos? Houve chuva de FLIP seed (`auto=0`) vs `FLIP_BLOCK`?
 8. Murphy: TA substituiu a TCN ou so filtrou telemetria (SCALE/fusao)?

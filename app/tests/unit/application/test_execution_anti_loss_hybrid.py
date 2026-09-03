@@ -26,6 +26,27 @@ def test_anti_loss_hybrid_anchor_stamps_telemetry():
     assert metrics.get("anti_loss_last_dir") == "CALL"
 
 
+def test_anti_loss_seed_anchor_mode_is_ops_window():
+    metrics = _base_metrics(
+        ops_window_stamped=False,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.2,
+        closed_micro_candle_dir="CALL",
+        closed_micro_candle_body=0.2,
+        loss_clf_p_loss=0.92,
+        loss_clf_auto_learn=False,
+        fusion_blocked_tcn_pos_edge=True,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
+    apply_anti_loss_seed_discord(metrics, cfg=cfg)
+    assert metrics.get("anti_loss_anchor_mode") == "ops_window"
+    assert metrics.get("anti_loss_anchor_agree") is False
+
+
 def test_anti_loss_hybrid_anchor_discord_reduces_body():
     metrics = _base_metrics(
         ops_window_stamped=True,

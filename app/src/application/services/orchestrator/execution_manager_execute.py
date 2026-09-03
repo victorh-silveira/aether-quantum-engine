@@ -113,11 +113,11 @@ async def execute_cluster_orders(
                 executed_count += 1
         except Exception as e:
             if handle_broker_maintenance_error(executor.orch, e):
-                executor.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
+                executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
                 continue
             err_msg = str(e).lower()
             if "closed" in err_msg or "trading is not available" in err_msg:
-                executor.logger.warning(f"SKIP: Sessão fechada para {symbol}: {e}")
+                executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
             else:
                 if is_proposal_runtime_error(e):
                     hold = int(
@@ -126,5 +126,5 @@ async def execute_cluster_orders(
                         .get("proposal_failure_skip_cycles", 6)
                     )
                     executor.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
-                executor.logger.error(f"FAIL: EXEC: Falha critica na ordem {symbol}: {e}")
+                executor.logger.error("FAIL: EXEC: Falha critica na ordem %s: %s", symbol, e)
     return executed_count

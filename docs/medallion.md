@@ -145,7 +145,7 @@ Ordem lógica de uma entrada:
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover **100%** do pending em 1 WIN (`amort_cycles` **1/1**, `cover_multiple` **1.50**, teto `max_safe_stake_pct`); stop win por sessão (3,00% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
+13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover equilibrado do pending em 2–3 ciclos (`amort_cycles` **2/3**, `cover_multiple` **1.10**, teto `max_safe_stake_pct`); stop win por sessão (4,31% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
@@ -180,7 +180,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `orchestrator.settlement_tolerance_window_seconds` | 600 | Janela de settlement |
 | `orchestrator.watchdog_stale_tick_seconds` | 300 | Watchdog de inanição |
 
-Cover de recovery dimensiona `pending/payout` em **um** trade (amort **1/1**) para WIN liquidar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.
+Cover de recovery dimensiona `pending/payout` em **2–3** trades (amort **2/3**, `cover_multiple` **1.10**) para amortizar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.
 
 #### Defaults `risk_management.soft_recovery` (`soft_recovery_policy`)
 

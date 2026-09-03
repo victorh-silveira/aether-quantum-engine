@@ -15,7 +15,7 @@ Especialista na depuração de sinais em barras de 5 minutos e validação de ga
 3. **Filtro Anti-Loss M5 (ancora hibrida)**:
    - **Ancora hibrida**: ancora primaria = janela ops N=3 velas M5 fechadas; confirmacao secundaria = ultima vela micro fechada. Se ambas concordam, body = max; se discordam, body = min (fraqueza). Telemetria: `anti_loss_anchor_mode`, `anti_loss_anchor_agree`.
    - **EMA Slope (2-pontos + EMA9 rapido)**: EMA9 slope com tolerancia `slope_tol * 0.6` para deteccao precoce de reversao. EMA21 slope agora compara [-1] vs [-2] (lag 5min vs antigo 10min). Cache de EMA por ciclo evita recomputacao.
-   - **RSI Momentum M5**: Vetos estritos em divergencias graves ($RSI < 0.38$ para CALL, $RSI > 0.62$ para PUT). RSI le de `micro_indicators` (forming patched = real-time).
+   - **RSI Momentum M5**: Vetos estritos em divergencias graves ($RSI < 0.35$ para CALL, $RSI > 0.65$ para PUT). RSI le de `micro_indicators` (forming patched = real-time).
    - **Janela Operacional (`ops_window_bars = 3`)**: Avalia o corpo liquido das ultimas 3 velas M5 (15 min acumulados), combinada com ultima vela fechada via ancora hibrida.
 4. **Neg Edge Bilateral & Z-Score Panic**:
    - Trava de pânico caso o Z-score de volatilidade esteja descalibrado ($Z < -2.0$ para CALL ou $Z > +2.0$ para PUT).

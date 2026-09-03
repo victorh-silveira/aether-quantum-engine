@@ -42,7 +42,7 @@ async def orchestrator_atomic_state_context(orch: Any) -> AsyncIterator[None]:
     if state_mgr is not None and type(state_mgr).__name__ == "StateManager":
         lock = state_mgr._state_lock
         caller = inspect.stack()[1].function
-        logger.debug(f"[LOCK_TRACE] Tentando adquirir _state_lock invocado por: {caller}")
+        logger.debug("[LOCK_TRACE] Tentando adquirir _state_lock invocado por: %s", caller)
         try:
             await asyncio.wait_for(lock.acquire(), timeout=_state_lock_timeout())
         except TimeoutError as exc:

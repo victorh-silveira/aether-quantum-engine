@@ -154,7 +154,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                         delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
                         orch._cooldown_until = time.time() + delay
     except Exception as e:
-        orch.logger.error(f"FALHA: Ciclo: {e}")
+        orch.logger.error("FALHA: Ciclo: %s", e)
         ran = True
     finally:
         clear_log_context()

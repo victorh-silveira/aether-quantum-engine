@@ -27,7 +27,7 @@ Universo: **Volatility 75 (1s) Index** (`1HZ75V`) — **M5** (contrato ops **5 m
    - **Ancora hibrida**: janela ops N=3 velas M5 + ultima vela micro fechada; telemetria `anti_loss_anchor_mode=hybrid`.
    - **EMA Slope & Trend M5**: CALL exige `Preco > EMA9` em 5m; PUT exige `Preco < EMA9`. EMA9 slope 2-pontos + EMA21 slope 2-pontos; cache por ciclo (`invalidate_ema_cache`). Veto `why=anti_loss_ema_slope`.
    - **Zero Bypass de Vela M5**: Se intenção for CALL e candle M5 anterior for PUT (`close < open`), ou vice-versa, veto mandatório `live_exec_discord` sem tolerância por tamanho de corpo.
-   - **RSI Momentum**: CALL vetado se $\text{RSI}_{\text{M5}} < 0.38$; PUT vetado se $\text{RSI}_{\text{M5}} > 0.62$ (`why=anti_loss_rsi_momentum`).
+   - **RSI Momentum**: CALL vetado se $\text{RSI}_{\text{M5}} < 0.35$; PUT vetado se $\text{RSI}_{\text{M5}} > 0.65$ (`why=anti_loss_rsi_momentum`).
    - **Seed**: unstamped + `p_loss`≥**0.85** + TCN pos_edge → **hard SKIP** se a janela ops nao confirma TCN com corpo minimo **0.10**; **live**: tier fraco (corpo liquido < **0.10** ou ausente) + confirmacao EXEC com `anti_loss_live_confirm_min_body` **0.25**; `gate_reason=anti_loss_seed_discord`; log `[GATES] || ANTI_LOSS`.
 10. EXEC_EMPTY tecnico = sucesso de processo quando coerente (preserva a banca em condições assimétricas desfavoráveis); soft sinal (mini/cal/chop / neg_edge subfloor) continua EXEC — EMPTY de sinal `neg_edge` se Cal TCN `<= 0`, trava de pânico Z-score ou `anti_loss_*`; soft continua EXEC mas tamanho ≠ revenge via U sticky
 

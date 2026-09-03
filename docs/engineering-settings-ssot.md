@@ -43,7 +43,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `soft_recovery.infeasible_force_explore` | `risk_management.soft_recovery` | Com PEND material, cover≥cap → stake=**CAP** (parcial); flag so afeta ramo legado sem passivo material |
 | `soft_recovery.pending_waives_scale_explore` | `risk_management.soft_recovery` | Default **true**: pending material libera soft cover apesar de `scale_adapted`/`scale_force_explore` |
 | `soft_recovery.adapted_force_explore` | `risk_management.soft_recovery` | Default **true**: `scale_adapted` + linear≥**2** → EXPLORE (bloqueia DAL L2/L3 sob adapt) |
-| `soft_recovery.cover_multiple` | `risk_management.soft_recovery` | Multiplo do cover (**1.50**) — cover pleno `pending/payout` em 1 ciclo (sem progressao geometrica) |
+| `soft_recovery.cover_multiple` | `risk_management.soft_recovery` | Multiplo do cover (**1.10**) — amortização equilibrada `pending/payout` em 2–3 ciclos (sem progressao geometrica) |
 | `soft_recovery.max_safe_stake_pct` | `risk_management.soft_recovery` | Teto RECOVER **5%** banca; linear2 **4%**; linear3+ **2.5%** |
 | `kelly.recovery_min_val_accuracy` | `risk_management.kelly` | Piso ACC live para DAL (**0.53**); sobe com linear; abaixo → EXPLORE (sem cover DAL) |
 | `soft_recovery.live_evidence_force_explore_*` | `risk_management.soft_recovery` | linear≥**3** + `live_n`≥**2** + `live_wr`&lt;**0.62** → EXPLORE (bloqueia DAL L3+ com ACC de treino ainda ok) |

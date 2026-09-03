@@ -31,5 +31,9 @@ async def test_json_state_store_roundtrip(tmp_path):
     assert loaded["risk"]["pending_loss"]["R_10"] == 1.0
     await store.set_string("market_sig", "sig")
     assert await store.get_string("market_sig") == "sig"
+    assert await store.incr_string("recovery:skip_counter") == 1
+    assert await store.incr_string("recovery:skip_counter") == 2
+    await store.set_string("recovery:skip_counter", "bad")
+    assert await store.incr_string("recovery:skip_counter") == 1
     store.save({"sync": True})
     assert store.load()["sync"] is True

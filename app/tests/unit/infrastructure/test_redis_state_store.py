@@ -45,6 +45,7 @@ async def test_redis_hash_and_string_keys():
     client.ping = AsyncMock(return_value=True)
     client.hgetall.return_value = {"a": "1"}
     client.get.return_value = "epoch"
+    client.incr = AsyncMock(return_value=3)
     store = RedisStateStore(url="redis://localhost:6379/0", debounce_seconds=0.0)
     with patch.object(store, "_redis", AsyncMock(return_value=client)):
         await store.set_hash("session:daily", {"a": 1})
@@ -52,7 +53,9 @@ async def test_redis_hash_and_string_keys():
         await store.set_string("cooldown:R_10", "1", ttl_seconds=30)
         assert await store.get_hash("session:daily") == {"a": "1"}
         assert await store.get_string("bar_sig:R_10") == "epoch"
+        assert await store.incr_string("recovery:skip_counter") == 3
         assert await store.ping() is True
+    client.incr.assert_awaited_once()
 
 
 @pytest.mark.asyncio

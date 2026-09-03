@@ -143,6 +143,11 @@ class RedisStateStore:
         client = await self._redis()
         return await client.get(self._full_key(key))
 
+    async def incr_string(self, key: str) -> int:
+        """Incrementa atomicamente string numerica no Redis."""
+        client = await self._redis()
+        return int(await client.incr(self._full_key(key)))
+
     async def delete_string(self, key: str) -> None:
         """Remove string Redis pelo sufixo de chave."""
         client = await self._redis()

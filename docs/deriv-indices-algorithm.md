@@ -28,7 +28,7 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 - TCN em barras M1; Cal/Margin; SCALE adapta sem hard SKIP.
 - Soft Kelly: `signal_skip` / loss-clf (sem flip de lado pos-LOSS).
-- EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 1/1, `cover_multiple` **1.50**).
+- EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 2/3, `cover_multiple` **1.10**).
 
 ---
 

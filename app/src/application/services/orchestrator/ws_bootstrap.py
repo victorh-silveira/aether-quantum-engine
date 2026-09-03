@@ -271,7 +271,7 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
             except ConnectionError as e:
                 if attempt >= retries:
                     raise e
-                orch.logger.debug(f"STRM: reconexao durante startup ({attempt}/{retries}): {e}")
+                orch.logger.debug("STRM: reconexao durante startup (%s/%s): %s", attempt, retries, e)
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
                     if training_enabled(orch) or str(getattr(orch, "trading_transport", "ws")).lower() == "rest":

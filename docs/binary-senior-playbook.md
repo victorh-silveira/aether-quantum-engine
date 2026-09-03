@@ -10,8 +10,8 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 
 | Lado | Condicoes tipicas |
 |------|-------------------|
-| CALL | TCN CALL, fusao EV_CALL >= EV_PUT, Preço > EMA9 > EMA21 com EMA21 slope >= 0, RSI_M5 >= 0.38, candle M5 fechado CALL |
-| PUT | TCN PUT, fusao EV_PUT > EV_CALL, Preço < EMA9 < EMA21 com EMA21 slope <= 0, RSI_M5 <= 0.62, candle M5 fechado PUT |
+| CALL | TCN CALL, fusao EV_CALL >= EV_PUT, Preço > EMA9 > EMA21 com EMA21 slope >= 0, RSI_M5 >= 0.35, candle M5 fechado CALL |
+| PUT | TCN PUT, fusao EV_PUT > EV_CALL, Preço < EMA9 < EMA21 com EMA21 slope <= 0, RSI_M5 <= 0.65, candle M5 fechado PUT |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error`, warm-up, stop-win, broker; `neg_edge` hard se Edge Cal TCN `<= 0` (`fusion_p_eff` nao libera); `neg_edge_zscore_panic` se CALL com $Z < -2.0$ ou PUT com $Z > +2.0$; `anti_loss_ema_slope` se EMA21 slope M5 for contrária; `anti_loss_rsi_momentum` se RSI M5 fora de faixa; `live_exec_discord` se vela M5 fechar contrária; `anti_loss_seed_discord` sob seed unstamped+`p_loss` alto+pos_edge |
 | Soft sinal 1.1 | `mini_pair_oppose` / `cal_margin` / loss-clf; chop soft; `neg_edge` soft so se `0 < Cal TCN < min_edge_execute`; Kelly usa `fusion_p_eff` so apos Cal TCN passar neg_edge; EV fraco → soft Kelly **0.40** (seed+ambos EV&lt;0 → **0.25**); `invert_exec_side` **false** |
 | Fusao multi-escala | `fusion_enabled`: p_eff (Cal + MACRO/janela ops/MINI/MILI/tape + loss continuo + meta **0.10**); `fusion_loss_weight` **0.45** so com `auto=1` — **nao** incorpora o FLIP do mesmo ciclo; `fusion_block_when_tcn_pos_edge` **true** preserva TCN so se Cal **e** raw +EV; `fusion_block_when_tcn_candle_agree` **false** (fusao livre quando janela ops N=3==TCN); telemetria `[GATES] \|\| FUSION` + `fusion_ev_*` / `fusion_p_eff`. **M5 last-bar = log; confirmacao = janela N=3.** |
@@ -60,7 +60,7 @@ Triplo OHLC + ticks: telemetria, **adaptacao de lado** e soft Kelly — **nunca 
 | MILI | Tick flow | Fluxo intrabar |
 
 Log: `SCALE || … mi_prev=… mi_cur=… tape=… micro=retract|explos|chop adapted=0|1` e no IND `SCALE: tcn=… tape=… votes=C#/P# …`.  
-Adapt: **majority_votes** (TCN/tape/mili/RSI) sem hold Cal; tape sob `raw_extreme`; regimes **retracao** / **explosao** / **mili+tape** (mili+tape **nao** adapta em micro=chop; `adapt_mili_tape_skip_chop`). `adapt_allow_strong_tape` **false**. Kelly `kelly_p_floor` **0.55**; com fusao ancora em `fusion_p_eff` so se Cal TCN ja passou neg_edge; explore piso `neutral_bankroll_pct` **0.25%** + `explore_stake_scale_floor` **0.40**; `fraction` **0.08**; RECOVER cover pleno (`cover_multiple` **1.50**, amort **1/1**; `f*` so gate); damping stop-win inicio **1.0** / perto-meta **0.50**; teto linear3 **2.5%**; payout **0.72**; stop-win Kelly **4 ciclos/1h**. Sem `kelly_no_edge` / sem SKIP por escala / **sem** zona cinza.
+Adapt: **majority_votes** (TCN/tape/mili/RSI) sem hold Cal; tape sob `raw_extreme`; regimes **retracao** / **explosao** / **mili+tape** (mili+tape **nao** adapta em micro=chop; `adapt_mili_tape_skip_chop`). `adapt_allow_strong_tape` **false**. Kelly `kelly_p_floor` **0.55**; com fusao ancora em `fusion_p_eff` so se Cal TCN ja passou neg_edge; explore piso `neutral_bankroll_pct` **0.25%** + `explore_stake_scale_floor` **0.40**; `fraction` **0.08**; RECOVER cover (`cover_multiple` **1.10**, amort **2/3**; `f*` so gate); damping stop-win inicio **1.0** / perto-meta **0.50**; teto linear3 **3.5%**; payout **0.85**; stop-win Kelly Single-Strike **4.31%**. Sem `kelly_no_edge` / sem SKIP por escala / **sem** zona cinza.
 Contrato Deriv **5 m** (ops fixo); label TCN = **N barras** micro (N ∈ {15,20,…,60} eleito no launch-train; **SSOT atual N=55**). Gap intencional: TCN estima N velas; settle live em 5 min. Sem overlap: ciclo bloqueado com contrato aberto.
 
 ## `raw_extreme` (anti-override)
@@ -86,7 +86,7 @@ Viés estrutural de lado **nao** se corrige reintroduzindo veto de sinal nem qua
 - `force_trade_every_cycle: false` (proibido como “fix”)
 - `min_validation_accuracy_gate: 0.53` (treino/deploy)
 - Caps Kelly / `max_safe_stake_*` (`max_safe_stake_pct` **0.05**; linear2 **0.04**; linear3 **0.025**)
-- `risk_management.soft_recovery.cover_multiple: 1.50` — RECOVER = cover pleno `pending/payout*1.50`
+- `risk_management.soft_recovery.cover_multiple: 1.10` — RECOVER = cover equilibrado `pending/payout*1.10` em 2–3 ciclos
 - `risk_management.kelly.neutral_bankroll_pct` / `min_stake_pct` **0.0025** — explore piso **0.25%** banca (M1)
 - `risk_management.kelly.fraction` **0.08** — Kelly fracionario baixo (alta frequencia)
 - `risk_management.soft_recovery`: cover inviavel com PEND material → stake no **CAP** (parcial), telemetria `RECOVERY_INFEASIBLE`; nao abandona recovery no piso explore

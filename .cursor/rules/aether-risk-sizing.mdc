@@ -1,5 +1,5 @@
 ---
-description: Risco/sizing Aether — Kelly, soft recovery cover pleno (amort 1/1), stop-win, caps (Taleb, Bernstein, LTCM, Douglas)
+description: Risco/sizing Aether — Kelly, soft recovery cover 1.10 (amort 2/3), stop-win 4.31%, caps (Taleb, Bernstein, LTCM, Douglas)
 globs: app/src/domain/risk/**/*.py
 alwaysApply: true
 ---

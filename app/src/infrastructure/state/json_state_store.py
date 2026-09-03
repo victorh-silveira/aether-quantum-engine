@@ -97,6 +97,19 @@ class JsonStateStore:
         """Le string em memoria."""
         return self._strings.get(key)
 
+    async def incr_string(self, key: str) -> int:
+        """Incrementa atomicamente string numerica em memoria."""
+        current = 0
+        raw = self._strings.get(key)
+        if raw is not None and str(raw).strip():
+            try:
+                current = max(0, int(str(raw).strip()))
+            except (TypeError, ValueError):
+                current = 0
+        next_val = current + 1
+        self._strings[key] = str(next_val)
+        return next_val
+
     async def delete_string(self, key: str) -> None:
         """Remove string em memoria."""
         self._strings.pop(key, None)

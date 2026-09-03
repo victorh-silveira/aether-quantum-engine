@@ -13,7 +13,7 @@
 [![CI](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?display_name=tag&label=Release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
 
-Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético de volatilidade **Volatility 75 (1s)** (`1HZ75V`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N=1 vela M5** (`triple_barrier`), lookback **30**, micro/MINI **300 s** (500 velas) e contexto macro D1 **86400 s** (365 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 4.31% da banca em tacada única M5; Soft Recovery cover pleno amort **1/1** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
+Motor quantitativo assíncrono para a Deriv: decisão por **Deep Learning** (TCN/LSTM/GRU) no índice sintético de volatilidade **Volatility 75 (1s)** (`1HZ75V`), contratos **RISE_FALL** de **5 m (M5)** com label TCN em **N=1 vela M5** (`triple_barrier`), lookback **30**, micro/MINI **300 s** (500 velas) e contexto macro D1 **86400 s** (365 barras diárias de treino), meta-regressor LightGBM (**43D**) de expectativa de retorno contínuo (single-symbol), e **sizing Kelly Single-Strike** (alvo de 4.31% da banca em tacada única M5; Soft Recovery amort **2/3** em RECOVER). Sem Triton: inferência eager/CUDA local; Docker profiles `core,ml`.
 
 A operação divide-se em duas fases: **FASE TREINO** (nenhuma ordem até checkpoint/sessão prontos; `online_training` **false** no DEMO) e **FASE OPERACAO** continua (`mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`): o ciclo avalia candidato a cada **300 s** (fechamento da barra M5) via TCN + fusao EV + microestrutura balanceada M5 + signal_skip 1.1. Meta é **opcional** para execução (`require_meta_for_execution: false`); inferência TCN = eager/CUDA local no host.
 
@@ -37,7 +37,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
 | Execução | `ExecutionManager` + lotes fracionados | Proposta atômica; RISE_FALL **5 m** (ops fixo M5) |
-| Risco | `RiskManager` + Kelly Single-Strike / Soft Recovery | Kelly Single-Strike 4.31% (alvo de 4.31% da banca em payout 0.85); Soft Recovery cover pleno amort **1/1** em RECOVER (`cover_multiple` **1.50**, `max_safe_stake_pct`) |
+| Risco | `RiskManager` + Kelly Single-Strike / Soft Recovery | Kelly Single-Strike 4.31% (alvo de 4.31% da banca em payout 0.85); Soft Recovery amort **2/3** em RECOVER (`cover_multiple` **1.10**, `max_safe_stake_pct`) |
 | Concorrência | `StateManager` + barreira atômica | Lock serializa inferência, liquidação e persistência |
 | Inferência | PyTorch eager / CUDA | Checkpoint local `data/dl/`; motor no host |
 
@@ -104,8 +104,8 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 
 - **Kelly + Soft Recovery** (`risk_stake_calc` + `soft_recovery_policy`):
   - **EXPLORE** (`pending_loss == 0` e `consecutive_losses_linear == 0`): stake = Kelly fracionário (`fraction: 0.08`, compressão 40%, teto **3,5%** da banca) — tag `EXPLORE_KELLY`.
-  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Soft Recovery cover pleno (`cover_multiple` **1.50**, amort **1/1**), teto `max_safe_stake_pct` — tag `RECOVER_DAL_Ln`.
-- Soft Recovery cobre `pending/payout * cover_multiple` em **1** ciclo (amort **1/1**) com teto `max_safe_stake_pct` / linear3 **2.5%**.
+  - **RECOVER** (`pending_loss > 0` ou `linear >= 1`): Soft Recovery cover equilibrado (`cover_multiple` **1.10**, amort **2/3**), teto `max_safe_stake_pct` — tag `RECOVER_DAL_Ln`.
+- Soft Recovery cobre `pending/payout * cover_multiple` em **2–3** ciclos (amort **2/3**) com teto `max_safe_stake_pct` / linear3 **3.5%**.
 - **Consensus Entropy Penalty**: presente no código; nos settings atuais `consensus_penalty_enabled: false`.
 - **Side equilibrium (LLN)**: `side_equilibrium` — small-N (janela 12, `n_min=2`) hard skip se WR baixo ou frequência enviesada; large-N (janela 100, `n_min=40`) soft penalty (`kelly_mult_soft` → escala f*). Com contagens 0/0 o gate faz `pass` (amostra insuficiente) — esperado no início da sessão.
 - **Recovery financeiro persistente**: WIN operacional **não** zera `consecutive_losses` enquanto `pending_loss > 0`; reconciliação de stake downgrade preserva drawdown real.
@@ -125,7 +125,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Bloqueio absoluto** somente para falhas técnicas: `data`, `predict_error`, `training`, `deploy_ok=false`, e reconciliação pendente.
 - **Ranking TCN × Z-Score**: `market_decision_score = tcn × max(0.1, 1+z)` — LightGBM validado ranqueia acima de TCN bruto degradado.
 - **Gatilho D-SQUEEZE (`[D-SQUEEZE]`)**: quando `predicted_payoff_edge < -0.15` em compressão micro (`bb_width < 0.06` ou `micro_tick_acceleration < 0`), o resolver rebaixa `trade_score` para **0.52**, comprimindo stake — sem inverter a direção da TCN. `bb_width_adaptive_squeeze` está **desabilitado** nos settings atuais.
-- **Recovery**: Soft Recovery cover pleno (amort **1/1**, `cover_multiple` **1.50**) após loss linear; reset de risco somente quando `pending_loss` zera.
+- **Recovery**: Soft Recovery cover equilibrado (amort **2/3**, `cover_multiple` **1.10**) após loss linear; reset de risco somente quando `pending_loss` zera.
 - **Loss protection**: caps edge/Z 999; quality guard em modo mandatório prioriza esteira contínua (soft alone não congela o cluster).
 - **Settlement**: janela de tolerância **600 s** com reconciliação passiva (portfolio + Redis); pós-EXEC_EMPTY em recovery alinha a próxima fronteira (cap de retry).
 - **Starvation**: após **6** quality skips, pisos decaem; edge meta relaxa a partir de **8** skips; Convicção Progressiva (−20%/5 skips em recovery).

@@ -13,7 +13,7 @@ description: >-
 1. Settings: lookback **30**, macro **86400s** (D1 / 365 barras), micro **300s** (M5), label $N=1$ vela M5 (`label_horizon_bars=1`), contrato ops **5 m** (`params.duration=5`), `label_mode=triple_barrier`, `deploy_gate.enabled` / `force_ok`
 2. Telemetria de lado: `label_call_frac` / `pred_call_frac` / `minority_recall` no treino
 3. Balance: `deep_learning.sample_weighting.class_balance_*` via `compose_train_weights`
-4. Recency: `recency_enabled` / `recency_half_life_n` (default **365**)
+4. Recency: `recency_enabled` / `recency_half_life_n` (default **500**)
 5. Deploy collapse: `reject_majority_collapse` — pred skew (`|pred-0.5|` / `|pred-label|` > **0.25**) rejeita sozinho; label skew + `min_minority_recall` (**0.25**)
 6. Checkpoint: feat_dim=34, lookback **30**, granularity macro **86400**, `val_accuracy`, `deploy_ok`
 7. Early stop: `min_epochs` **15** / patience **17**; restore pico de validação; sharp sem colapso

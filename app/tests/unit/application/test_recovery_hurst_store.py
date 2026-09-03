@@ -63,3 +63,18 @@ async def test_recovery_skip_counter_without_store():
     assert await load_recovery_skip_counter(None) == 0
     assert await increment_recovery_skip_counter(None) == 1
     await reset_recovery_skip_counter(None)
+
+
+@pytest.mark.asyncio
+async def test_recovery_skip_counter_uses_incr_string_when_available():
+    class _StoreWithIncr:
+        def __init__(self):
+            self.calls: list[str] = []
+
+        async def incr_string(self, key: str) -> int:
+            self.calls.append(key)
+            return 7
+
+    store = _StoreWithIncr()
+    assert await increment_recovery_skip_counter(store) == 7
+    assert store.calls == [REDIS_SKIP_COUNTER_KEY]

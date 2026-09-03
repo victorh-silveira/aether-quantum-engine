@@ -385,7 +385,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `cycle_interval_seconds` (**60**), `signature_boundary_seconds` (**60**), `exec_empty_retry_seconds` (**60**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.50**, linear3 **2.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **55**, compounding **0.03**, stake_min, payout_estimate **0.72**), `large_account_stop_win_pct` (**3.0**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2/3**, cover **1.10**, linear3 **3.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate **0.85**), `large_account_stop_win_pct` (**4.31**), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/meta_classifier/loss_classifier URLs e timeouts.

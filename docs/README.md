@@ -24,7 +24,7 @@
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/ml`, binds localhost, hydrate, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |
-| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Volatility 75 (1s) Index `1HZ75V` (M15 / D1) |
+| [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | Volatility 75 (1s) Index `1HZ75V` (M5 / D1) |
 | [CHANGELOG.md](CHANGELOG.md) | Histórico de versões |
 
 Ponto de entrada do projeto: [README.md](../README.md). Agentes: [AGENTS.md](../AGENTS.md).
@@ -40,7 +40,7 @@ presentation  →  application  →  domain
 | Camada | Papel |
 |--------|-------|
 | Application | Orquestração, DL, direção modular, quality gates, meta |
-| Domain | Risco Kelly Single-Strike 1% + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math, `side_equilibrium` |
+| Domain | Risco Kelly Single-Strike 4.31% + Soft Recovery (`soft_recovery_policy`), `RiskPolicy`, modelos, math, `side_equilibrium` |
 | Infrastructure | Deriv (REST/WS com retry), Redis, MinIO, Timescale |
 | Presentation | Logger terminal |
 

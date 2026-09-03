@@ -123,5 +123,5 @@ def stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:
     )
     if not is_stop_win_reached(rm.total_session_profit, target, risk_config=rm.config):
         return False
-    rm.logger.info(f"STOP WIN: Meta de ${target:.2f} atingida. Encerrando operações do dia.")
+    rm.logger.info("STOP WIN: Meta de $%.2f atingida. Encerrando operações do dia.", target)
     return True

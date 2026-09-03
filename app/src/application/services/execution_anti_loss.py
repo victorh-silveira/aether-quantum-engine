@@ -52,17 +52,13 @@ def _p_loss(metrics: dict[str, Any]) -> float | None:
 def _tcn_dir(metrics: dict[str, Any]) -> TradeDirection | None:
     """Resolve direcao TCN a partir de metrics."""
     name = _side(metrics.get("tcn_direction") or metrics.get("resolved_direction"))
-    if name is None:
-        return None
-    return TradeDirection[name]
+    return TradeDirection[name] if name is not None else None
 
 
 def _exec_dir(metrics: dict[str, Any]) -> TradeDirection | None:
     """Resolve direcao EXEC pos-fusao a partir de metrics."""
     name = _side(metrics.get("exec_direction"))
-    if name is None:
-        return None
-    return TradeDirection[name]
+    return TradeDirection[name] if name is not None else None
 
 
 def _weak_candle(candle: str | None, body: float | None, min_body: float) -> bool:
@@ -87,9 +83,7 @@ def _live_confirm_reason(candle: str | None, side: TradeDirection) -> str:
 
 def _tcn_pos_edge_locked(metrics: dict[str, Any], tcn: TradeDirection) -> bool:
     """True se fusao/loss-clf ja travaram TCN por pos_edge Cal+raw."""
-    if bool(metrics.get("fusion_blocked_tcn_pos_edge")):
-        return True
-    if bool(metrics.get("loss_clf_flip_block_tcn_pos_edge")):
+    if bool(metrics.get("fusion_blocked_tcn_pos_edge")) or bool(metrics.get("loss_clf_flip_block_tcn_pos_edge")):
         return True
     if str(metrics.get("fusion_reason") or "").strip() == "tcn_pos_edge":
         return True
@@ -225,11 +219,11 @@ def evaluate_anti_loss_seed_discord(
     candle = ops_window_candle_side(metrics)
     body = ops_window_candle_body(metrics)
     min_body = float(cfg.get("anti_loss_min_candle_body", 0.10))
-    metrics["anti_loss_anchor_mode"] = "hybrid"
     metrics["anti_loss_ops_dir"] = candle
     metrics["anti_loss_last_dir"] = str(metrics.get("closed_micro_candle_dir") or "-")
-    metrics["anti_loss_anchor_agree"] = hybrid_agree
     if ops_window_stamped(metrics):
+        metrics["anti_loss_anchor_mode"] = "hybrid"
+        metrics["anti_loss_anchor_agree"] = hybrid_agree
         return _evaluate_live_anti_loss(
             metrics,
             cfg=cfg,
@@ -240,6 +234,8 @@ def evaluate_anti_loss_seed_discord(
             orch=orch,
             symbol=symbol,
         )
+    metrics["anti_loss_anchor_mode"] = "ops_window"
+    metrics["anti_loss_anchor_agree"] = False
     if bool(metrics.get("loss_clf_auto_learn")):
         return out
     p_loss = _p_loss(metrics)

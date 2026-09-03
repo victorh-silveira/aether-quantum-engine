@@ -22,6 +22,9 @@ async def load_recovery_skip_counter(store: Any) -> int:
 
 async def increment_recovery_skip_counter(store: Any) -> int:
     """Incrementa contador de SKIPs Hurst e persiste no StateStore."""
+    incr_fn = getattr(type(store), "incr_string", None) if store is not None else None
+    if callable(incr_fn):
+        return max(0, int(await store.incr_string(REDIS_SKIP_COUNTER_KEY)))
     current = await load_recovery_skip_counter(store)
     next_val = current + 1
     if store is not None and hasattr(store, "set_string"):
