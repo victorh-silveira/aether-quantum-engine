@@ -10,7 +10,7 @@ alwaysApply: true
 - Event loop: nao bloquear com CUDA/Polars/NumPy pesado no hot path (offload)
 - `app/src/**/*.py` ≤ **300** linhas; cobrir 100% com testes (linhas e branches)
 - Sem comentarios no codigo; docstrings OK; sem emojis
-- Pre-commit: Ruff + test + Bandit/pip-audit + cleanup; commit-msg commitlint; bloquear artefatos grandes (`.pt`/`.parquet`)
+- Pre-commit: Ruff + JSON/YAML no job Python + Docker + Shell + test + Bandit/pip-audit + cleanup; commit-msg commitlint; bloquear artefatos grandes (`.pt`/`.parquet`)
 - Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
 - SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
 - Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)

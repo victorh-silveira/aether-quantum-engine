@@ -59,7 +59,7 @@
       "isotonic_min_samples": 20,
       "max_calibrated_raw_gap": 0.08,
       "method": "auto",
-      "min_calibration_margin_floor": 0.01,
+      "min_calibration_margin_floor": 0.03,
       "min_calibration_sharpness": 0.01,
       "min_oos_sharpness": 0.01,
       "neutral_calibration_half_width": 0.03,
@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.60,
-    "confidence_put_threshold": 0.40,
+    "confidence_call_threshold": 0.53,
+    "confidence_put_threshold": 0.47,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,

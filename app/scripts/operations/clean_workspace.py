@@ -1,4 +1,5 @@
 import argparse
+import compileall
 import ctypes
 import gc
 import json
@@ -17,6 +18,9 @@ REPO_ROOT = APP_ROOT.parent
 if str(APP_ROOT) not in sys.path:
     sys.path.insert(0, str(APP_ROOT))
 
+from scripts.operations.qa.common import AREAS
+from scripts.operations.qa.dispatch import run_area_stage, run_config_text
+
 RemoveFn = Callable[[Path], None]
 PRESERVED_DATA_CHILDREN = frozenset({"deriv", "dl"})
 DOCKER_BIND_MOUNTS_RELATIVE = (Path("infra") / "docker" / "meta-models",)
@@ -27,6 +31,8 @@ _STAGE_MODULES: dict[str, tuple[str, ...]] = {
     "test": ("torch", "coverage", "pytest", "xdist", "pytest_cov"),
     "pytest": ("torch", "coverage", "pytest", "xdist", "pytest_cov"),
     "security": ("bandit", "pip_audit"),
+    "validate": (),
+    "build": (),
     "clean": (),
 }
 _VERBOSE = os.environ.get("AETHER_TEST_VERBOSE", "0") == "1"
@@ -324,9 +330,8 @@ def stage_clean(*, light: bool = False) -> None:
 def stage_structure(max_lines: int = 300) -> None:
     print(f"\n>>> Executando: Verificação Estrutural (Max {max_lines} linhas)")
     violations = []
-    for path in APP_ROOT.rglob("*.py"):
-        if ".venv" in path.parts or "venv" in path.parts or ".git" in path.parts or "scripts" in path.parts:
-            continue
+    src_root = APP_ROOT / "src"
+    for path in src_root.rglob("*.py"):
         count = len(path.read_text(encoding="utf-8").splitlines())
         if count > max_lines:
             violations.append(f"{path}: {count} linhas")
@@ -425,8 +430,19 @@ def _run_gitleaks() -> None:
                 return
         except (FileNotFoundError, OSError):
             continue
+    if str(os.environ.get("CI", "")).strip().lower() in {"1", "true", "yes"}:
+        print("[ERRO] gitleaks obrigatorio no CI")
+        sys.exit(1)
     print("[AVISO] gitleaks nao encontrado no PATH local ou retornou codigo diferente de 0. Prosseguindo...")
     return
+
+
+def stage_python_compileall(*, quiet: bool) -> None:
+    target = APP_ROOT / "src"
+    print("\n>>> Executando: compileall app/src")
+    ok = compileall.compile_dir(str(target), quiet=1 if quiet else 0, force=False)
+    if not ok:
+        sys.exit(1)
 
 
 def stage_security() -> None:
@@ -443,23 +459,53 @@ def stage_security() -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Aether Engine Quality Gate")
     parser.add_argument(
-        "--stage", required=True, choices=["lint", "pytest", "security", "test", "clean"], help="Stage to execute"
+        "--area",
+        default="python",
+        choices=list(AREAS),
+        help="Area da matriz CI",
+    )
+    parser.add_argument(
+        "--stage",
+        required=True,
+        choices=["lint", "pytest", "security", "test", "clean", "validate", "build"],
+        help="Stage to execute",
     )
     parser.add_argument("--coverage-fail-under", type=int, default=100, help="Minimum coverage percentage")
     parser.add_argument(
         "--light-clean", action="store_true", help="Limpa apenas caches sem remover dados de run/treino"
     )
+    parser.add_argument(
+        "--config-text",
+        nargs="?",
+        const="all",
+        choices=["all", "json", "yaml"],
+        help="Valida JSON e/ou YAML no job Python (nao e stack)",
+    )
     args = parser.parse_args()
-    _ensure_project_python(args.stage)
-    _use_app_cwd()
-    if args.stage == "lint":
-        stage_lint()
-    elif args.stage in ("pytest", "test"):
-        stage_test(args.coverage_fail_under)
-    elif args.stage == "security":
-        stage_security()
-    elif args.stage == "clean":
-        stage_clean(light=args.light_clean)
+    if args.config_text is not None:
+        if args.area != "python":
+            parser.error("--config-text exige --area python")
+        run_config_text(str(args.stage), REPO_ROOT, kind=str(args.config_text))
+        print("\n[SUCESSO] Estágio concluído com sucesso.")
+        return
+    if args.stage == "clean" or args.area == "python":
+        _ensure_project_python(args.stage)
+        _use_app_cwd()
+        if args.stage == "lint":
+            stage_lint()
+        elif args.stage in ("pytest", "test"):
+            stage_test(args.coverage_fail_under)
+        elif args.stage == "security":
+            stage_security()
+        elif args.stage == "validate":
+            stage_python_compileall(quiet=False)
+        elif args.stage == "build":
+            stage_python_compileall(quiet=True)
+        elif args.stage == "clean":
+            stage_clean(light=args.light_clean)
+        print("\n[SUCESSO] Estágio concluído com sucesso.")
+        return
+    run_area_stage(str(args.area), str(args.stage), REPO_ROOT)
     print("\n[SUCESSO] Estágio concluído com sucesso.")
 
 

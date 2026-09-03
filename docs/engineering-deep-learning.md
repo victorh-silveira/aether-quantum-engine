@@ -91,7 +91,7 @@ Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibr
 
 `calibration.method=auto` + piso `min_calibration_sharpness` / `min_oos_sharpness` (**0.01**): se temperatura/Platt/isotonico colapsar nitidez, o fit cai para `identity` (raw). Export mede sharpness via `apply_calibrator_stable` (mesmo caminho do live).
 
-Live: apos `apply_calibration_neutral_tolerance`, `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.08**); PUT espelha `1-p_call`. Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/FUSION/Kelly (nao so `trade_score`). `temperature_min` **1.0** impede T&lt;1 no fit.
+Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** de `apply_calibration_neutral_tolerance`, para o gate `SKIP:NEUTRAL_ZONE` usar o mesmo Cal do CLUSTER. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.03** (= half-width) restaura raw se o calibrador esmagar a margem para dentro da banda **[0.47, 0.53]**. Limiares `confidence_call_threshold` **0.53** / `confidence_put_threshold` **0.47**. Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/FUSION/Kelly (nao so `trade_score`). `temperature_min` **1.0** impede T&lt;1 no fit.
 
 Fusao: `why=tcn_pos_edge` exige Cal **e** raw_edge ≥ `fusion_min_edge_execute` (**0.04**). Sintoma de regressao: CLUSTER Prob≈BE + `p_put`≫0.70 + `why=tcn_pos_edge` com `raw_edge`~0.
 

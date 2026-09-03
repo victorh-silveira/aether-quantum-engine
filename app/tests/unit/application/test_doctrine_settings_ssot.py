@@ -50,6 +50,9 @@ def test_production_deploy_gate_armed():
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.01)
+    assert float(dl["calibration"]["min_calibration_margin_floor"]) == pytest.approx(0.03)
+    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.53)
+    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.47)
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
@@ -280,6 +283,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     cal = dl["calibration"]
     assert float(cal["temperature_min"]) == pytest.approx(1.0)
     assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.08)
+    assert float(cal["min_calibration_margin_floor"]) == pytest.approx(0.03)
     assert "tf_sweep" not in dl
     h_sweep = dl["horizon_sweep"]
     assert bool(h_sweep["enabled"]) is False

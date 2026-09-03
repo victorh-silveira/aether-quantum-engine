@@ -114,7 +114,7 @@ Compose: healthchecks (`redis-cli ping`, `pg_isready`, liveness MinIO); boot com
 
 | Prática | Dev | DevOps / SRE |
 |---------|-----|--------------|
-| pre-commit | Ruff + limpeza; bloquear artefatos grandes (`.pt` / `.parquet`) | Hooks versionados no repo |
+| pre-commit | Ruff + JSON/YAML no job Python + Docker + Shell + limpeza; bloquear artefatos grandes (`.pt` / `.parquet`) | Hooks versionados no repo |
 | Ruff | Substitui Black/Flake8/isort; regras estritas | Gate rápido antes dos testes |
 | pytest | Cobertura **100%** linhas/branches em `app/src`; domain sem I/O | CI fail-closed; espelho DDD |
 | Bandit / pip-audit | Evitar deserialização insegura de origens não confiáveis | Bloquear CVE HIGH/CRITICAL |

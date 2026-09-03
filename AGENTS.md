@@ -49,7 +49,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 
 ## Pre-commit
 
-`.pre-commit-config.yaml` → `clean_workspace.py` stages: lint, test (cov 100%), security, cleanup; commit-msg: commitlint.
+`.pre-commit-config.yaml` → `clean_workspace.py --area --stage` (python/docker/shell; JSON e YAML em steps `Python | JSON *` / `Python | YAML *`; crash-first lint→validate→security→test→build); commitlint primeiro; commit-msg: commitlint.
 
 ## Leitura por tarefa
 
@@ -69,7 +69,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Launch-train / sanitize / monitores | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
-| QA / pre-commit | `docs/engineering-standards.md` + skill `aether-precommit` |
+| QA / pre-commit | `docs/engineering-standards.md` + `.github/README.md` + skill `aether-precommit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` |
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |

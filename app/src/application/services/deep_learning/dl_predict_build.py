@@ -178,21 +178,19 @@ def build_prediction_entry(
     trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
     indicators_data = indicators_from_series(series)
     pivot = (call_threshold + put_threshold) * 0.5
-    neutral_lo, neutral_hi = resolve_calibration_neutral_band(
-        params.get("calibration") if isinstance(params.get("calibration"), dict) else None
-    )
+    raw_prob = float(raw_prob)
+    cal_cfg = params.get("calibration") if isinstance(params.get("calibration"), dict) else {}
+    max_gap = float(cal_cfg.get("max_calibrated_raw_gap", 0.08))
+    clamped_prob, cal_capped, cal_raw_gap = clamp_calibrated_call_to_raw_band(raw_prob, float(prob), max_gap)
+    neutral_lo, neutral_hi = resolve_calibration_neutral_band(cal_cfg if cal_cfg else None)
     calibrated_prob, resolved_dir, calibration_mode = apply_calibration_neutral_tolerance(
-        float(prob),
-        float(raw_prob),
+        clamped_prob,
+        raw_prob,
         direction,
         pivot=pivot,
         neutral_lo=neutral_lo,
         neutral_hi=neutral_hi,
     )
-    raw_prob = float(raw_prob)
-    cal_cfg = params.get("calibration") if isinstance(params.get("calibration"), dict) else {}
-    max_gap = float(cal_cfg.get("max_calibrated_raw_gap", 0.08))
-    calibrated_prob, cal_capped, cal_raw_gap = clamp_calibrated_call_to_raw_band(raw_prob, calibrated_prob, max_gap)
     horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob, horizon_bars=horizon_bars)
     calibrator = runtime.get("calibrator")

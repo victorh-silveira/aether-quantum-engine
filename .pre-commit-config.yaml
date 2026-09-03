@@ -6,28 +6,180 @@ default_language_version:
 repos:
   - repo: local
     hooks:
-      - id: lint
-        name: Qualidade (Ruff, Interrogate, Vulture, limite de linhas)
-        entry: python app/scripts/operations/clean_workspace.py --stage lint
-        language: system
-        pass_filenames: false
-        types: [python]
-        stages: [pre-commit]
-
-      - id: test
-        name: Testes (pytest + cobertura 100% em src)
-        entry: python app/scripts/operations/clean_workspace.py --stage test --coverage-fail-under 100
+      - id: commitlint-early
+        name: Commitlint (Conventional Commits)
+        entry: bash linters/git-hooks/bin/commitlint-early.sh
         language: system
         pass_filenames: false
         always_run: true
         stages: [pre-commit]
 
-      - id: security
-        name: Seguranca (Bandit + pip-audit)
-        entry: python app/scripts/operations/clean_workspace.py --stage security
+      - id: python-lint
+        name: Python | Lint
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint
         language: system
         pass_filenames: false
-        types: [python]
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-json-lint
+        name: Python | JSON Lint
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text json
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-yaml-lint
+        name: Python | YAML Lint
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-validate
+        name: Python | Validate
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-json-validate
+        name: Python | JSON Validate
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text json
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-yaml-validate
+        name: Python | YAML Validate
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-security
+        name: Python | Seguranca
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage security
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-test
+        name: Python | Testes
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-json-test
+        name: Python | JSON Testes
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage test --config-text json
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: python-build
+        name: Python | Build
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage build
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: docker-lint
+        name: Docker | Lint
+        entry: python app/scripts/operations/clean_workspace.py --area docker --stage lint
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: docker-validate
+        name: Docker | Validate
+        entry: python app/scripts/operations/clean_workspace.py --area docker --stage validate
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: docker-security
+        name: Docker | Seguranca
+        entry: python app/scripts/operations/clean_workspace.py --area docker --stage security
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: docker-test
+        name: Docker | Testes
+        entry: python app/scripts/operations/clean_workspace.py --area docker --stage test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: docker-build
+        name: Docker | Build
+        entry: python app/scripts/operations/clean_workspace.py --area docker --stage build
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: shell-lint
+        name: Shell | Lint
+        entry: python app/scripts/operations/clean_workspace.py --area shell --stage lint
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: shell-validate
+        name: Shell | Validate
+        entry: python app/scripts/operations/clean_workspace.py --area shell --stage validate
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: shell-security
+        name: Shell | Seguranca
+        entry: python app/scripts/operations/clean_workspace.py --area shell --stage security
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: shell-test
+        name: Shell | Testes
+        entry: python app/scripts/operations/clean_workspace.py --area shell --stage test
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: shell-build
+        name: Shell | Build
+        entry: python app/scripts/operations/clean_workspace.py --area shell --stage build
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: cleanup
+        name: Limpeza (caches e artefatos locais)
+        entry: python app/scripts/operations/clean_workspace.py --area python --stage clean --light-clean
+        language: system
+        pass_filenames: false
+        always_run: true
         stages: [pre-commit]
 
       - id: commitlint
@@ -35,11 +187,3 @@ repos:
         entry: npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config linters/commitlint.config.mjs --edit
         language: system
         stages: [commit-msg]
-
-      - id: cleanup
-        name: Limpeza (caches e artefatos locais)
-        entry: python app/scripts/operations/clean_workspace.py --stage clean --light-clean
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]

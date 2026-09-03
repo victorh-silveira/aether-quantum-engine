@@ -111,6 +111,9 @@ def parse_calibration_config(dl_config: dict) -> dict[str, Any]:
         "tcn_macro_put_override": (
             require_float(block, "tcn_macro_put_override") if "tcn_macro_put_override" in block else None
         ),
+        "max_calibrated_raw_gap": (
+            require_float(block, "max_calibrated_raw_gap") if "max_calibrated_raw_gap" in block else 0.08
+        ),
     }
 
 

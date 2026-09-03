@@ -434,7 +434,8 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |
 | `monitor/monitor_ui.py` | UI de monitoramento |
-| `operations/clean_workspace.py` | Lint, pytest, segurança, limpeza (pre-commit); inclui `clean_runtime_artifacts` |
+| `operations/clean_workspace.py` | Matriz QA `--area/--stage` (python, docker, shell; JSON/YAML via `--config-text json|yaml`) |
+| `operations/qa/` | Gates docker/shell e validacao JSON/YAML do job Python |
 | `operations/sanitize_fresh_run.py` | Limpa checkpoints/artefactos da run anterior |
 | `operations/deriv_pat_connect.py` | Conexão/teste PAT Deriv |
 | `operations/reset_demo_balance.py` | CLI reset de saldo demo |

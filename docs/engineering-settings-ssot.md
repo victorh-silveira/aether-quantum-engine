@@ -61,7 +61,9 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `tcn_macro_call_override` / `tcn_macro_put_override` | `deep_learning.calibration` | limiar de **raw** para modo `raw_extreme`; Cal nao e substituido |
 | `calibration_neutral_drift` | `deep_learning.calibration` | banda neutra efetiva **[0.47, 0.53]**; drift degenerado `[0.5,0.5]` e rejeitado (cai em `neutral_half_width`) |
 | `calibration.method` | `deep_learning.calibration` | **auto** (Brier/ECE com piso de sharpness; fallback `identity`) |
-| `max_calibrated_raw_gap` | `deep_learning.calibration` | **0.08** — banda simetrica p_call∈[raw±gap] no live (`cal_raw_gap_capped`) |
+| `min_calibration_margin_floor` | `deep_learning.calibration` | **0.03** — restaura raw se Cal colapsar para dentro da banda neutra |
+| `confidence_call_threshold` / `confidence_put_threshold` | `deep_learning` | **0.53** / **0.47** (gray zone = banda ±3pp) |
+| `max_calibrated_raw_gap` | `deep_learning.calibration` | **0.08** — clipa p_call **antes** da zona neutra (`cal_raw_gap_capped`) |
 | `temperature_min` | `deep_learning.calibration` | **1.0** — impede afiar logits (T&lt;1) no fit |
 | `mini_granularity` | `data_handler` | padrao **300** (MINI OHLC M5) |
 

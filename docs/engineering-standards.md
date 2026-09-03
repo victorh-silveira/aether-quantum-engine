@@ -13,17 +13,21 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 
 ## Pre-commit
 
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) e as actions em [`.github/actions/`](../.github/actions/) chamam o mesmo motor `app/scripts/operations/clean_workspace.py` (paridade bidirecional):
+[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) e as actions em [`.github/actions/ci/`](../.github/actions/ci/) chamam o mesmo motor `app/scripts/operations/clean_workspace.py --area --stage` (paridade bidirecional). Crash-first: lint → validate → security → test → build.
 
-| Stage | O que faz | Pre-commit | CI |
-|-------|-----------|------------|-----|
-| lint | Ruff, Interrogate, Vulture, limite de linhas | `--stage lint` | `--stage lint` |
-| test | pytest + cobertura **100%** em `app/src` | `--stage test --coverage-fail-under 100` | idem |
-| security | Bandit + pip-audit + Gitleaks | `--stage security` | idem (CI instala `gitleaks` no PATH antes) |
-| cleanup | caches/artefatos locais | `--stage clean --light-clean` | (local) |
-| commit-msg | commitlint (`linters/commitlint.config.mjs`) | hook | (local) |
+| Area | Stage | Pre-commit / CI |
+|------|-------|-----------------|
+| python | lint | Ruff, Interrogate, Vulture, 300 linhas |
+| python | JSON / YAML | steps `Python \| JSON *` e `Python \| YAML *` (`--config-text json\|yaml`) |
+| python | validate / build | compileall `app/src` |
+| python | security | Bandit + pip-audit + Gitleaks (CI fail-closed) |
+| python | test | pytest + cobertura **100%** em `app/src` |
+| docker | lint…build | Hadolint, compose config, Trivy, smoke, `docker build` (build no CI) |
+| shell | lint / validate | `bash -n` / shellcheck em `*.sh` |
+| local | clean | `--stage clean --light-clean` |
+| commit | commitlint | primeiro no pre-commit (`COMMIT_EDITMSG`) + hook `commit-msg` |
 
-Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe dos hooks: [`../linters/README.md`](../linters/README.md).
+Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/README.md`](../.github/README.md).
 
 ## Commitlint
 

@@ -422,13 +422,16 @@ Redis/Timescale/MinIO/meta_classifier/loss_classifier URLs e timeouts.
 
 Marcadores de log frequentes: `QUALITY_GUARD`, `EXECUTION_FLOW`, `REGIME_GUARD`, `D-SQUEEZE`, `META_CLASSIFIER_FALLBACK`, `STOP_WIN`, `SESSAO INICIADA`, `DATA_SIG`.
 
-Pre-commit (`clean_workspace.py`):
+Pre-commit (`clean_workspace.py --area --stage`):
 
 | Stage | Conteúdo |
 |-------|----------|
 | lint | Ruff, Interrogate 100%, Vulture, ≤300 linhas/arquivo |
-| test | pytest + cobertura **100%** em `app/src` (**305** `test_*.py`) |
-| security | Bandit + pip-audit |
+| validate / build | compileall `app/src` |
+| test | pytest + cobertura **100%** em `app/src` |
+| security | Bandit + pip-audit + Gitleaks |
+| JSON / YAML | steps `Python | JSON *` e `Python | YAML *` |
+| docker / shell | jobs paralelos no CI; mesmo orquestrador no pre-commit |
 | clean | caches locais |
 
 ---

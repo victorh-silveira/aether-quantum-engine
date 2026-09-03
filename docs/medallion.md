@@ -155,8 +155,8 @@ Perfil em `config/settings.json` (settings atuais):
 |-----------|-------|--------|
 | `calibration.method` | auto | auto + piso sharpness; fallback `identity` se cal colapsar |
 | `calibration.neutral_half_width` | 0.0 | Zona neutra **off** |
-| `confidence_call_threshold` | 0.51 | Threshold CALL |
-| `confidence_put_threshold` | 0.49 | Threshold PUT |
+| `confidence_call_threshold` | 0.53 | Threshold CALL (alinhado a banda neutra ±3pp) |
+| `confidence_put_threshold` | 0.47 | Threshold PUT |
 | `dynamic_threshold.enabled` | false | Thresholds flutuantes por volatilidade **desligados** |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | — | Sem piso hard nos settings atuais |

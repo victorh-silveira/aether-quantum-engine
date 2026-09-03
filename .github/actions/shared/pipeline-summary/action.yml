@@ -1,0 +1,39 @@
+name: Resumo do pipeline
+description: Publica status dos jobs no GitHub Summary
+inputs:
+  python:
+    required: true
+  docker:
+    required: true
+  shell:
+    required: true
+  release:
+    required: true
+  release_tag:
+    required: false
+    default: ""
+  release_published:
+    required: false
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Publicar resumo
+      shell: bash
+      run: |
+        {
+          echo "## Resumo CI/CD"
+          echo ""
+          echo "| Etapa | Status |"
+          echo "|-------|--------|"
+          echo "| Python | ${{ inputs.python }} |"
+          echo "| Docker | ${{ inputs.docker }} |"
+          echo "| Shell | ${{ inputs.shell }} |"
+          echo "| Release | ${{ inputs.release }} |"
+          echo ""
+          if [ "${{ inputs.release_published }}" = "true" ]; then
+            echo "Tag publicada: \`${{ inputs.release_tag }}\`"
+          else
+            echo "Nenhuma tag nova neste push."
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"

@@ -74,7 +74,7 @@ section-order = ["future", "standard-library", "third-party", "first-party", "lo
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101"]
+"scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101", "I001"]
 "run.py" = ["T201", "S101"]
 "train.py" = ["T201", "S101"]
 "src/infrastructure/api/deriv_http.py" = ["S310"]
