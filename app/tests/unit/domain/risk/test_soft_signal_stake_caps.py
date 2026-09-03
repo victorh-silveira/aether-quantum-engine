@@ -22,10 +22,10 @@ def test_soft_signal_cap_honors_explicit_pct():
     assert capped == pytest.approx(100.0)
 
 
-def test_loss_clf_soft_cap_uses_one_pct():
-    metrics = {"loss_clf_soft": True, "loss_clf_soft_max_stake_pct": 0.01}
+def test_loss_clf_soft_cap_uses_configured_pct():
+    metrics = {"loss_clf_soft": True, "loss_clf_soft_max_stake_pct": 0.05}
     capped = apply_loss_clf_soft_stake_cap(500.0, 10000.0, metrics, pending_total=0.0)
-    assert capped == pytest.approx(100.0)
+    assert capped == pytest.approx(500.0)
 
 
 def test_flip_block_skips_soft_max_stake_pct():
@@ -34,7 +34,7 @@ def test_flip_block_skips_soft_max_stake_pct():
         metrics,
         0.40,
         p_loss=0.95,
-        cfg={"soft_max_stake_pct_high": 0.01},
+        cfg={"soft_max_stake_pct_high": 0.05},
     )
     assert metrics["loss_clf_soft"] is True
     assert metrics["kelly_fraction_scale"] == pytest.approx(0.40)
@@ -68,3 +68,15 @@ def test_post_kelly_applies_discord_cap():
     }
     capped = apply_post_kelly_stake_caps(500.0, 10000.0, metrics, pending_total=0.0)
     assert capped == pytest.approx(100.0)
+
+
+def test_post_kelly_discord_cap_allows_single_strike_five_pct():
+    metrics = {
+        "scale_discordance": True,
+        "scale_max_stake_pct": 0.05,
+    }
+    bankroll = 9665.64
+    single_strike = bankroll * 0.0507
+    capped = apply_post_kelly_stake_caps(single_strike, bankroll, metrics, pending_total=0.0)
+    assert capped == pytest.approx(bankroll * 0.05)
+    assert capped / bankroll == pytest.approx(0.05)

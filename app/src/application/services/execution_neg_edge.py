@@ -12,6 +12,8 @@ from src.domain.config_knobs import merge_settings_block, require_bool, require_
 
 logger = logging.getLogger("AETH")
 
+_ZSCORE_PANIC_ABS = 2.0
+
 
 def parse_neg_edge_soft_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve knobs neg_edge em orchestrator.execution.signal_skip."""
@@ -162,6 +164,30 @@ def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float
     )
 
 
+def _apply_zscore_panic(metrics: dict[str, Any], *, direction: str, z_float: float) -> bool:
+    """SKIP tecnico por panico Z bilateral; stamp Z/side/thr para auditoria."""
+    thr_abs = _ZSCORE_PANIC_ABS
+    if direction == "CALL" and z_float < -thr_abs:
+        thr_signed = -thr_abs
+    elif direction == "PUT" and z_float > thr_abs:
+        thr_signed = thr_abs
+    else:
+        return False
+    metrics["execution_candidate_ready"] = False
+    metrics["gate_reason"] = "neg_edge_zscore_panic"
+    metrics["signal_status"] = "SKIP:NEG_EDGE_ZSCORE_PANIC"
+    metrics["neg_edge_zscore"] = float(z_float)
+    metrics["neg_edge_zscore_side"] = direction
+    metrics["neg_edge_zscore_threshold"] = float(thr_signed)
+    logger.info(
+        "EDGE || NEG_ZSCORE_PANIC side=%s Z=%+.3f thr=%+.1f",
+        direction,
+        z_float,
+        thr_signed,
+    )
+    return True
+
+
 def _stamp_fusion_p_eff(metrics: dict[str, Any]) -> None:
     """Grava fusion_p_eff so para telemetria; nao alimenta o gate."""
     if not bool(metrics.get("fusion_applied")):
@@ -221,16 +247,7 @@ def apply_negative_cal_edge_pause(
     z_val = metrics.get("edge_zscore", metrics.get("meta_payoff_edge_zscore"))
     if z_val is not None:
         try:
-            z_float = float(z_val)
-            if direction == "CALL" and z_float < -2.0:
-                metrics["execution_candidate_ready"] = False
-                metrics["gate_reason"] = "neg_edge_zscore_panic"
-                metrics["signal_status"] = "SKIP:NEG_EDGE_ZSCORE_PANIC"
-                return True
-            if direction == "PUT" and z_float > 2.0:
-                metrics["execution_candidate_ready"] = False
-                metrics["gate_reason"] = "neg_edge_zscore_panic"
-                metrics["signal_status"] = "SKIP:NEG_EDGE_ZSCORE_PANIC"
+            if _apply_zscore_panic(metrics, direction=direction, z_float=float(z_val)):
                 return True
         except (TypeError, ValueError):
             pass

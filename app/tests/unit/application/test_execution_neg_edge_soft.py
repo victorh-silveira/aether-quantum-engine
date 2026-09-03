@@ -100,6 +100,24 @@ def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
     assert metrics_block_execution(metrics) is True
 
 
+def test_neg_edge_soft_exec_when_hard_skip_false_and_edge_nonpositive():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.50,
+        "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
+    }
+    orch = _orch_skip(neg_edge_hard_skip=False, neg_edge_soft_min_edge=-1.0)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert float(metrics["cal_side_edge"]) <= 0.0
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics.get("signal_skip_waived") == "neg_edge_soft"
+    assert metrics.get("gate_reason") is None
+    assert metrics_block_execution(metrics) is False
+
+
 def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
     metrics = {
         "execution_candidate_ready": True,

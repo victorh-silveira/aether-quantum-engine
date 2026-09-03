@@ -87,7 +87,7 @@ def test_resolve_and_enabled():
     assert cfg["soft_kelly_mult"] == pytest.approx(0.55)
     assert cfg["soft_kelly_mult_high"] == pytest.approx(0.40)
     assert cfg["soft_p_loss_high"] == pytest.approx(0.85)
-    assert cfg["soft_max_stake_pct_high"] == pytest.approx(0.01)
+    assert cfg["soft_max_stake_pct_high"] == pytest.approx(0.05)
     assert cfg["timeout_seconds"] == pytest.approx(8.0)
     assert cfg["retrain_on_loss_min_n"] == 1
     assert cfg["retrain_min_n"] == 1

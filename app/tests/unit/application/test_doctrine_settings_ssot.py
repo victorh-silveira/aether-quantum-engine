@@ -90,7 +90,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(block["soft_kelly_mult"]) == pytest.approx(0.55)
     assert float(block["soft_kelly_mult_high"]) == pytest.approx(0.40)
     assert float(block["soft_p_loss_high"]) == pytest.approx(0.85)
-    assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.01)
+    assert float(block["soft_max_stake_pct_high"]) == pytest.approx(0.05)
     assert float(block["timeout_seconds"]) == pytest.approx(8.0)
     assert int(block["retrain_min_n"]) == 1
     assert int(block["retrain_on_loss_min_n"]) == 1
@@ -108,7 +108,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["soft_kelly_mult"] == pytest.approx(0.55)
     assert resolved["soft_kelly_mult_high"] == pytest.approx(0.40)
     assert resolved["soft_p_loss_high"] == pytest.approx(0.85)
-    assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.01)
+    assert resolved["soft_max_stake_pct_high"] == pytest.approx(0.05)
     assert resolved["retrain_min_n"] == 1
     assert resolved["retrain_on_loss_min_n"] == 1
     assert resolved["flip_require_auto_learn"] is True
@@ -168,6 +168,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert "calib_gray_max_stake_pct" not in skip
     assert float(skip["waive_mini_pair_min_margin"]) == pytest.approx(0.0)
     scale = settings["orchestrator"]["execution"]["scale_vision"]
+    assert float(scale["kelly_mult_discord"]) == pytest.approx(0.55)
+    assert float(scale["max_stake_pct_discord"]) == pytest.approx(0.05)
     assert "adapt_min_cal_margin" not in scale
     assert "adapt_max_cal_margin" not in scale
     assert scale["adapt_on_majority_votes"] is True

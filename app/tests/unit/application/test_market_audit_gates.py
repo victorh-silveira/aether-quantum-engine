@@ -257,3 +257,17 @@ def test_format_gates_audit_line():
         }
     )
     assert "NEG_EDGE boot_soft side=CALL" in boot_soft
+    zscore_panic = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge_zscore_panic",
+            "signal_status": "SKIP:NEG_EDGE_ZSCORE_PANIC",
+            "neg_edge_zscore": 2.41,
+            "neg_edge_zscore_side": "PUT",
+            "neg_edge_zscore_threshold": 2.0,
+            "exec_direction": "PUT",
+            "calibrated_prob": 0.62,
+            "raw_prob": 0.62,
+        }
+    )
+    assert "NEG_EDGE zscore_panic side=PUT Z=+2.410 thr=+2.0" in zscore_panic
+    assert "skip=neg_edge_zscore_panic" in zscore_panic

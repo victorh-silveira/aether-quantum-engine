@@ -56,7 +56,7 @@ def test_mili_direction_from_flow():
 def test_parse_scale_vision_from_ssot():
     cfg = parse_scale_vision_config({})
     assert cfg["enabled"] is True
-    assert cfg["kelly_mult_discord"] <= 1.0
+    assert cfg["kelly_mult_discord"] == pytest.approx(0.55)
     assert cfg["adapt_direction_enabled"] is True
     assert cfg["use_last_bar"] is True
     assert cfg["adapt_require_bar_pair_agree"] is True
@@ -80,7 +80,7 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["adapt_majority_rsi_neutral"] == pytest.approx(0.5)
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
-    assert cfg["max_stake_pct_discord"] > 0.0
+    assert cfg["max_stake_pct_discord"] == pytest.approx(0.05)
     assert cfg["ops_window_bars"] == 3
 
 

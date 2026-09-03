@@ -243,6 +243,9 @@ def test_neg_edge_zscore_panic_veto_bilateral():
     assert metrics_call["execution_candidate_ready"] is False
     assert metrics_call["gate_reason"] == "neg_edge_zscore_panic"
     assert metrics_call["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+    assert float(metrics_call["neg_edge_zscore"]) == pytest.approx(-2.45)
+    assert metrics_call["neg_edge_zscore_side"] == "CALL"
+    assert float(metrics_call["neg_edge_zscore_threshold"]) == pytest.approx(-2.0)
 
     metrics_put = {
         "execution_candidate_ready": True,
@@ -254,3 +257,6 @@ def test_neg_edge_zscore_panic_veto_bilateral():
     assert metrics_put["execution_candidate_ready"] is False
     assert metrics_put["gate_reason"] == "neg_edge_zscore_panic"
     assert metrics_put["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+    assert float(metrics_put["neg_edge_zscore"]) == pytest.approx(2.30)
+    assert metrics_put["neg_edge_zscore_side"] == "PUT"
+    assert float(metrics_put["neg_edge_zscore_threshold"]) == pytest.approx(2.0)

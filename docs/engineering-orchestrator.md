@@ -53,7 +53,7 @@ SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SC
 | `scale_micro_regime` | `explosion` / `retraction` / `chop` |
 | `scale_tape_consensus` | Maioria da fita (`adapt_min_votes`) |
 | `scale_adapted` | Flip so sob `raw_extreme` ou margem fraca + regimes; Kelly sync ao lado exec |
-| Soft sizing | Discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` + `scale_force_explore` |
+| Soft sizing | Discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` **0.55** + `max_stake_pct_discord` **0.05** + `scale_force_explore` |
 | Soft cover | Pending material + `pending_waives_scale_explore` → cover fino; `adapted_force_explore` bloqueia DAL L2+ |
 
 Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
@@ -73,7 +73,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 |---------|-----|
 | Ciclo nao dispara | signature, warmup buffer (MACRO/MICRO/MINI), idle watchdog |
 | So EXEC_EMPTY | bloqueio tecnico / Kelly — processo pode estar correto |
-| Stake baixo com SCALE discord/adapt | `kelly_mult_discord` + `max_stake_pct_discord` (esperado) |
+| Stake baixo com SCALE discord/adapt | Se EXPLORE << Single-Strike (~5%): checar `max_stake_pct_discord` (**0.05**) e `kelly_mult_discord` (**0.55**); teto 1% legado e regressao |
 | RECOVER/EXPLORE_DAL nao arma | `adapted_force_explore` / ACC / live_wr / `scale_force_explore` |
 | Lado ≠ TCN no EXEC | `scale_adapted` via **majority_votes**, tape/`raw_extreme` ou regimes (sem hold Cal) |
 | Travado apos trade | settlement queue / post_settlement |

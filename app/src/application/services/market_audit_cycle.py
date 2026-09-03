@@ -87,7 +87,13 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     raw_edge = resolve_raw_predicted_edge(metrics, direction=side_dir)
     be = resolve_edge_breakeven_p()
     gap = f" raw_edge={raw_edge:+.4f} be={be:.3f}"
-    if gate == "neg_edge" or status == "SKIP:NEG_EDGE":
+    if gate == "neg_edge_zscore_panic" or status == "SKIP:NEG_EDGE_ZSCORE_PANIC":
+        z_panic = _f(metrics, "neg_edge_zscore", default=_f(metrics, "edge_zscore", default=0.0))
+        thr_default = 2.0 if str(neg_side).upper() == "PUT" else -2.0
+        thr_panic = _f(metrics, "neg_edge_zscore_threshold", default=thr_default)
+        neg_tok = f"NEG_EDGE zscore_panic side={neg_side} Z={z_panic:+.3f} thr={thr_panic:+.1f}"
+        skip = "neg_edge_zscore_panic"
+    elif gate == "neg_edge" or status == "SKIP:NEG_EDGE":
         if bool(metrics.get("neg_edge_bootstrap_deep")):
             tag = "boot_deep"
         elif bool(metrics.get("neg_edge_nonpositive_hard")):
