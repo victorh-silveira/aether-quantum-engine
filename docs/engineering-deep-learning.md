@@ -33,7 +33,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
 | `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls e estado em `data/` (so train/reset) |
 | `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se geometria invalida; aceita **settle_wr** elegivel (mesmos knobs do sweep) ou ACC≥0.53 + soft path; simbolos de `settings.symbols` |
-| `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`; simbolos de settings) |
+| `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`; `--bars` **5000** em micro M5; nao usar 365 D1) |
 | `app/scripts/operations/sweep_train_timeframes.py` | loop de celulas H1–H4; artefactos em `data/dl/sweep/1HZ75V/H{N}`; leaderboard JSON |
 | `app/scripts/operations/promote_tf_winner.py` | promove vencedor elegivel para `settings.json` + `drift_symbols.py` + `data/dl` (fail-closed se nenhum) |
 

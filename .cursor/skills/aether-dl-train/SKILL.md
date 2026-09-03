@@ -21,7 +21,7 @@ description: >-
 9. Brier: `max_brier` **0.28** (= `soft_max_brier`); sharpness `min_oos_sharpness` **0.01**
 10. Fail-closed: export falhou → `train.py` exit!=0; gate rejeita ckpt com lookback/granularity != settings; meta nao roda
 11. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py` antes do meta
-12. Meta: LightGBM **43D**; variance nula → Timescale flat; usar `--source auto` / Deriv; alvo payoff fallback
+12. Meta: LightGBM **43D**; `--bars` **5000** (micro M5; nao confundir com 365 D1); variance nula → Timescale flat; `--source auto` / Deriv; alvo payoff fallback
 13. Meta HTTP opcional — confirmar flags; TCN = eager/CUDA local no host (`inference_mode`; nao bloquear o event loop)
 14. Universo runtime = **1HZ75V**; contrato ops fixo **5 m**
 15. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes

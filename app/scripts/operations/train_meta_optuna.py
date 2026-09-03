@@ -267,10 +267,22 @@ def run_optuna_study(
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)
     if float(study.best_value) <= float(OPTUNA_OVERFIT_PENALTY) + 1e-12:
+        n_overfit = 0
+        n_neg_edge = 0
+        for trial in study.trials:
+            gap = trial.user_attrs.get("mae_gap")
+            z = trial.user_attrs.get("oos_payoff_zscore_mean")
+            if gap is not None and float(gap) > META_EXPORT_MAX_MAE_GAP + 1e-12:
+                n_overfit += 1
+            elif z is not None and float(z) <= 0.0:
+                n_neg_edge += 1
+            elif float(trial.value or OPTUNA_OVERFIT_PENALTY) <= float(OPTUNA_OVERFIT_PENALTY) + 1e-12:
+                n_overfit += 1
         raise RuntimeError(
             "Export meta bloqueado: nenhum trial Optuna passou o teto de overfit "
-            f"val_mae/train_mae<={META_EXPORT_MAX_MAE_GAP:.1f} ou edge OOS positivo. "
-            "Aumente barras/trials ou regularizacao."
+            f"val_mae/train_mae<={META_EXPORT_MAX_MAE_GAP:.1f} ou edge OOS positivo "
+            f"(n={sample_count} overfit={n_overfit} neg_edge={n_neg_edge} trials={trials}). "
+            "Use --bars 5000 (micro M5) ou aumente trials/regularizacao."
         )
     best_trial = study.best_trial
     best_z = float(best_trial.user_attrs.get("oos_payoff_zscore_mean", 0.0))
