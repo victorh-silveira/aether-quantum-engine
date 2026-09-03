@@ -1,3 +1,13 @@
+## [2.50.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.4...v2.50.5) (2026-09-03)
+
+### Correcoes de Bug
+
+* **repo:** alinhar superficie medio/baixo e hardening Hurst ([ed15108](https://github.com/victorh-silveira/aether-quantum-engine/commit/ed15108b2b3675e0635d076ca1bf93fe3a5a1df6))
+
+### Documentacao
+
+* **repo:** alinhar surfaces M5 e knobs SSOT ([55c4edc](https://github.com/victorh-silveira/aether-quantum-engine/commit/55c4edc841dc2242331787598bdbdf76acdb69a6))
+
 ## [2.50.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.3...v2.50.4) (2026-09-03)
 
 ### Correcoes de Bug
