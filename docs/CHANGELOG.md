@@ -1,3 +1,9 @@
+## [2.51.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.51.0...v2.51.1) (2026-09-04)
+
+### Correcoes de Bug
+
+* **engine:** flip anti-loss so com Edge >= floor e fusion_p_eff alinhado ([d08362a](https://github.com/victorh-silveira/aether-quantum-engine/commit/d08362a566d0ba73360a8bbf68902a2636390b2b))
+
 ## [2.51.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.8...v2.51.0) (2026-09-04)
 
 ### Funcionalidades
