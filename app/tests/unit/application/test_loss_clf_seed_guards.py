@@ -160,6 +160,8 @@ def test_neg_edge_blocks_fusion_p_eff_when_cal_nonpositive():
         "calibrated_prob": 0.55,
         "fusion_applied": True,
         "fusion_p_eff": 0.707,
+        "fusion_p_call": 0.293,
+        "fusion_p_put": 0.707,
         "fusion_reason": "ev_put",
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": False,

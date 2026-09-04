@@ -189,6 +189,7 @@ def apply_direction_fusion(
         metrics["fusion_p_put"] = float(1.0 - p_call)
         metrics["fusion_p_eff"] = float(p_call if tcn_dir == TradeDirection.CALL else 1.0 - p_call)
         metrics["fusion_applied"] = True
+        metrics["fusion_side"] = tcn_dir.name
         metrics["exec_direction"] = tcn_dir.name
         metrics["resolved_direction"] = tcn_dir.name
         return tcn_dir
@@ -225,6 +226,7 @@ def apply_direction_fusion(
     metrics["fusion_reason"] = "pure_tcn"
     metrics["fusion_p_eff"] = float(p_effs[chosen.name])
     metrics["fusion_applied"] = True
+    metrics["fusion_side"] = chosen.name
     metrics["fusion_switched"] = False
     metrics["exec_direction"] = chosen.name
     metrics["resolved_direction"] = chosen.name

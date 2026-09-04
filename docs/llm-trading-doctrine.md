@@ -48,7 +48,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY; julgar sessao so pelo P&L de 5 trades.
 
-**Regra no Aether:** `EXEC_EMPTY` com `gate_reason` coerente (Edge `<= 0`, `neutral_zone`, seed unstamped, RSI) e sucesso de processo; force trade permanece off. Live confirm/discord/weak = soft (nao EMPTY). Nao julgar EMPTY Edge<=0 como bug de frequencia.
+**Regra no Aether:** `EXEC_EMPTY` com `gate_reason` coerente (Edge `<= 0`, `neutral_zone`, seed unstamped) e sucesso de processo; force trade permanece off. Live confirm/discord/weak/RSI = soft (nao EMPTY). Nao julgar EMPTY Edge<=0 como bug de frequencia.
 
 **Ancoras:** `force_trade_every_cycle: false`; logs `gate_reason` / `quality_gate_reason`; `execution_quality_reject.py`.
 

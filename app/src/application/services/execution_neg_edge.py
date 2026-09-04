@@ -6,8 +6,8 @@ import logging
 from contextlib import suppress
 from typing import Any
 
+from src.application.services.execution_fusion_p_eff import resolve_neg_side_edge
 from src.application.services.execution_gate_verdict import stamp_allow, stamp_hard_skip, stamp_soft_size
-from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
 
@@ -201,36 +201,6 @@ def _apply_zscore_panic(metrics: dict[str, Any], *, direction: str, z_float: flo
     return True
 
 
-def _stamp_fusion_p_eff(metrics: dict[str, Any]) -> None:
-    """Grava fusion_p_eff so para telemetria; nao alimenta o gate."""
-    if not bool(metrics.get("fusion_applied")):
-        return
-    raw = metrics.get("fusion_p_eff")
-    try:
-        p_eff = float(raw)
-    except (TypeError, ValueError):
-        return
-    if 0.0 < p_eff < 1.0:
-        metrics["neg_edge_fusion_p_eff"] = p_eff
-
-
-def _resolve_neg_side_edge(metrics: dict[str, Any], direction: str, pay: float) -> float:
-    """Edge do lado pretendido (usa fusion_p_eff se a fusao foi aplicada, ou Cal TCN)."""
-    _stamp_fusion_p_eff(metrics)
-    if bool(metrics.get("fusion_applied")) and metrics.get("fusion_p_eff") is not None:
-        try:
-            p = float(metrics["fusion_p_eff"])
-        except (TypeError, ValueError):
-            p = None
-        if p is not None and 0.0 < p < 1.0:
-            edge = float((p * (1.0 + pay)) - 1.0)
-            metrics["neg_edge_tcn_cal_edge"] = edge
-            return edge
-    edge = float(resolve_predicted_edge(metrics, direction=direction, payout=pay))
-    metrics["neg_edge_tcn_cal_edge"] = edge
-    return edge
-
-
 def apply_negative_cal_edge_pause(
     metrics: dict[str, Any],
     *,
@@ -254,7 +224,7 @@ def apply_negative_cal_edge_pause(
         return False
     pay = float(payout) if payout is not None else _payout_from_orch(orch)
     floor = float(min_edge) if min_edge is not None else _min_edge_from_orch(orch, metrics=metrics)
-    edge = _resolve_neg_side_edge(metrics, direction, pay)
+    edge = resolve_neg_side_edge(metrics, direction, pay)
     metrics["cal_side_edge"] = edge
     metrics["cal_side_edge_floor"] = floor
     z_val = metrics.get("edge_zscore", metrics.get("meta_payoff_edge_zscore"))

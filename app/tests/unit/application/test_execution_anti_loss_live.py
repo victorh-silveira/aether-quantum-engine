@@ -1,10 +1,11 @@
-"""Gate anti-loss live: soft Kelly em confirm/discord/weak; RSI/seed HARD."""
+"""Gate anti-loss live: soft Kelly em confirm/discord/weak/RSI; seed HARD."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
 import numpy as np
+import pytest
 
 from src.application.services.execution_anti_loss import (
     apply_anti_loss_seed_discord,
@@ -328,6 +329,11 @@ def test_anti_loss_live_ema_trend_flips_to_candle():
     closes = np.linspace(4800, 5000, 30)
     stream.get_mini_numpy_series.return_value = closes
     orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
     metrics = _live_metrics(
         closed_micro_candle_stamped=True,
         exec_direction="PUT",
@@ -336,6 +342,7 @@ def test_anti_loss_live_ema_trend_flips_to_candle():
         closed_micro_candle_dir="CALL",
         ops_window_candle_dir="CALL",
         closed_micro_candle_body=2.5,
+        calibrated_prob=0.62,
         indicators={"rsi": 0.50},
     )
     cfg = parse_signal_skip_config({"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": False})
@@ -344,3 +351,105 @@ def test_anti_loss_live_ema_trend_flips_to_candle():
     assert metrics.get("exec_direction") == "CALL"
     assert metrics.get("resolved_direction") == "CALL"
     assert metrics.get("anti_loss_why") == "live_exec_flip_to_candle"
+
+
+def test_anti_loss_flip_syncs_fusion_p_eff_to_candle_side():
+    stream = MagicMock()
+    closes = np.linspace(4800, 5000, 30)
+    stream.get_mini_numpy_series.return_value = closes
+    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
+    metrics = _live_metrics(
+        closed_micro_candle_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        closed_micro_candle_body=2.5,
+        calibrated_prob=0.62,
+        indicators={"rsi": 0.50},
+        fusion_applied=True,
+        fusion_side="PUT",
+        fusion_p_eff=0.70,
+        fusion_p_call=0.58,
+        fusion_p_put=0.70,
+    )
+    cfg = parse_signal_skip_config({"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": False})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
+    assert metrics.get("anti_loss_flipped_to_candle") is True
+    assert metrics.get("exec_direction") == "CALL"
+    assert metrics.get("fusion_p_eff") == pytest.approx(0.58)
+    assert metrics.get("fusion_side") == "PUT"
+
+
+def test_anti_loss_flip_blocked_when_candle_edge_subfloor():
+    stream = MagicMock()
+    closes = np.linspace(4800, 5000, 30)
+    stream.get_mini_numpy_series.return_value = closes
+    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
+    metrics = _live_metrics(
+        closed_micro_candle_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        closed_micro_candle_body=2.5,
+        calibrated_prob=0.545,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": False})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
+    assert metrics.get("anti_loss_flipped_to_candle") is not True
+    assert metrics.get("exec_direction") == "PUT"
+    assert metrics.get("anti_loss_flip_blocked") == "edge_subfloor"
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics.get("anti_loss_why") == "anti_loss_ema_trend"
+
+
+def test_anti_loss_flip_min_edge_fallback_explore_and_recovery():
+    stream = MagicMock()
+    closes = np.linspace(4800, 5000, 30)
+    stream.get_mini_numpy_series.return_value = closes
+    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+    orch.config = "not-a-dict"
+    metrics = _live_metrics(
+        closed_micro_candle_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        closed_micro_candle_body=2.5,
+        calibrated_prob=0.62,
+        indicators={"rsi": 0.50},
+    )
+    cfg = parse_signal_skip_config({"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": False})
+    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is False
+    assert metrics.get("anti_loss_flipped_to_candle") is True
+    assert metrics.get("anti_loss_flip_min_edge") == pytest.approx(0.015)
+    metrics_rec = _live_metrics(
+        closed_micro_candle_stamped=True,
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        tcn_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        closed_micro_candle_body=2.5,
+        calibrated_prob=0.62,
+        indicators={"rsi": 0.50},
+        pending_loss_total=5.0,
+    )
+    assert apply_anti_loss_seed_discord(metrics_rec, orch=orch, cfg=cfg) is False
+    assert metrics_rec.get("anti_loss_flipped_to_candle") is True
+    assert metrics_rec.get("anti_loss_flip_min_edge") == pytest.approx(0.010)

@@ -105,6 +105,7 @@ def test_pending_from_orch_risk_manager():
 def test_candidate_block_reason_ignores_signal_soft_reasons():
     assert _candidate_block_reason({"gate_reason": "mini_pair_oppose"}) is None
     assert _candidate_block_reason({"gate_reason": "cal_margin"}) is None
+    assert _candidate_block_reason({"gate_reason": "anti_loss_rsi_momentum"}) is None
     assert _candidate_block_reason({"signal_skip_reason": "cal_margin", "gate_reason": None}) is None
     assert _candidate_block_reason({"gate_reason": "training"}) == "training"
     assert _candidate_block_reason({"gate_reason": "neg_edge"}) == "neg_edge"

@@ -62,10 +62,10 @@ def test_anti_loss_hybrid_anchor_discord_reduces_body():
 
 
 def test_anti_loss_ema_slope_soft_allows_exec(monkeypatch):
-    from src.application.services import execution_anti_loss as anti_mod
+    from src.application.services import execution_anti_loss_live as live_mod
 
     monkeypatch.setattr(
-        anti_mod,
+        live_mod,
         "check_mini_ema_trend_and_slope",
         lambda *a, **k: (False, "anti_loss_ema_slope"),
     )

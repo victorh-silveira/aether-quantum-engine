@@ -141,6 +141,8 @@ _SOFT_MICRO = frozenset(
     {
         "anti_loss_ema_trend",
         "anti_loss_ema_slope",
+        "anti_loss_rsi_momentum",
+        "anti_loss_rsi_trend",
         "live_discord_weak",
         "live_confirm_weak",
         "live_weak_candle",
@@ -150,7 +152,7 @@ _SOFT_MICRO = frozenset(
 
 
 def finalize_anti_loss_decision(out: dict[str, Any], *, cfg: dict[str, Any], reason: str) -> dict[str, Any]:
-    """Marca decisao; EMA/confirm/weak soft; RSI/seed respeitam hard_skip."""
+    """Marca decisao; EMA/RSI/confirm/weak soft; seed respeita hard_skip."""
     out["active"], out["reason"] = True, reason
     if reason in _SOFT_MICRO or not bool(cfg.get("anti_loss_hard_skip", True)):
         out["soft"], out["soft_mult"] = True, float(cfg.get("anti_loss_soft_kelly_mult", 0.55))

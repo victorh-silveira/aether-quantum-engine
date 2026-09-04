@@ -40,8 +40,8 @@ Ordem obrigatoria:
 
 1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF micro **M5** (300 s); anotar `live_n`
 2. SCALE — MACRO (D1)/MICRO (M5)/MINI (M5)/MILI (ticks) + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — FUSION → LOSS_CLF → ANTI_LOSS (flip micro se EMA/candle discord; confirm/weak soft; RSI HARD; seed unstamped HARD) → NEG_EDGE (Edge<=0 HARD; Soft_SIZE piso 2.5% so se Edge>=0.015 tambem com PEND; senao piso 1%). EMPTY Edge<=0/`neutral_zone` = processo ok. Regressao: Soft+subfloor+stake≈2.5%; Soft+PEND+Edge>=0.015+stake≈1%; EXEC PUT vs candle CALL sem flip; EXEC stake&lt;1%; PEND+cover amort.
-4. EXEC / EMPTY — `anti_loss_ema_trend` / `anti_loss_ema_slope` / `live_discord_weak` / `live_confirm_weak` = soft (nao EMPTY); seed unstamped / RSI / Edge<=0 / neutral_zone = HARD EMPTY.
+3. GATES — FUSION → LOSS_CLF → ANTI_LOSS (flip micro se EMA/candle discord; confirm/weak/RSI soft; seed unstamped HARD) → NEG_EDGE (Edge<=0 HARD; Soft_SIZE piso 2.5% so se Edge>=0.015 tambem com PEND; senao piso 1%). EMPTY Edge<=0/`neutral_zone` = processo ok. Regressao: Soft+subfloor+stake≈2.5%; Soft+PEND+Edge>=0.015+stake≈1%; EXEC PUT vs candle CALL sem flip; EXEC stake&lt;1%; PEND+cover amort.
+4. EXEC / EMPTY — `anti_loss_ema_trend` / `anti_loss_ema_slope` / `anti_loss_rsi_momentum` / `live_discord_weak` / `live_confirm_weak` = soft (nao EMPTY); seed unstamped / Edge<=0 / neutral_zone = HARD EMPTY.
 5. RESOLVED / RISK — pending, linear, pnl vs 4.31%.
 
 Notas: Soft_SIZE sem Single-Strike; piso **2.5%** so com Edge >= **0.015**. Nao julgar EMPTY Edge<=0 como bug. Nao reabrir `neg_edge_hard_skip`.

@@ -204,7 +204,8 @@ def test_format_gates_audit_line():
             "fusion_ev_put": 0.02,
             "fusion_p_eff": 0.60,
             "fusion_reason": "ev_put",
-            "exec_direction": "PUT",
+            "fusion_side": "PUT",
+            "exec_direction": "CALL",
             "loss_clf_p_loss": -1.0,
         }
     )

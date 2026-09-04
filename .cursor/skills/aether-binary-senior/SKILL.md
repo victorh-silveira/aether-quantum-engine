@@ -18,7 +18,7 @@ Universo: **Volatility 75 (1s) Index** (`1HZ75V`) — **M5** (contrato ops **5 m
 
 1. Ciclo sincronizado ao fecho M5 (`cycle_interval_seconds` **120**, `signature_boundary_seconds` **300**)
 2. Fusao EV (argmax CALL/PUT) com pesos SSOT; soft EV fraco **0.50** / seed **0.25**
-3. Anti-loss: ancora hibrida ops N=3 + ultima vela; EMA9/EMA21; `anti_loss_allow_candle_flip` **true** (FLIP para vela em discord); RSI (**0.30/0.70**); confirm corpo ≥ **0.15**; `anti_loss_live_exec_candle_enabled` **false**
+3. Anti-loss: ancora hibrida ops N=3 + ultima vela; EMA9/EMA21; `anti_loss_allow_candle_flip` **true** (FLIP para vela **so se** Edge Cal >= **0.015**); RSI (**0.30/0.70** soft); confirm corpo ≥ **0.15**; `anti_loss_live_exec_candle_enabled` **false**; pos-flip `fusion_p_eff` sync ao EXEC
 4. Neg-edge + panico Z-score bilateral ($Z < -2$ CALL / $Z > +2$ PUT)
 
 ## Checklist (escopo 1.1)
@@ -33,12 +33,12 @@ Universo: **Volatility 75 (1s) Index** (`1HZ75V`) — **M5** (contrato ops **5 m
 8. RECOVER vs EXPLORE; `cover_enabled` **false** (PEND nao usa cover amort); caps linear3 teto **3.5%**; damping stop-win inicio **1.0** / perto-meta **0.50**; stake = Kelly + piso **1%** banca; Soft_SIZE **2.5%** se Edge>=0.015 **tambem com PEND**; Kelly Single-Strike **4.31%** so em `gate_verdict=ALLOW`. Cooldown técnico: 1 ciclo ($300\,\text{s}$) apos $L_2+$.
 9. **Anti-loss com microestrutura M5 balanceada**:
    - **Ancora hibrida**: janela ops N=3 velas M5 + ultima vela micro fechada; telemetria `anti_loss_anchor_mode=hybrid`.
-   - **EMA / candle discord**: `anti_loss_allow_candle_flip` **true** → FLIP para vela/ops (`live_exec_flip_to_candle`); slope = soft Kelly.
+   - **EMA / candle discord**: `anti_loss_allow_candle_flip` **true** → FLIP (`live_exec_flip_to_candle`) **so se** Edge Cal vela >= floor explore/recovery; subfloor → soft no anchor (`anti_loss_flip_blocked`); slope = soft Kelly.
    - **Confirm / discord / weak live**: `live_discord_weak` / `live_confirm_weak` / `live_weak_candle` / `live_no_candle` = **soft Kelly** (nao EMPTY).
    - **Zero Bypass de Vela M5**: `anti_loss_live_exec_candle_enabled` **false** — last-bar ≠ EXEC nao gera HARD `live_exec_discord`.
-   - **RSI Momentum**: CALL vetado se RSI < 0.30; PUT se RSI > 0.70 (**HARD**).
+   - **RSI Momentum**: CALL soft se RSI < 0.30; PUT soft se RSI > 0.70 (**soft Kelly** pos-lado; nao EMPTY).
    - **Seed**: unstamped + `p_loss`≥**0.85** + TCN pos_edge → **hard SKIP** se janela nao confirma TCN com corpo **0.10**.
-10. EXEC_EMPTY tecnico = sucesso quando Edge `<= 0` / `neutral_zone` / seed unstamped / RSI; soft EMA/confirm continua EXEC sem Single-Strike (piso Soft_SIZE **2.5%** so se Edge >= **0.015**)
+10. EXEC_EMPTY tecnico = sucesso quando Edge `<= 0` / `neutral_zone` / seed unstamped; soft EMA/confirm/RSI continua EXEC sem Single-Strike (piso Soft_SIZE **2.5%** so se Edge >= **0.015**)
 ## Proibido
 
 - Revenge sizing pos-LOSS; force_trade como fix de EXEC_EMPTY / Edge<=0 / neutral_zone

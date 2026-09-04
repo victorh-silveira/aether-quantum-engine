@@ -115,6 +115,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         skip = waived if waived else "-"
     fusion_side = str(
         metrics.get("fusion_side_pre_invert")
+        or metrics.get("fusion_side")
         or metrics.get("exec_direction")
         or metrics.get("resolved_direction")
         or "-"

@@ -215,6 +215,11 @@ def test_anti_loss_live_exec_flip_to_candle():
     orch = MagicMock(
         stream=MagicMock(get_mini_numpy_series=MagicMock(return_value=None)), symbols=["R_10"], anchor="R_10"
     )
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
     metrics = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -223,22 +228,26 @@ def test_anti_loss_live_exec_flip_to_candle():
         ops_window_candle_body=2.5,
         indicators={"rsi": 0.50},
     )
-    # Com allow_flip desabilitado (padrao de seguranca), veta discordancia quando exec candle ativo
     cfg_default = parse_signal_skip_config(
         {"anti_loss_live_exec_candle_enabled": True, "anti_loss_allow_candle_flip": False, "anti_loss_hard_skip": True}
     )
     assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg_default) is True
     assert metrics["gate_reason"] == "live_exec_discord"
 
-    # Com allow_flip habilitado em cfg e metrics
     metrics_flip = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
         resolved_direction="CALL",
         ops_window_candle_dir="PUT",
         ops_window_candle_body=2.5,
+        calibrated_prob=0.38,
         indicators={"rsi": 0.50},
         anti_loss_allow_candle_flip=True,
+        fusion_applied=True,
+        fusion_p_eff=0.62,
+        fusion_p_call=0.62,
+        fusion_p_put=0.70,
+        fusion_side="CALL",
     )
     cfg_flip = parse_signal_skip_config(
         {"anti_loss_allow_candle_flip": True, "anti_loss_live_exec_candle_enabled": True}
@@ -248,10 +257,11 @@ def test_anti_loss_live_exec_flip_to_candle():
     assert metrics_flip["resolved_direction"] == "PUT"
     assert metrics_flip["anti_loss_flipped_to_candle"] is True
     assert metrics_flip["anti_loss_why"] == "live_exec_flip_to_candle"
+    assert metrics_flip["fusion_p_eff"] == pytest.approx(0.70)
 
 
-def test_anti_loss_rsi_momentum_veto():
-    """CALL RSI < 0.30 e PUT RSI > 0.70 hard SKIP; faixa intermediaria passa."""
+def test_anti_loss_rsi_momentum_soft():
+    """CALL RSI < 0.30 e PUT RSI > 0.70 soft Kelly; faixa intermediaria passa."""
     metrics_call = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -261,8 +271,11 @@ def test_anti_loss_rsi_momentum_veto():
         indicators={"rsi": 0.28},
     )
     cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics_call, cfg=cfg) is True
-    assert metrics_call["gate_reason"] == "anti_loss_rsi_momentum"
+    assert apply_anti_loss_seed_discord(metrics_call, cfg=cfg) is False
+    assert metrics_call.get("anti_loss_soft") is True
+    assert metrics_call.get("gate_verdict") == "SOFT_SIZE"
+    assert metrics_call["anti_loss_why"] == "anti_loss_rsi_momentum"
+    assert metrics_call["execution_candidate_ready"] is True
     metrics_mid = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -274,6 +287,7 @@ def test_anti_loss_rsi_momentum_veto():
         indicators={"rsi": 0.32},
     )
     assert apply_anti_loss_seed_discord(metrics_mid, cfg=cfg) is False
+    assert metrics_mid.get("anti_loss_soft") is None
     assert metrics_mid.get("gate_reason") is None
     metrics_put = _base_metrics(
         ops_window_stamped=True,
@@ -285,5 +299,91 @@ def test_anti_loss_rsi_momentum_veto():
         ops_window_candle_body=0.5,
         indicators={"rsi": 0.72},
     )
-    assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is True
-    assert metrics_put["gate_reason"] == "anti_loss_rsi_momentum"
+    assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is False
+    assert metrics_put.get("anti_loss_soft") is True
+    assert metrics_put.get("gate_verdict") == "SOFT_SIZE"
+    assert metrics_put["anti_loss_why"] == "anti_loss_rsi_momentum"
+    assert metrics_put["execution_candidate_ready"] is True
+
+
+def test_anti_loss_rsi_after_candle_flip_keeps_flip_why():
+    """Discord candle flipa antes do RSI; RSI extremo no TCN nao gera EMPTY pre-flip."""
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    stream = MagicMock()
+    stream.get_mini_numpy_series.return_value = np.linspace(4800, 5000, 30)
+    orch = MagicMock(stream=stream, symbols=["1HZ75V"], anchor="1HZ75V")
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
+    metrics = _base_metrics(
+        ops_window_stamped=True,
+        tcn_direction="PUT",
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.5,
+        closed_micro_candle_body=0.5,
+        calibrated_prob=0.62,
+        indicators={"rsi": 0.85},
+    )
+    cfg = parse_signal_skip_config(
+        {
+            "anti_loss_hard_skip": True,
+            "anti_loss_allow_candle_flip": True,
+            "anti_loss_live_exec_candle_enabled": False,
+        }
+    )
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg, orch=orch, symbol="1HZ75V") is False
+    assert metrics.get("anti_loss_flipped_to_candle") is True
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics["anti_loss_why"] == "live_exec_flip_to_candle"
+    assert metrics.get("anti_loss_rsi_soft") is not True
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics["execution_candidate_ready"] is True
+
+
+def test_anti_loss_rsi_soft_flag_when_flip_already_soft():
+    """Apos flip, RSI extremo no lado final marca anti_loss_rsi_soft sem apagar flip."""
+    from unittest.mock import MagicMock
+
+    import numpy as np
+
+    stream = MagicMock()
+    stream.get_mini_numpy_series.return_value = np.linspace(4800, 5000, 30)
+    orch = MagicMock(stream=stream, symbols=["1HZ75V"], anchor="1HZ75V")
+    orch.config = {
+        "deep_learning": {},
+        "risk_management": {"params": {"payout_estimate": 0.85}},
+        "orchestrator": {"execution": {"signal_skip": {"min_edge_explore": 0.015, "min_edge_recovery": 0.010}}},
+    }
+    metrics = _base_metrics(
+        ops_window_stamped=True,
+        tcn_direction="PUT",
+        exec_direction="PUT",
+        resolved_direction="PUT",
+        closed_micro_candle_dir="CALL",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.5,
+        closed_micro_candle_body=0.5,
+        calibrated_prob=0.62,
+        indicators={"rsi": 0.20},
+    )
+    cfg = parse_signal_skip_config(
+        {
+            "anti_loss_hard_skip": True,
+            "anti_loss_allow_candle_flip": True,
+            "anti_loss_live_exec_candle_enabled": False,
+        }
+    )
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg, orch=orch, symbol="1HZ75V") is False
+    assert metrics.get("anti_loss_flipped_to_candle") is True
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics["anti_loss_why"] == "live_exec_flip_to_candle"
+    assert metrics.get("anti_loss_rsi_soft") is True
+    assert metrics.get("anti_loss_soft") is True

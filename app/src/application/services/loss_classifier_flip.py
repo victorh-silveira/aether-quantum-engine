@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_fusion_p_eff import sync_fusion_p_eff_for_direction
 from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge, resolve_raw_predicted_edge
 from src.application.services.market_audit_ops_window import ops_window_candle_side
@@ -248,6 +249,7 @@ def apply_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, cfg: di
     flipped = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
     metrics["exec_direction"] = flipped.name
     metrics["resolved_direction"] = flipped.name
+    sync_fusion_p_eff_for_direction(metrics, flipped.name)
     metrics["loss_clf_flip"] = True
     metrics["loss_clf_veto_mode"] = "flip"
     metrics["loss_clf_flip_ref"] = ref_dir.name
@@ -263,6 +265,7 @@ def revert_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, reason
     """Desfaz FLIP e marca bloqueio (ex.: edge pos-FLIP abaixo do floor)."""
     metrics["exec_direction"] = ref_dir.name
     metrics["resolved_direction"] = ref_dir.name
+    sync_fusion_p_eff_for_direction(metrics, ref_dir.name)
     metrics.pop("loss_clf_flip", None)
     metrics.pop("loss_clf_flip_reason", None)
     metrics["loss_clf_veto_mode"] = "soft"

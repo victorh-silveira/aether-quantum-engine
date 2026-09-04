@@ -148,7 +148,7 @@ def test_neg_edge_soft_mult_override_with_orch():
 
 
 def test_neg_edge_fusion_p_eff_invalid_falls_back_to_cal():
-    from src.application.services.execution_neg_edge import _resolve_neg_side_edge
+    from src.application.services.execution_fusion_p_eff import resolve_neg_side_edge
 
     metrics = {
         "fusion_applied": True,
@@ -156,11 +156,28 @@ def test_neg_edge_fusion_p_eff_invalid_falls_back_to_cal():
         "calibrated_prob": 0.40,
         "exec_direction": "PUT",
     }
-    edge = _resolve_neg_side_edge(metrics, "PUT", 0.72)
+    edge = resolve_neg_side_edge(metrics, "PUT", 0.72)
     assert metrics.get("neg_edge_used_fusion_p_eff") is not True
     assert metrics.get("neg_edge_fusion_p_eff") is None
     assert isinstance(edge, float)
     assert edge == pytest.approx((0.60 * 1.72) - 1.0)
+
+
+def test_neg_edge_indexes_fusion_p_by_exec_direction_after_flip():
+    from src.application.services.execution_fusion_p_eff import resolve_neg_side_edge
+
+    metrics = {
+        "fusion_applied": True,
+        "fusion_side": "PUT",
+        "fusion_p_eff": 0.70,
+        "fusion_p_call": 0.56,
+        "fusion_p_put": 0.70,
+        "calibrated_prob": 0.45,
+        "exec_direction": "CALL",
+    }
+    edge = resolve_neg_side_edge(metrics, "CALL", 0.85)
+    assert metrics["fusion_p_eff"] == pytest.approx(0.56)
+    assert edge == pytest.approx((0.56 * 1.85) - 1.0)
 
 
 def test_neg_edge_replay_c1_put_cluster_neg_fusion_pos():
@@ -171,6 +188,8 @@ def test_neg_edge_replay_c1_put_cluster_neg_fusion_pos():
         "calibrated_prob": 0.482,
         "fusion_applied": True,
         "fusion_p_eff": 0.612,
+        "fusion_p_call": 0.388,
+        "fusion_p_put": 0.612,
         "fusion_reason": "ev_put",
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": False,
@@ -195,6 +214,8 @@ def test_neg_edge_replay_c2_call_cluster_neg_fusion_pos():
         "calibrated_prob": 0.50509,
         "fusion_applied": True,
         "fusion_p_eff": 0.626,
+        "fusion_p_call": 0.626,
+        "fusion_p_put": 0.374,
         "fusion_reason": "ev_call",
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": False,
@@ -218,6 +239,8 @@ def test_neg_edge_passes_when_tcn_cal_edge_above_floor():
         "calibrated_prob": 0.70,
         "fusion_applied": True,
         "fusion_p_eff": 0.72,
+        "fusion_p_call": 0.72,
+        "fusion_p_put": 0.28,
         "kelly_fraction_scale": 1.0,
     }
     assert apply_negative_cal_edge_pause(metrics, min_edge=0.04, payout=0.72) is False
@@ -228,7 +251,7 @@ def test_neg_edge_passes_when_tcn_cal_edge_above_floor():
 
 
 def test_neg_edge_ignores_fusion_p_eff_out_of_range():
-    from src.application.services.execution_neg_edge import _resolve_neg_side_edge
+    from src.application.services.execution_fusion_p_eff import resolve_neg_side_edge
 
     metrics = {
         "fusion_applied": True,
@@ -236,7 +259,7 @@ def test_neg_edge_ignores_fusion_p_eff_out_of_range():
         "calibrated_prob": 0.70,
         "exec_direction": "CALL",
     }
-    edge = _resolve_neg_side_edge(metrics, "CALL", 0.72)
+    edge = resolve_neg_side_edge(metrics, "CALL", 0.72)
     assert metrics.get("neg_edge_fusion_p_eff") is None
     assert edge == pytest.approx((0.70 * 1.72) - 1.0)
 
@@ -248,6 +271,8 @@ def test_neg_edge_hard_without_fusion_blocked_when_p_eff_also_neg():
         "calibrated_prob": 0.50,
         "fusion_applied": True,
         "fusion_p_eff": 0.50,
+        "fusion_p_call": 0.50,
+        "fusion_p_put": 0.50,
         "kelly_fraction_scale": 1.0,
     }
     orch = SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}})

@@ -15,8 +15,6 @@ _TECHNICAL_REASONS = frozenset(
         "neg_edge",
         "neg_edge_zscore_panic",
         "anti_loss_seed_discord",
-        "anti_loss_rsi_momentum",
-        "anti_loss_rsi_trend",
         "anti_loss_ema_trend",
         "anti_loss_ema_slope",
         "live_exec_discord",
