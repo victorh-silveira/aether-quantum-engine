@@ -1,3 +1,9 @@
+## [2.51.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.8...v2.51.0) (2026-09-04)
+
+### Funcionalidades
+
+* **risk:** piso Kelly 1%, cover off e flip anti-loss para vela ([91b8ac4](https://github.com/victorh-silveira/aether-quantum-engine/commit/91b8ac4e4839dfb61fb5401bfc759cdd79622d1a))
+
 ## [2.50.8](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.50.7...v2.50.8) (2026-09-03)
 
 ### Correcoes de Bug
