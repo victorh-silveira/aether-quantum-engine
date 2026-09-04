@@ -44,6 +44,7 @@ def test_apply_soft_recovery_stake_amort_uses_cover_not_geometric():
     soft = {
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_enabled": True,
         "cover_multiple": 1.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -80,6 +81,7 @@ def test_apply_soft_recovery_cover_multiple_doubles_need():
         soft_recovery={
             "amort_cycles_min": 1,
             "amort_cycles_max": 1,
+            "cover_enabled": True,
             "cover_multiple": 2.0,
             "max_safe_stake_pct": 0.05,
             "infeasible_force_explore": True,
@@ -94,11 +96,11 @@ def test_apply_soft_recovery_cover_multiple_doubles_need():
 
 def test_session_base_unit_at_eleven_point_five_k():
     unit = neutral_edge_dynamic_unit(11500.0)
-    assert unit == pytest.approx(28.75)
+    assert unit == pytest.approx(115.0)
     metrics: dict = {}
     resolved = resolve_session_base_unit(11500.0, 2.0, metrics)
-    assert resolved == pytest.approx(28.75)
-    assert metrics["session_base_unit"] == pytest.approx(28.75)
+    assert resolved == pytest.approx(115.0)
+    assert metrics["session_base_unit"] == pytest.approx(115.0)
 
 
 def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
@@ -111,7 +113,7 @@ def test_apply_soft_recovery_stake_without_pending_returns_session_unit():
         metrics={},
         payout=0.95,
     )
-    assert stake == pytest.approx(28.75)
+    assert stake == pytest.approx(115.0)
 
 
 def test_apply_soft_recovery_stake_full_cover_amort_one_no_geometric():
@@ -121,6 +123,7 @@ def test_apply_soft_recovery_stake_full_cover_amort_one_no_geometric():
     soft = {
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -150,6 +153,7 @@ def test_apply_soft_recovery_stake_cover_not_damped_by_negative_session_pnl():
     soft = {
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -179,6 +183,7 @@ def test_apply_soft_recovery_stake_ignores_previous_stake_for_geometric_progress
     soft = {
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -205,6 +210,7 @@ def test_apply_soft_recovery_stake_c0005_neutral_linear_one_nominal():
     soft = {
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -230,6 +236,7 @@ def test_apply_soft_recovery_stake_covers_pending_within_bankroll_cap():
     soft = {
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -261,7 +268,7 @@ def test_max_safe_stake_cap_compresses_on_linear_streak():
 
 def test_apply_soft_recovery_stake_respects_bankroll_cap():
     metrics: dict = {}
-    soft = {"infeasible_force_explore": False}
+    soft = {"infeasible_force_explore": False, "cover_enabled": True}
     stake = apply_soft_recovery_stake(
         pending_total=5000.0,
         base_unit=200.0,

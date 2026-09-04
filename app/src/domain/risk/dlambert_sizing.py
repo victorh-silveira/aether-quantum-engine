@@ -154,9 +154,19 @@ def resolve_dlambert_stake(
         )
         if metrics is not None and bool(metrics.get("recovery_force_explore")):
             resolve_dlambert_unit(kelly_base, rm)
-            explore = float(raw)
-            if weak_f_star:
-                explore = min(explore, neutral_explore_floor(bankroll, metrics))
+            floor = neutral_explore_floor(bankroll, metrics)
+            cap = max_safe_stake_cap(
+                bankroll,
+                consecutive_losses_linear=consecutive_losses_linear,
+                soft_recovery=soft,
+            )
+            if bool(metrics.get("recovery_cover_disabled")):
+                explore = min(max(float(kelly_base), float(floor)), float(cap))
+            else:
+                explore = float(raw)
+                if weak_f_star:
+                    explore = min(explore, floor)
+                explore = min(explore, float(cap))
             return round_stake(explore, recovery_linear=False), "KELLY"
         rounded = round_stake(raw, recovery_linear=True)
         cap = max_safe_stake_cap(

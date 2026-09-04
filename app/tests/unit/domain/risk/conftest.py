@@ -43,6 +43,7 @@ def kelly_config():
             "max_safe_stake_pct": 0.05,
             "amort_cycles_min": 1,
             "amort_cycles_max": 1,
+            "cover_enabled": True,
             "cover_multiple": 1.50,
             "coing_redirect_drawdown_threshold": 15.00,
         }

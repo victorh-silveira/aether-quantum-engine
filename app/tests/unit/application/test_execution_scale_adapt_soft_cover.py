@@ -46,6 +46,7 @@ def test_resolve_dlambert_pending_waives_scale_adapted_uses_soft_cover():
     class RM:
         soft_recovery_config = {
             "enabled": True,
+            "cover_enabled": True,
             "max_safe_stake_cap": 300.0,
             "max_safe_stake_pct": 0.05,
             "pending_waives_scale_explore": True,

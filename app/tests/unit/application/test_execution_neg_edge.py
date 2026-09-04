@@ -16,7 +16,7 @@ from src.application.services.execution_signal_skip import metrics_block_executi
 def test_parse_neg_edge_soft_from_ssot():
     cfg = parse_neg_edge_soft_config({})
     assert cfg["neg_edge_soft_kelly_mult"] == pytest.approx(0.55)
-    assert cfg["neg_edge_hard_skip"] is False
+    assert cfg["neg_edge_hard_skip"] is True
     assert cfg["neg_edge_soft_when_closed_candle_agree"] is True
     assert cfg["neg_edge_soft_min_edge"] == pytest.approx(-1.0)
     assert cfg["neg_edge_bootstrap_soft_kelly_mult"] == pytest.approx(0.25)
@@ -51,12 +51,13 @@ def test_neg_edge_hard_blocks_negative_cal_side_edge():
     assert metrics["signal_status"] == "SKIP:NEG_EDGE"
     assert metrics["gate_reason"] == "neg_edge"
     assert metrics.get("neg_edge_soft") is None
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert metrics["cal_side_edge"] < 0.0
     assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_soft_when_hard_disabled():
+def test_neg_edge_soft_positive_subfloor_with_hard_skip_true():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -77,11 +78,12 @@ def test_neg_edge_soft_when_hard_disabled():
             }
         },
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics["signal_status"] == "SKIP:NEG_EDGE"
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics_block_execution(metrics) is True
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
@@ -116,6 +118,7 @@ def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
     assert metrics["gate_reason"] == "neg_edge"
     assert metrics.get("neg_edge_nonpositive_hard") is True
     assert metrics.get("neg_edge_soft") is None
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert float(metrics["cal_side_edge"]) <= 0.0
     assert metrics_block_execution(metrics) is True
 
@@ -151,10 +154,11 @@ def test_neg_edge_fusion_or_candle_agree_waives_hard_skip():
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
     assert metrics["execution_candidate_ready"] is False
     assert metrics["signal_status"] == "SKIP:NEG_EDGE"
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_hard_skip_positive_subfloor_without_allow_soft():
+def test_neg_edge_hard_skip_positive_subfloor_stays_soft():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -180,12 +184,12 @@ def test_neg_edge_hard_skip_positive_subfloor_without_allow_soft():
         },
     }
     orch._log_dedupe = {}
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
-    assert metrics["execution_candidate_ready"] is False
-    assert metrics["gate_reason"] == "neg_edge"
-    assert metrics.get("neg_edge_soft") is None
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
+    assert metrics["execution_candidate_ready"] is True
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics_block_execution(metrics) is True
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_allows_positive_edge_above_floor():
@@ -207,6 +211,7 @@ def test_neg_edge_allows_positive_edge_above_floor():
     assert metrics["cal_side_edge"] >= 0.04
     assert metrics.get("neg_edge_soft") is None
     assert metrics.get("gate_reason") is None
+    assert metrics["gate_verdict"] == "ALLOW"
 
 
 def test_neg_edge_respects_force_and_prior_skip():
@@ -243,6 +248,7 @@ def test_neg_edge_zscore_panic_veto_bilateral():
     assert metrics_call["execution_candidate_ready"] is False
     assert metrics_call["gate_reason"] == "neg_edge_zscore_panic"
     assert metrics_call["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+    assert metrics_call["gate_verdict"] == "HARD_SKIP"
     assert float(metrics_call["neg_edge_zscore"]) == pytest.approx(-2.45)
     assert metrics_call["neg_edge_zscore_side"] == "CALL"
     assert float(metrics_call["neg_edge_zscore_threshold"]) == pytest.approx(-2.0)
@@ -257,6 +263,7 @@ def test_neg_edge_zscore_panic_veto_bilateral():
     assert metrics_put["execution_candidate_ready"] is False
     assert metrics_put["gate_reason"] == "neg_edge_zscore_panic"
     assert metrics_put["signal_status"] == "SKIP:NEG_EDGE_ZSCORE_PANIC"
+    assert metrics_put["gate_verdict"] == "HARD_SKIP"
     assert float(metrics_put["neg_edge_zscore"]) == pytest.approx(2.30)
     assert metrics_put["neg_edge_zscore_side"] == "PUT"
     assert float(metrics_put["neg_edge_zscore_threshold"]) == pytest.approx(2.0)

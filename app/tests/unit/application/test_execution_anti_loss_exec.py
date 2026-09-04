@@ -40,13 +40,16 @@ def test_anti_loss_replay_c6_confirm_weak_body():
         "loss_clf_p_loss": 0.86117,
         "loss_clf_auto_learn": False,
         "ops_window_candle_dir": "CALL",
-        "ops_window_candle_body": 0.15,
+        "ops_window_candle_body": 0.12,
         "ops_window_stamped": True,
         "kelly_fraction_scale": 1.0,
+        "indicators": {"rsi": 0.50},
     }
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics["anti_loss_why"] == "live_confirm_weak"
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics.get("gate_verdict") == "SOFT_SIZE"
     assert metrics.get("anti_loss_side") == "CALL"
 
 

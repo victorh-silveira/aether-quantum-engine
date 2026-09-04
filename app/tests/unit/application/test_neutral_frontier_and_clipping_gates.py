@@ -133,6 +133,6 @@ def test_select_cointegration_redirect_prefers_high_z_low_entropy() -> None:
 def test_micro_tail_stake_cap_and_max_safe_flatten_at_linear_four() -> None:
     assert micro_tail_stake_cap(100.0) == pytest.approx(4.20)
     assert max_safe_stake_cap(100.0, consecutive_losses_linear=0) == pytest.approx(3.50)
-    assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(1.05)
-    assert max_safe_stake_cap(100.0, consecutive_losses_linear=8) == pytest.approx(1.05)
+    assert max_safe_stake_cap(100.0, consecutive_losses_linear=4) == pytest.approx(4.20)
+    assert max_safe_stake_cap(100.0, consecutive_losses_linear=8) == pytest.approx(4.20)
     assert max_safe_stake_cap(10000.0, consecutive_losses_linear=4) == pytest.approx(250.0)

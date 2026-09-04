@@ -13,12 +13,12 @@ def test_recovery_dl_conviction_ok_wrapper(kelly_config):
 
 
 def test_kelly_calculation_standard(kelly_config):
-    """Verifica Kelly com piso explore M3 (neutral_bankroll_pct) e fraction do fixture."""
+    """Verifica Kelly com piso explore (neutral_bankroll_pct 1%)."""
     rm = RiskManager(kelly_config)
     stake = rm.calculate_stake(1000.0, "R_10", conviction=0.6)
     floor = 1000.0 * float(kelly_config["kelly"]["neutral_bankroll_pct"])
     assert stake >= floor - 1e-9
-    assert stake == pytest.approx(3.11, abs=0.2)
+    assert stake == pytest.approx(floor, abs=0.2)
 
 
 def test_kelly_negative_edge_floors_p_and_sizes(kelly_config):

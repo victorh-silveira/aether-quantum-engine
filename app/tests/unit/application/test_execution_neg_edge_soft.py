@@ -1,4 +1,4 @@
-"""Soft neg_edge: candle-agree, piso de profundidade e p_ovr."""
+"""Soft neg_edge: subfloor positivo e override hard_skip false."""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from src.application.services.execution_gate_verdict import blocks_single_strike
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_signal_skip import metrics_block_execution, parse_signal_skip_config
 
@@ -43,10 +44,12 @@ def test_neg_edge_soft_when_side_agrees_closed_candle():
         "ops_window_candle_dir": "CALL",
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") == "neg_edge"
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is False
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics_block_execution(metrics) is True
+    assert metrics_block_execution(metrics) is False
+    assert blocks_single_strike(metrics) is True
 
 
 def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
@@ -62,6 +65,7 @@ def test_neg_edge_hard_when_candle_agree_but_edge_nonpositive():
     assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
     assert metrics.get("gate_reason") == "neg_edge"
     assert metrics["execution_candidate_ready"] is False
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert metrics_block_execution(metrics) is True
 
 
@@ -81,6 +85,7 @@ def test_neg_edge_soft_subfloor_when_soft_min_wide():
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
     assert metrics["execution_candidate_ready"] is True
     assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
     assert metrics_block_execution(metrics) is False
 
 
@@ -95,9 +100,10 @@ def test_neg_edge_soft_when_flip_blocked_and_candle_with_hard_on():
         "loss_clf_flip_blocked": "neg_edge",
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics_block_execution(metrics) is True
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is False
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
+    assert metrics_block_execution(metrics) is False
 
 
 def test_neg_edge_soft_exec_when_hard_skip_false_and_edge_nonpositive():
@@ -114,8 +120,27 @@ def test_neg_edge_soft_exec_when_hard_skip_false_and_edge_nonpositive():
     assert metrics["execution_candidate_ready"] is True
     assert metrics.get("neg_edge_soft") is True
     assert metrics.get("signal_skip_waived") == "neg_edge_soft"
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
     assert metrics.get("gate_reason") is None
     assert metrics_block_execution(metrics) is False
+
+
+def test_neg_edge_replay_c3_edge_nonpositive_hard_empty():
+    metrics = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.533,
+        "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
+    }
+    orch = _orch_skip(neg_edge_hard_skip=True)
+    assert apply_negative_cal_edge_pause(metrics, orch=orch, payout=0.85, min_edge=0.015) is True
+    assert float(metrics["cal_side_edge"]) < 0.0
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics["gate_reason"] == "neg_edge"
+    assert metrics["gate_verdict"] == "HARD_SKIP"
+    assert metrics.get("neg_edge_soft") is None
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
@@ -130,6 +155,7 @@ def test_neg_edge_soft_when_loss_clf_p_ovr_flip():
         "loss_clf_flip_scale_p_override": True,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is True
-    assert metrics.get("gate_reason") == "neg_edge"
-    assert metrics_block_execution(metrics) is True
+    assert apply_negative_cal_edge_pause(metrics, orch=_orch_skip()) is False
+    assert metrics.get("neg_edge_soft") is True
+    assert metrics["gate_verdict"] == "SOFT_SIZE"
+    assert metrics_block_execution(metrics) is False

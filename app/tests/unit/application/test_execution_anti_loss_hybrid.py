@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock
 
-import numpy as np
-
 from src.application.services.execution_anti_loss import apply_anti_loss_seed_discord
 from src.application.services.execution_signal_skip import parse_signal_skip_config
 from tests.unit.application.test_execution_anti_loss import _base_metrics
@@ -63,12 +61,14 @@ def test_anti_loss_hybrid_anchor_discord_reduces_body():
     assert metrics.get("anti_loss_anchor_agree") is False
 
 
-def test_anti_loss_ema_slope_veto():
-    stream = MagicMock()
-    closes = np.linspace(5000, 4800, 30)
-    closes[-1] = closes[-2] + 20.0
-    stream.get_mini_numpy_series.return_value = closes
-    orch = MagicMock(stream=stream, symbols=["R_10"], anchor="R_10")
+def test_anti_loss_ema_slope_soft_allows_exec(monkeypatch):
+    from src.application.services import execution_anti_loss as anti_mod
+
+    monkeypatch.setattr(
+        anti_mod,
+        "check_mini_ema_trend_and_slope",
+        lambda *a, **k: (False, "anti_loss_ema_slope"),
+    )
     metrics = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
@@ -78,5 +78,9 @@ def test_anti_loss_ema_slope_veto():
         indicators={"rsi": 0.50},
     )
     cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, orch=orch, cfg=cfg) is True
-    assert metrics["gate_reason"] in {"anti_loss_ema_slope", "anti_loss_ema_trend"}
+    assert apply_anti_loss_seed_discord(metrics, orch=MagicMock(), cfg=cfg) is False
+    assert metrics.get("execution_candidate_ready") is not False
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics.get("anti_loss_why") == "anti_loss_ema_slope"
+    assert metrics.get("gate_verdict") == "SOFT_SIZE"
+    assert metrics.get("gate_reason") is None

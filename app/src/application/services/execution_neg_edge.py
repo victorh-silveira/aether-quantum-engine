@@ -6,6 +6,7 @@ import logging
 from contextlib import suppress
 from typing import Any
 
+from src.application.services.execution_gate_verdict import stamp_allow, stamp_hard_skip, stamp_soft_size
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 
@@ -156,12 +157,23 @@ def _apply_neg_edge_hard(metrics: dict[str, Any], *, direction: str, edge: float
     if str(metrics.get("signal_skip_waived") or "") == "neg_edge_soft":
         metrics.pop("signal_skip_waived", None)
     metrics.pop("neg_edge_pause", None)
+    stamp_hard_skip(metrics, "neg_edge")
     logger.debug(
         "EDGE || NEG_HARD side=%s edge=%+.4f floor=%.4f",
         direction,
         edge,
         floor,
     )
+
+
+def _apply_neg_edge_soft(metrics: dict[str, Any], *, soft_kelly: float, reason: str = "neg_edge_soft") -> None:
+    """Aplica soft Kelly e stamp SOFT_SIZE (bloqueia Single-Strike)."""
+    metrics["neg_edge_soft"] = True
+    metrics["neg_edge_soft_kelly_mult"] = soft_kelly
+    metrics["signal_skip_waived"] = "neg_edge_soft"
+    cur_scale = float(metrics.get("kelly_fraction_scale", 1.0))
+    metrics["kelly_fraction_scale"] = cur_scale * soft_kelly
+    stamp_soft_size(metrics, reason)
 
 
 def _apply_zscore_panic(metrics: dict[str, Any], *, direction: str, z_float: float) -> bool:
@@ -179,6 +191,7 @@ def _apply_zscore_panic(metrics: dict[str, Any], *, direction: str, z_float: flo
     metrics["neg_edge_zscore"] = float(z_float)
     metrics["neg_edge_zscore_side"] = direction
     metrics["neg_edge_zscore_threshold"] = float(thr_signed)
+    stamp_hard_skip(metrics, "neg_edge_zscore_panic")
     logger.info(
         "EDGE || NEG_ZSCORE_PANIC side=%s Z=%+.3f thr=%+.1f",
         direction,
@@ -254,21 +267,22 @@ def apply_negative_cal_edge_pause(
     cfg = _neg_edge_cfg(orch)
     auto_learn = bool(metrics.get("loss_clf_auto_learn"))
     deep_floor = float(cfg.get("neg_edge_deep_edge_floor", -0.12))
-    hard_skip = bool(cfg.get("neg_edge_hard_skip", False))
-    if hard_skip:
-        if edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
+    hard_skip = bool(cfg.get("neg_edge_hard_skip", True))
+    soft_kelly = float(cfg.get("neg_edge_soft_kelly_mult", 0.55))
+    nonpositive = edge + 1e-12 <= 0.0
+    below_floor = edge + 1e-12 < floor
+    if nonpositive:
+        if hard_skip:
             _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
             if (not auto_learn) and edge + 1e-12 < deep_floor:
                 metrics["neg_edge_bootstrap_deep"] = True
             else:
                 metrics["neg_edge_nonpositive_hard"] = True
             return True
-    elif edge + 1e-12 < floor or edge + 1e-12 <= 0.0:
-        soft_kelly = float(cfg.get("neg_edge_soft_kelly_mult", 0.55))
-        metrics["neg_edge_soft"] = True
-        metrics["neg_edge_soft_kelly_mult"] = soft_kelly
-        metrics["signal_skip_waived"] = "neg_edge_soft"
-        cur_scale = float(metrics.get("kelly_fraction_scale", 1.0))
-        metrics["kelly_fraction_scale"] = cur_scale * soft_kelly
+        _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
         return False
+    if below_floor:
+        _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
+        return False
+    stamp_allow(metrics, "neg_edge_pass")
     return False

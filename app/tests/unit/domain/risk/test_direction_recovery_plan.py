@@ -79,6 +79,7 @@ def test_near_stop_win_freeze_uses_neutral_floor_not_sticky_unit():
         "material_pending_min": 1.0,
         "near_stop_win_freeze_pct": 0.80,
         "max_safe_stake_cap": 1.05,
+        "cover_enabled": False,
     }
     metrics: dict = {}
     stake = apply_soft_recovery_stake(
@@ -93,7 +94,7 @@ def test_near_stop_win_freeze_uses_neutral_floor_not_sticky_unit():
         session_pnl=8.5,
         target_win=10.0,
     )
-    assert stake == pytest.approx(0.25)
+    assert stake == pytest.approx(1.0)
     assert stake < 12.0
     assert metrics.get("recovery_near_stop_win_freeze") is True
     assert metrics.get("recovery_force_explore") is True
@@ -117,7 +118,7 @@ def test_immaterial_pending_uses_neutral_floor_not_base_unit():
         session_pnl=1.0,
         target_win=10.0,
     )
-    assert stake == pytest.approx(0.25)
+    assert stake == pytest.approx(1.0)
     assert metrics.get("recovery_material_pending") is False
 
 
@@ -150,7 +151,7 @@ def test_resolve_dlambert_stake_near_target_force_explore_floor():
         f_star=0.01,
     )
     assert tag == "KELLY"
-    assert stake == pytest.approx(0.25)
+    assert stake == pytest.approx(1.0)
     assert metrics.get("recovery_near_stop_win_freeze") is True
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("recovery_explore_used_cover") is False

@@ -1,14 +1,14 @@
 ---
-description: Risco/sizing Aether — Kelly, soft recovery cover 1.10 (amort 2/3), stop-win 4.31%, caps (Taleb, Bernstein, LTCM, Douglas)
+description: Risco/sizing Aether — Kelly piso 1%, cover_enabled false, stop-win 4.31%, caps (Taleb, Bernstein, LTCM, Douglas)
 globs: app/src/domain/risk/**/*.py
 alwaysApply: true
 ---
 
 # Risco e sizing
 
-- Soft recovery: stake = amortização equilibrada (`cover_multiple` **1.10**, amort **2/3**); caps escalonados: L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; nao `max(exponencial, cover)` revenge; `f*` so gate em RECOVER; PEND material → cover (nao EXPLORE por Hurst/NEG_EDGE/quality).
+- Soft recovery: `cover_enabled` **false** — PEND material **nao** usa cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** + caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; ledger WIN abate lucro real; nao `max(exponencial, cover)` revenge; amort/cover_multiple legado inerte enquanto cover off.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
-- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso explore **0.25%** banca; nao misturar regime RECOVER sem pending.
+- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**); Soft_SIZE eleva ao piso `soft_size_min_stake_pct` **2.5%** so se Edge >= `soft_size_min_edge` **0.015** (cap do piso **2.5%**, sem Single-Strike); subfloor permanece no piso **1%**.
 - Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$).
 - Cooldown linear apos loss; anti revenge sizing.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.

@@ -18,7 +18,7 @@ alwaysApply: true
 2. **Volatilidade e Momentum**:
    - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
    - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 5m capturam a tendência genuína de fluxo.
-   - **Anti-loss RSI M5**: CALL vetado se $\text{RSI}_{\text{M5}} < 0.35$; PUT vetado se $\text{RSI}_{\text{M5}} > 0.65$ (`why=anti_loss_rsi_momentum`); confirmação de janela `ops_window_bars` **3** velas M5.
+   - **Anti-loss RSI M5**: CALL vetado se $\text{RSI}_{\text{M5}} < 0.30$; PUT vetado se $\text{RSI}_{\text{M5}} > 0.70$ (`why=anti_loss_rsi_momentum`); confirmação de janela `ops_window_bars` **3** velas M5 (corpo ≥ **0.15**); `anti_loss_live_exec_candle_enabled` **false**.
 3. **Payout e Breakeven**:
    - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
    - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.

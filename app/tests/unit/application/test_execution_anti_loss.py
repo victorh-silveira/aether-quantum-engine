@@ -33,14 +33,15 @@ def test_parse_anti_loss_knobs_from_ssot():
     assert cfg["anti_loss_seed_discord_enabled"] is True and cfg["anti_loss_hard_skip"] is True
     assert cfg["anti_loss_p_loss_floor"] == pytest.approx(0.85)
     assert cfg["anti_loss_require_seed"] is True
-    assert float(cfg["anti_loss_soft_kelly_mult"]) == pytest.approx(0.25)
+    assert float(cfg["anti_loss_soft_kelly_mult"]) == pytest.approx(0.55)
     assert cfg["anti_loss_require_tcn_pos_edge"] is True
     assert cfg["anti_loss_min_candle_body"] == pytest.approx(0.10)
     assert cfg["anti_loss_live_weak_candle_enabled"] is True and cfg["anti_loss_live_confirm_enabled"] is True
     assert (
-        cfg["anti_loss_live_confirm_min_body"] == pytest.approx(0.25)
-        and cfg["anti_loss_live_exec_candle_enabled"] is True
+        cfg["anti_loss_live_confirm_min_body"] == pytest.approx(0.15)
+        and cfg["anti_loss_live_exec_candle_enabled"] is False
     )
+    assert cfg["anti_loss_rsi_min"] == pytest.approx(0.30) and cfg["anti_loss_rsi_max"] == pytest.approx(0.70)
     for k, v in (
         ("anti_loss_p_loss_floor", 1.5),
         ("anti_loss_soft_kelly_mult", 0.0),
@@ -250,18 +251,30 @@ def test_anti_loss_live_exec_flip_to_candle():
 
 
 def test_anti_loss_rsi_momentum_veto():
-    """Testa veto de CALL para RSI < 0.32 e PUT para RSI > 0.68."""
+    """CALL RSI < 0.30 e PUT RSI > 0.70 hard SKIP; faixa intermediaria passa."""
     metrics_call = _base_metrics(
         ops_window_stamped=True,
         exec_direction="CALL",
         resolved_direction="CALL",
         ops_window_candle_dir="CALL",
         ops_window_candle_body=0.5,
-        indicators={"rsi": 0.30},
+        indicators={"rsi": 0.28},
     )
     cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics_call, cfg=cfg) is True
     assert metrics_call["gate_reason"] == "anti_loss_rsi_momentum"
+    metrics_mid = _base_metrics(
+        ops_window_stamped=True,
+        exec_direction="CALL",
+        resolved_direction="CALL",
+        tcn_direction="CALL",
+        ops_window_candle_dir="CALL",
+        ops_window_candle_body=0.5,
+        closed_micro_candle_dir="CALL",
+        indicators={"rsi": 0.32},
+    )
+    assert apply_anti_loss_seed_discord(metrics_mid, cfg=cfg) is False
+    assert metrics_mid.get("gate_reason") is None
     metrics_put = _base_metrics(
         ops_window_stamped=True,
         tcn_direction="PUT",
@@ -270,7 +283,7 @@ def test_anti_loss_rsi_momentum_veto():
         closed_micro_candle_dir="PUT",
         ops_window_candle_dir="PUT",
         ops_window_candle_body=0.5,
-        indicators={"rsi": 0.70},
+        indicators={"rsi": 0.72},
     )
     assert apply_anti_loss_seed_discord(metrics_put, cfg=cfg) is True
     assert metrics_put["gate_reason"] == "anti_loss_rsi_momentum"

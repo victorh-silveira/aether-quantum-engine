@@ -16,6 +16,7 @@ def test_sequential_drawdown_stakes_use_amort_cover():
     soft = {
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_enabled": True,
         "cover_multiple": 1.0,
         "material_pending_min": 0.25,
         "infeasible_force_explore": True,
@@ -63,12 +64,14 @@ def test_soft_recovery_progression_multiplier_scales_with_payout_stress():
 
 
 def test_apply_soft_recovery_stake_expands_when_payout_degrades():
+    soft = {"cover_enabled": True, "amort_cycles_min": 2, "amort_cycles_max": 3, "cover_multiple": 1.1}
     base_kwargs = {
         "pending_total": 80.0,
         "base_unit": 15.0,
         "consecutive_losses": 1,
         "previous_stake": 0.0,
         "bankroll": 11500.0,
+        "soft_recovery": soft,
     }
     stake_hi = apply_soft_recovery_stake(**base_kwargs, payout=0.95, metrics={})
     stake_lo = apply_soft_recovery_stake(**base_kwargs, payout=0.70, metrics={})

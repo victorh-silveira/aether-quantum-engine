@@ -58,8 +58,8 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "PUT"},
     )
-    assert stake == pytest.approx(27.5)
-    assert metrics.get("session_base_unit") == pytest.approx(27.5)
+    assert stake == pytest.approx(110.0)
+    assert metrics.get("session_base_unit") == pytest.approx(110.0)
 
 
 def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
@@ -95,7 +95,7 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
-    assert stake_base == pytest.approx(27.5)
+    assert stake_base == pytest.approx(110.0)
     assert stake_turbo == pytest.approx(min(stake_base * 2.0, 11000.0 * 0.035))
     assert turbo_metrics.get("consensus_turbo_edge_active") is True
 

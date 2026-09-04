@@ -52,7 +52,7 @@ def test_forced_explore_infeasible_ignores_pending_cover():
         metrics=metrics,
         reason="infeasible",
     )
-    assert stake == pytest.approx(25.0)
+    assert stake == pytest.approx(100.0)
     assert metrics["recovery_explore_used_cover"] is False
     assert metrics["recovery_force_explore_reason"] == "infeasible"
 
@@ -75,9 +75,9 @@ def test_forced_explore_material_pending_uses_floor_not_cover():
         reason="neg_edge",
     )
     cover = 90.0 / 0.95 / 3.0 * 1.5
-    floor = 11000.0 * 0.0025
+    floor = 11000.0 * 0.01
     assert stake == pytest.approx(floor)
-    assert stake < cover
+    assert stake != pytest.approx(cover)
     assert metrics["recovery_explore_used_cover"] is False
     assert metrics["recovery_force_explore_reason"] == "neg_edge"
 
@@ -97,6 +97,26 @@ def test_force_early_explore_reason_priority():
             near_stop_win=False,
             low_hurst_noise=False,
             chop_neg_dampen=False,
+            quality_force_explore=False,
+            cover_disabled=True,
+        )
+        == "cover_disabled"
+    )
+    assert (
+        force_early_explore_reason(
+            near_stop_win=True,
+            low_hurst_noise=False,
+            chop_neg_dampen=False,
+            quality_force_explore=False,
+            cover_disabled=True,
+        )
+        == "near_stop"
+    )
+    assert (
+        force_early_explore_reason(
+            near_stop_win=False,
+            low_hurst_noise=False,
+            chop_neg_dampen=False,
             quality_force_explore=True,
         )
         == "quality"
@@ -104,7 +124,7 @@ def test_force_early_explore_reason_priority():
 
 
 def test_soft_early_infeasible_false_without_pending():
-    soft = {"amort_cycles_min": 2, "amort_cycles_max": 4, "cover_multiple": 1.5}
+    soft = {"amort_cycles_min": 2, "amort_cycles_max": 4, "cover_multiple": 1.5, "cover_enabled": True}
     assert (
         soft_early_infeasible(
             pending=0.0,

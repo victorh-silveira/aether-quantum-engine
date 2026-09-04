@@ -1,6 +1,6 @@
 # Doutrina LLM do Aether (9 livros)
 
-O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps + **fusao EV multi-escala** (`execution_direction_fusion`); **escopo 1.1** + arquitetura continua 1HZ75V: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop = soft Kelly **0.55**); **neg_edge** le Edge do lado (`CLUSTER`); com `neg_edge_hard_skip` **false** (SSOT) Edge `<= 0` ou subfloor → soft Kelly + EXEC (`neg_edge_soft_min_edge` **−1.0**); hard SKIP so com override `neg_edge_hard_skip` **true**; trava Z-score panic permanece hard (`SKIP:NEG_EDGE_ZSCORE_PANIC` com telemetria `Z=`/`side`/`thr`); **Anti-loss** com microestrutura M5 (ancora hibrida ops N=3 + ultima vela fechada; EMA slope 2-pontos 9/21; RSI 0.35/0.65; cache EMA por ciclo). `invert_exec_side` **false**; `online_training` **false**; stop-win **4.31%** Kelly Single-Strike.
+O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime. A decisao live permanece TCN + meta LightGBM + Kelly/caps + **fusao EV multi-escala** (`execution_direction_fusion`); **escopo 1.1** + arquitetura continua 1HZ75V: catálogo `signal_skip` (`mini_pair_oppose` / `cal_margin` / chop = soft Kelly **0.55**); **neg_edge** le Edge do lado (`CLUSTER`); contrato `gate_verdict` **HARD_SKIP | SOFT_SIZE | ALLOW**: com `neg_edge_hard_skip` **true** (SSOT) Edge `<= 0` → HARD SKIP; `0 < Edge < min_edge_*` → SOFT_SIZE (EXEC + soft Kelly, **sem** Single-Strike); Edge >= floor + sem soft → ALLOW (Single-Strike ok); trava Z-score panic permanece hard (`SKIP:NEG_EDGE_ZSCORE_PANIC` com telemetria `Z=`/`side`/`thr`); **Anti-loss** com microestrutura M5 (ancora hibrida ops N=3 + ultima vela fechada; EMA slope 2-pontos 9/21; RSI **0.30/0.70**; confirm corpo ≥ **0.15**; `anti_loss_live_exec_candle_enabled` **false**; cache EMA por ciclo). `invert_exec_side` **false**; `online_training` **false**; stop-win **4.31%** Kelly Single-Strike.
 
 SSOT operacional: [`config/settings.json`](../config/settings.json) — universo **`1HZ75V`** (Volatility 75 (1s) Index), contrato ops **5 m (M5)**, label TCN **N=1** vela M5 (`quantum_multi_barrier`), micro/MINI **300 s** (M5), ciclo **120 s**, macro **86400 s** (D1). Metodologia: [`medallion.md`](medallion.md). Sample size: [`sample-size-lln.md`](sample-size-lln.md). Loss ML: [`infra-docker.md`](infra-docker.md) (`aether-loss-classifier`). Arquitetura senior (host 3.13 / DDD / sidecars): [`engineering-architecture-senior.md`](engineering-architecture-senior.md).
 
@@ -36,7 +36,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** alterar threshold “porque o log ficou feio”; ignorar ACC de validacao; misturar prior e evidencia sem shrink; tratar streak de PUT LOSS como motivo para **rearmar quality gate** amplo (RSI/price_zone).
 
-**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado: treino + SIDE_EQ soft Kelly. Catalogo sinal (`signal_skip`) = soft Kelly para mini/cal/chop; loss-clf = soft em `[veto_p_loss_floor, hard_p_loss_floor)` com `veto_ready` e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`); seed bloqueia FLIP contra vela; chop = soft Kelly continuo; **neg_edge** com `neg_edge_hard_skip` **false** (SSOT): soft Kelly + EXEC se Edge `<= 0` ou `0 < Edge < min_edge_execute`; hard `gate_reason=neg_edge` so com override `neg_edge_hard_skip` **true** (ou seed+edge profundo nesse modo). Trava Z-score panic permanece hard. Kelly usa `fusion_p_eff` so apos o gate.
+**Regra no Aether:** Kelly bayesiano; gate de `val_accuracy`; calib drift so com N minimo. Vies de lado: treino + SIDE_EQ soft Kelly. Catalogo sinal (`signal_skip`) = soft Kelly para mini/cal/chop; loss-clf = soft em `[veto_p_loss_floor, hard_p_loss_floor)` com `veto_ready` e **FLIP** CALL↔PUT **relativo ao TCN** se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`); seed bloqueia FLIP contra vela; chop = soft Kelly continuo; **neg_edge** com `neg_edge_hard_skip` **true** (SSOT): Edge `<= 0` → HARD (`gate_reason=neg_edge`); soft SOFT_SIZE so se `0 < Edge < min_edge_execute` (sem Single-Strike). Override `neg_edge_hard_skip` **false** reabre soft em Edge `<= 0`. Trava Z-score panic permanece hard. Kelly usa `fusion_p_eff` so apos o gate.
 
 **Ancoras:** `risk_management.min_validation_accuracy_gate` (0.53); `soft_min_val_accuracy`; `deep_learning.sample_weighting`; `deploy_gate.reject_majority_collapse`; `execution_side_eq_sizing`; `apply_live_calib_drift_soft`; Kelly em `app/src/domain/risk/`.
 
@@ -48,7 +48,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY; julgar sessao so pelo P&L de 5 trades.
 
-**Regra no Aether:** `EXEC_EMPTY` com `gate_reason` coerente e sucesso de processo; force trade permanece off.
+**Regra no Aether:** `EXEC_EMPTY` com `gate_reason` coerente (Edge `<= 0`, `neutral_zone`, seed unstamped, RSI) e sucesso de processo; force trade permanece off. Live confirm/discord/weak = soft (nao EMPTY). Nao julgar EMPTY Edge<=0 como bug de frequencia.
 
 **Ancoras:** `force_trade_every_cycle: false`; logs `gate_reason` / `quality_gate_reason`; `execution_quality_reject.py`.
 
@@ -60,7 +60,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** reinventar stop-loss interno; recovery sem pending; sizing sem teto de banca.
 
-**Regra no Aether:** soft recovery usa amortização equilibrada de `pending_loss` (amort **2/3**, `cover_multiple` **1.10**, caps L0/L1 **3.5%**); stop-win ativo; damping de proximidade da meta (`target_damping_*`) comeca em **1.0** e cai ate **0.50**; stop-loss interno desativado por politica — nao reativar sem mandato explicito. EXPLORE forçado (`neg_edge_soft` / near_stop / quality / `f*≈0`) usa piso `neutral_bankroll_pct` — **nunca** cover pleno sob soft sem PEND (revenge); **nunca** `dlambert_unit` sticky da primeira Kelly boa como tamanho de ordem. Cover inviavel com PEND material → stake = **CAP** (parcial DAL, telemetria `RECOVERY_INFEASIBLE`). Cover so no caminho RECOVER/DAL quando cover ≤ CAP. Soft + PEND material + stake ≈ CAP linear3 sem inviabilidade = regressao cover-pleno.
+**Regra no Aether:** `cover_enabled` **false** — PEND material **nao** dimensiona stake por cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) + caps L0/L1 **3.5%**; ledger WIN abate lucro real (sem zerar pending em massa via sizing). Soft_SIZE eleva a **2.5%** so se Edge >= **0.015**; subfloor permanece no piso **1%**. Stop-win ativo; damping `target_damping_*` inicio **1.0** / perto-meta **0.50**; stop-loss interno desativado. **Nunca** amortizacao em massa / cover pleno; **nunca** `dlambert_unit` sticky.
 
 **Ancoras:** `soft_recovery_policy`; `soft_recovery_explore.py`; `pending_loss`; stop-win composto; `stake_target_proximity.py`; `app/src/domain/risk/risk_recovery_state.py`.
 
@@ -118,10 +118,10 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 Ler o log nesta ordem (processo primeiro, P&L depois):
 
-1. **CLUSTER** — Prob / Cal / Margin / Edge. Margin fraca vs `signal_skip.min_direction_margin` (**0.022**) → soft Kelly (`cal_margin_soft`); nao ha `hard_cal_margin_floor` (removido). Com `neg_edge_hard_skip` **false** (SSOT), Edge `<= 0` + EXEC sob `neg_edge_soft` e processo coerente — **nao** e regressao de fusao. Regressao so se `neg_edge_hard_skip` **true** e Edge Cal TCN `<= 0` ainda assim EXEC (fusao lavou o veto), ou se `fusion_p_eff` substituiu Cal no gate hard.
+1. **CLUSTER** — Prob / Cal / Margin / Edge. Margin fraca vs `signal_skip.min_direction_margin` (**0.022**) → soft Kelly (`cal_margin_soft`); nao ha `hard_cal_margin_floor` (removido). Com `neg_edge_hard_skip` **true** (SSOT), Edge `<= 0` deve ser EXEC_EMPTY `neg_edge` (`gate_verdict=HARD_SKIP`); soft so em subfloor positivo (`SOFT_SIZE`, sem Single-Strike). Regressao se Edge Cal TCN `<= 0` ainda EXEC, ou se Single-Strike/CAP sobe stake sob `SOFT_SIZE` / `neg_edge_soft`.
 2. **SIDE_EQ** — bias e N; soft Kelly sizing apenas (nao SKIP de direcao; nao e licenca para forcar trade).
 3. **IND** — RSI/ADX/HURST/ATR/BBW como telemetria de contexto (vetos de sinal removidos).
-4. **KELLY** — `mode=explore|recover`, `live_n`, `f*`, `kelly_fraction_scale` (inclui SIDE_EQ soft). Com fusao, `p` rastreia `fusion_p_eff` **so se** Cal TCN ja passou `neg_edge` (nao breakeven se `p_eff` alto). Cold start: `explore_stake_scale_floor` **0.40**. RECOVER: stake = cover (`cover_multiple` **1.10**, amort **2/3**); `f*` so gate. Se `[RESOLVED] PEND` nao cai apos WIN → regressao de audit.
+4. **KELLY** — `mode=explore|recover`, `live_n`, `f*`, `kelly_fraction_scale` (inclui SIDE_EQ soft). Com fusao, `p` rastreia `fusion_p_eff` **so se** Cal TCN ja passou `neg_edge` (nao breakeven se `p_eff` alto). Cold start: `explore_stake_scale_floor` **0.40**. Piso stake **1%** banca; Soft_SIZE **2.5%** se Edge>=0.015. `cover_enabled` **false** — PEND nao infla via cover amort. Se EXEC com stake &lt; 1% → regressao.
 5. **EXEC / EXEC_EMPTY / EXEC_PAUSE** — `gate_reason` tecnico coerente = processo ok.
 6. **RESOLVED / RISK** — WIN/LOSS atualiza pending; PUT loss ≠ rearmar quality gate; nao reescrever knobs por um ciclo.
 

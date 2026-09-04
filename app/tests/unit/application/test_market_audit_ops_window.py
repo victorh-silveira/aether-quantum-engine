@@ -133,14 +133,16 @@ def test_anti_loss_live_follows_window_not_last_m1():
         "closed_micro_candle_body": 0.617,
         "closed_micro_candle_stamped": True,
         "ops_window_candle_dir": "CALL",
-        "ops_window_candle_body": 0.15,
+        "ops_window_candle_body": 0.12,
         "ops_window_stamped": True,
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics["anti_loss_why"] == "live_confirm_weak"
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics.get("gate_verdict") == "SOFT_SIZE"
 
 
 def test_anti_loss_live_agree_strong_on_window_put():
@@ -181,8 +183,10 @@ def test_anti_loss_live_window_strong_last_candle_discord_reduces_body():
         "kelly_fraction_scale": 1.0,
     }
     cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
-    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True
+    assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_anchor_agree") is False
+    assert metrics.get("anti_loss_soft") is True
+    assert metrics.get("gate_verdict") == "SOFT_SIZE"
 
 
 def test_anti_loss_incomplete_window_does_not_use_m1():

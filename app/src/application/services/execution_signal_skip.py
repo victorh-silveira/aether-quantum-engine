@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
 from src.domain.models.trade import TradeDirection
 
@@ -144,6 +145,7 @@ def apply_kelly_soft(metrics: dict[str, Any], soft_mult: float, *, waived: str, 
     metrics[flag] = True
     metrics[f"{flag}_kelly_mult"] = float(soft_mult)
     metrics["signal_skip_waived"] = waived
+    stamp_soft_size(metrics, waived)
 
 
 def _side(value: object) -> str | None:

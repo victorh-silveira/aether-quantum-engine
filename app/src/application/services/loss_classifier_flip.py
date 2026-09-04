@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge, resolve_raw_predicted_edge
 from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.models.trade import TradeDirection
@@ -280,4 +281,5 @@ def apply_soft_kelly(metrics: dict[str, Any], mult: float, *, p_loss: float, cfg
         metrics.pop("loss_clf_soft_max_stake_pct", None)
     else:
         metrics["loss_clf_soft_max_stake_pct"] = float(cfg["soft_max_stake_pct_high"])
+    stamp_soft_size(metrics, "loss_clf_soft")
     _ = p_loss

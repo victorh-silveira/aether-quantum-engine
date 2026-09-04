@@ -47,6 +47,7 @@ def _micro_risk_config() -> dict:
             "max_safe_stake_pct": 0.05,
             "amort_cycles_min": 1,
             "amort_cycles_max": 1,
+            "cover_enabled": True,
             "cover_multiple": 1.50,
             "coing_redirect_drawdown_threshold": 15.00,
             "infeasible_force_explore": False,
@@ -65,7 +66,8 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["amort_cycles_min"] == 2
     assert soft["amort_cycles_max"] == 3
     assert soft["cover_multiple"] == pytest.approx(1.1)
-    assert soft["linear_bankroll_pct"] == pytest.approx(0.0025)
+    assert soft["cover_enabled"] is False
+    assert soft["linear_bankroll_pct"] == pytest.approx(0.01)
     assert soft["micro_residual_pending_max"] == pytest.approx(3.0)
     assert soft["micro_residual_zscore_floor"] == pytest.approx(0.01)
     assert soft["micro_residual_gbdt_waiver_skips"] == 4

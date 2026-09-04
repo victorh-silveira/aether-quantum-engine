@@ -92,6 +92,7 @@ def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
         "enabled": True,
         "near_stop_win_freeze_pct": 0.70,
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
         "max_safe_stake_pct": 0.05,
         "amort_cycles_min": 1,
@@ -122,6 +123,7 @@ def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
     }
     metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}

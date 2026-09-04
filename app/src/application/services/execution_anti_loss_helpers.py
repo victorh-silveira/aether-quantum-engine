@@ -115,8 +115,8 @@ def check_mini_ema_trend_and_slope(
 def check_rsi_filter(
     metrics: dict[str, Any],
     side: TradeDirection,
-    rsi_min: float = 0.35,
-    rsi_max: float = 0.65,
+    rsi_min: float = 0.30,
+    rsi_max: float = 0.70,
 ) -> bool:
     """True se RSI intradiario for valido dentro dos limites operacionais."""
     indicators = metrics.get("indicators") or {}
@@ -135,3 +135,25 @@ def check_rsi_filter(
     call_blocked = side == TradeDirection.CALL and rsi < rsi_min
     put_blocked = side == TradeDirection.PUT and rsi > rsi_max
     return not (call_blocked or put_blocked)
+
+
+_SOFT_MICRO = frozenset(
+    {
+        "anti_loss_ema_trend",
+        "anti_loss_ema_slope",
+        "live_discord_weak",
+        "live_confirm_weak",
+        "live_weak_candle",
+        "live_no_candle",
+    }
+)
+
+
+def finalize_anti_loss_decision(out: dict[str, Any], *, cfg: dict[str, Any], reason: str) -> dict[str, Any]:
+    """Marca decisao; EMA/confirm/weak soft; RSI/seed respeitam hard_skip."""
+    out["active"], out["reason"] = True, reason
+    if reason in _SOFT_MICRO or not bool(cfg.get("anti_loss_hard_skip", True)):
+        out["soft"], out["soft_mult"] = True, float(cfg.get("anti_loss_soft_kelly_mult", 0.55))
+        return out
+    out["skip"] = True
+    return out

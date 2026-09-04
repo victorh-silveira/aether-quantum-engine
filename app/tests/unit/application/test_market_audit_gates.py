@@ -270,4 +270,16 @@ def test_format_gates_audit_line():
         }
     )
     assert "NEG_EDGE zscore_panic side=PUT Z=+2.410 thr=+2.0" in zscore_panic
+    verdict_line = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "signal_status": "SKIP:NEG_EDGE",
+            "exec_direction": "PUT",
+            "cal_side_edge": -0.014,
+            "cal_side_edge_floor": 0.015,
+            "gate_verdict": "HARD_SKIP",
+            "neg_edge_nonpositive_hard": True,
+        }
+    )
+    assert "verdict=HARD_SKIP" in verdict_line
     assert "skip=neg_edge_zscore_panic" in zscore_panic

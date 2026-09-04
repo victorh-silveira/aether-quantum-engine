@@ -96,14 +96,15 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is False
-    assert metrics2.get("neg_edge_soft") is True
+    assert apply_negative_cal_edge_pause(metrics2, orch=orch2, min_edge=0.04, payout=0.72) is True
+    assert metrics2.get("gate_reason") == "neg_edge"
+    assert metrics2["gate_verdict"] == "HARD_SKIP"
     orch3 = MagicMock()
     orch3.config = {"orchestrator": {"execution": "x"}}
     metrics3 = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
-        "calibrated_prob": 0.50,
+        "calibrated_prob": 0.59,
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }

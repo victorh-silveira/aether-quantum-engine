@@ -21,6 +21,7 @@ def test_large_bankroll_max_safe_stake_uses_pct_not_abs_cap():
 
 def test_apply_soft_recovery_stake_cover_despite_low_hurst_when_pending():
     metrics = {"indicators": {"hurst": 0.35}, "regime_chop_soft": False}
+    soft = {"cover_enabled": True}
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
         base_unit=15.0,
@@ -29,6 +30,7 @@ def test_apply_soft_recovery_stake_cover_despite_low_hurst_when_pending():
         bankroll=11500.0,
         payout=0.95,
         metrics=metrics,
+        soft_recovery=soft,
     )
     cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
@@ -42,6 +44,7 @@ def test_apply_soft_recovery_stake_cover_despite_chop_neg_edge_when_pending():
         "regime_chop_soft": True,
         "neg_edge_soft": True,
     }
+    soft = {"cover_enabled": True}
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
         base_unit=15.0,
@@ -50,6 +53,7 @@ def test_apply_soft_recovery_stake_cover_despite_chop_neg_edge_when_pending():
         bankroll=11500.0,
         payout=0.95,
         metrics=metrics,
+        soft_recovery=soft,
     )
     cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
@@ -62,6 +66,7 @@ def test_apply_soft_recovery_stake_cover_despite_neg_edge_alone_when_pending():
         "regime_chop_soft": False,
         "neg_edge_soft": True,
     }
+    soft = {"cover_enabled": True}
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
         base_unit=15.0,
@@ -70,6 +75,7 @@ def test_apply_soft_recovery_stake_cover_despite_neg_edge_alone_when_pending():
         bankroll=11500.0,
         payout=0.95,
         metrics=metrics,
+        soft_recovery=soft,
     )
     cover = 80.0 / 0.95 / 2.0 * 1.1
     assert stake == pytest.approx(cover)
@@ -80,6 +86,7 @@ def test_neg_edge_sticky_unit_110_uses_cover_when_pending():
     metrics = {"neg_edge_soft": True}
     soft = {
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
@@ -96,7 +103,7 @@ def test_neg_edge_sticky_unit_110_uses_cover_when_pending():
         soft_recovery=soft,
     )
     cover = 90.0 / 0.95 / 1.0 * 1.5
-    floor = 11000.0 * 0.0025
+    floor = 11000.0 * 0.01
     assert stake == pytest.approx(cover)
     assert stake > floor
     assert metrics.get("recovery_force_explore") is False
@@ -116,7 +123,7 @@ def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
         metrics=metrics,
         soft_recovery=soft,
     )
-    assert stake == pytest.approx(27.5)
+    assert stake == pytest.approx(110.0)
     assert metrics.get("recovery_explore_used_cover") is False
     assert metrics.get("recovery_force_explore_reason") == "neg_edge"
     assert metrics.get("recovery_force_explore") is True
@@ -131,6 +138,7 @@ def test_infeasible_with_material_pending_stakes_at_cap():
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
@@ -153,6 +161,7 @@ def test_dal_normal_pending_without_neg_edge_keeps_cover():
     metrics = {"indicators": {"hurst": 0.55}}
     soft = {
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
         "amort_cycles_min": 2,
         "amort_cycles_max": 4,
@@ -180,6 +189,7 @@ def test_neg_edge_large_pending_sets_infeasible_at_cap():
     metrics = {"neg_edge_soft": True}
     soft = {
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
         "amort_cycles_min": 2,
         "amort_cycles_max": 4,
@@ -216,7 +226,7 @@ def test_low_hurst_without_pending_still_forces_explore():
         payout=0.95,
         metrics=metrics,
     )
-    floor = 11500.0 * 0.0025
+    floor = 11500.0 * 0.01
     assert stake == pytest.approx(floor)
     assert metrics.get("recovery_force_explore") is True
     assert metrics.get("recovery_force_explore_reason") == "low_hurst"

@@ -128,6 +128,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(soft_rec["amort_cycles_min"]) == 2
     assert int(soft_rec["amort_cycles_max"]) == 3
     assert float(soft_rec["cover_multiple"]) == pytest.approx(1.1)
+    assert bool(soft_rec["cover_enabled"]) is False
     assert float(soft_rec["max_safe_stake_pct_linear2"]) == pytest.approx(0.03)
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     assert int(soft_rec["fixed_step_linear_max"]) == 4
@@ -145,7 +146,7 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["chop_hurst_max"]) == pytest.approx(0.55)
     assert float(skip["chop_soft_kelly_mult"]) == pytest.approx(0.75)
     assert float(skip["neg_edge_soft_kelly_mult"]) == pytest.approx(0.55)
-    assert bool(skip["neg_edge_hard_skip"]) is False
+    assert bool(skip["neg_edge_hard_skip"]) is True
     assert bool(skip["neg_edge_soft_when_closed_candle_agree"]) is True
     assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-1.0)
     assert float(skip["neg_edge_bootstrap_soft_kelly_mult"]) == pytest.approx(0.25)
@@ -154,14 +155,16 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["anti_loss_p_loss_floor"]) == pytest.approx(0.85)
     assert bool(skip["anti_loss_require_seed"]) is True
     assert bool(skip["anti_loss_hard_skip"]) is True
-    assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(0.25)
+    assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["anti_loss_require_tcn_pos_edge"]) is True
     assert float(skip["anti_loss_min_candle_body"]) == pytest.approx(0.10)
     assert bool(skip["anti_loss_live_weak_candle_enabled"]) is True
     assert bool(skip["anti_loss_live_confirm_enabled"]) is True
-    assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.25)
-    assert bool(skip["anti_loss_live_exec_candle_enabled"]) is True
-    assert bool(skip["anti_loss_allow_candle_flip"]) is False
+    assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.15)
+    assert bool(skip["anti_loss_live_exec_candle_enabled"]) is False
+    assert float(skip["anti_loss_rsi_min"]) == pytest.approx(0.30)
+    assert float(skip["anti_loss_rsi_max"]) == pytest.approx(0.70)
+    assert bool(skip["anti_loss_allow_candle_flip"]) is True
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip
@@ -252,8 +255,12 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(kelly["stop_win_kelly_live_n_min"]) == 0
     assert float(kelly["max_stake_pct"]) == pytest.approx(0.05)
     assert float(kelly["max_bankroll_stake_fraction"]) == pytest.approx(0.05)
-    assert float(kelly["min_stake_pct"]) == pytest.approx(0.0025)
-    assert float(kelly["neutral_bankroll_pct"]) == pytest.approx(0.0025)
+    assert float(kelly["min_stake_pct"]) == pytest.approx(0.01)
+    assert float(kelly["neutral_bankroll_pct"]) == pytest.approx(0.01)
+    assert float(kelly["micro_bankroll_pct"]) == pytest.approx(0.01)
+    assert float(kelly["soft_size_min_stake_pct"]) == pytest.approx(0.025)
+    assert float(kelly["soft_size_max_stake_pct"]) == pytest.approx(0.025)
+    assert float(kelly["soft_size_min_edge"]) == pytest.approx(0.015)
     assert float(kelly["target_damping_floor"]) == pytest.approx(0.70)
     assert float(kelly["target_damping_span"]) == pytest.approx(0.30)
     assert float(kelly["stop_win_max_stake_pct"]) == pytest.approx(0.05)
@@ -265,8 +272,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(soft_rec_caps["max_safe_stake_pct"]) == pytest.approx(0.035)
     assert float(soft_rec_caps["max_safe_stake_pct_linear2"]) == pytest.approx(0.03)
     assert float(soft_rec_caps["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
-    assert float(soft_rec_caps["linear_bankroll_pct"]) == pytest.approx(0.0025)
+    assert float(soft_rec_caps["linear_bankroll_pct"]) == pytest.approx(0.01)
     assert float(soft_rec_caps["cover_multiple"]) == pytest.approx(1.1)
+    assert bool(soft_rec_caps["cover_enabled"]) is False
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert int(ssp["evidence_n_min"]) == 12
     assert int(ssp["toxic_side_n_min"]) == 4

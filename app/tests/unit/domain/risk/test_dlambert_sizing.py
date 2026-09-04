@@ -104,6 +104,7 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
     class RM:
         dlambert_unit = 10.0
         dlambert_config = {}
+        soft_recovery_config = {"cover_enabled": True}
         risk_params = {"payout_estimate": 0.95}
         last_loss_stake = 0.0
 
@@ -129,6 +130,7 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
     class RM:
         dlambert_unit = 17.89
         dlambert_config = {}
+        soft_recovery_config = {"cover_enabled": True}
         risk_params = {"payout_estimate": 0.95}
         last_loss_stake = 36.72
 
@@ -169,9 +171,9 @@ def test_resolve_dlambert_stake_linear_losses_without_pending_uses_neutral_floor
         f_star=0.01,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(25.0)
+    assert stake == pytest.approx(100.0)
     assert metrics.get("recovery_force_explore") is False
-    assert stake < float(RM.dlambert_unit)
+    assert stake == pytest.approx(10000.0 * 0.01)
 
 
 def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
@@ -180,7 +182,7 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
     class RM:
         dlambert_unit = 100.0
         dlambert_config = {}
-        soft_recovery_config = {"enabled": True, "infeasible_force_explore": False}
+        soft_recovery_config = {"enabled": True, "infeasible_force_explore": False, "cover_enabled": True}
         risk_params = {"payout_estimate": 0.95}
 
     stake, tag = resolve_dlambert_stake(

@@ -40,6 +40,9 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["amort_cycles_min"] == 2
     assert inv["amort_cycles_max"] == 3
     assert inv["cover_multiple"] == pytest.approx(1.1)
+    assert inv["cover_enabled"] is False
+    assert inv["neutral_bankroll_pct"] == pytest.approx(0.01)
+    assert inv["min_stake_pct"] == pytest.approx(0.01)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
     assert inv["large_account_stop_win_pct"] == pytest.approx(4.31)
     assert inv["min_validation_accuracy_gate"] >= 0.53
@@ -188,6 +191,10 @@ def test_load_doctrine_missing_recovery_timing_keys():
     del settings["orchestrator"]["watchdog_stale_tick_seconds"]
     with pytest.raises(ValueError, match="watchdog_stale_tick"):
         load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["kelly"] = None
+    with pytest.raises(ValueError, match="kelly obrigatorio"):
+        load_doctrine_invariants(settings)
 
 
 def test_assert_production_rejects_ssot_knobs():
@@ -242,6 +249,18 @@ def test_assert_production_rejects_ssot_knobs():
     settings = copy.deepcopy(load_settings_json())
     settings["risk_management"]["soft_recovery"]["cover_multiple"] = 2.5
     with pytest.raises(ValueError, match="cover_multiple"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["soft_recovery"]["cover_enabled"] = True
+    with pytest.raises(ValueError, match="cover_enabled"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["kelly"]["neutral_bankroll_pct"] = 0.0025
+    with pytest.raises(ValueError, match="neutral_bankroll_pct"):
+        assert_production_doctrine(settings)
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["kelly"]["min_stake_pct"] = 0.0025
+    with pytest.raises(ValueError, match="min_stake_pct"):
         assert_production_doctrine(settings)
     settings = copy.deepcopy(load_settings_json())
     settings["risk_management"]["soft_recovery"]["max_safe_stake_pct_linear3"] = 0.05

@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.domain.risk.gate_verdict_sizing import blocks_single_strike_boost
 from src.domain.risk.stake_sizing import compute_single_strike_kelly_base
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 from src.domain.risk.stop_win_target import (
@@ -9,6 +10,48 @@ from src.domain.risk.stop_win_target import (
     persisted_session_target,
     resolve_stop_win_target,
 )
+
+
+def _soft_size_cycle_edge(live_metrics: dict[str, Any] | None) -> float | None:
+    """Le Edge calibrado do ciclo para gate do piso Soft_SIZE."""
+    if not isinstance(live_metrics, dict):
+        return None
+    for key in ("neg_edge_tcn_cal_edge", "edge", "cal_edge", "payoff_edge"):
+        raw = live_metrics.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def apply_soft_size_stake_floor(
+    kelly_base: float,
+    bankroll: float,
+    kelly_config: dict[str, Any],
+    live_metrics: dict[str, Any] | None,
+) -> float:
+    """Piso Soft_SIZE so com Edge >= soft_size_min_edge; senao nao eleva stake."""
+    if not blocks_single_strike_boost(live_metrics):
+        return float(kelly_base)
+    pct = float(kelly_config.get("soft_size_min_stake_pct", 0.0) or 0.0)
+    if pct <= 0.0 or bankroll <= 0.0:
+        return float(kelly_base)
+    min_edge = float(kelly_config.get("soft_size_min_edge", 0.015) or 0.015)
+    edge = _soft_size_cycle_edge(live_metrics)
+    if edge is None or edge + 1e-12 < min_edge:
+        if isinstance(live_metrics, dict):
+            live_metrics["soft_size_stake_floor_waived"] = "edge_subfloor"
+        return float(kelly_base)
+    max_pct = float(kelly_config.get("soft_size_max_stake_pct", 0.025) or 0.025)
+    floor = float(bankroll) * min(pct, max_pct)
+    out = max(float(kelly_base), floor)
+    if isinstance(live_metrics, dict) and out + 1e-12 > float(kelly_base):
+        live_metrics["soft_size_stake_floor_applied"] = True
+        live_metrics["soft_size_min_stake_pct"] = min(pct, max_pct)
+    return out
 
 
 def apply_stop_win_kelly_boost(
@@ -28,6 +71,10 @@ def apply_stop_win_kelly_boost(
     """Aplica boost de stake Kelly alinhado ao stop win diario."""
     min_stop_conv = float(rm.kelly_config.get("stop_win_kelly_min_conviction", 0.45))
     stop_win_boost_ok = dl_execute or sizing_conviction + 1e-9 >= min_stop_conv
+    if blocks_single_strike_boost(live_metrics):
+        if not apply_stop_win or not stop_win_boost_ok:
+            return float(kelly_base)
+        return apply_soft_size_stake_floor(kelly_base, bankroll, rm.kelly_config, live_metrics)
     if not apply_stop_win or recovery_active or not stop_win_boost_ok:
         return kelly_base
     boosted = compute_single_strike_kelly_base(

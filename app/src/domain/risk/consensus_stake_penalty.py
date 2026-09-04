@@ -79,9 +79,13 @@ def apply_soft_recovery_stake(
     acc_force_explore = acc_below_recovery_floor(metrics, consecutive_losses)
     live_force_explore = live_evidence_blocks_dal(metrics, consecutive_losses, soft)
     adapted_force_explore = adapted_blocks_dal(metrics, consecutive_losses, soft)
+    cover_enabled = bool(soft["cover_enabled"])
+    cover_disabled_path = bool(material_pending and not cover_enabled)
+    if isinstance(metrics, dict):
+        metrics["recovery_cover_disabled"] = not cover_enabled
     if material_pending:
         quality_force_explore = False
-        force_early = bool(near_stop_win)
+        force_early = bool(near_stop_win) or cover_disabled_path
     else:
         quality_force_explore = bool(acc_force_explore or live_force_explore or adapted_force_explore)
         force_early = True
@@ -108,6 +112,7 @@ def apply_soft_recovery_stake(
             live_force_explore=live_force_explore,
             adapted_force_explore=adapted_force_explore,
             quality_force_explore=quality_force_explore,
+            cover_disabled=cover_disabled_path,
         )
     factor = adaptive_recovery_progression_factor(payout, risk_params)
     resolved_payout = resolve_contract_payout(payout, risk_params)

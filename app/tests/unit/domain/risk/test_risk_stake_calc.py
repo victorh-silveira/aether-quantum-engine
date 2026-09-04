@@ -104,6 +104,7 @@ def test_calculate_stake_mandatory_weak_entry_uses_full_kelly(kelly_config):
     rm.kelly_config = {
         **kelly_config["kelly"],
         "mandatory_weak_conviction_cap": 0.55,
+        "mandatory_weak_max_stake_pct": 0.01,
         "fraction": 0.25,
     }
     stake = calculate_stake_for_manager(
@@ -118,7 +119,7 @@ def test_calculate_stake_mandatory_weak_entry_uses_full_kelly(kelly_config):
             "mandatory_weak_cap": True,
         },
     )
-    assert stake >= 10000.0 * 0.0025
+    assert stake >= 10000.0 * 0.01
 
 
 def test_calculate_stake_stop_win_kelly_skips_boost_when_conviction_low(kelly_config):

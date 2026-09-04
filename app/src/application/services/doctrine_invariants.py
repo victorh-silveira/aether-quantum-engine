@@ -96,13 +96,23 @@ def _fusion_and_skip(execution: dict[str, Any]) -> dict[str, Any]:
 
 
 def _recovery_timing(settings: dict[str, Any], risk: dict[str, Any]) -> dict[str, Any]:
-    """Le recovery amort/cover e timing orchestrator + stop-win."""
+    """Le recovery cover/kelly floors e timing orchestrator + stop-win."""
     soft = risk["soft_recovery"]
     require_keys(
         soft,
-        ("amort_cycles_min", "amort_cycles_max", "cover_multiple", "max_safe_stake_pct_linear3"),
+        (
+            "amort_cycles_min",
+            "amort_cycles_max",
+            "cover_multiple",
+            "cover_enabled",
+            "max_safe_stake_pct_linear3",
+        ),
         "risk_management.soft_recovery",
     )
+    kelly = risk.get("kelly")
+    if not isinstance(kelly, dict):
+        raise ValueError("risk_management.kelly obrigatorio")
+    require_keys(kelly, ("neutral_bankroll_pct", "min_stake_pct"), "risk_management.kelly")
     orch = settings["orchestrator"]
     require_keys(
         orch,
@@ -117,6 +127,9 @@ def _recovery_timing(settings: dict[str, Any], risk: dict[str, Any]) -> dict[str
         "amort_cycles_min": int(soft["amort_cycles_min"]),
         "amort_cycles_max": int(soft["amort_cycles_max"]),
         "cover_multiple": require_float(soft, "cover_multiple"),
+        "cover_enabled": require_bool(soft, "cover_enabled"),
+        "neutral_bankroll_pct": require_float(kelly, "neutral_bankroll_pct"),
+        "min_stake_pct": require_float(kelly, "min_stake_pct"),
         "max_safe_stake_pct_linear3": require_float(soft, "max_safe_stake_pct_linear3"),
         "watchdog_stale_tick_seconds": int(orch["watchdog_stale_tick_seconds"]),
         "settlement_tolerance_window_seconds": int(orch["settlement_tolerance_window_seconds"]),
@@ -207,6 +220,12 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("amort_cycles deve estar entre 1 e 4")
     if float(inv["cover_multiple"]) < 1.0 or float(inv["cover_multiple"]) > 2.0:
         raise ValueError("cover_multiple deve estar em [1.0, 2.0]")
+    if inv["cover_enabled"] is not False:
+        raise ValueError("cover_enabled deve ser false (sem amortizacao em massa)")
+    if abs(float(inv["neutral_bankroll_pct"]) - 0.01) > 1e-9:
+        raise ValueError("neutral_bankroll_pct deve ser 0.01")
+    if abs(float(inv["min_stake_pct"]) - 0.01) > 1e-9:
+        raise ValueError("min_stake_pct deve ser 0.01")
     if abs(float(inv["max_safe_stake_pct_linear3"]) - 0.025) > 1e-9:
         raise ValueError("max_safe_stake_pct_linear3 deve ser 0.025")
     if float(inv["large_account_stop_win_pct"]) <= 0.0 or float(inv["large_account_stop_win_pct"]) > 5.0:

@@ -7,7 +7,9 @@ from typing import Any
 from src.application.services.execution_anti_loss_helpers import (
     check_mini_ema_trend_and_slope,
     check_rsi_filter,
+    finalize_anti_loss_decision,
 )
+from src.application.services.execution_gate_verdict import stamp_hard_skip
 from src.application.services.execution_signal_skip import apply_kelly_soft, parse_signal_skip_config
 from src.application.services.loss_classifier_flip import tcn_pos_edge_blocks_flip
 from src.application.services.market_audit_ops_window import (
@@ -29,6 +31,10 @@ _KNOWN_REASONS = {
     "anti_loss_ema_trend",
     "anti_loss_ema_slope",
     "live_exec_discord",
+    "live_discord_weak",
+    "live_confirm_weak",
+    "live_weak_candle",
+    "live_no_candle",
 }
 
 
@@ -118,16 +124,6 @@ def _stamp_anti_loss_metrics(
     metrics["anti_loss_why"] = reason
 
 
-def _finalize_anti_loss_decision(out: dict[str, Any], *, cfg: dict[str, Any], reason: str) -> dict[str, Any]:
-    """Marca decisao ativa e hard/soft conforme SSOT."""
-    out["active"], out["reason"] = True, reason
-    if bool(cfg.get("anti_loss_hard_skip", True)):
-        out["skip"] = True
-        return out
-    out["soft"], out["soft_mult"] = True, float(cfg.get("anti_loss_soft_kelly_mult", 0.25))
-    return out
-
-
 def _evaluate_live_anti_loss(
     metrics: dict[str, Any],
     *,
@@ -143,14 +139,14 @@ def _evaluate_live_anti_loss(
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
-    rsi_min = float(cfg.get("anti_loss_rsi_min", 0.35))
-    rsi_max = float(cfg.get("anti_loss_rsi_max", 0.65))
+    rsi_min = float(cfg.get("anti_loss_rsi_min", 0.30))
+    rsi_max = float(cfg.get("anti_loss_rsi_max", 0.70))
     if not check_rsi_filter(metrics, anchor, rsi_min=rsi_min, rsi_max=rsi_max):
         _stamp_anti_loss_metrics(
             metrics, tcn=tcn, candle=candle, body=body, reason="anti_loss_rsi_momentum", side=anchor
         )
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
-    allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", False))
+        return finalize_anti_loss_decision(out, cfg=cfg, reason="anti_loss_rsi_momentum")
+    allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", True))
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", False)) and candle is not None and anchor.name != candle:
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
         if allow_flip and candle in _VALID:
@@ -166,7 +162,7 @@ def _evaluate_live_anti_loss(
                 }
             )
             return out
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
+        return finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
     ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
     if not ema_ok:
         why = ema_reason or "anti_loss_ema_trend"
@@ -184,7 +180,7 @@ def _evaluate_live_anti_loss(
                 }
             )
             return out
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason=why)
+        return finalize_anti_loss_decision(out, cfg=cfg, reason=why)
     atr_val = metrics.get("atr")
     effective_min_body = (
         max(min_body, float(atr_val) * 0.5) if atr_val is not None and float(atr_val) > 0.0 else min_body
@@ -192,12 +188,12 @@ def _evaluate_live_anti_loss(
     if bool(cfg.get("anti_loss_live_weak_candle_enabled", True)) and _weak_candle(candle, body, effective_min_body):
         reason = _live_weak_reason(candle)
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
+        return finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
     confirm_min = float(cfg.get("anti_loss_live_confirm_min_body", 0.05))
     if bool(cfg.get("anti_loss_live_confirm_enabled", True)) and not _agree_strong(candle, anchor, body, confirm_min):
         reason = _live_confirm_reason(candle, anchor)
         _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, side=anchor)
-        return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
+        return finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
     return out
 
 
@@ -250,7 +246,7 @@ def evaluate_anti_loss_seed_discord(
         return out
     reason = "seed_weak_candle" if candle == tcn.name else "seed_discord"
     _stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason=reason, p_loss=p_loss)
-    return _finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
+    return finalize_anti_loss_decision(out, cfg=cfg, reason=reason)
 
 
 def apply_anti_loss_seed_discord(
@@ -285,6 +281,7 @@ def apply_anti_loss_seed_discord(
         metrics["gate_reason"] = reason if reason in _KNOWN_REASONS else _GATE
         metrics["signal_status"] = f"SKIP:{metrics['gate_reason'].upper()}"
         metrics.pop("anti_loss_soft", None)
+        stamp_hard_skip(metrics, str(metrics["gate_reason"]))
         return True
     if decision["soft"]:
         apply_kelly_soft(

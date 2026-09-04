@@ -60,6 +60,8 @@ def soft_early_infeasible(
     cap: float,
 ) -> bool:
     """True quando soft early-return teria cover inviavel (telemetria INFEASIBLE)."""
+    if not bool(soft.get("cover_enabled", True)):
+        return False
     if not material_pending or pending <= 0.0:
         return False
     resolved_payout = resolve_contract_payout(payout, risk_params)
@@ -84,6 +86,7 @@ def mark_forced_explore_metrics(
     adapted_force_explore: bool,
     quality_force_explore: bool,
     soft_infeasible: bool,
+    cover_disabled: bool = False,
 ) -> None:
     """Preenche telemetria do early-return EXPLORE forçado."""
     if not isinstance(metrics, dict):
@@ -100,8 +103,9 @@ def mark_forced_explore_metrics(
     metrics["recovery_adapted_force_explore"] = bool(adapted_force_explore and not material_pending)
     metrics["recovery_progression_multiplier"] = 1.0
     metrics["recovery_infeasible"] = bool(soft_infeasible)
+    metrics["recovery_cover_disabled"] = bool(cover_disabled)
     metrics["recovery_force_explore"] = bool(
-        quality_force_explore or low_hurst_noise or chop_neg_dampen or near_stop_win
+        cover_disabled or quality_force_explore or low_hurst_noise or chop_neg_dampen or near_stop_win
     )
 
 
@@ -111,10 +115,13 @@ def force_early_explore_reason(
     low_hurst_noise: bool,
     chop_neg_dampen: bool,
     quality_force_explore: bool,
+    cover_disabled: bool = False,
 ) -> str:
     """Motivo telemetrico do EXPLORE forçado no early-return."""
     if near_stop_win:
         return "near_stop"
+    if cover_disabled:
+        return "cover_disabled"
     if low_hurst_noise:
         return "low_hurst"
     if chop_neg_dampen:
@@ -147,6 +154,7 @@ def apply_forced_explore_early(
     live_force_explore: bool,
     adapted_force_explore: bool,
     quality_force_explore: bool,
+    cover_disabled: bool = False,
 ) -> float:
     """EXPLORE early-return: piso + telemetria (incl. INFEASIBLE se cover inviavel)."""
     reason = force_early_explore_reason(
@@ -154,6 +162,7 @@ def apply_forced_explore_early(
         low_hurst_noise=low_hurst_noise,
         chop_neg_dampen=chop_neg_dampen,
         quality_force_explore=quality_force_explore,
+        cover_disabled=cover_disabled,
     )
     explore = forced_explore_stake(
         bankroll=bankroll,
@@ -193,6 +202,7 @@ def apply_forced_explore_early(
         adapted_force_explore=adapted_force_explore,
         quality_force_explore=quality_force_explore,
         soft_infeasible=soft_infeasible,
+        cover_disabled=cover_disabled,
     )
     return explore
 

@@ -167,11 +167,13 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
             skip = gate if gate else why
     else:
         anti_tok = "ANTI_LOSS off"
+    verdict = str(metrics.get("gate_verdict") or "").strip().upper()
+    verdict_tok = f" | verdict={verdict}" if verdict else ""
     return (
         f"[GATES] || {fusion_tok}\n"
         f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n"
         f"[GATES] || {anti_tok}\n"
-        f"[GATES] || {neg_tok} | skip={skip}"
+        f"[GATES] || {neg_tok} | skip={skip}{verdict_tok}"
     )
 
 

@@ -204,11 +204,13 @@ def test_put_ema21_slope_blocks_when_ema9_flat():
 def test_check_rsi_filter():
     assert check_rsi_filter({}, TradeDirection.CALL) is True
     assert check_rsi_filter({"indicators": {"rsi": "invalid"}}, TradeDirection.CALL) is True
-    assert check_rsi_filter({"indicators": {"rsi": 0.30}}, TradeDirection.CALL) is False
+    assert check_rsi_filter({"indicators": {"rsi": 0.29}}, TradeDirection.CALL) is False
     assert check_rsi_filter({"indicators": {"rsi": 0.50}}, TradeDirection.CALL) is True
-    assert check_rsi_filter({"indicators": {"rsi": 70.0}}, TradeDirection.PUT) is False
+    assert check_rsi_filter({"indicators": {"rsi": 71.0}}, TradeDirection.PUT) is False
     assert check_rsi_filter({"indicators": {"rsi": 50.0}}, TradeDirection.PUT) is True
     assert check_rsi_filter({"micro_indicators": {"rsi": 0.25}}, TradeDirection.CALL) is False
+    assert check_rsi_filter({"indicators": {"rsi": 0.32}}, TradeDirection.CALL) is True
+    assert check_rsi_filter({"indicators": {"rsi": 0.70}}, TradeDirection.PUT) is True
     # Limites customizados
     assert check_rsi_filter({"indicators": {"rsi": 0.36}}, TradeDirection.CALL, rsi_min=0.38) is False
     assert check_rsi_filter({"indicators": {"rsi": 0.40}}, TradeDirection.CALL, rsi_min=0.38) is True

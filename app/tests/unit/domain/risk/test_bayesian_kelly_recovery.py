@@ -76,6 +76,7 @@ def test_soft_recovery_flags_infeasible_stakes_at_cap():
         "amort_cycles_max": 5,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
@@ -117,7 +118,7 @@ def test_soft_recovery_acc_below_floor_forces_explore():
     )
     assert metrics.get("recovery_acc_force_explore") is True
     assert metrics.get("recovery_force_explore") is True
-    assert stake == pytest.approx(25.0)
+    assert stake == pytest.approx(100.0)
 
 
 def test_soft_recovery_acc_below_floor_waived_by_pending_uses_cover():
@@ -127,6 +128,7 @@ def test_soft_recovery_acc_below_floor_waived_by_pending_uses_cover():
         "max_safe_stake_pct": 0.05,
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
+        "cover_enabled": True,
         "cover_multiple": 2.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
@@ -156,6 +158,7 @@ def test_soft_recovery_live_wr_waived_by_pending_uses_cover():
         "max_safe_stake_pct_linear3": 0.03,
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_enabled": True,
         "cover_multiple": 1.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
@@ -193,6 +196,7 @@ def test_soft_recovery_adapted_waived_by_pending_uses_cover():
         "max_safe_stake_pct_linear3": 0.03,
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
+        "cover_enabled": True,
         "cover_multiple": 1.0,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
@@ -228,6 +232,7 @@ def test_soft_recovery_cover_ge_cap_stakes_at_cap():
         "max_safe_stake_pct": 0.025,
         "infeasible_force_explore": True,
         "material_pending_min": 0.25,
+        "cover_enabled": True,
         "cover_multiple": 1.5,
     }
     stake = apply_soft_recovery_stake(
@@ -256,6 +261,7 @@ def test_soft_recovery_infeasible_legacy_caps_without_force_explore():
         "amort_cycles_min": 2,
         "amort_cycles_max": 5,
         "infeasible_force_explore": False,
+        "cover_enabled": True,
     }
     stake = apply_soft_recovery_stake(
         pending_total=80.0,
