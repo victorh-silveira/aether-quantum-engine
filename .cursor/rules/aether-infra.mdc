@@ -6,24 +6,22 @@ alwaysApply: true
 
 # Infraestrutura, Banco de Dados, Mensageria & DevOps Sênior
 
-- **Ambiente Híbrido**: Motor asyncio no host (WSL/Conda, Python 3.13, CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em Docker (`core,ml`).
-- **Host / WSL**: alinhar driver NVIDIA Windows ↔ CUDA Conda; afinidade de CPU quando necessário; segredos só via env/secret store.
+- **SSOT CloudOps**: `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops`; ops diárias: `docs/infra-docker.md`
+- **Ambiente Híbrido**: Motor asyncio no host (WSL/Conda, Python 3.13, CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em Docker (`core,ml`)
+- **Host / WSL**: alinhar driver NVIDIA Windows ↔ CUDA Conda; `vm.overcommit_memory=1` via `host-prereq.sh`; segredos só env/secret store
 - **Isolamento e Segurança de Containers**:
-  - Binds estritamente em loopback `127.0.0.1` (sem exposição externa de portas).
-  - Execução non-root com usuário dedicado (`aether`, UID/GID 10001).
-  - Flags de segurança ativas: `security_opt: [no-new-privileges:true]`, `read_only` root filesystem onde aplicável com volumes temporários dedicados.
-  - Healthchecks determinísticos com `start_period`, `interval` e `retries` calibrados; boot com `depends_on` + `service_healthy`.
-  - Limites cgroups (CPU/mem) nos sidecars para não saturar o host do motor; `OMP_NUM_THREADS` calibrado no LightGBM.
-- **Banco de Dados & SQL (TimescaleDB / PostgreSQL 16)**:
-  - Hypertables com particionamento temporal otimizado para séries temporais financeiras (chunks de 1 dia para ticks e microvelas).
-  - Compressão colunar nativa (`compress_segmentby = 'symbol'`, `compress_orderby = 'time DESC'`) e políticas automáticas de retenção.
-  - Conexões assíncronas via pool transacional fail-closed (`asyncpg`); inserts em lote; gravação desacoplada da decisão de trading.
-- **Filas & Estado Distribuído (Redis 7.4-Alpine)**:
-  - Persistência AOF (`appendfsync everysec`) para recuperação de falhas sem perda de estado.
-  - Fila de prioridade de liquidação em Redis ZSET (`settlement:queue:priority`) com score por timestamp e processamento idempotente (SSOT; não trocar por Streams sem mandato).
-  - State stores: integridade atômica via pipeline transacional e isolamento com `asyncio.Lock` no core.
-- **Sidecars de Machine Learning (Meta & Loss Classifiers)**:
-  - Containers FastAPI/Uvicorn dedicados (`:8005` e `:8006`) com workers ASGI otimizados.
-  - Cliente motor: `httpx.AsyncClient` keep-alive, timeout agressivo e fallback se sidecar atrasar.
-  - Retreino online `/v1/learn` atômico com buffer persistido em volumes seguros; artefatos versionados no MinIO.
-- **Documentação e Skills**: `docs/infra-docker.md` + `docs/engineering-architecture-senior.md`; skills `aether-infra-stack` + `aether-architecture-senior`.
+  - Binds estritamente em loopback `127.0.0.1` (processo interno em `0.0.0.0`)
+  - Non-root `aether` UID 10001; `security_opt: [no-new-privileges:true]`; `read_only` + tmpfs em meta/loss
+  - Healthchecks + `depends_on: condition: service_healthy`; Make `docker-wait-healthy` como rede de segurança
+  - `mem_limit`/`cpus` (Compose sem Swarm); `mem_swappiness: 0`; OMP/OpenBLAS/MKL/VECLIB/NUMEXPR = **2** nos sidecars ML
+  - Meta/loss: Docker multi-stage `/opt/venv`, `tini`, CMD exec-form Uvicorn
+- **TimescaleDB / PostgreSQL 16**:
+  - Hypertables chunks **1 day**; compressão `segmentby=symbol` / `orderby=time DESC`; retenção ticks 30d
+  - Continuous aggregate `candle_m5` = analytics (não substitui candle live Deriv)
+  - asyncpg pool fail-closed; inserts em lote; gravação desacoplada da decisão
+- **Redis 7.4-Alpine**:
+  - AOF `appendfsync everysec`; `maxmemory 200mb` + **`noeviction`**; `io-threads 2`
+  - Settlement SSOT: ZSET `settlement:queue:priority` — **não** trocar por Streams/listas sem mandato
+- **MinIO**: bucket SSOT `dl-models`; `minio-init` (mc) + ILM ~7d em `optuna/`; binds 9000/9001
+- **Sidecars ML**: FastAPI/Uvicorn `:8005`/`:8006`; cliente host httpx timeout/fallback; artefatos versionados
+- **Docs/skills**: `engineering-devops-cloudops-senior.md`, `infra-docker.md`, `engineering-architecture-senior.md`; skills `aether-devops-cloudops` + `aether-infra-stack` + `aether-redis-hiredis` + `aether-asyncpg-timescale`

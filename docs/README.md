@@ -15,7 +15,7 @@
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
 | [../.github/README.md](../.github/README.md) | CI matriz Python/Docker/Shell; JSON/YAML no job Python; release |
 | [../linters/README.md](../linters/README.md) | Hooks locais: Ruff, pytest, Bandit, commitlint, semantic-release |
-| [engineering-python-deps.md](engineering-python-deps.md) | Pins pip: anti-redundancia, Polars-only (pandas proibido), ABI numpy/torch |
+| [engineering-python-deps.md](engineering-python-deps.md) | SSOT deps sênior: pins, websockets/httpx, Polars, MinIO, ML, QA |
 | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | Higienizacao: ondas seguras, morto comprovado, never-delete |
 | [engineering-surface-sync.md](engineering-surface-sync.md) | Fechamento: sync docs/rules/skills + pre-commit + anti-sujeira |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
@@ -24,6 +24,8 @@
 | [engineering-settings-ssot.md](engineering-settings-ssot.md) | Mapa de `settings.json` e regra de knobs novos |
 | [engineering-observability.md](engineering-observability.md) | Logger, dedupe, tags de log do ciclo |
 | [engineering-logging-inventory.md](engineering-logging-inventory.md) | Mapa de fontes de log (runtime/scripts/infra) |
+| [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | Runtime CPython 3.13: GIL, GC, asyncio, Polars, bordas Redis/Timescale/Torch |
+| [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | DevOps/CloudOps: Compose, Redis, Timescale, MinIO, multi-stage, triagem OOM/OMP |
 | [infra-docker.md](infra-docker.md) | Stack Docker hibrida: profiles `core/ml`, binds localhost, hydrate, smoke |
 | [deriv-api.md](deriv-api.md) | Referência Deriv + integração PAT/OTP (retries Cloudflare/5xx) |
 | [deriv-api-aether.md](deriv-api-aether.md) | Guia rápido Deriv para agentes (mapeamento Aether híbrido OTP/REST) |

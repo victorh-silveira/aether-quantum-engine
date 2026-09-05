@@ -2,7 +2,7 @@
 
 Contrato reutilizavel derivado deste repositorio de referencia (**Aether Quantum Engine**). Use este arquivo para orientar um agente a gerar ou adaptar qualquer projeto (Python ou outra linguagem) com o mesmo padrao de engenharia: DDD, hexagonal, TDD, qualidade, DX e documentacao.
 
-Dominios de negocio de outros PoCs (ex.: OTRS → Google Chat) sao apenas exemplos historicos de aplicacao do padrao — **nao** regra obrigatoria do novo projeto. O negocio deste repo (Deriv / R_10 / TCN) tambem nao deve ser copiado cegamente.
+Dominios de negocio de outros PoCs (ex.: OTRS → Google Chat) sao apenas exemplos historicos de aplicacao do padrao — **nao** regra obrigatoria do novo projeto. O negocio deste repo (Deriv / 1HZ75V / TCN) tambem nao deve ser copiado cegamente.
 
 ## 1. Papel e objetivo
 
@@ -34,7 +34,7 @@ Regras:
 - Formatacao de payload / regras de saida ficam no dominio ou application — nao na CLI/controller.
 - Domain e use case nao emitem logs. Logging semantico fica na presentation e/ou adapters.
 - Composition root (wiring Settings → adapters → use case) fica na presentation.
-- Neste repo de referencia: motor **Python 3.13 + asyncio no host**; sidecars Docker; DataFrame **Polars-only**; inferencia critica CUDA no host; event loop sem bloqueio de CUDA/Polars pesado (offload). Doutrina: `docs/engineering-architecture-senior.md`.
+- Neste repo de referencia: motor **Python 3.13.12 + asyncio no host**; sidecars Docker; DataFrame **Polars-only**; inferencia critica CUDA no host; event loop sem bloqueio de CUDA/Polars pesado (offload). Doutrina: `docs/engineering-architecture-senior.md` + `docs/engineering-python-313-runtime.md`.
 
 ### Qualidade e estilo
 
@@ -274,5 +274,6 @@ Projeto que originou/materializa o contrato (padrao de engenharia, nao template 
 - [`docs/engineering-surface-sync.md`](docs/engineering-surface-sync.md)
 - [`docs/agent-coverage.md`](docs/agent-coverage.md)
 - [`docs/infra-docker.md`](docs/infra-docker.md)
+- [`docs/engineering-devops-cloudops-senior.md`](docs/engineering-devops-cloudops-senior.md)
 - [`Makefile`](Makefile)
 - [`app/scripts/operations/clean_workspace.py`](app/scripts/operations/clean_workspace.py)

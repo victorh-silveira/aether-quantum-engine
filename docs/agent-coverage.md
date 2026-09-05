@@ -11,6 +11,12 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Superficie | Doc | Rule (`.cursor/rules/`) | Skill (`.cursor/skills/`) |
 |------------|-----|-------------------------|---------------------------|
 | Arquitetura senior (host/DDD/asyncio/ML/infra) | [engineering-architecture-senior.md](engineering-architecture-senior.md) + [arquitetura.md](arquitetura.md) | `aether-architecture-senior.mdc` | `aether-architecture-senior` |
+| Runtime CPython 3.13 / GIL / GC / Tier2 | [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-313-runtime.mdc` | `aether-python-313-runtime` |
+| Asyncio TaskGroup / supervisor | [engineering-python-313-runtime.md](engineering-python-313-runtime.md) + [engineering-architecture-senior.md](engineering-architecture-senior.md) | `aether-python-313-runtime.mdc` | `aether-asyncio-supervisor` |
+| Polars / Arrow zero-copy | [engineering-python-deps.md](engineering-python-deps.md) + [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-deps.mdc` | `aether-polars-arrow` |
+| Torch CUDA inferencia | [engineering-deep-learning.md](engineering-deep-learning.md) + [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-deep-learning.mdc` | `aether-torch-cuda-infer` |
+| asyncpg / Timescale | [infra-docker.md](infra-docker.md) + [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-asyncpg-timescale` |
+| Redis hiredis / settlement ZSET | [engineering-settlement.md](engineering-settlement.md) + [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-settlement.mdc` | `aether-redis-hiredis` |
 | Doutrina / sessao | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
 | Playbook senior binario | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
@@ -24,10 +30,11 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Sweep horizonte N (label promote; ops duration fixo; logs densos) | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
 | Settlement / Redis fila | [engineering-settlement.md](engineering-settlement.md) | `aether-settlement.mdc` | `aether-settlement-debug` |
 | Infra Docker / state / storage / market / inference | [infra-docker.md](infra-docker.md) | `aether-infra.mdc` | `aether-infra-stack` |
+| DevOps / CloudOps sênior (Compose, Redis, TS, MinIO) | [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-devops-cloudops` |
 | Deriv API / WS / PAT | [deriv-api-aether.md](deriv-api-aether.md) | `aether-deriv-api.mdc` | `aether-deriv-connect` |
 | Settings / knobs SSOT | [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-settings-ssot.mdc` | `aether-settings-change` |
 | Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) + [.github/README.md](../.github/README.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
-| Deps Python / requirements | [engineering-python-deps.md](engineering-python-deps.md) | `aether-python-deps.mdc` | `aether-python-deps` |
+| Deps Python / requirements | [engineering-python-deps.md](engineering-python-deps.md) + [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-deps.mdc` | `aether-python-deps` |
 | Higienizacao do repositorio | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | `aether-repo-hygiene.mdc` | `aether-repo-hygiene` |
 | Surface sync (fechamento) | [engineering-surface-sync.md](engineering-surface-sync.md) | `aether-surface-sync.mdc` | `aether-surface-sync` |
 | Contrato prompt-modelo | [prompt-model.md](../prompt-model.md) | `aether-engineering.mdc` | `aether-surface-sync` |

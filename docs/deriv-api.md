@@ -26,7 +26,7 @@
 3. **Bulk-purchase:** header `Deriv-App-ID` + PAT por conta no body — nunca Bearer.
 4. Campo de simbolo: `underlying_symbol`.
 
-Símbolos ativos do motor: **`R_10`**.
+Símbolos ativos do motor: **`1HZ75V`**.
 
 Resiliência: `deriv_rest_client` faz retry em **502/503/504** e respeita `retry_after` Cloudflare. O failover WSS tenta multiplos IPs Cloudflare; OTP one-shot exige `uri_factory` entre IPs.
 

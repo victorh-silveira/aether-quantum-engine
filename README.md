@@ -112,7 +112,7 @@ Copie `cp .env.example .env` e preencha o PAT. Validação Deriv: `python app/sc
 - **Stop win por sessão ativa**: meta = `banca_inicial × 3,00%` (banca ≥ $100) ou **$10** fixo (banca &lt; $100); `finalize_stop_win_shutdown` purge Redis + log CRITICAL + fast-path.
 - **Stop loss desativado**: sem disjuntor de perda diária interno.
 - **Lotes fracionados**: stakes acima de `max_single_stake_limit` (padrão $200) divididas em N ordens com proposta atômica por sub-lote; falha técnica de proposta aborta o cluster sem inflar `pending_loss`.
-- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`R_10`) o default operacional e `0` para nao esvaziar o unico ativo.
+- Cooldown por símbolo após sequência de losses (`symbol_loss_rotation_cycles`): com universo single-symbol (`1HZ75V`) o default operacional e `0` para nao esvaziar o unico ativo.
 - **Proteção contra loss** (`execution_loss_protection`): caps edge/Z **999**; `min_direction_margin` operacional **0.0** nos settings atuais.
 - **Starvation / edge**: após **6** quality skips os pisos decaem; o piso de `predicted_payoff_edge` relaxa a partir de **8** skips até `edge_decay_floor: 0.0`, com recovery relax até `-0.55`.
 
@@ -219,7 +219,7 @@ WSL: `make app-pre-commit-run`
 
 O motor exige `deep_learning.enabled: true` e checkpoints válidos em `data/dl/`. Treino e execução são processos separados — `train.py` grava os modelos; `run.py` só opera.
 
-Fluxo tipico single-symbol: treinar TCN `R_10` (`data/dl/R_10.pth`) → treinar meta single-symbol (`--symbols R_10`). Artefatos Drift legados no disco nao sao apagados automaticamente.
+Fluxo tipico single-symbol: treinar TCN `1HZ75V` (`data/dl/1HZ75V.pth`) → treinar meta single-symbol (`--symbols 1HZ75V`). Artefatos Drift legados no disco nao sao apagados automaticamente.
 
 ---
 

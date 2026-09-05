@@ -6,8 +6,12 @@ alwaysApply: true
 
 # Repo hygiene
 
-- So remover com evidencia (grep/import/compose/matriz); ondas: codigo → JSON SSOT → alinhamentos → deps
+- So remover com evidencia (grep/import/compose/matriz/vulture); ondas: codigo → JSON SSOT → alinhamentos → deps
+- Vulture: allowlist `app/.vulture_whitelist.py`, `--min-confidence 80`; so Protocol/hooks na allowlist
+- Ruff: F401/F841/ERA001/ARG/T201 — sem `print` no motor; sem codigo comentado versionado
+- Chaves Redis transitórias com TTL; settlement permanece ZSET (nunca Streams; sem TTL cego na fila)
 - Nunca apagar skills/docs indexados, redis/timescale/minio/meta/loss, `__init__` de pacote, caps/settlement
 - Dual inventarios: `docs/agent-coverage.md` + `AGENTS.md`; deps via `aether-python-deps`
+- Host: `app/scripts/wsl/clean_env.sh` + rotina WSL/VHDX documentada
 - QA pre-commit por onda; commits PT-BR (`repo`/`config`/`infra`/`deps`)
 - Doc: `docs/engineering-repo-hygiene.md`; skill: `aether-repo-hygiene`

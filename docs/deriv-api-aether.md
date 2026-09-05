@@ -26,3 +26,4 @@ Use ONLY this API. Symbol field: `underlying_symbol`.
 2. Trading WSS: emitir OTP via REST, conectar na URL; sem auth no socket.
 3. Bulk-purchase: App-ID no header + PAT no body — nunca Bearer.
 4. OTP one-shot: renovar antes de cada reconnect / failover de IP.
+5. Connect WSS: `max_size=4 MiB`, `ping_interval=20`, `ping_timeout=10` (defaults em `websocket_connect`; evita PayloadTooBig e half-open WSL/NAT). Ver [`engineering-python-deps.md`](engineering-python-deps.md).

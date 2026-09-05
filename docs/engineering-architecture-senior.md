@@ -1,10 +1,10 @@
 # Arquitetura sênior — host Python 3.13, DDD/hexagonal, ML e infra híbrida
 
-Doutrina de engenharia do **Aether Quantum Engine**. Runtime operacional (símbolo, M5, Kelly, gates) permanece em [`llm-trading-doctrine.md`](llm-trading-doctrine.md) e `config/settings.json`. Visão de pipeline: [`arquitetura.md`](arquitetura.md).
+Doutrina de engenharia do **Aether Quantum Engine**. Runtime operacional (símbolo, M5, Kelly, gates) permanece em [`llm-trading-doctrine.md`](llm-trading-doctrine.md) e `config/settings.json`. Internals CPython 3.13: [`engineering-python-313-runtime.md`](engineering-python-313-runtime.md). Visão de pipeline: [`arquitetura.md`](arquitetura.md).
 
 ## 1. Princípio de implantação
 
-O motor (`app/run.py` / `train.py`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13**) para:
+O motor (`app/run.py` / `train.py`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13.12**, build **com GIL**) para:
 
 - evitar sobrecarga de virtualização de rede no hot path;
 - acesso direto a drivers **NVIDIA/CUDA** no host;
@@ -95,20 +95,26 @@ Sidecars (Redis, TimescaleDB, MinIO, meta `:8005`, loss `:8006`) ficam em Docker
 
 ## 7. Mercado: websockets + httpx
 
-- Heartbeat WS com `ping_interval` / `ping_timeout`; reconexão com backoff + jitter e re-subscribe atômico.
+- Heartbeat WS de protocolo: `ping_interval=20` / `ping_timeout=10` + `max_size=4 MiB` (defaults em `websocket_connect`; ver [`engineering-python-deps.md`](engineering-python-deps.md)).
+- Heartbeat de aplicacao Deriv (`{"ping": 1}`) permanece no `WebSocketManager`.
+- Reconexao com backoff + jitter e re-subscribe atomico.
+- httpx: singleton por event loop para meta/loss; nunca `AsyncClient()` por request.
 - Backpressure: preferir estado mais recente (lossy em ticks intermediários) se a fila acumular.
 - REST Deriv: retries idempotentes, rate-limit por headers; auth híbrida PAT+OTP.
 - Kernel TCP keep-alive para detectar link silencioso antes do timeout de aplicação.
 
 ## 8. Infra Docker local
 
+Ver [`infra-docker.md`](infra-docker.md) e SSOT CloudOps [`engineering-devops-cloudops-senior.md`](engineering-devops-cloudops-senior.md).
+
 | Serviço | Uso sênior Aether |
 |---------|-------------------|
-| Redis 7.4 | Estado efêmero + fila de settlement SSOT **ZSET** `settlement:queue:priority` (idempotente); AOF `everysec` |
-| TimescaleDB / PG 16 | Hypertables, compressão, retenção; inserts em lote via `asyncpg`; gravação desacoplada da decisão |
-| MinIO | Checkpoints e artefatos ML |
+| Redis 7.4 | Settlement SSOT **ZSET** `settlement:queue:priority`; AOF `everysec`; `maxmemory` + `noeviction`; `io-threads` |
+| TimescaleDB / PG 16 | Hypertables chunk **1 day**, compressão, retenção; CRAG `candle_m5` analytics; `asyncpg` em lote |
+| MinIO | Bucket `dl-models`; `minio-init` + ILM `optuna/` ~7d |
+| Meta / Loss | Multi-stage `/opt/venv`, OMP*=2, binds `127.0.0.1:8005/8006` |
 
-Compose: healthchecks (`redis-cli ping`, `pg_isready`, liveness MinIO); boot com `depends_on` + `service_healthy`. Volumes em storage rápido do host. Tuning `max_connections` / `shared_buffers` / `work_mem` alinhado ao pool asyncpg.
+Compose: `mem_limit`/`cpus` + `mem_swappiness: 0`; healthchecks; `depends_on: service_healthy`; Make wait-healthy. Host: `vm.overcommit_memory=1`.
 
 ## 9. QA, segurança e observabilidade
 
@@ -137,6 +143,6 @@ Detalhes de gates: [`engineering-standards.md`](engineering-standards.md). Loggi
 - Skill: `aether-architecture-senior`
 - Rule: `aether-architecture-senior.mdc`
 - Contrato cross-repo: [`../prompt-model.md`](../prompt-model.md)
-- Infra: [`infra-docker.md`](infra-docker.md) + skill `aether-infra-stack`
+- Infra: [`infra-docker.md`](infra-docker.md) + [`engineering-devops-cloudops-senior.md`](engineering-devops-cloudops-senior.md) + skills `aether-infra-stack` / `aether-devops-cloudops`
 - DL: [`engineering-deep-learning.md`](engineering-deep-learning.md) + skill `aether-dl-train`
 - Deriv: [`deriv-api-aether.md`](deriv-api-aether.md) + skill `aether-deriv-connect`

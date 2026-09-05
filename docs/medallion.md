@@ -255,7 +255,7 @@ O fluxo inteiro do ciclo desvia para o par com maior probabilidade matemática d
 
 **Justificativa do score 0.52 em squeeze**: em canais Bollinger esmagados, o rebaixamento marca `meta_squeeze_downgrade` e, **fora de recovery financeira** (`pending_total == 0`), comprime a stake ao piso de $1.00 da Deriv. Com `pending_total > 0`, o piso D-SQUEEZE é **revogado** (`d_squeeze_floor_waived_for_recovery`) para preservar a stake soft D'Alembert e cobrir o passivo; o ranking de recovery tambem penaliza simbolos em squeeze quando ha peer elegivel. O adaptativo `bb_width_adaptive_squeeze` permanece **desabilitado** nos settings atuais.
 
-`execution_direction_cross_corr` e `execution_volatility_booster` permanecem como telemetria consultiva. `execution_sniper_gates.apply_hurst_noise_veto` e `apply_bb_squeeze_requirement` são stubs que retornam `False`.
+`execution_direction_cross_corr` e `execution_volatility_booster` permanecem como telemetria consultiva. `execution_sniper_gates` expoe `resolve_calibration_neutral_band` (banda call/put da calibracao); nao ha veto Hurst nem gate BB squeeze hard nesse modulo.
 
 ---
 
@@ -352,7 +352,7 @@ Quando `pending_total > 0`, `risk_stake_calc.py` **ignora** a penalidade de entr
    - **Votos unânimes alinhados:** `6×0` ou `0×6` na direção da ordem (macro)
    - **Convicção elevada:** `trade_score >= penalty_smoothing_trade_score_min` (padrão **0,68**)
 
-Justificativa: com alinhamento direcional unânime no contexto macro ou convicção alta, o Kelly base não pode ser esmagado pela penalidade de entropia — o soft D'Alembert precisa operar com peso financeiro real em símbolos secundários do cluster (ex.: `R_10`).
+Justificativa: com alinhamento direcional unânime no contexto macro ou convicção alta, o Kelly base não pode ser esmagado pela penalidade de entropia — o soft D'Alembert precisa operar com peso financeiro real no simbolo operacional (ex.: `1HZ75V`).
 
 ---
 
@@ -429,7 +429,7 @@ O bloco legado `risk_management.dlambert` foi removido da configuração canôni
 
 Complementar à curva soft D'Alembert:
 
-- Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `R_10`
+- Rotação de símbolo após loss linear (`symbol_loss_rotation_cycles`); sem bônus fixo em `1HZ75V`
 - Filtro de loss-protection com `min_direction_margin: 0.0` (caps edge/Z 999)
 - Trava Hurst N2+ (`recovery_hurst_gate`) — prioriza candidatos persistentes; N3+ sem Hurst bloqueia escalada
 - Teto de stake comprimido em linear ≥2 (`max_safe_stake_pct_linear2`) e ≥3 (`max_safe_stake_pct_linear3`)
@@ -544,7 +544,7 @@ Se o valor ultrapassar o teto crítico de ±3.0, aplica-se um clipping estrito v
 O payload HTTP do meta (`META_FEATURE_DIM = 43`) espelha rigidamente essa saturação antes do envio ao container `aether-meta-classifier` (porta 8005).
 
 ### 12.2 Invariante de Drift Proibido (Drift Bias Lock)
-Com universo single-symbol (`R_10`), o lock contra drift natural de par Bull/Bear permanece no codigo como no-op (`hedge_peer(R_10)` retorna `None`). Quando houver par de hedge configurado, permanece vedada a emissao contra o drift sob expansao hiperbolica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):
+Com universo single-symbol (`1HZ75V`), o lock contra drift natural de par Bull/Bear permanece no codigo como no-op (`hedge_peer(1HZ75V)` retorna `None`). Quando houver par de hedge configurado, permanece vedada a emissao contra o drift sob expansao hiperbolica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):
 - **PUT** contra tendencia de alta no indice Bull
 - **CALL** contra tendencia de baixa no indice Bear
 
@@ -571,7 +571,7 @@ com \(p(0)=0{,}035\), \(p(N\!\ge\!2)=0{,}025\), \(p(N\!\ge\!3)=0{,}020\). Em \(B
 \[
 \mathbb{1}_{\text{redirect}} = \mathbf{1}\!\left[B \le 250 \land P > 0{,}15\cdot B\right]
 \]
-com \(P=\sum_s \text{pending\_loss}[s]\) (\$15 em banca de \$100). Sob \(\mathbb{1}_{\text{redirect}}=1\), ordens isoladas em ativos de maior ruído são suspensas e o payload de soft recovery é desviado ao simbolo operacional `R_10` (ou, em testes multi-symbol, ao candidato em `DRIFT_PAIR_SYMBOLS`) que maximiza
+com \(P=\sum_s \text{pending\_loss}[s]\) (\$15 em banca de \$100). Sob \(\mathbb{1}_{\text{redirect}}=1\), ordens isoladas em ativos de maior ruído são suspensas e o payload de soft recovery é desviado ao simbolo operacional `1HZ75V` (ou, em testes multi-symbol, ao candidato em `DRIFT_PAIR_SYMBOLS`) que maximiza
 \[
 \text{score}(s) = Z_{\text{edge}}(s) - H_2\!\big(p_s\big),\qquad Z_{\text{edge}}(s) > 0
 \]

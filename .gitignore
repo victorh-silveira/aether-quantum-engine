@@ -79,3 +79,10 @@ yarn-error.log*
 __pycache__/
 build/
 dist/
+
+# ---- DATAFRAME / NOTEBOOKS / RESEARCH (fora do motor) ----
+*.parquet
+*.arrow
+*.feather
+*.ipynb
+research/

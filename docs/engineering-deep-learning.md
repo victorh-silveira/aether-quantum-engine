@@ -70,7 +70,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se a fracao predita colapsa (`|pred_call_frac-0.5|` ou `|pred_call_frac-label_call_frac|` &gt; `max_label_call_frac_bias` **0.20**) — mesmo com `minority_recall` acima do piso (ex.: labels ~0.5 e `pred_call=0.24`). Alternativa: label viesado (`|label_call_frac-0.5|` &gt; bias) **e** `minority_recall < min_minority_recall` (**0.25**). Checkpoint de treino nao promove pico com `collapse_hit`.
 
-Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** apenas se a **BCE** de validacao &lt; **0.70** (abaixo de chute aleatorio; pico da epoca 1 com loss 0.80 e ignorado). `focal_gamma` afeta so o treino — nao o monitor de checkpoint. Loss so desempata. Em R_10, `spot_forward` costuma platô ~0.52; `ma_trend` e o label SSOT atual.
+Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** apenas se a **BCE** de validacao &lt; **0.70** (abaixo de chute aleatorio; pico da epoca 1 com loss 0.80 e ignorado). `focal_gamma` afeta so o treino — nao o monitor de checkpoint. Loss so desempata. Em 1HZ75V, `spot_forward` costuma platô ~0.52; `quantum_multi_barrier` e o label SSOT atual.
 
 ## Meta — alvo e dados
 

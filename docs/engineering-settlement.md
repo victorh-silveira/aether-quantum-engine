@@ -34,7 +34,9 @@ Poll minimo da fila: **~2 s** (`settlement_queue_ops`). Tolerancia pos-expiry: s
 ## Invariantes
 
 - Enqueue idempotente por `contract_id`
+- Fila SSOT = Redis **ZSET** `settlement:queue:priority` — **proibido** substituir por Redis Streams, listas ou outro tipo sem mandato explícito + migração testada
 - Nao apagar a fila Redis “para destravar” sem auditar contratos abertos
 - Caps e pending continuam soberanos apos WIN operacional parcial
+- Redis: AOF everysec + `maxmemory-policy noeviction` (sem drop silencioso de contratos)
 
-Skill: `aether-settlement-debug`.
+Skill: `aether-settlement-debug`. Doutrina CloudOps: [`engineering-devops-cloudops-senior.md`](engineering-devops-cloudops-senior.md).
