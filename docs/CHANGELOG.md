@@ -1,3 +1,13 @@
+## [2.53.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.52.0...v2.53.0) (2026-09-05)
+
+### Funcionalidades
+
+* **engine:** TCN 14D meta 23D regime boolean e seed Timescale ([675e043](https://github.com/victorh-silveira/aether-quantum-engine/commit/675e0438b404211768ae052c3832020edac93e7a))
+
+### Documentacao
+
+* **repo:** sincroniza superficie agents TCN 14D e regime ([814b134](https://github.com/victorh-silveira/aether-quantum-engine/commit/814b13467bfd9fd005e4aeb01dcce18ca4da16ca))
+
 ## [2.52.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.51.1...v2.52.0) (2026-09-05)
 
 ### Funcionalidades
