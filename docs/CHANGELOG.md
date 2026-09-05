@@ -1,3 +1,14 @@
+## [2.52.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.51.1...v2.52.0) (2026-09-05)
+
+### Funcionalidades
+
+* **engine:** runtime senior com ports supervisor Polars e higiene ([32f3d35](https://github.com/victorh-silveira/aether-quantum-engine/commit/32f3d35fceccaa0a069843a7722bd719c2d09efd))
+* **infra:** endurece Compose Redis Timescale MinIO e sidecars ML ([a8613e7](https://github.com/victorh-silveira/aether-quantum-engine/commit/a8613e74b1fa0dc839db2f8104b87d564a8a24cf))
+
+### Documentacao
+
+* **repo:** sincroniza superficie agents doutrina e SSOT 1HZ75V ([1e12e5c](https://github.com/victorh-silveira/aether-quantum-engine/commit/1e12e5c1b73720ff1b8d87bdfd331abbce0d0f07))
+
 ## [2.51.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.51.0...v2.51.1) (2026-09-04)
 
 ### Correcoes de Bug
