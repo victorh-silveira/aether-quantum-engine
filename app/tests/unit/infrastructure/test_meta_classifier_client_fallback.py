@@ -11,7 +11,7 @@ from src.infrastructure.inference.meta_classifier_client import (
 
 
 def _meta_metrics() -> dict:
-    base = [0.1] * 34
+    base = [0.1] * 14
     return {
         "feature_vector": base,
         "cross_symbol_features": {

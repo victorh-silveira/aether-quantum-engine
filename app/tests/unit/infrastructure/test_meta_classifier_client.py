@@ -17,7 +17,7 @@ from src.infrastructure.inference.meta_classifier_client import (
 
 
 def _meta_metrics() -> dict:
-    base = [0.1] * 34
+    base = [0.1] * 14
     return {
         "feature_vector": base,
         "cross_symbol_features": {
@@ -40,7 +40,7 @@ def test_assert_meta_feature_vector_dim_accepts_canonical_43():
 
 
 def test_assert_meta_feature_vector_dim_rejects_truncated_payload():
-    with pytest.raises(ValueError, match=r"Vetor tabular corrompido: local esperado 43, gerado 39"):
+    with pytest.raises(ValueError, match=r"Vetor tabular corrompido: local esperado 23, gerado 39"):
         assert_meta_feature_vector_dim([0.0] * 39)
 
 
@@ -54,7 +54,7 @@ async def test_predict_meta_rejects_corrupted_dim_before_http():
         "direction": "CALL",
         "feature_vector": [0.1] * 39,
     }
-    with pytest.raises(ValueError, match=r"local esperado 43, gerado 39"):
+    with pytest.raises(ValueError, match=r"local esperado 23, gerado 39"):
         await client.predict_meta(request, fallback_score=0.62)
     client._client.post.assert_not_called()
     await client.aclose()

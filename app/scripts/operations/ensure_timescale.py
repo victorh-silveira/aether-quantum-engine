@@ -15,11 +15,20 @@ from pathlib import Path
 
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+_APP_ROOT = _REPO_ROOT / "app"
+if str(_APP_ROOT) not in sys.path:
+    sys.path.insert(0, str(_APP_ROOT))
+
+from scripts.operations.timescale_seed_policy import (  # noqa: E402
+    MIN_BARS_MICRO,
+    min_bars_for_granularity,
+)
+
 _DOCKER_DIR = _REPO_ROOT / "infra" / "docker"
 _TS_HOST = "127.0.0.1"
 _TS_PORT = 5432
 _DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
-_MIN_BARS = 2000
+_SEED_TIMEOUT_SECONDS = 900
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("AETH.ops")
@@ -97,15 +106,16 @@ async def _data_ok(
         counts: dict[tuple[str, int], int] = {(r["symbol"], r["granularity"]): r["total"] for r in (rows or [])}
         for sym in symbols:
             for gran in granularities:
+                floor = min_bars_for_granularity(int(gran))
                 have = counts.get((sym, int(gran)), 0)
-                if have < _MIN_BARS:
+                if have < floor:
                     if log_shortfalls:
                         logger.info(
                             "[AETHER] TimescaleDB | %s gran=%ds tem %d barras (min=%d)",
                             sym,
                             int(gran),
                             have,
-                            _MIN_BARS,
+                            floor,
                         )
                     return False
         return True
@@ -115,12 +125,22 @@ async def _data_ok(
 
 def _seed_timescale(symbols: list[str]) -> int:
     seed_script = str(_REPO_ROOT / "app" / "scripts" / "operations" / "seed_timescale_ohlc.py")
-    cmd = [sys.executable, seed_script, "--symbols"] + symbols
-    logger.info("[AETHER] Sementeando TimescaleDB via Deriv API (seed_timescale_ohlc.py)...")
-    r = subprocess.run(cmd, capture_output=True, timeout=300, check=False)
+    cmd = [sys.executable, seed_script, "--bars", str(MIN_BARS_MICRO), "--symbols"] + symbols
+    logger.info(
+        "[AETHER] Sementeando TimescaleDB via Deriv (timeout=%ds, M5=%d D1=365)...",
+        _SEED_TIMEOUT_SECONDS,
+        MIN_BARS_MICRO,
+    )
+    try:
+        r = subprocess.run(cmd, timeout=_SEED_TIMEOUT_SECONDS, check=False)
+    except subprocess.TimeoutExpired:
+        logger.warning(
+            "[AVISO] Seed TimescaleDB timeout apos %ds; meta usara Deriv se preciso.",
+            _SEED_TIMEOUT_SECONDS,
+        )
+        return 1
     if r.returncode != 0:
-        stderr = (r.stderr or b"").decode(errors="replace").strip()[:500]
-        logger.warning("[AVISO] Seed TimescaleDB falhou: %s", stderr or "desconhecido")
+        logger.warning("[AVISO] Seed TimescaleDB falhou rc=%s", r.returncode)
         return 1
     logger.info("[AETHER] TimescaleDB sementeado com sucesso.")
     return 0
@@ -173,29 +193,29 @@ def main() -> int:
 
     settings = _load_settings()
     dsn = _settings_dsn(settings)
-    symbols = ["R_10"]
+    symbols = [str(s) for s in (settings.get("symbols") or ["1HZ75V"])]
     granularities = _required_granularities(settings)
     ok = asyncio.run(_data_ok(dsn, symbols, granularities, log_shortfalls=not check_only))
     if ok:
         if check_only:
             logger.info(
-                "[AETHER] Timescale check-only: ok porta=%s ohlc=ok gran=%s",
+                "[AETHER] Timescale check-only: ok porta=%s ohlc=meta_ready gran=%s",
                 _TS_PORT,
                 granularities,
             )
         else:
-            logger.info("[AETHER] TimescaleDB | dados OHLC suficientes.")
+            logger.info("[AETHER] TimescaleDB | dados OHLC meta_ready.")
         return 0
 
     if check_only:
         logger.info(
-            "[AETHER] Timescale check-only: ok porta=%s ohlc=insuficiente gran=%s → meta --source auto",
+            "[AETHER] Timescale check-only: ok porta=%s ohlc=smoke gran=%s → seed/Deriv antes do meta",
             _TS_PORT,
             granularities,
         )
         return 0
 
-    logger.info("[AETHER] TimescaleDB | dados OHLC insuficientes - sementeando via Deriv...")
+    logger.info("[AETHER] TimescaleDB | ohlc=smoke/curto - sementeando via Deriv...")
     return _seed_timescale(symbols)
 
 

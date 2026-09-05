@@ -5,23 +5,26 @@ from __future__ import annotations
 import torch
 
 
-FEATURE_RSI_IDX = 5
-FEATURE_CMO_IDX = 25
-FEATURE_VOL_RATIO_IDX = 31
+FEATURE_RSI_IDX = 2
+FEATURE_ADX_IDX = 11
+FEATURE_VOL_RATIO_IDX = 12
 
 STRESSED_RSI = 0.99
-STRESSED_CMO = 1.0
+STRESSED_ADX = 1.0
 STRESSED_VOL_RATIO = 1.80
 
 
 def build_stressed_regime_probe_tensor(lookback: int, feature_dim: int) -> torch.Tensor:
-    """Monta tensor com regime estressado: RSI alto, CMO saturado e vol_ratio em expansao."""
+    """Monta tensor com regime estressado: RSI alto, ADX saturado e vol_ratio em expansao."""
     lb = int(lookback)
     fd = int(feature_dim)
     tensor = torch.zeros(1, lb, fd, dtype=torch.float32)
-    tensor[:, :, FEATURE_RSI_IDX] = STRESSED_RSI
-    tensor[:, :, FEATURE_CMO_IDX] = STRESSED_CMO
-    tensor[:, :, FEATURE_VOL_RATIO_IDX] = STRESSED_VOL_RATIO
+    if fd > FEATURE_RSI_IDX:
+        tensor[:, :, FEATURE_RSI_IDX] = STRESSED_RSI
+    if fd > FEATURE_ADX_IDX:
+        tensor[:, :, FEATURE_ADX_IDX] = STRESSED_ADX
+    if fd > FEATURE_VOL_RATIO_IDX:
+        tensor[:, :, FEATURE_VOL_RATIO_IDX] = STRESSED_VOL_RATIO
     return tensor
 
 

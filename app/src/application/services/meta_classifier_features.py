@@ -60,12 +60,12 @@ def cross_symbol_conviction_spread(metrics: dict[str, Any]) -> float:
 
 
 def clip_feature_zscore(value: float) -> float:
-    """Aplica saturacao OOD estrita em [-3.0, 3.0] para z-scores do meta 43D."""
+    """Aplica saturacao OOD estrita em [-3.0, 3.0] para z-scores do meta 23D."""
     return float(np.clip(float(value), -_ZSCORE_CLIP, _ZSCORE_CLIP))
 
 
 def _clip_micro_vol_zscores(vector: list[float]) -> list[float]:
-    """Blindagem dos indices de z-score de micro-volatilidade no payload 43D."""
+    """Blindagem dos indices de z-score de micro-volatilidade no payload 23D."""
     if len(vector) < FEATURE_DIM + _MICRO_BLOCK_LEN:
         return vector
     mom_idx = FEATURE_DIM + _MICRO_MOM_Z_OFFSET
@@ -89,9 +89,10 @@ def _base_feature_vector(metrics: dict[str, Any]) -> list[float]:
     stored = metrics.get("feature_vector")
     if isinstance(stored, (list, tuple)) and len(stored) >= FEATURE_DIM:
         v_list = list(stored[:FEATURE_DIM])
-        if len(v_list) > 9:
-            v_list[8] = clip_feature_zscore(v_list[8])
-            v_list[9] = clip_feature_zscore(v_list[9])
+        if len(v_list) >= FEATURE_DIM:
+            for idx in (5, 6, 9, 12):
+                if idx < len(v_list):
+                    v_list[idx] = clip_feature_zscore(v_list[idx])
         return [float(v) for v in v_list]
     indicators = metrics.get("indicators") if isinstance(metrics.get("indicators"), dict) else {}
     values = []
@@ -125,7 +126,7 @@ def _micro_vol_block(metrics: dict[str, Any]) -> list[float]:
 
 
 def extract_meta_feature_vector(metrics: dict[str, Any]) -> list[float]:
-    """Extrai vetor tabular META_FEATURE_DIM=43 espelhado no HTTP :8005."""
+    """Extrai vetor tabular META_FEATURE_DIM=23 espelhado no HTTP :8005."""
     stored_meta = metrics.get("meta_feature_vector")
     if isinstance(stored_meta, (list, tuple)) and len(stored_meta) >= META_FEATURE_DIM:
         vector = _finalize_meta_vector([float(v) for v in stored_meta[:META_FEATURE_DIM]])

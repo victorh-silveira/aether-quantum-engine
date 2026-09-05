@@ -41,7 +41,7 @@ _WINDOW_KEYS = (
 )
 
 _MULTIPLIER_KEYS = ("bb_std_mult", "kc_atr_mult", "cci_constant")
-_NORMALIZATION_KEYS = ("series_z_clip", "bb_width_z_clip", "atr_z_clip")
+_NORMALIZATION_KEYS = ("series_z_clip", "bb_width_z_clip", "atr_z_clip", "causal_norm_window", "causal_norm_clip")
 _TREND_CONSENSUS_KEYS = ("min_bars", "rsi_call_above", "keltner_call_above", "di_call_above")
 _CONGESTION_KEYS = ("min_bars", "adx_max", "bb_width_max")
 _MARKET_RANK_KEYS = (

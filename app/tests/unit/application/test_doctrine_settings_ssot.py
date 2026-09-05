@@ -51,8 +51,12 @@ def test_production_deploy_gate_armed():
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.01)
     assert float(dl["calibration"]["min_calibration_margin_floor"]) == pytest.approx(0.03)
-    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.53)
-    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.47)
+    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.565)
+    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.435)
+    drift = list(dl["calibration"]["calibration_neutral_drift"])
+    assert float(drift[0]) == pytest.approx(0.435)
+    assert float(drift[1]) == pytest.approx(0.565)
+    assert int(dl["indicators"]["windows"]["ema_50"]) == 50
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "indicator_gating" not in dl
@@ -153,20 +157,21 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-0.12)
     assert float(skip["min_edge_explore"]) == pytest.approx(0.015)
     assert float(skip["min_edge_recovery"]) == pytest.approx(0.015)
-    assert bool(skip["anti_loss_seed_discord_enabled"]) is True
     assert float(skip["anti_loss_p_loss_floor"]) == pytest.approx(0.85)
     assert bool(skip["anti_loss_require_seed"]) is True
     assert bool(skip["anti_loss_hard_skip"]) is True
     assert float(skip["anti_loss_soft_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["anti_loss_require_tcn_pos_edge"]) is True
     assert float(skip["anti_loss_min_candle_body"]) == pytest.approx(0.10)
-    assert bool(skip["anti_loss_live_weak_candle_enabled"]) is True
-    assert bool(skip["anti_loss_live_confirm_enabled"]) is True
+    assert bool(skip["anti_loss_live_weak_candle_enabled"]) is False
+    assert bool(skip["anti_loss_live_confirm_enabled"]) is False
     assert float(skip["anti_loss_live_confirm_min_body"]) == pytest.approx(0.15)
     assert bool(skip["anti_loss_live_exec_candle_enabled"]) is False
     assert float(skip["anti_loss_rsi_min"]) == pytest.approx(0.30)
     assert float(skip["anti_loss_rsi_max"]) == pytest.approx(0.70)
-    assert bool(skip["anti_loss_allow_candle_flip"]) is True
+    assert bool(skip["anti_loss_allow_candle_flip"]) is False
+    assert bool(skip["anti_loss_seed_discord_enabled"]) is False
+    assert bool(skip["regime_gate_enabled"]) is True
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip

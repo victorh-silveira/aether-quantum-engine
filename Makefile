@@ -9,7 +9,8 @@ DOCKER_DIR=infra/docker
 DOCKER_PROFILES ?= core,ml
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
-DOCKER_LOGS_TAIL ?= all
+DOCKER_LOGS_TAIL ?= 200
+DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier
 
 define docker_service_name
 $(strip $(or \
@@ -66,7 +67,7 @@ help:
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers da stack (preserva dados e volumes)"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (preserva dados)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Exibe o status atual dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Exibe logs em tempo real (DOCKER_SERVICE=... F=1)"
+	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs dos servicos running (tail=200; DOCKER_SERVICE=minio-init|... F=1)"
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Executa smoke checks e verificacao de saude da stack"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
@@ -192,7 +193,7 @@ docker-ps:
 	$(DOCKER_COMPOSE) ps
 
 docker-logs:
-	$(DOCKER_COMPOSE) logs --tail=$(DOCKER_LOGS_TAIL) $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(call docker_service_name,$(DOCKER_SERVICE)),)
+	$(DOCKER_COMPOSE) logs --tail=$(DOCKER_LOGS_TAIL) $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(call docker_service_name,$(DOCKER_SERVICE)),$(DOCKER_LOGS_SERVICES))
 
 docker-bash:
 	$(DOCKER_COMPOSE) exec -it $(call docker_service_name,$(or $(DOCKER_SERVICE),timescaledb)) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'

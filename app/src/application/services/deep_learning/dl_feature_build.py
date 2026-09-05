@@ -5,6 +5,7 @@ import numpy as np
 from src.application.services.deep_learning.dl_feature_indicators import (
     atr_norm,
     bollinger,
+    calculate_ema_crossover,
     calculate_rsi,
     delta_series,
     ema_distances,
@@ -25,11 +26,11 @@ from src.application.services.deep_learning.dl_indicator_config import load_indi
 _feature_windows = feature_windows
 
 
-MICRO_FEATURE_DIM = 5
-TRADITIONAL_FEATURE_DIM = 22
-VOLATILITY_FEATURE_DIM = 5
-PERSISTENCE_FEATURE_DIM = 2
-FEATURE_DIM = MICRO_FEATURE_DIM + TRADITIONAL_FEATURE_DIM + VOLATILITY_FEATURE_DIM + PERSISTENCE_FEATURE_DIM
+MICRO_FEATURE_DIM = 0
+TRADITIONAL_FEATURE_DIM = 14
+VOLATILITY_FEATURE_DIM = 0
+PERSISTENCE_FEATURE_DIM = 0
+FEATURE_DIM = 14
 
 
 def symbol_vol_target(symbol: str) -> float:
@@ -146,6 +147,7 @@ def precompute_price_series(
     micro: dict[str, np.ndarray] | None = None,
     implied_vol_bars: int = 60,
     indicator_cfg: dict | None = None,
+    macro_closes: np.ndarray | None = None,
 ) -> dict[str, np.ndarray]:
     """Precomputa series auxiliares usadas na montagem de features."""
     cfg = indicator_cfg if isinstance(indicator_cfg, dict) else load_indicator_config_from_settings()
@@ -197,12 +199,15 @@ def precompute_price_series(
         "low": low_px,
         "adx": osc["adx"],
         "atr_norm": atr,
+        "atr_raw": atr_raw,
         "bb_pct_b": bb_pct_b,
         "bb_width": bb_width,
+        "bb_width_raw": bb_w_raw,
         "cci": osc["cci"],
         "delta_rsi": delta_rsi,
         "di_diff": osc["di_diff"],
         "ema_9_21_dist": osc["ema_9_21_dist"],
+        "ema_20_50_dist": calculate_ema_crossover(close, fast=int(win["ema_20"]), slow=int(win["ema_50"])),
         "ema_dist_20": ema_dist_20,
         "ema_dist_50": ema_dist_50,
         "hurst": hurst,
@@ -225,6 +230,8 @@ def precompute_price_series(
         "cmo": osc["cmo"],
         "keltner_pct_b": osc["keltner_pct_b"],
     }
+    if macro_closes is not None:
+        series["macro_closes"] = np.asarray(macro_closes, dtype=np.float64)
     attach_microstructure(series, micro)
     _attach_micro_zscores(
         series,

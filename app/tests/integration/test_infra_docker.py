@@ -38,7 +38,9 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "profiles: [core]" in text
     assert "profiles: [ml]" in text
     assert "condition: service_healthy" in text
+    assert "condition: service_completed_successfully" in text
     assert "minio-init:" in text
+    assert 'aether.oneshot: "true"' in text
     assert 'OMP_NUM_THREADS: "2"' in text
     assert 'MKL_NUM_THREADS: "2"' in text
     assert '["server", "/data", "--console-address", ":9001"]' in text
@@ -68,6 +70,36 @@ def test_minio_init_script_bucket_ilm():
     assert "dl-models" in script
     assert "optuna/" in script
     assert "mc ilm import" in script
+
+
+def test_docker_hydrate_uses_1hz75v_m5_d1():
+    script = repo_path("infra", "docker", "docker-hydrate.sh").read_text(encoding="utf-8")
+    assert "1HZ75V" in script
+    assert "300" in script
+    assert "86400" in script
+    assert "R_10" not in script
+    assert "7200" not in script
+    assert "granularity=60" not in script
+
+
+def test_timescale_lifecycle_ohlc_segmentby_includes_granularity():
+    sql = repo_path("infra", "docker", "004_timescale-lifecycle.sql").read_text(encoding="utf-8")
+    assert "symbol,granularity" in sql
+    assert "time DESC, epoch DESC" in sql
+
+
+def test_aether_io_tune_reloadable_only():
+    sql = repo_path("infra", "docker", "002_aether-io-tune.sql").read_text(encoding="utf-8")
+    assert "shared_buffers" not in sql
+    assert "work_mem" in sql
+    assert "pg_reload_conf" in sql
+
+
+def test_makefile_docker_logs_defaults_running_services():
+    text = repo_path("Makefile").read_text(encoding="utf-8")
+    assert "DOCKER_LOGS_TAIL ?= 200" in text
+    assert "DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier" in text
+    assert "minio-init" not in text.split("DOCKER_LOGS_SERVICES")[1].split("\n")[0]
 
 
 def test_meta_dockerfile_non_root_and_healthcheck():

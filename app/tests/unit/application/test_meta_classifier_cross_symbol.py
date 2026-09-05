@@ -13,7 +13,7 @@ def _metrics(*, prob: float, rsi: float, vol_ratio: float) -> dict:
     return {
         "calibrated_prob": prob,
         "micro_indicators": {"rsi": rsi, "vol_ratio": vol_ratio},
-        "feature_vector": [0.1] * 34,
+        "feature_vector": [0.1] * 14,
     }
 
 
@@ -68,8 +68,8 @@ def test_extract_meta_feature_vector_uses_meta_feature_vector_cache():
     metrics = {"meta_feature_vector": cached}
     vector = extract_meta_feature_vector(metrics)
     assert len(vector) == META_FEATURE_DIM
-    assert vector[35] == 3.0
-    assert vector[37] == 3.0
+    assert vector[15] == 3.0
+    assert vector[17] == 3.0
     assert vector[0] == 0.0
-    assert vector[34] == 34.0
+    assert vector[14] == 14.0
     assert metrics["meta_feature_vector"] is vector

@@ -19,6 +19,8 @@ make docker-reset       # DESTRUTIVO: sanitiza + limpa volumes + bootstrap + sob
 
 Portas em `127.0.0.1`: Redis 6379, Timescale 5432, MinIO 9000/9001, Meta 8005, Loss 8006.
 
+`aether-minio-init` e job oneshot (`restart: no`): sobe apos MinIO healthy, cria bucket `dl-models` + ILM `optuna/` ~7d e termina com **Exit 0**. Ver `Exited (0)` em `docker ps -a` e o comportamento esperado (nao e crash). Meta/loss so sobem apos `service_completed_successfully`.
+
 ## Loss-classifier (profile `ml`)
 
 - Env: `LOSS_BOOTSTRAP_EXIT_N` **8**, `LOSS_VETO_P_LOSS_FLOOR` **0.65** (soft Kelly)

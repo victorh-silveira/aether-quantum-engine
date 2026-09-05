@@ -332,28 +332,63 @@ async def persist_bundles_to_timescale(dsn: str, bundles: list[OhlcBundle]) -> i
     written = 0
     try:
         for bundle in bundles:
+            records: list[tuple[Any, ...]] = []
             for idx in range(len(bundle.closes)):
                 epoch = int(bundle.epochs[idx])
                 ts = datetime.fromtimestamp(epoch, tz=UTC)
-                await conn.execute(
-                    """
-                    INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT DO NOTHING
-                    """,
-                    ts,
-                    str(bundle.symbol),
-                    epoch,
-                    int(bundle.granularity),
-                    float(bundle.open_[idx]),
-                    float(bundle.high[idx]),
-                    float(bundle.low[idx]),
-                    float(bundle.closes[idx]),
+                records.append(
+                    (
+                        ts,
+                        str(bundle.symbol),
+                        epoch,
+                        int(bundle.granularity),
+                        float(bundle.open_[idx]),
+                        float(bundle.high[idx]),
+                        float(bundle.low[idx]),
+                        float(bundle.closes[idx]),
+                    )
                 )
-                written += 1
+            if not records:
+                continue
+            await conn.executemany(
+                """
+                INSERT INTO ohlc_bars (time, symbol, epoch, granularity, open, high, low, close)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                ON CONFLICT DO NOTHING
+                """,
+                records,
+            )
+            written += len(records)
     finally:
         await conn.close()
     return written
+
+
+async def _timescale_inventory_meets_floor(
+    dsn: str,
+    symbols: list[str],
+    granularities: list[int],
+    quality_floor: int,
+    *,
+    shortfall_ratio: float,
+) -> bool:
+    try:
+        conn = await asyncpg.connect(dsn)
+    except Exception:
+        return False
+    try:
+        inventory = await _timescale_inventory(conn, symbols)
+    finally:
+        await conn.close()
+    by_key = {(sym, gran): total for sym, gran, total in inventory}
+    for symbol in symbols:
+        have = 0
+        for gran in granularities:
+            have = max(have, int(by_key.get((symbol, int(gran)), 0)))
+        ok, _soft = meta_bars_meet_quality(have, quality_floor, shortfall_ratio=shortfall_ratio)
+        if not ok:
+            return False
+    return bool(symbols)
 
 
 async def resolve_training_bundles(
@@ -378,37 +413,56 @@ async def resolve_training_bundles(
     quality_floor = int(min_quality_bars) if min_quality_bars is not None else meta_min_quality_bars()
     shortfall_ratio = _shortfall_ratio_from_settings(settings)
     bundles: list[OhlcBundle] = []
+    timescale_skip_logged = False
     if mode in {"auto", "timescale"}:
-        bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
-        if bundles and require_exact_granularity:
-            try:
-                assert_bundles_match_granularity(bundles, granularity)
-            except RuntimeError:
-                bundles = []
-        if bundles:
-            short = [
-                b
-                for b in bundles
-                if not meta_bars_meet_quality(len(b.closes), quality_floor, shortfall_ratio=shortfall_ratio)[0]
-            ]
-            flat = [b for b in bundles if bundle_forward_is_flat(b)]
-            if short or flat:
-                logger.warning(
-                    "META_TRAIN: Timescale rejeitado (curto=%d flat=%d floor=%d); fallback Deriv.",
-                    len(short),
-                    len(flat),
-                    quality_floor,
-                )
-                bundles = []
+        inventory_ok = await _timescale_inventory_meets_floor(
+            dsn,
+            symbols,
+            granularities,
+            quality_floor,
+            shortfall_ratio=shortfall_ratio,
+        )
+        if not inventory_ok:
+            logger.info(
+                "META_TRAIN: Timescale smoke/curto (floor=%d @%ds); buscando Deriv.",
+                quality_floor,
+                int(granularity),
+            )
+            timescale_skip_logged = True
+        else:
+            bundles = await load_bundles_from_timescale(dsn, symbols, granularities, bar_target)
+            if bundles and require_exact_granularity:
+                try:
+                    assert_bundles_match_granularity(bundles, granularity)
+                except RuntimeError:
+                    bundles = []
+            if bundles:
+                short = [
+                    b
+                    for b in bundles
+                    if not meta_bars_meet_quality(len(b.closes), quality_floor, shortfall_ratio=shortfall_ratio)[0]
+                ]
+                flat = [b for b in bundles if bundle_forward_is_flat(b)]
+                if short or flat:
+                    logger.info(
+                        "META_TRAIN: Timescale smoke/flat (curto=%d flat=%d floor=%d); buscando Deriv.",
+                        len(short),
+                        len(flat),
+                        quality_floor,
+                    )
+                    bundles = []
+                    timescale_skip_logged = True
     if bundles:
         return bundles
     if mode == "timescale":
         detail = await _timescale_error(dsn, symbols, granularities)
         raise RuntimeError(detail)
-    logger.warning(
-        "META_TRAIN: TimescaleDB sem dados uteis em %ds; buscando historico na API Deriv.",
-        int(granularity),
-    )
+    if not timescale_skip_logged:
+        logger.info(
+            "META_TRAIN: buscando historico na API Deriv (@%ds alvo=%d).",
+            int(granularity),
+            bar_target,
+        )
     bundles = await load_bundles_from_deriv(settings, symbols, granularity, bar_target)
     if bundles:
         assert_bundles_match_granularity(bundles, granularity)

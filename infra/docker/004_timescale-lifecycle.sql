@@ -2,7 +2,8 @@ CREATE OR REPLACE FUNCTION aether_apply_hypertable_lifecycle(
   p_hypertable text,
   p_segmentby text,
   p_compress_after interval,
-  p_retention_after interval DEFAULT NULL
+  p_retention_after interval DEFAULT NULL,
+  p_orderby text DEFAULT 'time DESC'
 ) RETURNS void
 LANGUAGE plpgsql
 AS $$
@@ -28,7 +29,7 @@ BEGIN
     'ALTER TABLE %s SET (timescaledb.compress = true, timescaledb.compress_segmentby = %L, timescaledb.compress_orderby = %L)',
     ht,
     p_segmentby,
-    'time DESC'
+    p_orderby
   );
 
   PERFORM add_compression_policy(ht, p_compress_after, if_not_exists => TRUE);
@@ -43,12 +44,14 @@ SELECT aether_apply_hypertable_lifecycle(
   'public.ticks',
   'symbol',
   INTERVAL '7 days',
-  INTERVAL '30 days'
+  INTERVAL '30 days',
+  'time DESC'
 );
 
 SELECT aether_apply_hypertable_lifecycle(
   'public.ohlc_bars',
-  'symbol',
+  'symbol,granularity',
   INTERVAL '7 days',
-  NULL
+  NULL,
+  'time DESC, epoch DESC'
 );

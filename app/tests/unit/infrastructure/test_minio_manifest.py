@@ -13,7 +13,7 @@ async def test_local_model_store_load_manifest(tmp_path):
     ts_dir = tmp_path / "R_10" / "tcn"
     ts_dir.mkdir(parents=True)
     (ts_dir / "manifest.json").write_text(
-        '{"feature_dim": 34, "lookback": 48}',
+        '{"feature_dim": 14, "lookback": 48}',
         encoding="utf-8",
     )
     manifest = await store.load_manifest("R_10", arch="tcn")
@@ -47,7 +47,7 @@ async def test_minio_load_manifest_success():
         secret_key="s",
         secure=False,
     )
-    payload = b'{"feature_dim": 34, "lookback": 48}'
+    payload = b'{"feature_dim": 14, "lookback": 48}'
 
     class _Response:
         def read(self):

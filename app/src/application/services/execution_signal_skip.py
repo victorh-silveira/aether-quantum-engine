@@ -51,6 +51,9 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "anti_loss_allow_candle_flip",
             "anti_loss_rsi_min",
             "anti_loss_rsi_max",
+            "regime_gate_enabled",
+            "regime_adx_max",
+            "regime_bb_squeeze_enabled",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -135,6 +138,9 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "anti_loss_allow_candle_flip": require_bool(block, "anti_loss_allow_candle_flip"),
         "anti_loss_rsi_min": rsi_min,
         "anti_loss_rsi_max": rsi_max,
+        "regime_gate_enabled": require_bool(block, "regime_gate_enabled"),
+        "regime_adx_max": require_float(block, "regime_adx_max"),
+        "regime_bb_squeeze_enabled": require_bool(block, "regime_bb_squeeze_enabled"),
     }
 
 

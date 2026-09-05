@@ -29,13 +29,13 @@ def test_volatility_clipping_in_precompute_price_series():
 
 def test_meta_classifier_feature_clipping():
     # Caso 1: A partir do cached feature_vector
-    feature_vector = [0.0] * 34
-    feature_vector[8] = 5.5  # bb_width
+    feature_vector = [0.0] * 14
+    feature_vector[5] = 5.5  # bb_log_width
     feature_vector[9] = -4.2  # atr_norm
     metrics = {"feature_vector": feature_vector}
 
     v = _base_feature_vector(metrics)
-    assert v[8] == 3.0
+    assert v[5] == 3.0
     assert v[9] == -3.0
 
     # Caso 2: A partir dos indicators

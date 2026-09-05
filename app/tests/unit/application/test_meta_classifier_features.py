@@ -77,4 +77,11 @@ def test_finalize_meta_vector_truncates_long_payload():
     long_vector = [float(i) for i in range(META_FEATURE_DIM + 5)]
     truncated = meta_classifier_features._finalize_meta_vector(long_vector)
     assert len(truncated) == META_FEATURE_DIM
-    assert truncated[35] == 3.0
+    assert truncated[15] == 3.0
+
+
+def test_base_feature_vector_pads_when_feature_dim_large(monkeypatch):
+    monkeypatch.setattr(meta_classifier_features, "FEATURE_DIM", 20)
+    vector = meta_classifier_features._base_feature_vector({"indicators": {}})
+    assert len(vector) == 20
+    assert vector[-1] == 0.0

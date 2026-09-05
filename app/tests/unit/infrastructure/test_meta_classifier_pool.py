@@ -14,7 +14,7 @@ from src.infrastructure.inference.meta_classifier_pool import (
 
 
 def _meta_metrics() -> dict:
-    return {"feature_vector": [0.1] * 34}
+    return {"feature_vector": [0.1] * 14}
 
 
 @pytest.mark.asyncio

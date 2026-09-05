@@ -49,8 +49,8 @@
     "calibration": {
       "auto_select_by_brier": true,
       "calibration_neutral_drift": [
-        0.47,
-        0.53
+        0.435,
+        0.565
       ],
       "entropy_ceiling": 0.88,
       "entropy_floor": 0.01,
@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.53,
-    "confidence_put_threshold": 0.47,
+    "confidence_call_threshold": 0.565,
+    "confidence_put_threshold": 0.435,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -134,7 +134,9 @@
       "normalization": {
         "atr_z_clip": 3.0,
         "bb_width_z_clip": 3.0,
-        "series_z_clip": 3.0
+        "series_z_clip": 3.0,
+        "causal_norm_window": 288.0,
+        "causal_norm_clip": 3.0
       },
       "trend_consensus": {
         "di_call_above": 0.0,
@@ -154,7 +156,7 @@
         "cci_period": 14,
         "cmo_period": 14,
         "ema_20": 20,
-        "ema_50": 30,
+        "ema_50": 50,
         "ema_fast_crossover": 9,
         "ema_slow_crossover": 21,
         "hurst_min_window": 14,
@@ -208,7 +210,7 @@
       "num_layers": 2
     },
     "min_edge_execute": 0.01,
-    "min_val_accuracy": 0.50,
+    "min_val_accuracy": 0.5,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
     "retrain_min_bars": 12,
@@ -648,7 +650,7 @@
         "cal_margin_soft_kelly_mult": 0.75,
         "pending_dust": 0.25,
         "chop_pause_enabled": false,
-        "chop_adx_max": 0.10,
+        "chop_adx_max": 0.1,
         "chop_hurst_min": 0.45,
         "chop_hurst_max": 0.55,
         "chop_soft_kelly_mult": 0.75,
@@ -661,20 +663,23 @@
         "min_edge_explore": 0.015,
         "min_edge_recovery": 0.015,
         "anti_loss_atr_mult": 1.0,
-        "anti_loss_seed_discord_enabled": true,
+        "anti_loss_seed_discord_enabled": false,
         "anti_loss_p_loss_floor": 0.85,
         "anti_loss_require_seed": true,
         "anti_loss_hard_skip": true,
         "anti_loss_soft_kelly_mult": 0.55,
         "anti_loss_require_tcn_pos_edge": true,
-        "anti_loss_min_candle_body": 0.10,
-        "anti_loss_live_weak_candle_enabled": true,
-        "anti_loss_live_confirm_enabled": true,
+        "anti_loss_min_candle_body": 0.1,
+        "anti_loss_live_weak_candle_enabled": false,
+        "anti_loss_live_confirm_enabled": false,
         "anti_loss_live_confirm_min_body": 0.15,
         "anti_loss_live_exec_candle_enabled": false,
-        "anti_loss_allow_candle_flip": true,
-        "anti_loss_rsi_min": 0.30,
-        "anti_loss_rsi_max": 0.70
+        "anti_loss_allow_candle_flip": false,
+        "anti_loss_rsi_min": 0.3,
+        "anti_loss_rsi_max": 0.7,
+        "regime_gate_enabled": true,
+        "regime_adx_max": 0.1,
+        "regime_bb_squeeze_enabled": true
       }
     },
     "idle_cycle_watchdog_seconds": 1200,
@@ -771,8 +776,8 @@
       "stop_win_kelly_min_fraction": 1.0,
       "stop_win_max_stake_pct": 0.05,
       "symbol_loss_rotation_cycles": 0,
-      "target_damping_floor": 0.70,
-      "target_damping_span": 0.30,
+      "target_damping_floor": 0.7,
+      "target_damping_span": 0.3,
       "turbo_edge_stake_multiplier": 2.0,
       "turbo_edge_zscore_threshold": 1.5,
       "turbo_live_brier_max": 0.22,

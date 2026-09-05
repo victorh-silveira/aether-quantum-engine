@@ -148,6 +148,9 @@ services:
     volumes:
       - ./minio-init.sh:/minio-init.sh:ro
     entrypoint: ["/bin/sh", "/minio-init.sh"]
+    labels:
+      aether.oneshot: "true"
+      aether.oneshot.ok: "exited-0"
     networks:
       - aether-net
 
@@ -175,6 +178,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     cap_drop:
       - ALL
     security_opt:
@@ -233,6 +238,8 @@ services:
     depends_on:
       minio:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     cap_drop:
       - ALL
     security_opt:

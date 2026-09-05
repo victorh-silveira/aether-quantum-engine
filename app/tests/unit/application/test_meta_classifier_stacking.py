@@ -25,7 +25,7 @@ def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
 
 
 def _metrics_with_cross() -> dict:
-    base = [0.1] * 34
+    base = [0.1] * 14
     cross = {"cross_symbol_prob_delta": 0.21, "cross_symbol_vol_ratio_diff": 0.08, "cross_symbol_rsi_spread": 12.0}
     flow = {"micro_tick_acceleration": 0.04, "keltner_deviation_ratio": -0.11}
     return {
@@ -63,7 +63,7 @@ def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
             "metrics": {
                 "calibrated_prob": 0.62,
                 "micro_indicators": {"rsi": 58.0, "vol_ratio": 1.05},
-                "feature_vector": [0.1] * 34,
+                "feature_vector": [0.1] * 14,
             },
         },
     }
@@ -106,7 +106,7 @@ async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
             "direction": TradeDirection.CALL,
             "metrics": {
                 "calibrated_prob": 0.66,
-                "feature_vector": [0.1] * 34,
+                "feature_vector": [0.1] * 14,
                 "micro_indicators": {"rsi": 60.0, "vol_ratio": 1.1},
             },
         },
@@ -232,7 +232,7 @@ def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
             "predicted_payoff_edge": -0.22,
             "meta_classifier_applied": True,
             "edge_expectancy": "LOSS_EXPECTED",
-            "feature_vector": [0.1] * 34,
+            "feature_vector": [0.1] * 14,
             "indicators": {"bb_width": 0.03},
             "flow_features": {"micro_tick_acceleration": -0.02, "keltner_deviation_ratio": -0.05},
             "cross_symbol_features": {

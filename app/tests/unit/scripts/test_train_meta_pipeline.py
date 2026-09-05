@@ -325,7 +325,7 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
     columns = meta_classifier_column_names()
     assert list(frame.columns) == columns
     assert isinstance(frame, pl.DataFrame)
-    assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 43
+    assert frame.shape[1] == META_FEATURE_DIM == len(columns) == 23
     assert frame.height == len(y) == len(proxy) == len(pnl) == hygiene["n_kept"]
     assert np.issubdtype(y.dtype, np.floating)
     assert target_variance(y) > 0.0
@@ -390,5 +390,63 @@ def test_continuous_payoff_target_maps_call_to_bull_and_put_to_bear():
 
 
 def test_continuous_payoff_threshold_constants():
-    assert pytest.approx(0.53) == TCN_CALL_PROXY_THRESHOLD
-    assert pytest.approx(0.47) == TCN_PUT_PROXY_THRESHOLD
+    assert pytest.approx(0.565) == TCN_CALL_PROXY_THRESHOLD
+    assert pytest.approx(0.435) == TCN_PUT_PROXY_THRESHOLD
+
+
+@pytest.mark.asyncio
+async def test_resolve_training_bundles_skips_smoke_timescale_with_info(caplog):
+    from scripts.operations.train_meta_data import resolve_training_bundles
+
+    settings = {
+        "data_handler": {"micro_granularity": 300, "granularity": 86400},
+        "api_config": {"public_ws_url": "wss://example.test/ws"},
+    }
+    deriv_bundle = _synthetic_bundle("1HZ75V", n=280)
+
+    async def _fake_inventory(*_a, **_k):
+        return False
+
+    async def _fake_deriv(*_a, **_k):
+        return [deriv_bundle]
+
+    async def _fake_persist(*_a, **_k):
+        return 0
+
+    with (
+        patch(
+            "scripts.operations.train_meta_data._timescale_inventory_meets_floor",
+            new=_fake_inventory,
+        ),
+        patch(
+            "scripts.operations.train_meta_data.load_bundles_from_deriv",
+            new=_fake_deriv,
+        ),
+        patch(
+            "scripts.operations.train_meta_data.persist_bundles_to_timescale",
+            new=_fake_persist,
+        ),
+        patch(
+            "scripts.operations.train_meta_data.assert_bundles_match_granularity",
+            return_value=None,
+        ),
+        patch(
+            "scripts.operations.train_meta_data.meta_bars_meet_quality",
+            return_value=(True, False),
+        ),
+        caplog.at_level(logging.INFO, logger="AETH.meta"),
+    ):
+        out = await resolve_training_bundles(
+            settings=settings,
+            dsn="postgresql://aether:aether@localhost:5432/aether",
+            symbols=["1HZ75V"],
+            granularity=300,
+            bars=120,
+            source="auto",
+            min_quality_bars=100,
+            seed_timescale_on_deriv=False,
+        )
+    assert len(out) == 1
+    assert out[0].symbol == "1HZ75V"
+    assert any("Timescale smoke/curto" in r.message for r in caplog.records)
+    assert not any("rejeitado" in r.message for r in caplog.records)

@@ -45,6 +45,19 @@ def _forming() -> Candle:
     return _c(360, 100.0, 100.0)
 
 
+def _cfg(overrides=None, **kwargs):
+    base = {
+        "anti_loss_seed_discord_enabled": True,
+        "anti_loss_live_weak_candle_enabled": True,
+        "anti_loss_live_confirm_enabled": True,
+        "anti_loss_allow_candle_flip": True,
+    }
+    if isinstance(overrides, dict):
+        base.update(overrides)
+    base.update(kwargs)
+    return parse_signal_skip_config(base)
+
+
 def test_closed_micro_candles_skips_forming_and_junk():
     forming = _forming()
     closed = _c(60, 1.0, 1.1)
@@ -138,7 +151,7 @@ def test_anti_loss_live_follows_window_not_last_m1():
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
+    cfg = _cfg({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics["anti_loss_why"] == "live_discord_weak"
     assert metrics.get("anti_loss_anchor_agree") is False
@@ -162,7 +175,7 @@ def test_anti_loss_live_agree_strong_on_window_put():
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({})
+    cfg = _cfg({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("gate_reason") is None
 
@@ -183,7 +196,7 @@ def test_anti_loss_live_window_strong_last_candle_discord_reduces_body():
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({"anti_loss_hard_skip": True})
+    cfg = _cfg({"anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_anchor_agree") is False
     assert metrics.get("anti_loss_soft") is True
@@ -207,7 +220,7 @@ def test_anti_loss_incomplete_window_does_not_use_m1():
         "fusion_blocked_tcn_pos_edge": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({})
+    cfg = _cfg({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_why") is None
 

@@ -8,6 +8,19 @@ from src.application.services.execution_signal_skip import parse_signal_skip_con
 from src.application.services.market_audit_log import format_gates_audit_line
 
 
+def _cfg(overrides=None, **kwargs):
+    base = {
+        "anti_loss_seed_discord_enabled": True,
+        "anti_loss_live_weak_candle_enabled": True,
+        "anti_loss_live_confirm_enabled": True,
+        "anti_loss_allow_candle_flip": True,
+    }
+    if isinstance(overrides, dict):
+        base.update(overrides)
+    base.update(kwargs)
+    return parse_signal_skip_config(base)
+
+
 def test_anti_loss_replay_c1_exec_put_window_put_passes():
     metrics = {
         "execution_candidate_ready": True,
@@ -22,7 +35,7 @@ def test_anti_loss_replay_c1_exec_put_window_put_passes():
         "ops_window_stamped": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config({})
+    cfg = _cfg({})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics.get("anti_loss_why") is None
     orch = SimpleNamespace(config={"orchestrator": {"execution": {"signal_skip": {"neg_edge_hard_skip": True}}}})
@@ -45,7 +58,7 @@ def test_anti_loss_replay_c6_confirm_weak_body():
         "kelly_fraction_scale": 1.0,
         "indicators": {"rsi": 0.50},
     }
-    cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
+    cfg = _cfg({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
     assert metrics["anti_loss_why"] == "live_confirm_weak"
     assert metrics.get("anti_loss_soft") is True
@@ -63,7 +76,7 @@ def test_anti_loss_live_log_side_is_exec_not_tcn():
         "ops_window_stamped": True,
         "kelly_fraction_scale": 1.0,
     }
-    cfg = parse_signal_skip_config(
+    cfg = _cfg(
         {"anti_loss_live_exec_candle_enabled": True, "anti_loss_allow_candle_flip": False, "anti_loss_hard_skip": True}
     )
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is True

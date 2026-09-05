@@ -130,7 +130,7 @@ def run_launch_train_tf_pipeline(
     if _sweep_active(h_knobs):
         clear_sweep_artifacts(str(h_knobs["artifact_root"]), repo_root=REPO_ROOT)
         candidates = build_horizon_candidates(settings, n_bars=h_knobs["n_bars"])
-        log.info("[HORIZON] iniciando sweep N=%s (R_10 M1)", h_knobs.get("n_bars"))
+        log.info("[HORIZON] iniciando sweep N=%s (1HZ75V M5)", h_knobs.get("n_bars"))
         board = run_tf_sweep(
             settings=settings,
             knobs=h_knobs,

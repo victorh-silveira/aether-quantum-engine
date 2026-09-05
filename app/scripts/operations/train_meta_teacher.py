@@ -63,13 +63,13 @@ def _calibrate_teacher_array(
         raw_std = float(np.std(raw_arr))
         cal_std = float(np.std(calibrated))
         if cal_std < TEACHER_COLLAPSE_STD or cal_std < TEACHER_MIN_STD_RATIO * max(raw_std, 1e-12):
-            logger.warning(
-                "META_TRAIN: calibrador teacher colapsou variancia (raw_std=%.6f cal_std=%.6f); usando probs raw.",
-                raw_std,
+            logger.info(
+                "META_TRAIN: teacher usa raw+expand (cal_std=%.6f raw_std=%.6f).",
                 cal_std,
+                raw_std,
             )
             chosen = np.clip(raw_arr, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
-            source = "raw_collapsed_calibrator"
+            source = "raw"
         else:
             chosen = np.clip(calibrated, TEACHER_PROB_FLOOR, TEACHER_PROB_CEIL)
             source = "calibrated"
@@ -170,8 +170,8 @@ def infer_teacher_probs_from_checkpoints(
             path_rel = str(Path(path).resolve().relative_to(REPO_ROOT.resolve())).replace("\\", "/")
         except ValueError:
             path_rel = Path(path).name
-        call_thr = float(params.get("confidence_call_threshold", 0.53))
-        put_thr = float(params.get("confidence_put_threshold", 0.47))
+        call_thr = float(params.get("confidence_call_threshold", 0.565))
+        put_thr = float(params.get("confidence_put_threshold", 0.435))
         gray_mask = (active >= put_thr) & (active <= call_thr)
         logger.info(
             "[META] teacher %s n=%d lb=%d p=%.2f/%.2f/%.2f gray=%.0f%% ckpt=%s",

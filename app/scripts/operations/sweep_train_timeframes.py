@@ -289,7 +289,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Sweep de treino de horizonte H1-H5 (offline)")
     parser.add_argument("--dry-run", action="store_true", help="So grava overlays e leaderboard")
     parser.add_argument("--only", nargs="*", default=None, help="Filtra celulas (ex.: H1 H3)")
-    parser.add_argument("--only-symbol", nargs="*", default=None, help="Filtra simbolos (ex.: R_10)")
+    parser.add_argument("--only-symbol", nargs="*", default=None, help="Filtra simbolos (ex.: 1HZ75V)")
     parser.add_argument("--from-checkpoints", action="store_true", help="So le ckpts ja existentes")
     args = parser.parse_args(argv)
     log = setup_logger("HORIZON")

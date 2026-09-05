@@ -155,7 +155,7 @@ def main() -> int:
     parser.add_argument("--soft-min", type=float, default=None)
     args = parser.parse_args()
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)
-    raw_symbols = args.symbols if args.symbols is not None else settings.get("symbols") or ["R_10"]
+    raw_symbols = args.symbols if args.symbols is not None else settings.get("symbols") or ["1HZ75V"]
     symbols = [str(s) for s in raw_symbols]
     ok_all = True
     for path in _checkpoint_paths(settings, symbols):

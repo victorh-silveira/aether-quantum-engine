@@ -37,7 +37,7 @@ def test_build_sanity_probe_tensors_count():
     assert probes[2][1][0, 0, 0].item() == 4.0
     stressed = probes[5]
     assert stressed[0] == "stressed_regime"
-    assert stressed[1][0, 0, 5].item() == pytest.approx(0.99)
+    assert stressed[1][0, 0, 2].item() == pytest.approx(0.99)
 
 
 def test_validate_manifest_schema_lookback_mismatch():

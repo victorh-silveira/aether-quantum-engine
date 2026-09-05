@@ -66,11 +66,35 @@ def test_resolve_sync_targets_train_lean_skips_mini(mock_ws):
             "mini_fetch_count": 256,
             "_startup_fetch_count": 2000,
             "_startup_train_lean": True,
+            "granularity": 300,
+            "micro_granularity": 300,
         },
     )
     macro, micro, mini = _resolve_sync_targets(sh)
     assert macro == 128
     assert micro == 2000
+    assert mini == 0
+
+
+def test_resolve_sync_targets_train_lean_d1_uses_365(mock_ws):
+    from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
+
+    sh = StreamHandler(
+        mock_ws,
+        ["1HZ75V"],
+        {
+            "fetch_count": 500,
+            "micro_fetch_count": 500,
+            "history_bars": 500,
+            "_startup_fetch_count": 500,
+            "_startup_train_lean": True,
+            "granularity": 86400,
+            "micro_granularity": 300,
+        },
+    )
+    macro, micro, mini = _resolve_sync_targets(sh)
+    assert macro == 365
+    assert micro == 500
     assert mini == 0
 
 

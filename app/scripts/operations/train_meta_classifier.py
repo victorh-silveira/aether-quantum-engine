@@ -254,7 +254,7 @@ def main() -> None:
     meta_symbols = (
         [str(s) for s in args.symbols]
         if args.symbols is not None
-        else [str(s) for s in (settings.get("symbols") or ["R_10"])]
+        else [str(s) for s in (settings.get("symbols") or ["1HZ75V"])]
     )
     summary = run_async(
         train_meta_classifier(

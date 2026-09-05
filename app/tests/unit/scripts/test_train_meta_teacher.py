@@ -74,7 +74,9 @@ def test_calibrate_teacher_array_falls_back_when_isotonic_collapses():
         isotonic_y=(0.4925, 0.55, 1.0),
     )
     chosen, source = _calibrate_teacher_array(raw, calibrator)
-    assert "raw" in source
+    assert source.startswith("raw")
+    assert "expand" in source
+    assert "collapsed" not in source
     assert float(np.std(chosen)) > 1e-3
     assert float(np.min(chosen)) < 0.47 or float(np.max(chosen)) > 0.53
 

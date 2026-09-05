@@ -42,10 +42,12 @@ def test_build_horizon_candidates_defaults_without_settings():
     rows = build_horizon_candidates({})
     assert [r["tf"] for r in rows] == [f"H{n}" for n in DEFAULT_N_BARS]
     assert rows[0]["lookback"] == 480
+    assert rows[0]["micro_granularity"] == 300
+    assert rows[0]["macro_granularity"] == 86400
     override = build_horizon_candidates({}, n_bars=[15, 60])
     assert [r["tf"] for r in override] == ["H15", "H60"]
-    assert override[0]["duration"] == 15
-    assert override[1]["duration"] == 60
+    assert override[0]["duration"] == 75
+    assert override[1]["duration"] == 300
     settings = {
         "data_handler": {"micro_granularity": 60, "mini_granularity": 60, "granularity": 7200},
         "deep_learning": {

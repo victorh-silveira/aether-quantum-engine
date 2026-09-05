@@ -241,7 +241,7 @@ def test_predict_trend_conflict_does_not_block():
     prices = np.array([5.0, 5.0, 6.0, 9.0])
     with patch(
         "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
-        return_value=(None, 0.45, 0.45),
+        return_value=(None, 0.40, 0.40),
     ):
         entry = predict_symbol_decision(
             orch,

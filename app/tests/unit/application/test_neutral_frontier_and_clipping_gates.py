@@ -1,4 +1,4 @@
-"""Homologacao dos gates de fronteira neutra e clipping OOD +-3.0 do meta 43D."""
+"""Homologacao dos gates de fronteira neutra e clipping OOD +-3.0 do meta 23D."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def test_rolling_zscore_1024_fast_clips_ood_spikes() -> None:
 
 def test_extract_meta_feature_vector_rigid_dim_and_micro_zscore_clip() -> None:
     metrics = {
-        "feature_vector": [0.0] * 34,
+        "feature_vector": [0.0] * 14,
         "flow_features": {
             "micro_bid_ask_spread_momentum": 0.12,
             "micro_bid_ask_spread_momentum_zscore": 4.8,
@@ -53,20 +53,20 @@ def test_extract_meta_feature_vector_rigid_dim_and_micro_zscore_clip() -> None:
         },
     }
     vector = extract_meta_feature_vector(metrics)
-    assert len(vector) == META_FEATURE_DIM == 43
-    assert vector[35] == 3.0
-    assert vector[37] == -3.0
+    assert len(vector) == META_FEATURE_DIM == 23
+    assert vector[15] == 3.0
+    assert vector[17] == -3.0
     assert metrics["meta_feature_vector"] is vector
 
 
 def test_extract_meta_feature_vector_reclips_cached_payload() -> None:
     cached = [0.0] * META_FEATURE_DIM
-    cached[35] = 9.0
-    cached[37] = -9.0
+    cached[15] = 9.0
+    cached[17] = -9.0
     metrics = {"meta_feature_vector": cached}
     vector = extract_meta_feature_vector(metrics)
-    assert vector[35] == 3.0
-    assert vector[37] == -3.0
+    assert vector[15] == 3.0
+    assert vector[17] == -3.0
 
 
 @pytest.mark.parametrize(

@@ -15,11 +15,13 @@ if str(_APP) not in sys.path:
 
 from aether_asyncio import run_async, silence_asyncio_debug
 from aether_paths import REPO_ROOT
+from scripts.operations.timescale_seed_policy import (
+    MIN_BARS_MICRO,
+    resolve_seed_bars_for_granularity,
+)
 from scripts.operations.train_meta_data import (
-    META_TRAIN_DEFAULT_BARS,
     load_bundles_from_deriv,
     persist_bundles_to_timescale,
-    resolve_meta_train_bars,
 )
 
 
@@ -62,18 +64,20 @@ async def seed_timescale_ohlc(
     granularities: list[int],
     bars: int,
 ) -> dict[str, Any]:
-    bar_target = resolve_meta_train_bars(bars)
-    summary: dict[str, Any] = {"symbols": symbols, "granularities": {}, "bars_target": bar_target}
+    summary: dict[str, Any] = {"symbols": symbols, "granularities": {}, "bars_cap": int(bars)}
     for gran in granularities:
+        bar_target = resolve_seed_bars_for_granularity(int(gran), bars_cap=int(bars))
         bundles = await load_bundles_from_deriv(settings, symbols, int(gran), bar_target)
         written = await persist_bundles_to_timescale(dsn, bundles)
         summary["granularities"][str(int(gran))] = {
+            "bars_target": bar_target,
             "bars_loaded": {b.symbol: int(len(b.closes)) for b in bundles},
             "rows_written": int(written),
         }
         logger.info(
-            "SEED_TIMESCALE | gran=%ds | symbols=%d | rows_written=%d",
+            "SEED_TIMESCALE | gran=%ds | target=%d | symbols=%d | rows_written=%d",
             int(gran),
+            bar_target,
             len(bundles),
             written,
         )
@@ -82,8 +86,8 @@ async def seed_timescale_ohlc(
 
 def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Popula Timescale OHLC (micro+macro) via Deriv.")
-    parser.add_argument("--bars", type=int, default=META_TRAIN_DEFAULT_BARS)
-    parser.add_argument("--symbols", nargs="+", default=["R_10"])
+    parser.add_argument("--bars", type=int, default=MIN_BARS_MICRO)
+    parser.add_argument("--symbols", nargs="+", default=["1HZ75V"])
     parser.add_argument(
         "--granularity",
         type=int,

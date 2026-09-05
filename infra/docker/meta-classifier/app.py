@@ -23,9 +23,9 @@ from learn_runtime import (
 
 logger = logging.getLogger("META")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
-META_FEATURE_DIM = 43
+META_FEATURE_DIM = 23
 DEFAULT_FEATURE_NAMES: tuple[str, ...] = (
-    *(f"feature_{index}" for index in range(34)),
+    *(f"feature_{index}" for index in range(14)),
     "micro_bid_ask_spread_momentum",
     "micro_bid_ask_spread_momentum_zscore",
     "volatility_shadow_ratio",
@@ -113,7 +113,7 @@ def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
         names = [str(name) for name in stored]
         if names != list(DEFAULT_FEATURE_NAMES):
             logger.warning(
-                "feature_names do bundle divergem do schema canônico 43D; usando nomes do artefato",
+                "feature_names do bundle divergem do schema canonico 23D; usando nomes do artefato",
             )
         return names
     return list(DEFAULT_FEATURE_NAMES)

@@ -42,10 +42,10 @@ cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py
 if errorlevel 1 goto :dl_gate_fail
 
-echo [AETHER] 2/5 Timescale check-only...
+echo [AETHER] 2/5 Timescale seed meta-ready (Deriv se smoke/curto)...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py --check-only
-if errorlevel 1 echo [AVISO] Timescale indisponivel; meta usara API Deriv.
+"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
+if errorlevel 1 echo [AVISO] Timescale seed falhou; meta usara API Deriv.
 
 echo [AETHER] 3/5 meta LightGBM...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"

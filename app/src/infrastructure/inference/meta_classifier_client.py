@@ -28,10 +28,10 @@ logger = logging.getLogger("AETH")
 
 
 def assert_meta_feature_vector_dim(feature_vector: list[float]) -> None:
-    """Pre-flight: bloqueia envio HTTP se o vetor tabular nao tiver META_FEATURE_DIM=43."""
+    """Pre-flight: bloqueia envio HTTP se o vetor tabular nao tiver META_FEATURE_DIM=23."""
     length = len(feature_vector)
     if length != META_FEATURE_DIM:
-        raise ValueError(f"Vetor tabular corrompido: local esperado 43, gerado {length}")
+        raise ValueError(f"Vetor tabular corrompido: local esperado {META_FEATURE_DIM}, gerado {length}")
 
 
 class _MetaFallbackLogState:

@@ -89,7 +89,7 @@ async def test_chaotic_volatility_asymmetric_penalty():
     client._client.post = AsyncMock(return_value=mock_response)
 
     # Vetor com bb_width_zscore (idx 8) > 2.5 indicando transição caótica
-    f_vec = [0.0] * 43
+    f_vec = [0.0] * 23
     f_vec[8] = 2.8  # > 2.5
     req = {
         "symbol": "R_10",

@@ -11,6 +11,8 @@ from src.domain.config_knobs import load_settings_json
 DEFAULT_N_BARS: tuple[int, ...] = (15, 20, 25, 30, 35, 40, 45, 50, 55, 60)
 DEFAULT_DURATION_MINUTES: tuple[int, ...] = DEFAULT_N_BARS
 M1_SECONDS = 60
+M5_SECONDS = 300
+D1_SECONDS = 86400
 
 
 def duration_minutes_for_n(n_bars: int, *, micro_seconds: int = M1_SECONDS) -> int:
@@ -133,9 +135,9 @@ def build_horizon_candidates(
     micro = (
         int(data["micro_granularity"])
         if isinstance(data, dict) and data.get("micro_granularity") is not None
-        else M1_SECONDS
+        else M5_SECONDS
     )
-    macro = int(data["granularity"]) if isinstance(data, dict) and data.get("granularity") is not None else 7200
+    macro = int(data["granularity"]) if isinstance(data, dict) and data.get("granularity") is not None else D1_SECONDS
     mini = (
         int(data["mini_granularity"]) if isinstance(data, dict) and data.get("mini_granularity") is not None else micro
     )

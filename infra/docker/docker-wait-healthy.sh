@@ -30,12 +30,12 @@ service_ids() {
 service_health() {
   local service="$1"
   local container
-  container="$("${COMPOSE[@]}" ps -q "$service" 2>/dev/null | head -n 1)"
+  container="$("${COMPOSE[@]}" ps -aq "$service" 2>/dev/null | head -n 1)"
   if [ -z "$container" ]; then
     echo "missing"
     return 0
   fi
-  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || echo "missing"
+  docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else if eq .State.Status "exited"}}{{if eq .State.ExitCode 0}}completed{{else}}failed{{end}}{{else if eq .State.Status "running"}}starting{{else}}{{.State.Status}}{{end}}' "$container" 2>/dev/null || echo "missing"
 }
 
 all_healthy() {
@@ -49,7 +49,7 @@ all_healthy() {
   for service in ${ids}; do
     status="$(service_health "$service")"
     case "$status" in
-      healthy)
+      healthy|completed)
         continue
         ;;
       starting)

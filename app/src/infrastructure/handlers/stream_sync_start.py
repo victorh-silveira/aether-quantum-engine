@@ -22,7 +22,13 @@ def _resolve_sync_targets(handler: Any) -> tuple[int, int, int]:
     micro_default = resolve_micro_fetch_count(handler.config)
     micro_count = max(1, int(startup)) if startup is not None else micro_default
     if lean:
-        macro_count = min(128, micro_count)
+        macro_g = int(getattr(handler, "macro_granularity", 0) or 0)
+        if macro_g >= 86400:
+            history = handler.config.get("history_bars")
+            macro_cap = int(history) if history is not None else 365
+            macro_count = max(1, min(365, macro_cap))
+        else:
+            macro_count = min(128, micro_count)
         return macro_count, micro_count, 0
     macro_count = handler._resolve_fetch_count()
     mini_count = resolve_mini_fetch_count(handler.config)

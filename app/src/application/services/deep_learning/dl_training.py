@@ -12,6 +12,9 @@ from src.application.services.deep_learning.dl_calibration_fit import (
     fit_calibrator,
     maybe_identity_on_oos_collapse,
 )
+from src.application.services.deep_learning.dl_calibration_variance import (
+    maybe_identity_on_variance_collapse,
+)
 from src.application.services.deep_learning.dl_device import (
     device_label,
     log_device_once,
@@ -219,10 +222,12 @@ def train_model_walkforward(
             val_probs=val_probs,
             min_oos_sharpness=sharp_floor,
         )
+        calibrator = maybe_identity_on_variance_collapse(calibrator, probs=val_probs)
         raw_sharpness = mean_sharpness(val_probs)
     else:
         calibrated_holdout = [float(apply_calibrator_stable(float(p), calibrator)) for p in raw_probs]
         oos_sharpness = mean_sharpness(calibrated_holdout)
+        calibrator = maybe_identity_on_variance_collapse(calibrator, probs=raw_probs)
     entropy_meta = calibrator_entropy_metrics(
         [float(p) for p in raw_calib],
         [float(y) for y in y_calib],
