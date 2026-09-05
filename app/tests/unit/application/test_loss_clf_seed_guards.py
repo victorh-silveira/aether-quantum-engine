@@ -179,7 +179,7 @@ def test_neg_edge_blocks_fusion_p_eff_when_cal_nonpositive():
     assert float(metrics["cal_side_edge"]) == pytest.approx((0.707 * 1.72) - 1.0)
 
 
-def test_neg_edge_auto_learn_stays_soft_on_subfloor_edge():
+def test_neg_edge_auto_learn_hard_on_subfloor_edge():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -192,9 +192,9 @@ def test_neg_edge_auto_learn_stays_soft_on_subfloor_edge():
         "deep_learning": {"min_edge_execute": 0.04},
         "risk_management": {"params": {"payout_estimate": 0.72}},
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
-    assert metrics.get("gate_reason") is None
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics.get("gate_reason") == "neg_edge"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics.get("signal_skip_waived") == "neg_edge_soft"
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("neg_edge_subfloor_hard") is True
+    assert metrics.get("neg_edge_soft") is None

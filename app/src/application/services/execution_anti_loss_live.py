@@ -106,8 +106,7 @@ def _candle_flip_edge_ok(
     pay = _payout_from_orch(orch)
     min_edge = float(_min_edge_from_orch(orch, metrics=metrics))
     if min_edge <= 0.0:
-        pending = float(metrics.get("pending_loss_total") or metrics.get("pending_total") or 0.0)
-        min_edge = 0.010 if pending > 1e-12 else 0.015
+        min_edge = 0.015
     edge_candle = float(resolve_predicted_edge(metrics, direction=candle, payout=pay))
     metrics["anti_loss_flip_candle_edge"] = edge_candle
     metrics["anti_loss_flip_min_edge"] = min_edge
@@ -152,11 +151,15 @@ def evaluate_live_anti_loss(
     orch: Any | None = None,
     symbol: str | None = None,
 ) -> dict[str, Any]:
-    """Ramo live: flip so com Edge vela >= floor; RSI soft no lado final."""
+    """Ramo live: flip so com Edge vela >= floor; hybrid discord soft; RSI soft pos-lado."""
     out = {"active": False, "skip": False, "soft": False, "reason": None, "soft_mult": None}
     exec_side = _exec_dir(metrics)
     anchor = exec_side if exec_side is not None else tcn
     allow_flip = bool(cfg.get("anti_loss_allow_candle_flip", True))
+    last_dir = _side(metrics.get("closed_micro_candle_dir"))
+    hybrid_disagree = (
+        metrics.get("anti_loss_anchor_agree") is False and last_dir is not None and last_dir != anchor.name
+    )
     if bool(cfg.get("anti_loss_live_exec_candle_enabled", False)) and candle is not None and anchor.name != candle:
         stamp_anti_loss_metrics(metrics, tcn=tcn, candle=candle, body=body, reason="live_exec_discord", side=anchor)
         if allow_flip and candle in _VALID and _candle_flip_edge_ok(metrics, candle, orch=orch):
@@ -169,6 +172,25 @@ def evaluate_live_anti_loss(
                 out=_apply_candle_flip(metrics, cfg=cfg, candle=candle, out=out),
             )
         return finalize_anti_loss_decision(out, cfg=cfg, reason="live_exec_discord")
+    if hybrid_disagree and last_dir is not None:
+        stamp_anti_loss_metrics(metrics, tcn=tcn, candle=last_dir, body=body, reason="live_discord_weak", side=anchor)
+        if allow_flip and _candle_flip_edge_ok(metrics, last_dir, orch=orch):
+            return _rsi_soft_after_side(
+                metrics,
+                cfg=cfg,
+                tcn=tcn,
+                candle=last_dir,
+                body=body,
+                out=_apply_candle_flip(metrics, cfg=cfg, candle=last_dir, out=out),
+            )
+        return _rsi_soft_after_side(
+            metrics,
+            cfg=cfg,
+            tcn=tcn,
+            candle=last_dir,
+            body=body,
+            out=finalize_anti_loss_decision(out, cfg=cfg, reason="live_discord_weak"),
+        )
     ema_ok, ema_reason = check_mini_ema_trend_and_slope(orch, symbol, anchor, metrics=metrics)
     if not ema_ok:
         why = ema_reason or "anti_loss_ema_trend"

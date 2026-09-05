@@ -23,7 +23,7 @@ class TradeStatus(Enum):
     ERROR = "ERROR"
 
 
-@dataclass
+@dataclass(slots=True)
 class Proposal:
     """Representa uma proposta de trade da corretora.
 
@@ -44,7 +44,7 @@ class Proposal:
     expiry_time: int
 
 
-@dataclass
+@dataclass(slots=True)
 class Contract:
     """Representa um contrato de trading comprado."""
 
@@ -61,7 +61,7 @@ class Contract:
     longcode: str | None = None
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class TradeResult:
     """Resultado de um trade finalizado.
 

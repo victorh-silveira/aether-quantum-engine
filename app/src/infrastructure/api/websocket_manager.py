@@ -9,7 +9,10 @@ from urllib.parse import urlparse
 
 import websockets
 
-from src.infrastructure.api.websocket_connect import connect_wss_with_ip_failover
+from src.infrastructure.api.websocket_connect import (
+    apply_websocket_connect_defaults,
+    connect_wss_with_ip_failover,
+)
 
 
 class WebSocketManager:
@@ -77,10 +80,12 @@ class WebSocketManager:
                             uri_factory=uri_factory,
                         )
                     else:
+                        ws_kwargs = apply_websocket_connect_defaults()
                         self.ws = await websockets.connect(
                             self.uri,
                             open_timeout=float(open_timeout),
                             close_timeout=10.0,
+                            **ws_kwargs,
                         )
                     self.is_running = True
                     self.logger.debug("WSS: Conexao estabelecida com sucesso.")

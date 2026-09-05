@@ -8,7 +8,7 @@ from typing import Any
 from aether_paths import REPO_ROOT
 
 
-DEFAULT_SWEEP_SYMBOLS: tuple[str, ...] = ("R_10",)
+DEFAULT_SWEEP_SYMBOLS: tuple[str, ...] = ("1HZ75V",)
 
 _DRIFT_TEMPLATE = '''"""Simbolos de trading Deriv (universo single-symbol {symbol})."""
 

@@ -365,8 +365,10 @@
   "orchestrator": {
     "api_maintenance_fallback_seconds": 90.0,
     "broker_handshake_timeout_seconds": 90.0,
-    "cycle_interval_seconds": 120,
-    "exec_empty_retry_seconds": 120,
+    "cycle_interval_seconds": 300,
+    "exec_empty_retry_seconds": 300,
+    "require_signature_boundary": true,
+    "signature_boundary_open_tolerance_seconds": 20.0,
     "execution": {
       "bb_width_adaptive_squeeze": {
         "anomaly_ratio": 0.35,
@@ -657,7 +659,7 @@
         "neg_edge_bootstrap_soft_kelly_mult": 0.25,
         "neg_edge_deep_edge_floor": -0.12,
         "min_edge_explore": 0.015,
-        "min_edge_recovery": 0.010,
+        "min_edge_recovery": 0.015,
         "anti_loss_atr_mult": 1.0,
         "anti_loss_seed_discord_enabled": true,
         "anti_loss_p_loss_floor": 0.85,

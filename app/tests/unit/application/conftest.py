@@ -75,6 +75,7 @@ def orch_config():
             "engine_mode": "execute",
             "reconcile_interval_seconds": 1,
             "cycle_interval_seconds": 0,
+            "require_signature_boundary": False,
             "execution": {
                 "include_anchor_trades": True,
                 "inter_symbol_delay": 0.25,

@@ -7,6 +7,10 @@ from typing import Any
 
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
+from src.application.services.orchestrator.orchestrator_data_signature import (
+    at_m5_open_window,
+    seconds_until_next_signature_boundary,
+)
 from src.application.services.orchestrator.post_settlement_loss_cooldown import post_loss_cooldown_blocks_trading_cycle
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -181,6 +185,50 @@ def _non_fast_cycle_blocks(orch: Any) -> bool:
     return _signature_epoch_blocks_cycle(orch)
 
 
+def _require_signature_boundary(orch: Any) -> bool:
+    """True quando o ciclo so pode iniciar na abertura M5 (SSOT)."""
+    raw = _orchestrator_cfg(orch).get("require_signature_boundary", True)
+    return bool(raw)
+
+
+def _signature_open_tolerance_seconds(orch: Any) -> float:
+    """Janela pos-abertura M5 em que o ciclo ainda e elegivel."""
+    raw = _orchestrator_cfg(orch).get("signature_boundary_open_tolerance_seconds", 20.0)
+    try:
+        return max(1.0, float(raw))
+    except (TypeError, ValueError):
+        return 20.0
+
+
+def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
+    """Log deduplicado de espera pela abertura M5 do relogio."""
+    logger = getattr(orch, "logger", None)
+    if logger is None:
+        return
+    next_epoch = int(time.time() + wait)
+    key = f"m5_open:{next_epoch}"
+    if str(getattr(orch, "_m5_open_wait_logged_key", "") or "") == key:
+        return
+    orch._m5_open_wait_logged_key = key
+    logger.info("CICLO: aguardando abertura M5 | restante=%.0fs", wait)
+
+
+def _signature_open_blocks_cycle(orch: Any) -> bool:
+    """True fora da janela de abertura M5; agenda cooldown ate o proximo multiplo."""
+    if not _require_signature_boundary(orch):
+        return False
+    tol = _signature_open_tolerance_seconds(orch)
+    if at_m5_open_window(orch, tolerance=tol):
+        return False
+    wait = float(seconds_until_next_signature_boundary(orch))
+    wait = max(0.5, wait)
+    _log_awaiting_m5_open(orch, wait)
+    deadline = time.time() + wait
+    prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
+    orch._cooldown_until = max(prev, deadline)
+    return True
+
+
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
     cooldown = float(getattr(orch, "_cooldown_until", 0.0))
@@ -191,5 +239,7 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
     if _engine_runtime_blocks_cycle(orch):
         return False
     if _active_contracts_block_cycle(orch):
+        return False
+    if _signature_open_blocks_cycle(orch):
         return False
     return not _non_fast_cycle_blocks(orch)

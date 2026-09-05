@@ -22,6 +22,13 @@ _EXTRA_DF = frozenset(
     }
 )
 _SCAN_ROOTS = ("app", "infra/docker")
+_HOST_PIN_MARKERS = (
+    "websockets==16.0",
+    "httpx==0.28.1",
+    "numpy==2.4.6",
+    "polars==1.23.0",
+    "torch==2.10.0",
+)
 
 
 def _package_names(path) -> set[str]:
@@ -62,6 +69,12 @@ def test_requirements_forbid_pandas_and_extra_dataframe_libs():
             assert "polars" in names
 
 
+def test_host_requirements_keep_senior_pins():
+    text = repo_path("app", "requirements.txt").read_text(encoding="utf-8")
+    for marker in _HOST_PIN_MARKERS:
+        assert marker in text, f"pin ausente: {marker}"
+
+
 def test_first_party_has_no_pandas_import():
     offenders: list[str] = []
     root = repo_path()
@@ -76,3 +89,16 @@ def test_first_party_has_no_pandas_import():
                     offenders.append(str(path.relative_to(root)).replace("\\", "/"))
                     break
     assert not offenders, f"import pandas proibido: {offenders}"
+
+
+def test_minio_model_store_offloads_sync_sdk():
+    text = repo_path("app", "src", "infrastructure", "storage", "minio_model_store.py").read_text(encoding="utf-8")
+    assert "asyncio.to_thread" in text
+
+
+def test_meta_http_client_is_persistent_builder():
+    text = repo_path("app", "src", "infrastructure", "inference", "meta_classifier_client.py").read_text(
+        encoding="utf-8"
+    )
+    assert "def build_persistent_http_client" in text
+    assert "httpx.Limits" in text

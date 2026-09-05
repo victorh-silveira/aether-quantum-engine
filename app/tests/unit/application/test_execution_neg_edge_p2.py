@@ -18,10 +18,11 @@ def test_neg_edge_payout_and_min_edge_fallbacks():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is False
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics.get("signal_skip_waived") == "neg_edge_soft"
+    assert apply_negative_cal_edge_pause(metrics, orch=None, min_edge=0.04, payout=0.72, soft_mult=0.55) is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_subfloor_hard") is True
+    assert metrics.get("neg_edge_soft") is None
     bad_orch = MagicMock()
     bad_orch.config = {
         "risk_management": {"params": {"payout_estimate": "x"}},
@@ -108,11 +109,20 @@ def test_neg_edge_hard_clears_prior_soft_waive_and_malformed_orch():
         "kelly_fraction_scale": 1.0,
         "loss_clf_auto_learn": True,
     }
-    assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is False
-    assert metrics3.get("neg_edge_soft") is True
+    assert apply_negative_cal_edge_pause(metrics3, orch=orch3, min_edge=0.04, payout=0.72) is True
+    assert metrics3.get("gate_reason") == "neg_edge"
+    assert metrics3.get("neg_edge_subfloor_hard") is True
     orch4 = MagicMock()
     orch4.config = {"orchestrator": {"execution": {"signal_skip": "x"}}}
-    assert apply_negative_cal_edge_pause(dict(metrics3), orch=orch4, min_edge=0.04, payout=0.72) is False
+    metrics4 = {
+        "execution_candidate_ready": True,
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.59,
+        "kelly_fraction_scale": 1.0,
+        "loss_clf_auto_learn": True,
+    }
+    assert apply_negative_cal_edge_pause(metrics4, orch=orch4, min_edge=0.04, payout=0.72) is True
+    assert metrics4.get("neg_edge_subfloor_hard") is True
 
 
 def test_neg_edge_soft_mult_override_with_orch():

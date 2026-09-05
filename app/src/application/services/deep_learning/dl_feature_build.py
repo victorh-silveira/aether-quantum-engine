@@ -139,7 +139,7 @@ def precompute_price_series(
     prices: np.ndarray,
     *,
     granularity: int = 60,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

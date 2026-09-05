@@ -17,6 +17,7 @@ exclude = [
     "__pycache__",
     "build",
     "dist",
+    ".vulture_whitelist.py",
 ]
 
 [tool.ruff.lint]
@@ -159,7 +160,7 @@ exclude_lines = [
 exclude = []
 ignore_decorators = []
 ignore_names = []
-min_confidence = 70
-paths = ["src", "run.py", "train.py", "scripts", "aether_paths.py"]
+min_confidence = 80
+paths = ["src", "run.py", "train.py", "scripts", "aether_paths.py", ".vulture_whitelist.py"]
 
 

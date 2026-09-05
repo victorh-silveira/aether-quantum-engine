@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from typing import Any
 
 from src.application.services.log_dedupe import log_debug_if_changed
+from src.application.services.orchestrator.engine_supervisor import spawn_background
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_settlement_queue import (
@@ -14,17 +16,12 @@ from src.application.services.orchestrator.orchestrator_settlement_queue import 
     next_settlement_backoff_seconds,
     resolve_settlement_tolerance_window,
 )
-from src.application.services.orchestrator.post_settlement_loss_cooldown import (
-    await_post_loss_cooldown,
-)
+from src.application.services.orchestrator.post_settlement_loss_cooldown import await_post_loss_cooldown
 from src.application.services.orchestrator.post_settlement_resilience import clear_post_settlement_polling_state
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
 from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
-from src.application.services.orchestrator.settlement_utils import (
-    clear_contract_metadata,
-    prune_orphan_contract_ids,
-)
+from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, prune_orphan_contract_ids
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed
 from src.presentation.terminal.settle_log import SETTLE_TOLERANCE
 
@@ -99,16 +96,16 @@ def _prune_stale_risk_contract_ids(orch: Any) -> None:
 
 def schedule_trading_cycle_after_settlement(orch: Any) -> None:
     """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
-    if not orch.running:
-        return
-    if orch.state.active_contracts:
+    if not orch.running or orch.state.active_contracts:
         return
     _prune_stale_risk_contract_ids(orch)
     task = orch._post_settlement_task
     if task is not None and not task.done():
         orch._post_settlement_wake.set()
         return
-    new_task = asyncio.create_task(run_post_settlement_breath_and_cycle(orch))
+    new_task = spawn_background(
+        orch, run_post_settlement_breath_and_cycle(orch), name="run_post_settlement_breath_and_cycle"
+    )
     orch._post_settlement_task = new_task
     new_task.add_done_callback(lambda done: _release_post_settlement_task(orch, done))
 
@@ -155,11 +152,12 @@ def _record_post_settlement_incomplete(orch: Any) -> None:
         "CICLO: pos-liquidacao incompleto | tentativa=%d | janela de tolerancia ativa",
         streak,
     )
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_clean_stale_settlement_and_redis_counters(orch))
-    except RuntimeError:
-        pass
+    with contextlib.suppress(RuntimeError):
+        spawn_background(
+            orch,
+            _clean_stale_settlement_and_redis_counters(orch),
+            name="aether-clean-stale-settle",
+        )
 
 
 async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> bool:
@@ -168,10 +166,7 @@ async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> b
     cycle_timeout = float(orch_cfg.get("post_settlement_cycle_timeout_seconds", 90.0))
     try:
         try:
-            await asyncio.wait_for(
-                orch._run_trading_cycle_if_ready(),
-                timeout=cycle_timeout,
-            )
+            await asyncio.wait_for(orch._run_trading_cycle_if_ready(), timeout=cycle_timeout)
             return bool(getattr(orch, "_last_cycle_cluster_executed", False))
         except TimeoutError:
             orch.is_trading = False

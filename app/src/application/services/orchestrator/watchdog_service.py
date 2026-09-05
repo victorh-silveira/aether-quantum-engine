@@ -8,6 +8,8 @@ import logging
 from enum import StrEnum
 from typing import Any
 
+from src.application.services.orchestrator.engine_supervisor import spawn_background
+
 
 logger = logging.getLogger("AETH")
 
@@ -59,7 +61,7 @@ class AetherWatchdog:
         """Inicia loop de monitoramento em background."""
         if self._task is not None and not self._task.done():
             return
-        self._task = asyncio.create_task(self._run_loop(), name="aether-watchdog")
+        self._task = spawn_background(self._orch, self._run_loop(), name="aether-watchdog")
 
     async def stop(self) -> None:
         """Cancela task de monitoramento."""

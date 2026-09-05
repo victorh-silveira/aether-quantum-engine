@@ -25,7 +25,7 @@ def candidate_artifact_dir(
     artifact_root: str,
     tf: str,
     *,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     repo_root: Path | None = None,
 ) -> Path:
     """Diretorio isolado data/dl/sweep/{symbol}/{tf}."""
@@ -33,7 +33,7 @@ def candidate_artifact_dir(
     return resolve_repo_path(artifact_root, repo_root=repo_root) / sym / str(tf).strip().upper()
 
 
-def candidate_model_template(artifact_root: str, tf: str, *, symbol: str = "R_10") -> str:
+def candidate_model_template(artifact_root: str, tf: str, *, symbol: str = "1HZ75V") -> str:
     """Template de ckpt isolado por simbolo+celula no sweep."""
     root = artifact_root.replace("\\", "/").rstrip("/")
     sym = str(symbol).strip().upper()

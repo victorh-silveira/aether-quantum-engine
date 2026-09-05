@@ -151,6 +151,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert float(skip["neg_edge_soft_min_edge"]) == pytest.approx(-1.0)
     assert float(skip["neg_edge_bootstrap_soft_kelly_mult"]) == pytest.approx(0.25)
     assert float(skip["neg_edge_deep_edge_floor"]) == pytest.approx(-0.12)
+    assert float(skip["min_edge_explore"]) == pytest.approx(0.015)
+    assert float(skip["min_edge_recovery"]) == pytest.approx(0.015)
     assert bool(skip["anti_loss_seed_discord_enabled"]) is True
     assert float(skip["anti_loss_p_loss_floor"]) == pytest.approx(0.85)
     assert bool(skip["anti_loss_require_seed"]) is True
@@ -233,9 +235,11 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert int(data["micro_fetch_count"]) == 500
     assert int(data["mini_fetch_count"]) == 500
     orch = settings["orchestrator"]
-    assert int(orch["cycle_interval_seconds"]) == 120
+    assert int(orch["cycle_interval_seconds"]) == 300
     assert int(orch["signature_boundary_seconds"]) == 300
-    assert int(orch["exec_empty_retry_seconds"]) == 120
+    assert int(orch["exec_empty_retry_seconds"]) == 300
+    assert bool(orch["require_signature_boundary"]) is True
+    assert float(orch["signature_boundary_open_tolerance_seconds"]) == pytest.approx(20.0)
     assert int(orch["settlement_tolerance_window_seconds"]) == 600
     assert int(orch["watchdog_stale_tick_seconds"]) == 300
     assert int(orch["post_settlement_is_trading_wait_seconds"]) == 90

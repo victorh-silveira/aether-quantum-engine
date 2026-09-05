@@ -12,9 +12,9 @@ COOLDOWN_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 
 def post_loss_cooldown_delay_seconds(linear_losses: int) -> float:
-    """Pausa de 2 ciclos (120s) quando linear_losses >= 2."""
+    """Pausa de 1 ciclo M5 (300s) quando linear_losses >= 2."""
     if int(linear_losses or 0) >= 2:
-        return 120.0
+        return 300.0
     return 0.0
 
 
@@ -47,7 +47,7 @@ def orchestrator_cooldown_remaining(orch: Any, *, now: float | None = None) -> f
 
 
 def schedule_post_loss_cooldown(orch: Any) -> float:
-    """Agenda pausa tecnica de 2 ciclos (120s) se linear >= 2."""
+    """Agenda pausa tecnica de 1 ciclo M5 (300s) se linear >= 2."""
     rm = getattr(orch, "risk_manager", None)
     linear = int(getattr(rm, "consecutive_losses_linear", 0) or 0)
     outcome = getattr(orch, "_last_settlement_outcome", "")

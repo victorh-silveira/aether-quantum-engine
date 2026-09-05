@@ -252,6 +252,10 @@ def apply_negative_cal_edge_pause(
         _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
         return False
     if below_floor:
+        if hard_skip:
+            _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
+            metrics["neg_edge_subfloor_hard"] = True
+            return True
         _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
         return False
     stamp_allow(metrics, "neg_edge_pass")

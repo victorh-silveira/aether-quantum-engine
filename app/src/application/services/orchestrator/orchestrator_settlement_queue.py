@@ -7,6 +7,7 @@ import time
 from typing import Any
 
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
+from src.application.services.orchestrator.engine_supervisor import spawn_background
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
@@ -156,7 +157,8 @@ async def start_settlement_worker(orch: Any) -> None:
         return
     orch._settlement_queue = asyncio.Queue()
     orch._settlement_pending_since = float(getattr(orch, "_settlement_pending_since", 0.0) or 0.0)
-    orch._settlement_worker_task = asyncio.create_task(
+    orch._settlement_worker_task = spawn_background(
+        orch,
         _settlement_worker_loop(orch),
         name="aether-settlement-worker",
     )

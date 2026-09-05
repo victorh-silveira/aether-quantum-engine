@@ -140,7 +140,8 @@ def test_anti_loss_live_follows_window_not_last_m1():
     }
     cfg = parse_signal_skip_config({"anti_loss_live_confirm_enabled": True, "anti_loss_hard_skip": True})
     assert apply_anti_loss_seed_discord(metrics, cfg=cfg) is False
-    assert metrics["anti_loss_why"] == "live_confirm_weak"
+    assert metrics["anti_loss_why"] == "live_discord_weak"
+    assert metrics.get("anti_loss_anchor_agree") is False
     assert metrics.get("anti_loss_soft") is True
     assert metrics.get("gate_verdict") == "SOFT_SIZE"
 

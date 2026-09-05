@@ -17,7 +17,20 @@ import websockets
 
 logger = logging.getLogger("AETH")
 
+DEFAULT_WS_MAX_SIZE = 4_194_304
+DEFAULT_WS_PING_INTERVAL = 20.0
+DEFAULT_WS_PING_TIMEOUT = 10.0
+
 _state: dict[str, str | None] = {"last_good_ip": None}
+
+
+def apply_websocket_connect_defaults(connect_kwargs: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Mescla max_size/ping_* SSOT sem sobrescrever kwargs explicitos do chamador."""
+    out = dict(connect_kwargs or {})
+    out.setdefault("max_size", DEFAULT_WS_MAX_SIZE)
+    out.setdefault("ping_interval", DEFAULT_WS_PING_INTERVAL)
+    out.setdefault("ping_timeout", DEFAULT_WS_PING_TIMEOUT)
+    return out
 
 
 def _unique_ipv4_targets(host: str, port: int) -> list[tuple[str, int]]:
@@ -90,6 +103,7 @@ async def _connect_one_ip(
     sock.settimeout(0.0)
     headers = dict(connect_kwargs.pop("additional_headers", {}) or {})
     headers.setdefault("Origin", "https://app.deriv.com")
+    connect_kwargs = apply_websocket_connect_defaults(connect_kwargs)
     try:
         return await websockets.connect(
             uri,
@@ -118,6 +132,7 @@ async def connect_wss_with_ip_failover(
     **connect_kwargs: Any,
 ) -> Any:
     """Conecta WSS tentando cada IPv4; renova OTP via uri_factory entre IPs."""
+    connect_kwargs = apply_websocket_connect_defaults(connect_kwargs)
     parsed = urlparse(uri)
     host = parsed.hostname
     if not host:

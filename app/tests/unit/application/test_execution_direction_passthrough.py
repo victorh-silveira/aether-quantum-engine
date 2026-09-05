@@ -48,7 +48,7 @@ def test_seed_direction_metrics_preserves_raw_and_invalid_fallback():
     assert bad["calibrated_prob"] == pytest.approx(0.45)
 
 
-def test_resolve_execution_direction_soft_subfloor_cal_edge():
+def test_resolve_execution_direction_hard_subfloor_cal_edge():
     entry = {
         "metrics": {
             "calibrated_prob": 0.59,
@@ -76,9 +76,10 @@ def test_resolve_execution_direction_soft_subfloor_cal_edge():
         result = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
     assert result is not None
     _direction, metrics = result
-    assert metrics.get("execution_candidate_ready") is not False
-    assert metrics.get("gate_reason") is None
-    assert metrics.get("neg_edge_soft") is True
+    assert metrics.get("execution_candidate_ready") is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_subfloor_hard") is True
+    assert metrics.get("neg_edge_soft") is None
     assert float(metrics["raw_prob"]) == pytest.approx(0.59)
     assert float(metrics["calibrated_prob"]) == pytest.approx(0.59)
     assert "cal_side_edge" in metrics

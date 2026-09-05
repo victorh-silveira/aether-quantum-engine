@@ -14,8 +14,8 @@ from src.application.services.deep_learning.tf_sweep_symbols import (
 
 
 def test_resolve_sweep_symbols_default_and_filter():
-    assert DEFAULT_SWEEP_SYMBOLS == ("R_10",)
-    assert resolve_sweep_symbols({}) == ["R_10"]
+    assert DEFAULT_SWEEP_SYMBOLS == ("1HZ75V",)
+    assert resolve_sweep_symbols({}) == ["1HZ75V"]
     assert resolve_sweep_symbols({"symbols": ["r_25", "R_25", "R_50"]}) == ["R_25", "R_50"]
 
 

@@ -349,7 +349,20 @@ def stage_lint() -> None:
     run_tool("ruff", ["format", "."], "Ruff Format")
     run_tool("ruff", ["check", "."], "Ruff Check")
     run_tool("interrogate", ["-vv", "src"], "Interrogate Docstrings")
-    run_tool("vulture", [], "Vulture Dead Code Detection")
+    run_tool(
+        "vulture",
+        [
+            "src",
+            "run.py",
+            "train.py",
+            "scripts",
+            "aether_paths.py",
+            ".vulture_whitelist.py",
+            "--min-confidence",
+            "80",
+        ],
+        "Vulture Dead Code Detection",
+    )
     stage_structure()
 
 

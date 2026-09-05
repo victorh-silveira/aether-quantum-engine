@@ -8,8 +8,8 @@ def test_cross_corr_reduces_dl_weight_on_divergent_high_correlation():
         "indicators": {"vol_ratio": 0.7, "di_diff": 0.2},
         "bb_squeeze": True,
     }
-    corr = {("R_10", "R_10"): 0.8}
-    adjusted = adjust_dl_weight_with_correlation(weights, "R_10", metrics, corr, min_margin=0.05)
+    corr = {("1HZ75V", "1HZ75V"): 0.8}
+    adjusted = adjust_dl_weight_with_correlation(weights, "1HZ75V", metrics, corr, min_margin=0.05)
     assert adjusted["dl_raw_weight"] < weights["dl_raw_weight"]
 
 

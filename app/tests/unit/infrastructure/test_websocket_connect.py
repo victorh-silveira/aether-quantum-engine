@@ -89,8 +89,19 @@ async def test_connect_failover_raises_401_without_factory():
         await connect_wss_with_ip_failover("wss://api.example/ws", open_timeout=10.0, per_ip_timeout=3.0)
 
 
+def test_apply_websocket_connect_defaults_sets_ssot_knobs():
+    merged = wsc.apply_websocket_connect_defaults({})
+    assert merged["max_size"] == wsc.DEFAULT_WS_MAX_SIZE
+    assert merged["ping_interval"] == wsc.DEFAULT_WS_PING_INTERVAL
+    assert merged["ping_timeout"] == wsc.DEFAULT_WS_PING_TIMEOUT
+    custom = wsc.apply_websocket_connect_defaults({"max_size": 99, "ping_interval": 5})
+    assert custom["max_size"] == 99
+    assert custom["ping_interval"] == 5
+    assert custom["ping_timeout"] == wsc.DEFAULT_WS_PING_TIMEOUT
+
+
 @pytest.mark.asyncio
-async def test_connect_without_targets_uses_direct_connect():
+async def test_connect_without_targets_applies_ws_defaults():
     ws = AsyncMock()
     with (
         patch("src.infrastructure.api.websocket_connect._ordered_targets", return_value=[]),
@@ -98,7 +109,10 @@ async def test_connect_without_targets_uses_direct_connect():
     ):
         result = await connect_wss_with_ip_failover("wss://api.example/ws", open_timeout=5.0)
     assert result is ws
-    assert mock_ws.await_count == 1
+    kwargs = mock_ws.await_args.kwargs
+    assert kwargs["max_size"] == wsc.DEFAULT_WS_MAX_SIZE
+    assert kwargs["ping_interval"] == wsc.DEFAULT_WS_PING_INTERVAL
+    assert kwargs["ping_timeout"] == wsc.DEFAULT_WS_PING_TIMEOUT
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
     REDIS_SESSION_TARGET_WIN_KEY,
 )
+from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 
 
 def _flat_scalars(data: dict[str, Any]) -> dict[str, str]:
@@ -80,7 +81,7 @@ async def write_state_bundle(
         if session_flat:
             pipe.hset(session_key, mapping=session_flat)
         if market_sig:
-            pipe.set(market_key, str(market_sig))
+            pipe.set(market_key, str(market_sig), ex=REDIS_EPHEMERAL_SIG_TTL_SECONDS)
         if recovery_skip_counter is not None:
             pipe.set(skip_key, str(max(0, int(recovery_skip_counter))))
         if session_start_balance is not None:

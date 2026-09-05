@@ -28,7 +28,7 @@ def adjust_dl_weight_with_correlation(
     metrics: dict,
     corr_matrix: dict[tuple[str, str], float],
     *,
-    anchor: str = "R_10",
+    anchor: str = "1HZ75V",
     min_margin: float | None = None,
 ) -> dict[str, float]:
     """Resolve ou aplica adjust dl weight with correlation."""

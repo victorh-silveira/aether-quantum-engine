@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class Candle:
     """Vela OHLC em um periodo."""
 

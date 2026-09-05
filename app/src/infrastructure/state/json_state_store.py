@@ -16,6 +16,7 @@ from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
     REDIS_SESSION_TARGET_WIN_KEY,
 )
+from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 
 
 class JsonStateStore:
@@ -57,7 +58,7 @@ class JsonStateStore:
         if session:
             await self.set_hash("session:current", session)
         if market_sig:
-            await self.set_string("market_sig", market_sig)
+            await self.set_string("market_sig", market_sig, ttl_seconds=REDIS_EPHEMERAL_SIG_TTL_SECONDS)
         if recovery_skip_counter is not None:
             await self.set_string(REDIS_SKIP_COUNTER_KEY, str(max(0, int(recovery_skip_counter))))
         if session_start_balance is not None:

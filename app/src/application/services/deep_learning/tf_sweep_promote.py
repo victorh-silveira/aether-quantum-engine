@@ -86,7 +86,7 @@ def patch_settings_for_sweep_train(
     candidate: dict[str, Any],
     *,
     artifact_root: str,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     train_deploy_retries: int = 1,
     disable_infra: bool = True,
     quiet_train_logs: bool | None = None,
@@ -120,7 +120,7 @@ def checkpoint_paths_for_tf(
     *,
     artifact_root: str,
     tf: str,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     repo_root: Path | None = None,
 ) -> tuple[Path, Path]:
     """Retorna (pth, torchscript) no diretorio do simbolo+TF."""
@@ -144,7 +144,7 @@ def promote_artifacts(
     *,
     artifact_root: str,
     tf: str,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     dest_dir: Path | None = None,
     repo_root: Path | None = None,
 ) -> list[Path]:
@@ -185,7 +185,7 @@ def promote_winner_from_leaderboard(
     winner = pick_tf_winner(rows)
     if winner is None:
         return None, settings, []
-    win_symbol = normalize_sweep_symbol(symbol or winner.get("symbol") or "R_10")
+    win_symbol = normalize_sweep_symbol(symbol or winner.get("symbol") or "1HZ75V")
     candidate = {
         "tf": winner["tf"],
         "micro_granularity": int(winner.get("granularity") or winner.get("micro_granularity")),

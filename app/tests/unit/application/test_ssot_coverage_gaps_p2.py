@@ -164,7 +164,7 @@ def test_post_loss_cooldown_coverage_branches(orch_ready):
     orch.logger = MagicMock()
     orch.risk_manager.consecutive_losses_linear = 3
     orch._last_settlement_outcome = "LOSS"
-    assert schedule_post_loss_cooldown(orch) == 120.0
+    assert schedule_post_loss_cooldown(orch) == 300.0
     assert post_loss_cooldown_blocks_trading_cycle(orch) is True
 
 

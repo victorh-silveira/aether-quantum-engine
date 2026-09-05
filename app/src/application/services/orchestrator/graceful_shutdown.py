@@ -9,6 +9,7 @@ import os
 from typing import Any
 
 from src.application.services.deep_learning.dl_deferred_train import cancel_deferred_symbol_training
+from src.application.services.orchestrator.engine_supervisor import cancel_background_tasks
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_queue_ops import cancel_settlement_queue_fast
 from src.application.services.orchestrator.watchdog_service import stop_ingestion_watchdog
@@ -141,6 +142,7 @@ async def close_infrastructure_connections(orch: Any) -> None:
                 await task
     cancel_deferred_symbol_training(orch)
     await stop_ingestion_watchdog(orch)
+    await cancel_background_tasks(orch)
     await clear_current_session_redis_keys(orch)
     await close_meta_classifier_client()
     infra = getattr(orch, "infra", None)

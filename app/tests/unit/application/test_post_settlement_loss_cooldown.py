@@ -14,8 +14,8 @@ from src.application.services.orchestrator.post_settlement_loss_cooldown import 
 
 def test_post_loss_cooldown_behavior():
     assert post_loss_cooldown_delay_seconds(1) == 0.0
-    assert post_loss_cooldown_delay_seconds(2) == 120.0
-    assert post_loss_cooldown_delay_seconds(3) == 120.0
+    assert post_loss_cooldown_delay_seconds(2) == 300.0
+    assert post_loss_cooldown_delay_seconds(3) == 300.0
     assert post_loss_cooldown_active("LOSS", 1) is False
     assert post_loss_cooldown_active("LOSS", 2) is True
     assert post_loss_cooldown_active("WIN", 2) is False
@@ -30,7 +30,7 @@ def test_orchestrator_cooldown_helpers_active(orch_ready):
     orch = orch_ready
     orch.risk_manager.consecutive_losses_linear = 3
     orch._last_settlement_outcome = "LOSS"
-    assert schedule_post_loss_cooldown(orch) == 120.0
+    assert schedule_post_loss_cooldown(orch) == 300.0
     assert orchestrator_cooldown_active(orch) is True
     assert orchestrator_cooldown_remaining(orch) > 0.0
     assert orchestrator_cooldown_until(orch) > 0.0

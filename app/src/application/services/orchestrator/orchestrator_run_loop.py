@@ -1,9 +1,11 @@
 """Ciclo de vida, persistencia e sessao do Orquestrador."""
 
 import asyncio
+import contextlib
 import time
 from typing import Any
 
+from src.application.services.orchestrator.engine_supervisor import spawn_background
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_data_signature import (
     get_data_state_signature,
@@ -80,11 +82,12 @@ def _enforce_post_settlement_deadlock_exit(orch: Any) -> None:
         "SETTLE.settle_reconcile: incompleto pos-liquidacao (streak=%d); reconciliacao passiva via portfolio",
         streak,
     )
-    try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(_run_passive_settlement_reconcile(orch))
-    except RuntimeError:
-        pass
+    with contextlib.suppress(RuntimeError):
+        spawn_background(
+            orch,
+            _run_passive_settlement_reconcile(orch),
+            name="aether-passive-settle-reconcile",
+        )
     recover_post_settlement_loop_transparently(orch)
 
 

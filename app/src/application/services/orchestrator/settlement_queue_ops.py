@@ -9,6 +9,7 @@ from typing import Any
 
 import redis.asyncio as aioredis
 
+from src.application.services.orchestrator.engine_supervisor import shield_critical
 from src.application.services.orchestrator.settlement_ws_queries import fetch_profit_table
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed, log_settle_warning_if_changed
 from src.presentation.terminal.settle_log import (
@@ -91,8 +92,13 @@ async def push_to_redis_priority_queue(orch: Any, payload: dict) -> None:
             if c_id in enqueued:
                 return
             client = await get_redis_client(orch)
-            await client.zremrangebyscore(REDIS_SETTLEMENT_QUEUE_KEY, c_id, c_id)
-            await client.zadd(REDIS_SETTLEMENT_QUEUE_KEY, {json.dumps(payload): c_id})
+
+            async def _push() -> None:
+                """ZREM+ZADD atomico sob shield_critical para o contract_id."""
+                await client.zremrangebyscore(REDIS_SETTLEMENT_QUEUE_KEY, c_id, c_id)
+                await client.zadd(REDIS_SETTLEMENT_QUEUE_KEY, {json.dumps(payload): c_id})
+
+            await shield_critical(_push())
             enqueued.add(c_id)
             orch._settlement_redis_poll_at = 0.0
         log_settle_info_if_changed(

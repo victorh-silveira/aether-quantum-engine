@@ -10,6 +10,7 @@ from src.application.services.orchestrator.orchestrator_state_session import (
     restore_session_hash,
 )
 from src.application.services.orchestrator.session_target_bootstrap import restore_current_session_targets
+from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 
 
 async def restore_orchestrator_state(orch: Any) -> None:
@@ -74,7 +75,11 @@ async def mark_bar_processed(orch: Any, symbol: str, epoch: int) -> None:
     store = getattr(orch, "state_store", None)
     if store is None:
         return
-    await store.set_string(f"bar_sig:{symbol}", str(int(epoch)))
+    await store.set_string(
+        f"bar_sig:{symbol}",
+        str(int(epoch)),
+        ttl_seconds=REDIS_EPHEMERAL_SIG_TTL_SECONDS,
+    )
 
 
 async def sync_market_signature(orch: Any, signature: str) -> None:
@@ -82,4 +87,8 @@ async def sync_market_signature(orch: Any, signature: str) -> None:
     store = getattr(orch, "state_store", None)
     if store is None or not signature:
         return
-    await store.set_string("market_sig", signature)
+    await store.set_string(
+        "market_sig",
+        signature,
+        ttl_seconds=REDIS_EPHEMERAL_SIG_TTL_SECONDS,
+    )

@@ -10,6 +10,7 @@ from src.infrastructure.market.timescale_correlation_reader import (
     correlation_matrix_to_cache,
     fetch_correlation_matrix,
 )
+from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 
 
 logger = logging.getLogger("AETH")
@@ -51,7 +52,11 @@ async def refresh_correlation_cache(orch: Any) -> None:
         store = getattr(orch, "state_store", None)
         setter = getattr(store, "set_string", None) if store is not None else None
         if callable(setter):
-            await setter("corr_matrix", correlation_matrix_to_cache(matrix))
+            await setter(
+                "corr_matrix",
+                correlation_matrix_to_cache(matrix),
+                ttl_seconds=REDIS_EPHEMERAL_SIG_TTL_SECONDS,
+            )
         orch._corr_matrix_cache = matrix
         logger.debug("CORR: matriz atualizada para %d simbolos", len(symbols))
     except Exception as exc:
@@ -67,7 +72,7 @@ async def _correlation_worker_loop(orch: Any) -> None:
         for _ in range(every):
             if not getattr(orch, "running", False):
                 return
-            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 120)))
+            await asyncio.sleep(float(orch.config.get("orchestrator", {}).get("cycle_interval_seconds", 300)))
 
 
 def start_correlation_worker(orch: Any) -> None:

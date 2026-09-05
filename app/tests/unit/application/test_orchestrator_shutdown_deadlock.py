@@ -43,11 +43,9 @@ def test_enforce_post_settlement_schedules_passive_reconcile(orchestrator_config
         orch._post_settlement_deadlock = True
         orch._post_settlement_incomplete_streak = 2
         orch.logger = MagicMock()
-        with patch("asyncio.get_running_loop") as get_loop:
-            loop = MagicMock()
-            get_loop.return_value = loop
+        with patch("src.application.services.orchestrator.orchestrator_run_loop.spawn_background") as spawn_bg:
             _enforce_post_settlement_deadlock_exit(orch)
-        loop.create_task.assert_called_once()
+        spawn_bg.assert_called_once()
         assert orch._post_settlement_deadlock is False
         assert orch._post_settlement_incomplete_streak == 0
         orch.logger.info.assert_any_call(
@@ -64,7 +62,10 @@ def test_enforce_post_settlement_without_running_loop(orchestrator_config):
         orch._post_settlement_deadlock = True
         orch._post_settlement_incomplete_streak = 2
         orch.logger = MagicMock()
-        with patch("asyncio.get_running_loop", side_effect=RuntimeError("no loop")):
+        with patch(
+            "src.application.services.orchestrator.orchestrator_run_loop.spawn_background",
+            side_effect=RuntimeError("no loop"),
+        ):
             _enforce_post_settlement_deadlock_exit(orch)
         assert orch._post_settlement_deadlock is False
 

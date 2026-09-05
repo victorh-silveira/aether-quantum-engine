@@ -66,7 +66,7 @@ def test_patch_settings_aligns_contract_and_cycle():
     assert ops_fixed["deep_learning"]["label_horizon_bars"] == 50
     train = patch_settings_for_sweep_train(settings, cand, artifact_root="data/dl/sweep")
     assert train["risk_management"]["params"]["duration"] == 5
-    assert train["deep_learning"]["model_path_template"] == "data/dl/sweep/R_10/M5/{symbol}.pth"
+    assert train["deep_learning"]["model_path_template"] == "data/dl/sweep/1HZ75V/M5/{symbol}.pth"
     assert train["logging"]["level"] == "CRITICAL"
     assert int(train["deep_learning"]["training_log_every_n_epochs"]) >= 10**9
     noisy = patch_settings_for_sweep_train(settings, cand, artifact_root="data/dl/sweep", quiet_train_logs=False)
@@ -76,9 +76,9 @@ def test_patch_settings_aligns_contract_and_cycle():
     )
     assert train["deep_learning"]["train_deploy_retries"] == 1
     assert train["infra"]["enabled"] is False
-    assert train["anchor"] == "R_10"
-    assert train["symbols"] == ["R_10"]
-    assert train["deep_learning"]["train_symbols"] == ["R_10"]
+    assert train["anchor"] == "1HZ75V"
+    assert train["symbols"] == ["1HZ75V"]
+    assert train["deep_learning"]["train_symbols"] == ["1HZ75V"]
     train_infra = patch_settings_for_sweep_train(
         {**settings, "infra": {"enabled": True}},
         cand,
@@ -254,10 +254,10 @@ def test_config_edge_paths_and_template(tmp_path: Path):
     assert knobs2["disable_infra_during_sweep"] is True
     assert knobs2["min_settle_n"] == 16
     assert knobs2["min_history_bars"] == 800
-    assert knobs2["symbols"] == ["R_10"]
+    assert knobs2["symbols"] == ["1HZ75V"]
     assert knobs2["n_bars"] == [15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
     assert "launch_only" not in knobs2
-    assert candidate_model_template("data/dl/sweep", "h5") == "data/dl/sweep/R_10/H5/{symbol}.pth"
+    assert candidate_model_template("data/dl/sweep", "h5") == "data/dl/sweep/1HZ75V/H5/{symbol}.pth"
     assert candidate_model_template("data/dl/sweep", "h5", symbol="R_75") == "data/dl/sweep/R_75/H5/{symbol}.pth"
     abs_p = resolve_repo_path(str(tmp_path / "x"), repo_root=tmp_path)
     assert abs_p == tmp_path / "x"

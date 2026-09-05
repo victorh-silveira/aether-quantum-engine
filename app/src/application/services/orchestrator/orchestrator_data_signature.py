@@ -9,6 +9,7 @@ from typing import Any
 DEFAULT_SIGNATURE_BOUNDARY_SECONDS = 180
 
 __all__ = [
+    "at_m5_open_window",
     "at_signature_boundary",
     "get_data_state_signature",
     "m1_boundary_epoch",
@@ -72,6 +73,15 @@ def at_signature_boundary(orch: Any, *, now: float | None = None, tolerance: flo
     offset = epoch % boundary
     tol = max(0.0, float(tolerance))
     return offset <= tol or offset >= max(0, boundary - tol)
+
+
+def at_m5_open_window(orch: Any, *, now: float | None = None, tolerance: float = 20.0) -> bool:
+    """True apenas nos primeiros `tolerance` segundos apos a abertura da vela (multiplo de boundary)."""
+    boundary = resolve_signature_boundary_seconds(orch)
+    now_ts = _resolve_now(now)
+    offset = int(now_ts) % boundary
+    tol = max(1.0, float(tolerance))
+    return float(offset) <= tol
 
 
 def m5_boundary_epoch(orch: Any, *, now: float | None = None) -> int:

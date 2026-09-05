@@ -104,7 +104,7 @@ def _model_raw_prob(model: nn.Module, batch: np.ndarray) -> np.ndarray:
     """Executa forward e retorna probabilidades brutas."""
     model.eval()
     device = next(model.parameters()).device
-    with torch.no_grad():
+    with torch.inference_mode():
         tensor = torch.as_tensor(_sanitize_feature_batch(batch), dtype=torch.float32, device=device)
         preds = model(tensor)
         flat = preds.squeeze(-1)
@@ -134,7 +134,7 @@ def predict_next_direction(
     norm_stats: FeatureNormStats | None = None,
     *,
     granularity: int = 60,
-    symbol: str = "R_10",
+    symbol: str = "1HZ75V",
     open_: np.ndarray | None = None,
     high: np.ndarray | None = None,
     low: np.ndarray | None = None,

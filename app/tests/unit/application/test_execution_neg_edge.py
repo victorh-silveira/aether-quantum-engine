@@ -57,7 +57,7 @@ def test_neg_edge_hard_blocks_negative_cal_side_edge():
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_soft_positive_subfloor_with_hard_skip_true():
+def test_neg_edge_hard_positive_subfloor_with_hard_skip_true():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -78,12 +78,14 @@ def test_neg_edge_soft_positive_subfloor_with_hard_skip_true():
             }
         },
     }
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics["gate_verdict"] == "SOFT_SIZE"
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_subfloor_hard") is True
+    assert metrics.get("neg_edge_soft") is None
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics_block_execution(metrics) is False
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_nonpositive_hard_blocks_even_when_soft_enabled():
@@ -158,7 +160,7 @@ def test_neg_edge_fusion_or_candle_agree_waives_hard_skip():
     assert metrics_block_execution(metrics) is True
 
 
-def test_neg_edge_hard_skip_positive_subfloor_stays_soft():
+def test_neg_edge_hard_skip_positive_subfloor_is_hard():
     metrics = {
         "execution_candidate_ready": True,
         "exec_direction": "CALL",
@@ -184,12 +186,14 @@ def test_neg_edge_hard_skip_positive_subfloor_stays_soft():
         },
     }
     orch._log_dedupe = {}
-    assert apply_negative_cal_edge_pause(metrics, orch=orch) is False
-    assert metrics["execution_candidate_ready"] is True
-    assert metrics.get("neg_edge_soft") is True
-    assert metrics["gate_verdict"] == "SOFT_SIZE"
+    assert apply_negative_cal_edge_pause(metrics, orch=orch) is True
+    assert metrics["execution_candidate_ready"] is False
+    assert metrics.get("gate_reason") == "neg_edge"
+    assert metrics.get("neg_edge_subfloor_hard") is True
+    assert metrics.get("neg_edge_soft") is None
+    assert metrics["gate_verdict"] == "HARD_SKIP"
     assert 0.0 < float(metrics["cal_side_edge"]) < 0.04
-    assert metrics_block_execution(metrics) is False
+    assert metrics_block_execution(metrics) is True
 
 
 def test_neg_edge_allows_positive_edge_above_floor():

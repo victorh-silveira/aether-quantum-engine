@@ -64,7 +64,7 @@ async def test_trading_cycle_refreshes_correlation_on_interval():
     orch = MagicMock()
     orch._reconciliation_pending = False
     orch.config = {
-        "orchestrator": {"cycle_interval_seconds": 0},
+        "orchestrator": {"cycle_interval_seconds": 0, "require_signature_boundary": False},
         "infra": {"correlation": {"correlation_refresh_cycles": 1}},
         "deep_learning": {"enabled": True},
     }

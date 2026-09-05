@@ -281,6 +281,7 @@ async def test_push_to_redis_priority_queue_dedupes_same_contract(orch_ready):
         await push_to_redis_priority_queue(orch, {"proposal_open_contract": {}})
     assert mock_redis.zadd.await_count == 1
     mock_redis.zremrangebyscore.assert_awaited()
+    assert "expire" not in str(mock_redis.mock_calls).lower()
 
 
 @pytest.mark.asyncio

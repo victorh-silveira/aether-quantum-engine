@@ -13,6 +13,7 @@ from src.application.services.orchestrator.engine_session import (
     create_authenticated_auth,
     load_engine_config,
 )
+from src.application.services.polars_runtime import ensure_polars_max_threads
 
 
 _SHUTDOWN_EXC_MARKERS = (
@@ -140,6 +141,7 @@ def _emit_fatal_startup_error(exc: BaseException) -> None:
 
 async def main() -> int:
     """Carrega configuracao, autentica e executa o loop principal do motor."""
+    ensure_polars_max_threads()
     config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
     auth = create_authenticated_auth(config, logger)
     if auth is None:

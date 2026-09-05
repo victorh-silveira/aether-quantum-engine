@@ -1,4 +1,4 @@
-"""Sweep de horizonte N barras no TF SSOT (R_10 M1)."""
+"""Sweep de horizonte N barras no TF SSOT (1HZ75V M5)."""
 
 from __future__ import annotations
 

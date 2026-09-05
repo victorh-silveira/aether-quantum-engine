@@ -1,6 +1,8 @@
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from src.application.services.orchestrator.orchestrator_data_signature import (
     at_signature_boundary,
@@ -219,3 +221,94 @@ def test_at_signature_boundary_true_and_false():
     assert at_signature_boundary(orch, now=1_700_001_000.0, tolerance=1.0) is True
     assert at_signature_boundary(orch, now=1_700_001_030.0, tolerance=1.0) is False
     assert at_signature_boundary(orch, now=1_700_001_059.2, tolerance=1.0) is True
+
+
+def test_at_m5_open_window_only_start_of_candle():
+    from src.application.services.orchestrator.orchestrator_data_signature import at_m5_open_window
+
+    orch = SimpleNamespace(config={"orchestrator": {"signature_boundary_seconds": 300}})
+    assert at_m5_open_window(orch, now=1_700_001_000.0, tolerance=20.0) is True
+    assert at_m5_open_window(orch, now=1_700_001_015.0, tolerance=20.0) is True
+    assert at_m5_open_window(orch, now=1_700_001_025.0, tolerance=20.0) is False
+    assert at_m5_open_window(orch, now=1_700_001_290.0, tolerance=20.0) is False
+
+
+def test_signature_open_blocks_mid_candle_and_schedules_cooldown():
+    from src.application.services.orchestrator.trading_cycle_entry_guards import trading_cycle_entry_allowed
+
+    orch = SimpleNamespace(
+        config={
+            "orchestrator": {
+                "require_signature_boundary": True,
+                "signature_boundary_seconds": 300,
+                "signature_boundary_open_tolerance_seconds": 20.0,
+                "cycle_interval_seconds": 300,
+            }
+        },
+        running=True,
+        is_trading=False,
+        shutdown_reason=None,
+        state=SimpleNamespace(active_contracts={}),
+        _settlement_wait_logged=False,
+        _cooldown_until=0.0,
+        _last_cluster_cycle_end=0.0,
+        _dl_fast_cycle=False,
+        logger=MagicMock(),
+        risk_manager=None,
+    )
+    mid = 1_700_001_120.0
+    with (
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=mid),
+        patch(
+            "src.application.services.orchestrator.orchestrator_data_signature.time.time",
+            return_value=mid,
+        ),
+    ):
+        assert trading_cycle_entry_allowed(orch) is False
+    assert float(orch._cooldown_until) > mid
+    orch.logger.info.assert_called()
+    open_ts = 1_700_001_300.0
+    orch._cooldown_until = 0.0
+    with (
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=open_ts),
+        patch(
+            "src.application.services.orchestrator.orchestrator_data_signature.time.time",
+            return_value=open_ts,
+        ),
+    ):
+        assert trading_cycle_entry_allowed(orch) is True
+
+
+def test_signature_open_tolerance_bad_and_require_off():
+    from src.application.services.orchestrator.trading_cycle_entry_guards import (
+        _log_awaiting_m5_open,
+        _require_signature_boundary,
+        _signature_open_tolerance_seconds,
+        trading_cycle_entry_allowed,
+    )
+
+    orch_off = SimpleNamespace(
+        config={"orchestrator": {"require_signature_boundary": False, "cycle_interval_seconds": 0}},
+        running=True,
+        is_trading=False,
+        shutdown_reason=None,
+        state=SimpleNamespace(active_contracts={}),
+        _settlement_wait_logged=False,
+        _cooldown_until=0.0,
+        _last_cluster_cycle_end=0.0,
+        _dl_fast_cycle=False,
+        logger=None,
+        risk_manager=None,
+        _last_epoch=0,
+        _last_processed_epoch=0,
+    )
+    assert _require_signature_boundary(orch_off) is False
+    assert trading_cycle_entry_allowed(orch_off) is True
+    orch_bad = SimpleNamespace(config={"orchestrator": {"signature_boundary_open_tolerance_seconds": "x"}})
+    assert _signature_open_tolerance_seconds(orch_bad) == pytest.approx(20.0)
+    _log_awaiting_m5_open(orch_off, 10.0)
+    orch_log = SimpleNamespace(logger=MagicMock(), _m5_open_wait_logged_key="")
+    with patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=1_000.0):
+        _log_awaiting_m5_open(orch_log, 12.0)
+        _log_awaiting_m5_open(orch_log, 12.0)
+    assert orch_log.logger.info.call_count == 1

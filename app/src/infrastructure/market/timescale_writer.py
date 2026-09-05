@@ -42,7 +42,13 @@ class TimescaleMarketWriter:
     async def _ensure_pool(self) -> asyncpg.Pool:
         """Cria pool asyncpg sob demanda."""
         if self._pool is None:
-            self._pool = await asyncpg.create_pool(self._dsn, min_size=1, max_size=4)
+            self._pool = await asyncpg.create_pool(
+                self._dsn,
+                min_size=1,
+                max_size=4,
+                statement_cache_size=64,
+                command_timeout=30.0,
+            )
         return self._pool
 
     def _ensure_worker(self) -> None:
