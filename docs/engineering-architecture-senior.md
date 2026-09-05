@@ -75,7 +75,7 @@ Sidecars (Redis, TimescaleDB, MinIO, meta `:8005`, loss `:8006`) ficam em Docker
 | Papel | Onde | Contrato |
 |-------|------|----------|
 | Latência crítica TCN/LSTM/GRU | Host PyTorch CUDA | Batch 1, eager/`to_thread`, checkpoint local `data/dl/` |
-| Meta LightGBM 43D | Sidecar FastAPI `:8005` | HTTP opcional conforme settings |
+| Meta LightGBM 23D | Sidecar FastAPI `:8005` | HTTP opcional conforme settings |
 | Loss-classifier | Sidecar FastAPI `:8006` | Soft/FLIP conforme doutrina de gates |
 | Optuna / tuning | Offline / background | Não disputar VRAM com inferência live |
 

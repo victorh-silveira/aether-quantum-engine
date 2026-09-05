@@ -20,14 +20,14 @@ description: >-
 8. ACC: soft_min **0.55** no path label; deploy_gate fail-closed
 9. Brier: `max_brier` **0.28** (= `soft_max_brier`); sharpness `min_oos_sharpness` **0.01**
 10. Fail-closed: export falhou → `train.py` exit!=0; gate rejeita ckpt com lookback/granularity != settings; meta nao roda
-11. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py` antes do meta
-12. Meta: LightGBM **43D**; `--bars` **5000** (micro M5; nao confundir com 365 D1); variance nula → Timescale flat; `--source auto` / Deriv; alvo payoff fallback
+11. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py`; depois `ensure_timescale` seed Deriv (**M5×5000 + D1×365**, timeout **900s**, persist lote) antes do meta
+12. Meta: LightGBM **23D**; `--bars` **5000** (micro M5; nao confundir com 365 D1); Timescale smoke → Deriv INFO; teacher raw+expand se cal esmagar std; alvo payoff fallback
 13. Meta HTTP opcional — confirmar flags; TCN = eager/CUDA local no host (`inference_mode`; nao bloquear o event loop)
 14. Universo runtime = **1HZ75V**; contrato ops fixo **5 m**
 15. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes
 16. Anti-overfit: `weight_decay` **0.005**, `tcn.dropout` **0.35**, `learning_rate` **0.001**
 17. Pos-treino: `make docker-rebuild` recarrega meta/loss **sem** apagar `data/dl`
-18. Cal overconfident: clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.53/0.47**; flag `cal_raw_gap_capped`; `temperature_min` **1.0**
+18. Cal overconfident: clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.565/0.435**; flag `cal_raw_gap_capped`; `temperature_min` **1.0**
 19. Optuna/tuning offline — nao disputar VRAM com inferencia live; artefatos no MinIO
 
 ## Anti-padroes

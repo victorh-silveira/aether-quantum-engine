@@ -14,7 +14,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Histórico para treino | 365 barras diárias (`training_history_bars: 365` / `history_bars: 500`) |
 | Lookback | **`deep_learning.lookback`** (settings atuais **30**) → tensor **`[1, 30, 34]`** |
 | Features TCN | **34** (`FEATURE_DIM` em `dl_feature_build.py`) |
-| Features meta GBDT | **43** (`META_FEATURE_DIM` = 34 + 4 micro-vol + 3 cross + 2 flow) |
+| Features meta GBDT | **43** (`META_FEATURE_DIM` = 14 + 4 micro-vol + 3 cross + 2 flow) |
 | Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **120 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
 | Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + signal_skip 1.1 + anti-loss M5 |
@@ -165,7 +165,7 @@ Cache inválido quando a assinatura muda; sem assinatura nova, o ciclo aguarda s
 
 ## 4. Deep Learning
 
-### 4.1 Features (34D)
+### 4.1 Features (14D)
 
 | Grupo | Dim | Conteúdo |
 |-------|-----|----------|
@@ -237,10 +237,10 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 | Veto | Soft Kelly em `[0.65, 0.90)`; **FLIP** CALL↔PUT se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`; log `LOSS_CLF \|\| FLIP`); seed com p_loss real |
 | Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-reset` limpa + seed predictivo (`veto_ready` se n>=ready_n); `docker-rebuild` recarrega sem apagar TCN |
 
-### 5.2 Vetor 43D
+### 5.2 Vetor 23D
 
 ```
-META_FEATURE_DIM = 34 (TCN) + 4 (micro-vol zscores) + 3 (cross-symbol) + 2 (flow) = 43
+META_FEATURE_DIM = 14 (TCN) + 4 (micro-vol zscores) + 3 (cross-symbol) + 2 (flow) = 43
 ```
 
 | Bloco | Features |
@@ -251,7 +251,7 @@ META_FEATURE_DIM = 34 (TCN) + 4 (micro-vol zscores) + 3 (cross-symbol) + 2 (flow
 
 Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` → `extract_meta_feature_vector` → `prefetch_meta_payoff_for_decisions`.
 
-**Nota:** o container `aether-meta-classifier` declara `META_FEATURE_DIM = 43` (alinhado ao app). Treino offline e artefato `.pkl` devem usar a mesma dimensao.
+**Nota:** o container `aether-meta-classifier` declara `META_FEATURE_DIM = 23` (alinhado ao app). Treino offline e artefato `.pkl` devem usar a mesma dimensao.
 
 ### 5.3 Stacking runtime
 
@@ -447,11 +447,11 @@ flowchart LR
     WD[AetherWatchdog]
   end
   subgraph dl
-    FEAT[dl_features 34D]
+    FEAT[dl_features 14D]
     LOCAL[eager CUDA local]
     PRED[dl_predict]
     TELE[dl_predict_telemetry]
-    META[meta 43D GBDT]
+    META[meta 23D GBDT]
   end
   subgraph direcao
     RES[direction_resolver]

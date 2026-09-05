@@ -31,7 +31,7 @@ NUMEXPR_NUM_THREADS=2
 ### Rede e health
 
 - Binds: `127.0.0.1:6379|5432|9000|9001|8005|8006`.
-- `depends_on` + `condition: service_healthy` (ex.: `minio-init` → MinIO; ML → MinIO).
+- `depends_on` + `condition: service_healthy` (ex.: `minio-init` → MinIO) e `service_completed_successfully` (meta/loss → `minio-init`).
 - Make `docker-wait-healthy` permanece rede de segurança.
 - Host: `infra/docker/host-prereq.sh` aplica `vm.overcommit_memory=1` (fork/COW Redis).
 
@@ -39,7 +39,7 @@ NUMEXPR_NUM_THREADS=2
 
 - Single-node single-drive local (portas 9000/9001).
 - Bucket SSOT: **`dl-models`** (`config/settings.json`).
-- Bootstrap: serviço `minio-init` (`minio/mc`) cria bucket e ILM ~**7 dias** no prefixo `optuna/` (checkpoints intermediários).
+- Bootstrap: serviço `minio-init` (`minio/mc`) cria bucket e ILM ~**7 dias** no prefixo `optuna/` e **encerra** (`restart: no`); `Exited (0)` em `docker ps -a` e sucesso, nao falha.
 - Consumidor valida integridade (ETag/MD5) antes de carregar artefato em memória.
 - Segredos só via env (`.env`); least privilege nas keys de app quando aplicável.
 
@@ -63,7 +63,7 @@ Diagnóstico: `redis-cli info memory`, `slowlog get 10`.
 |------|------|
 | Chunk | **1 day** (`ticks`, `ohlc_bars`) |
 | Tuning (container 1g) | `shared_buffers=256MB`, `work_mem=16MB`, `checkpoint_completion_target=0.95` |
-| Compressão | `segmentby=symbol`, `orderby=time DESC`, policy **7 days** |
+| Compressão | `segmentby=symbol,granularity` (ohlc), `symbol` (ticks), `orderby=time DESC, epoch DESC` (ohlc) / `time DESC` (ticks), policy **7 days** |
 | Retenção ticks | **30 days** |
 | CRAG M5 | view `candle_m5` (analytics/ingest) — **não** substitui candles live Deriv |
 

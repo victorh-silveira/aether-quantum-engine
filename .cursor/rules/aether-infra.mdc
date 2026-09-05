@@ -16,7 +16,7 @@ alwaysApply: true
   - `mem_limit`/`cpus` (Compose sem Swarm); `mem_swappiness: 0`; OMP/OpenBLAS/MKL/VECLIB/NUMEXPR = **2** nos sidecars ML
   - Meta/loss: Docker multi-stage `/opt/venv`, `tini`, CMD exec-form Uvicorn
 - **TimescaleDB / PostgreSQL 16**:
-  - Hypertables chunks **1 day**; compressão `segmentby=symbol` / `orderby=time DESC`; retenção ticks 30d
+  - Hypertables chunks **1 day**; compressão `segmentby=symbol` (ticks) / `symbol,granularity` (ohlc_bars) / `orderby=time DESC`; retenção ticks 30d
   - Continuous aggregate `candle_m5` = analytics (não substitui candle live Deriv)
   - asyncpg pool fail-closed; inserts em lote; gravação desacoplada da decisão
 - **Redis 7.4-Alpine**:

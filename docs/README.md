@@ -5,7 +5,7 @@
 | [../AGENTS.md](../AGENTS.md) | Entrada para agentes Cursor/LLM |
 | [../prompt-model.md](../prompt-model.md) | Contrato reutilizavel: DDD/hexagonal/TDD/DX para scaffold de novos repos |
 | [agent-coverage.md](agent-coverage.md) | Matriz 100%: doc + rule + skill por superficie |
-| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 34D, meta 43D, fusao EV, signal_skip 1.1, Soft Recovery, settlement |
+| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 14D, meta 23D, fusao EV, signal_skip 1.1, Soft Recovery, settlement |
 | [engineering-architecture-senior.md](engineering-architecture-senior.md) | Doutrina sênior: host Python 3.13, DDD/hexagonal, asyncio/CUDA, Polars SSOT, sidecars ML, Docker core/ml, QA |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
@@ -19,7 +19,7 @@
 | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | Higienizacao: ondas seguras, morto comprovado, never-delete |
 | [engineering-surface-sync.md](engineering-surface-sync.md) | Fechamento: sync docs/rules/skills + pre-commit + anti-sujeira |
 | [engineering-orchestrator.md](engineering-orchestrator.md) | Ciclo do orquestrador, signature, locks, pos-settlement |
-| [engineering-deep-learning.md](engineering-deep-learning.md) | DL 34D, labels, treino/run, meta offline, inferência local |
+| [engineering-deep-learning.md](engineering-deep-learning.md) | DL 14D, labels, treino/run, meta offline, inferência local |
 | [engineering-settlement.md](engineering-settlement.md) | Fila Redis, tolerancia, profit_table, orphans |
 | [engineering-settings-ssot.md](engineering-settings-ssot.md) | Mapa de `settings.json` e regra de knobs novos |
 | [engineering-observability.md](engineering-observability.md) | Logger, dedupe, tags de log do ciclo |
@@ -60,8 +60,8 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Item | Valor |
 |------|-------|
 | Universo | `1HZ75V` (âncora `1HZ75V`) |
-| DL | TCN, lookback **30**, micro **300 s** (500 velas M5), macro **86400 s** (365 velas D1), `FEATURE_DIM=34`, label `quantum_multi_barrier`, tensor `[1, 30, 34]` |
-| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=43` (micro **300 s**); **opcional** para execução |
+| DL | TCN, lookback **30**, micro **300 s** (500 velas M5), macro **86400 s** (365 velas D1), `FEATURE_DIM=14`, label `quantum_multi_barrier`, tensor `[1, 30, 14]` |
+| Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=23` (micro **300 s**); **opcional** para execução |
 | Relógio | Micro/MINI **300 s** (M5) + macro **86400 s** (D1); contrato ops **5 m (M5)**; label TCN **N=1** vela M5; ratio **1:288**; ciclo **120 s** |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **120 s** |
 | Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + anti-loss microestrutura M5 + signal_skip 1.1 |

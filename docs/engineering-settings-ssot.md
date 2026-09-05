@@ -11,7 +11,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `deep_learning` | arch, lookback, labels, calib (`raw_extreme`), deploy, `sample_weighting`; treino em 365 velas diarias |
 | `orchestrator` | ciclo (**300 s**, `require_signature_boundary` **true**, abertura M5), signature boundary (**300 s**), warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, **`invert_exec_side`** (experimento: inverte CALL/PUT apos gates), settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
-| `infra.meta_classifier` | HTTP :8005; edge continuo 43D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
+| `infra.meta_classifier` | HTTP :8005; edge continuo 23D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
 | `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly Single-Strike (**4.31% da banca em 1 trade M5**, payout **0.85**), soft_recovery, stop-win **4.31%**, duration contrato **5 m** |
 | `infra` | Redis, Timescale, MinIO, meta, loss |
@@ -58,7 +58,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `deep_learning.label_horizon_bars` | `deep_learning` | **N=1** vela M5 do TCN (`quantum_multi_barrier`); alinhado ao contrato ops **5 m** |
 | `horizon_sweep.*` | `deep_learning` | Grade **`n_bars=[1,2,3,4]`** / **`duration_minutes=[5,10,15,20]`** (celulas H{N} no relogio M5); `ops_contract_duration_minutes` **5**; `quiet_train_logs` **true** (celula **CRITICAL** + `why=` se deploy=0; pos-sweep denso); `run_in_launch_train` **true**; pisos settle be+0.03, n≥16, history≥800 |
 | `data_handler.micro_granularity` / `granularity` | `data_handler` | Micro/MINI **300** / macro **86400** (M5/D1; ratio **1:288**) |
-| `deep_learning.lookback` | `deep_learning` | **30** barras micro @ **300 s** (tensor `[1, 30, 34]`) |
+| `deep_learning.lookback` | `deep_learning` | **30** barras micro @ **300 s** (tensor `[1, 30, 14]`) |
 | `orchestrator.cycle_interval_seconds` / `signature_boundary_seconds` / `require_signature_boundary` | `orchestrator` | **300 s** / **300 s** / **true** (ciclo na abertura M5); `exec_empty_retry` alinhado |
 | `orchestrator.settlement_tolerance_window_seconds` | `orchestrator` | **600** (slack pos-expiry; `doctrine_invariants` exige **600**) |
 | `orchestrator.watchdog_stale_tick_seconds` | `orchestrator` | **300** |

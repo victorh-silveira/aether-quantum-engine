@@ -25,3 +25,5 @@ Hardcode do mesmo numero em codigo + settings + teste divergentes.
 Revenge sizing / subir caps linear “para aprender” com N baixo.
 
 Doc: `docs/engineering-settings-ssot.md`
+
+- TCN ortogonal **14D** / meta **23D**; limiares **0.565/0.435**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.

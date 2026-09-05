@@ -66,3 +66,5 @@ Resposta curta em PT-BR:
 - Ciclos problematicos com `gate_reason` / Cal / Edge / FUSION / `FLIP_BLOCK` / SCALE discord
 - Acoes: manter knobs | ajuste minimo nomeado | retreino se ACC estruturalmente baixo
 - Nunca recomendar `force_trade_every_cycle=true` como correcao; nunca rearmar quality gate amplo
+
+- TCN ortogonal **14D** / meta **23D**; limiares **0.565/0.435**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.

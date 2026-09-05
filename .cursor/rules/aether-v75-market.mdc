@@ -25,3 +25,5 @@ alwaysApply: true
    - Toda operação deve comprovar $\text{Edge} = p_{\text{eff}} \times 1.85 - 1.0 > 0$.
 4. **Dimensionamento Single-Strike**:
    - Meta de **4.31% de Stop-Win** em uma tacada: $\text{Stake} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$ da banca.
+
+- TCN ortogonal **14D** / meta **23D**; limiares **0.565/0.435**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.

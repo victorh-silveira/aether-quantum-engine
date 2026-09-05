@@ -64,7 +64,7 @@ Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contr
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de **300 s** (M5) (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **43D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
+Indicadores micro de **300 s** (M5) (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **23D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
 
 **Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; zeros no modo single-symbol):
 
@@ -87,7 +87,7 @@ Features de fluxo e microestrutura extraídas do `TickBuffer` e precomputação:
 | `volatility_shadow_ratio` | Razão entre a soma dos pavios (superior + inferior) da barra micro atual e a amplitude do desvio padrão do Keltner (ATR) |
 | `volatility_shadow_ratio_zscore` | Z-Score adaptativo histórico de 1024 períodos da razão de pavios, clipado a ±3.0 |
 
-Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (34D TCN) como telemetria analitica e insumo do stacking — sem veto HARD de microestrutura no pipeline de execucao (escopo 1).
+Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `feature_vector` (14D TCN) como telemetria analitica e insumo do stacking — sem veto HARD de microestrutura no pipeline de execucao (escopo 1).
 
 ### 2.5 Perfil de qualidade atualizado
 
@@ -97,7 +97,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
 | Classificação macro | TCN processa lookback **30** em barras diárias **86400 s** (`[1, 30, 34]`); define direção (`dl_direction`) |
-| Stacking tabular | Meta-regressor LightGBM (micro **300 s**) sobre vetor **43D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
+| Stacking tabular | Meta-regressor LightGBM (micro **300 s**) sobre vetor **23D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds adaptativos |
@@ -114,7 +114,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
 | Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 34]` no contexto macro D1; proporção 1:288 |
-| Meta-regressor GBDT | Micro **300 s** | Regressão tabular **43D**; edge contínuo via `/v2/predict_meta` |
+| Meta-regressor GBDT | Micro **300 s** | Regressão tabular **23D**; edge contínuo via `/v2/predict_meta` |
 | Orquestrador / contrato | Ciclo **120 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
 | Resolução direcional | TCN + fusão EV + anti-loss | Ponderação e filtros de momentum em barras de 5m |
 | Execução contínua | Ciclo **120 s** (boundary **300 s**) | Boleta CALL/PUT na cadência M5 quando há sinal válido |
@@ -138,7 +138,7 @@ Ordem lógica de uma entrada:
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
 4. **Predição DL** — inferência eager/CUDA local; `raw_prob`/`calibrated_prob` e indicadores calculados.
 5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro em paralelo e anexa spreads cross-symbol.
-6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **43D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge` (opcional para execução).
+6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **23D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge` (opcional para execução).
 7. **Calibração** — `dl_calibration_tolerance`: zona neutra ON (`neutral_half_width: 0.04`); override TCN macro em raw extremos.
 8. **Resolução direcional** — `execution_direction_resolver` + `execution_direction_checks` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
 9. **Gate de qualidade** — dual soft TCN+meta + HARD microestrutura; starvation a partir de **6** skips; stubs sniper não vetam.
@@ -541,7 +541,7 @@ Para evitar degradação de sinal e problemas OOD (Out-of-Distribution) no Light
 \[X_{\text{zscore}} = \frac{X - \mu_{1024}}{\sigma_{1024} + 1e-12}\]
 Se o valor ultrapassar o teto crítico de ±3.0, aplica-se um clipping estrito via:
 \[X_{\text{final}} = \text{clip}(X_{\text{zscore}}, -3.0, 3.0)\]
-O payload HTTP do meta (`META_FEATURE_DIM = 43`) espelha rigidamente essa saturação antes do envio ao container `aether-meta-classifier` (porta 8005).
+O payload HTTP do meta (`META_FEATURE_DIM = 23`) espelha rigidamente essa saturação antes do envio ao container `aether-meta-classifier` (porta 8005).
 
 ### 12.2 Invariante de Drift Proibido (Drift Bias Lock)
 Com universo single-symbol (`1HZ75V`), o lock contra drift natural de par Bull/Bear permanece no codigo como no-op (`hedge_peer(1HZ75V)` retorna `None`). Quando houver par de hedge configurado, permanece vedada a emissao contra o drift sob expansao hiperbolica de volatilidade (\(Z_{\text{vol}} \ge 2.0\)):

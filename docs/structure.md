@@ -214,6 +214,7 @@ presentation  →  application  →  domain
 | `dl_bridge_helpers.py` | Entradas de decisão, cooldown, reexportes |
 | `dl_calibration.py` | Calibração de probabilidades |
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
+| `dl_calibration_variance.py` | Guarda std calibrado vs raw → identity |
 | `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
 | `dl_calibration_tolerance.py` | Override TCN macro quando raw&gt;0.65 ou &lt;0.35; zona neutra config-driven (settings: OFF) |
 | `dl_congestion.py` | Metricas de congestao de mercado |
@@ -223,7 +224,7 @@ presentation  →  application  →  domain
 | `dl_deploy.py` | Gate de deploy e persistência no runtime |
 | `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
 | `dl_device.py` | Seleção CPU/CUDA |
-| `dl_feature_build.py` | Séries de preço e indicadores (34D) |
+| `dl_feature_build.py` | Séries de preço e indicadores ortogonais (14D) |
 | `dl_feature_indicators.py` | Indicadores técnicos normalizados |
 | `dl_feature_indicators_advanced.py` | Indicadores avançados normalizados |
 | `dl_feature_matrix.py` | Linhas, matrizes e tensores de features |
@@ -474,9 +475,9 @@ Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src
 
 ```mermaid
 flowchart TD
-  BR[decision_bridge] --> BUNDLE[dl_predict_build 34D TCN]
+  BR[decision_bridge] --> BUNDLE[dl_predict_build 14D TCN]
   BUNDLE --> PRED[dl_predict eager/CUDA]
-  PRED --> META[meta_classifier_client 43D]
+  PRED --> META[meta_classifier_client 23D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
   CHK --> DG[execution_direction_persistence flip/skip]
@@ -522,7 +523,7 @@ flowchart TD
 | `data/session_state.json` | Métricas da sessão ativa |
 | `data/dl/{symbol}.pth` | Checkpoints PyTorch |
 | `data/dl/{symbol}_ts.pt` | TorchScript (artefato local/MinIO) |
-| `infra/docker/meta-models/` | LightGBM `.pkl` (43D) |
+| `infra/docker/meta-models/` | LightGBM `.pkl` (23D) |
 
 ---
 

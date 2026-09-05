@@ -8,20 +8,20 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 |------|----------------|
 | Simbolo | **1HZ75V** (Volatility 75 (1s)) |
 | Arch | TCN |
-| Lookback | **30** → tensor `[1, 30, 34]` |
+| Lookback | **30** → tensor `[1, 30, 14]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
 | MICRO OHLC | **300 s** (M5, 500 velas, `data_handler.micro_granularity`) |
 | Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
-| Features | **34D** (`FEATURE_DIM`) |
+| Features | **14D** (`FEATURE_DIM`) |
 | Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false` |
 | Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **25** |
-| Meta | LightGBM **43D** `predicted_payoff_edge` |
+| Meta | LightGBM **23D** `predicted_payoff_edge` |
 
 ## Entry points
 
@@ -76,7 +76,8 @@ Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** ap
 
 
 - Alvo preferencial: z-score do forward return; se closes/fwd flat → payoff assinado (`_continuous_payoff_target`).
-- Timescale curto/flat (hydrate sintetico) e rejeitado; fallback Deriv com piso ≥ **2000** barras.
+- Hydrate Docker = smoke (500/365). `launch-train` chama `ensure_timescale` (seed Deriv) antes do meta: piso micro **5000** / macro D1 **365**. Timescale smoke/curto/flat → INFO e Deriv (nao WARNING "rejeitado"); apos Deriv, seed no Timescale.
+- Fit do calibrador: se std calibrado colapsa vs raw no holdout/val → persiste `identity`. Teacher meta: raw+expand em INFO se cal ainda esmagar.
 - `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`.
 
 ## Calibracao: `raw_extreme` (anti-override)

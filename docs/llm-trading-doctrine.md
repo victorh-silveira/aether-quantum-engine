@@ -138,3 +138,5 @@ Narrativas proibidas no diagnostico: “estava quente”, “o mercado deve reve
 | Julgamos processo ou so P&L? | Duke / Douglas |
 | Caps e settlement permanecem? | Bernstein / LTCM |
 | TA vira oraculo ou filtro? | Murphy |
+
+- `regime_gate_enabled` **true** + ADX/squeeze -> HARD `regime_squeeze` (sem flip direcional); TCN 14D / meta 23D; call/put **0.565/0.435**; `ema_50` **50**.

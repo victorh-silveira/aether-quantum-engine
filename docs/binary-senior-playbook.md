@@ -30,7 +30,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `neg_edge` | Com SSOT `neg_edge_hard_skip` **true**: Edge `<= 0` → HARD SKIP; Edge `< min_edge_*` (**0.015** explore = recovery, inclusive subfloor positivo) → HARD (`neg_edge_subfloor_hard`, `gate_verdict=HARD_SKIP`). Soft_SIZE **nao** vem de subfloor. Seed+Cal &lt; `neg_edge_deep_edge_floor` **−0.12** marca `boot_deep` no hard. |
 | `neg_edge_zscore_panic` | Veto de pânico bilateral: CALL vetado se $Z < -2.0$ (faca caindo); PUT vetado se $Z > +2.0$ (explosão compradora); telemetria `[GATES]` / `EDGE \|\| NEG_ZSCORE_PANIC` com `Z=` / `side=` / `thr=` (±2.0) |
 | `anti_loss_ema_slope` | Slope EMA com deteccao rapida: EMA9 slope (2-pontos, `slope_tol * 0.6`) + EMA21 slope (2-pontos, `slope_tol`); CALL exige $\text{EMA}[-1] \ge \text{EMA}[-2] - \text{tol}$; PUT inverso. Cache de EMA por ciclo. **SOFT** Kelly (`anti_loss_soft` / `SOFT_SIZE`, sem Single-Strike) — nao gera EXEC_EMPTY |
-| `anti_loss_ema_trend` | Preco vs EMA9 contrario ao lado. Com `anti_loss_allow_candle_flip` **true** + candle valido + Edge Cal vela >= floor (**0.015** explore = recovery) → FLIP (`live_exec_flip_to_candle`, soft); Edge subfloor/≤0 → soft no anchor sem flip (`anti_loss_flip_blocked`); senao **SOFT** Kelly — nao gera EXEC_EMPTY sozinho |
+| `anti_loss_ema_trend` | Preco vs EMA9 contrario ao lado. Com `anti_loss_allow_candle_flip` **false** + candle valido + Edge Cal vela >= floor (**0.015** explore = recovery) → FLIP (`live_exec_flip_to_candle`, soft); Edge subfloor/≤0 → soft no anchor sem flip (`anti_loss_flip_blocked`); senao **SOFT** Kelly — nao gera EXEC_EMPTY sozinho |
 | `anti_loss_rsi_momentum` | Soft Kelly pos-lado: CALL atenuado se $\text{RSI} < \text{rsi\_min}$ (default **0.30**); PUT atenuado se $\text{RSI} > \text{rsi\_max}$ (default **0.70**); nao EMPTY |
 | `live_exec_discord` | Veto last-bar vs EXEC so com `anti_loss_live_exec_candle_enabled` **true** (SSOT **false** — confirmação = janela ops N=3 + EMA) |
 | `anti_loss_seed_discord` | **Seed** unstamped + `p_loss >= 0.85` + TCN pos_edge: **hard SKIP** se janela ops N=3 nao confirma TCN com corpo >= **0.10**. **Live** stampada: `anti_loss_anchor_agree=false` + last-bar ≠ EXEC → soft `live_discord_weak` (ou flip se Edge last >= floor); `live_confirm_weak` / `live_weak_candle` / `live_no_candle` / RSI = **SOFT** Kelly (nao EMPTY) |
@@ -101,7 +101,7 @@ Viés estrutural de lado **nao** se corrige reintroduzindo veto de sinal nem qua
 - `risk_management.soft_recovery.cover_enabled: false` — sem amortizacao em massa de pending
 - `risk_management.kelly.neutral_bankroll_pct` / `min_stake_pct` **0.01** — piso Kelly **1%** banca (M5)
 - `risk_management.kelly.soft_size_min_stake_pct` **0.025** + `soft_size_min_edge` **0.015** — Soft_SIZE elevado **2.5%** (preservado com PEND)
-- `orchestrator.execution.signal_skip.anti_loss_allow_candle_flip` **true** — flip microestrutura em EMA/candle discord **somente** com Edge Cal do lado da vela >= `min_edge_explore`/`min_edge_recovery`
+- `orchestrator.execution.signal_skip.anti_loss_allow_candle_flip` **false** — flip microestrutura em EMA/candle discord **somente** com Edge Cal do lado da vela >= `min_edge_explore`/`min_edge_recovery`
 - `orchestrator.execution.side_equilibrium.enabled: true` (soft sizing only)
 - `orchestrator.execution.scale_vision` (adaptacao de fita + soft sizing; sem SKIP por escala)
 - `orchestrator.execution.signal_skip` (1.1 soft Kelly; sem flip pos-LOSS)
