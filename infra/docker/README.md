@@ -3,6 +3,7 @@
 Stack **hibrida**: motor Python 3.13 + asyncio no host (CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em containers. Inferencia TCN = eager/CUDA local (`data/dl`).
 
 **Documentacao completa:** [`docs/infra-docker.md`](../../docs/infra-docker.md)  
+**CloudOps sênior:** [`docs/engineering-devops-cloudops-senior.md`](../../docs/engineering-devops-cloudops-senior.md)  
 **Arquitetura senior:** [`docs/engineering-architecture-senior.md`](../../docs/engineering-architecture-senior.md)
 
 ## Comandos rapidos
@@ -20,7 +21,7 @@ Portas em `127.0.0.1`: Redis 6379, Timescale 5432, MinIO 9000/9001, Meta 8005, L
 
 ## Loss-classifier (profile `ml`)
 
-- Env: `LOSS_BOOTSTRAP_EXIT_N` **16**, `LOSS_VETO_P_LOSS_FLOOR` **0.65** (soft Kelly)
+- Env: `LOSS_BOOTSTRAP_EXIT_N` **8**, `LOSS_VETO_P_LOSS_FLOOR` **0.65** (soft Kelly)
 - Hard FLIP `hard_p_loss_floor` **0.90** + `flip_require_auto_learn` vivem no motor (`config/settings.json`)
 - Apos mudar env: `docker compose ... up -d --force-recreate aether-loss-classifier`
 

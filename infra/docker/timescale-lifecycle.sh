@@ -44,4 +44,9 @@ fi
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/004_timescale-lifecycle.sql >/dev/null'
 
 docker_ui_ok "compressao/retencao"
+
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+  'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/005_timescale_crags.sql >/dev/null'
+
+docker_ui_ok "continuous aggregates M5"
 docker_ui_nl

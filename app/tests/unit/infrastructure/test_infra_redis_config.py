@@ -9,6 +9,10 @@ def test_redis_conf_uses_aof_everysec():
     assert "appendonly yes" in text
     assert "appendfsync everysec" in text
     assert 'save ""' in text
+    assert "maxmemory 200mb" in text
+    assert "maxmemory-policy noeviction" in text
+    assert "io-threads 2" in text
+    assert "io-threads-do-reads yes" in text
 
 
 def test_settings_redis_prefers_loopback_ipv4():

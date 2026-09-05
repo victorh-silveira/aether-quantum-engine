@@ -7,7 +7,12 @@ CREATE TABLE IF NOT EXISTS ticks (
   price DOUBLE PRECISION NOT NULL
 );
 
-SELECT create_hypertable('ticks', 'time', if_not_exists => TRUE);
+SELECT create_hypertable(
+  'ticks',
+  'time',
+  chunk_time_interval => INTERVAL '1 day',
+  if_not_exists => TRUE
+);
 
 CREATE TABLE IF NOT EXISTS ohlc_bars (
   time TIMESTAMPTZ NOT NULL,
@@ -23,7 +28,15 @@ CREATE TABLE IF NOT EXISTS ohlc_bars (
   price_velocity DOUBLE PRECISION
 );
 
-SELECT create_hypertable('ohlc_bars', 'time', if_not_exists => TRUE);
+SELECT create_hypertable(
+  'ohlc_bars',
+  'time',
+  chunk_time_interval => INTERVAL '1 day',
+  if_not_exists => TRUE
+);
+
+SELECT set_chunk_time_interval('ticks', INTERVAL '1 day');
+SELECT set_chunk_time_interval('ohlc_bars', INTERVAL '1 day');
 
 CREATE UNIQUE INDEX IF NOT EXISTS ohlc_bars_symbol_epoch
   ON ohlc_bars (symbol, epoch, granularity, time);

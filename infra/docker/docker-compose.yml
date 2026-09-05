@@ -4,6 +4,13 @@ x-logging: &aether-logging
     max-size: "10m"
     max-file: "3"
 
+x-omp-threads: &aether-omp
+  OMP_NUM_THREADS: "2"
+  OPENBLAS_NUM_THREADS: "2"
+  MKL_NUM_THREADS: "2"
+  VECLIB_MAXIMUM_THREADS: "2"
+  NUMEXPR_NUM_THREADS: "2"
+
 services:
   redis:
     image: redis:7.4.2-alpine
@@ -17,6 +24,7 @@ services:
       - aether_redis_data:/data
       - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
     mem_limit: 256m
+    mem_swappiness: 0
     cpus: 0.50
     cap_drop:
       - ALL
@@ -65,8 +73,11 @@ services:
       - ./002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
       - ./003_init-timescale.sql:/docker-entrypoint-initdb.d/003_init-timescale.sql:ro
       - ./004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
+      - ./005_timescale_crags.sql:/docker-entrypoint-initdb.d/005_timescale_crags.sql:ro
       - ./004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
+      - ./005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
     mem_limit: 1g
+    mem_swappiness: 0
     cpus: 1.0
     security_opt:
       - no-new-privileges:true
@@ -89,7 +100,7 @@ services:
     container_name: aether-minio
     profiles: [core]
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
       MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
@@ -99,6 +110,7 @@ services:
     volumes:
       - aether_minio_data:/data
     mem_limit: 512m
+    mem_swappiness: 0
     cpus: 0.50
     cap_drop:
       - ALL
@@ -118,6 +130,27 @@ services:
     networks:
       - aether-net
 
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    container_name: aether-minio-init
+    profiles: [core]
+    restart: "no"
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
+      MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
+      MINIO_ENDPOINT: http://minio:9000
+      AETHER_MINIO_BUCKET: ${AETHER_MINIO_BUCKET:-dl-models}
+      AETHER_MINIO_ILM_PREFIX: ${AETHER_MINIO_ILM_PREFIX:-optuna/}
+      AETHER_MINIO_ILM_DAYS: ${AETHER_MINIO_ILM_DAYS:-7}
+    volumes:
+      - ./minio-init.sh:/minio-init.sh:ro
+    entrypoint: ["/bin/sh", "/minio-init.sh"]
+    networks:
+      - aether-net
+
   aether-meta-classifier:
     build:
       context: ./meta-classifier
@@ -133,10 +166,15 @@ services:
     volumes:
       - ./meta-models:/models
     environment:
+      <<: *aether-omp
       META_RETRAIN_MIN_N: "2"
       META_MAX_BUFFER: "2000"
     mem_limit: 512m
+    mem_swappiness: 0
     cpus: 0.75
+    depends_on:
+      minio:
+        condition: service_healthy
     cap_drop:
       - ALL
     security_opt:
@@ -180,6 +218,7 @@ services:
     volumes:
       - ./loss-models:/models
     environment:
+      <<: *aether-omp
       LOSS_FEATURE_DIM: "24"
       LOSS_READY_N: "8"
       LOSS_RETRAIN_MIN_N: "1"
@@ -189,7 +228,11 @@ services:
       LOSS_MAX_BUFFER: "2000"
       LOSS_VETO_P_LOSS_FLOOR: "0.65"
     mem_limit: 512m
+    mem_swappiness: 0
     cpus: 0.75
+    depends_on:
+      minio:
+        condition: service_healthy
     cap_drop:
       - ALL
     security_opt:

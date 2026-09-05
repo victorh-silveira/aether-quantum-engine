@@ -26,6 +26,7 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "127.0.0.1:8005:8000" in text
     assert "127.0.0.1:8006:8000" in text
     assert "mem_limit: 256m" in text
+    assert "mem_swappiness: 0" in text
     assert "no-new-privileges:true" in text
     assert "cap_drop:" in text
     assert "- ALL" in text
@@ -36,6 +37,11 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "aether-triton" not in text
     assert "profiles: [core]" in text
     assert "profiles: [ml]" in text
+    assert "condition: service_healthy" in text
+    assert "minio-init:" in text
+    assert 'OMP_NUM_THREADS: "2"' in text
+    assert 'MKL_NUM_THREADS: "2"' in text
+    assert '["server", "/data", "--console-address", ":9001"]' in text
 
 
 def test_compose_gpu_overlay_removed():
@@ -46,13 +52,41 @@ def test_timescale_orphan_conf_removed():
     assert not repo_path("infra", "docker", "timescaledb-aether-io.conf").is_file()
 
 
+def test_timescale_sql_chunk_and_crags():
+    init_sql = repo_path("infra", "docker", "003_init-timescale.sql").read_text(encoding="utf-8")
+    crags = repo_path("infra", "docker", "005_timescale_crags.sql").read_text(encoding="utf-8")
+    assert "chunk_time_interval => INTERVAL '1 day'" in init_sql
+    assert "candle_m5" in crags
+    assert "timescaledb.continuous" in crags
+    assert "time_bucket(INTERVAL '5 minutes'" in crags
+    lifecycle = repo_path("infra", "docker", "timescale-lifecycle.sh").read_text(encoding="utf-8")
+    assert "005_timescale_crags.sql" in lifecycle
+
+
+def test_minio_init_script_bucket_ilm():
+    script = repo_path("infra", "docker", "minio-init.sh").read_text(encoding="utf-8")
+    assert "dl-models" in script
+    assert "optuna/" in script
+    assert "mc ilm import" in script
+
+
 def test_meta_dockerfile_non_root_and_healthcheck():
     text = repo_path("infra", "docker", "meta-classifier", "Dockerfile").read_text(encoding="utf-8")
+    assert text.count("FROM python:3.13-slim") >= 2
+    assert "/opt/venv" in text
     assert "USER aether" in text
     assert "HEALTHCHECK" in text
     assert "tini" in text
     assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in text
+    assert "MKL_NUM_THREADS=2" in text
     assert repo_path("infra", "docker", "meta-classifier", ".dockerignore").is_file()
+
+
+def test_loss_dockerfile_multi_stage():
+    text = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
+    assert text.count("FROM python:3.13-slim") >= 2
+    assert "/opt/venv" in text
+    assert "LOSS_BOOTSTRAP_EXIT_N=8" in text
 
 
 def test_compose_lib_and_env_example_document_ml_knobs():
