@@ -13,6 +13,7 @@ _SOFT_SIGNAL_FLAGS = (
     "regime_chop_soft",
     "fusion_weak_ev_soft",
     "anti_loss_soft",
+    "micro_discord_follow_soft",
 )
 
 

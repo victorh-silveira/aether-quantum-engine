@@ -49,8 +49,8 @@
     "calibration": {
       "auto_select_by_brier": true,
       "calibration_neutral_drift": [
-        0.435,
-        0.565
+        0.47,
+        0.53
       ],
       "entropy_ceiling": 0.88,
       "entropy_floor": 0.01,
@@ -75,8 +75,8 @@
       "trust_blend_span": 0.25,
       "val_acc_trust_floor": 0.01
     },
-    "confidence_call_threshold": 0.565,
-    "confidence_put_threshold": 0.435,
+    "confidence_call_threshold": 0.53,
+    "confidence_put_threshold": 0.47,
     "deploy_gate": {
       "enabled": true,
       "eval_call_threshold_cap": 0.65,
@@ -320,12 +320,14 @@
       "flip_require_auto_learn": true,
       "flip_allow_seed_on_scale_discord": true,
       "flip_allow_seed_on_cal_discord": true,
+      "flip_allow_seed_on_candle_discord": true,
       "flip_cal_discord_margin": 0.03,
       "flip_require_pos_edge": false,
       "flip_min_edge_execute": 0.04,
       "flip_waive_on_closed_candle": false,
       "flip_candle_p_loss_floor": 0.85,
       "flip_waive_scale_above_p_loss": 0.95,
+      "flip_waive_guards_above_p_loss": 0.85,
       "flip_block_when_tcn_pos_edge": true,
       "flip_waive_tcn_pos_edge_on_discord": true,
       "flip_waive_edge_min": -1.0,
@@ -682,8 +684,10 @@
         "regime_bb_squeeze_enabled": true,
         "micro_discord_hard_skip": true,
         "micro_discord_min_body": 0.1,
+        "micro_discord_follow_candle": true,
+        "micro_discord_follow_kelly_mult": 0.55,
         "chop_loss_risk_hard_skip": true,
-        "chop_loss_risk_p_loss_floor": 0.80,
+        "chop_loss_risk_p_loss_floor": 0.90,
         "soft_confirm_weak_hard_skip": true,
         "soft_exec_min_confirmations": 2
       }

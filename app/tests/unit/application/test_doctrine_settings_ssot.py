@@ -51,11 +51,11 @@ def test_production_deploy_gate_armed():
     assert int(dl["horizon_sweep"]["ops_contract_duration_minutes"]) == 5
     assert float(dl.get("min_edge_execute", 0.0)) == pytest.approx(0.01)
     assert float(dl["calibration"]["min_calibration_margin_floor"]) == pytest.approx(0.03)
-    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.565)
-    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.435)
+    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.53)
+    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.47)
     drift = list(dl["calibration"]["calibration_neutral_drift"])
-    assert float(drift[0]) == pytest.approx(0.435)
-    assert float(drift[1]) == pytest.approx(0.565)
+    assert float(drift[0]) == pytest.approx(0.47)
+    assert float(drift[1]) == pytest.approx(0.53)
     assert int(dl["indicators"]["windows"]["ema_50"]) == 50
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
@@ -101,6 +101,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(block["flip_require_auto_learn"]) is True
     assert bool(block["flip_allow_seed_on_scale_discord"]) is True
     assert bool(block["flip_allow_seed_on_cal_discord"]) is True
+    assert bool(block["flip_allow_seed_on_candle_discord"]) is True
+    assert float(block["flip_waive_guards_above_p_loss"]) == pytest.approx(0.85)
     assert float(block["flip_cal_discord_margin"]) == pytest.approx(0.03)
     assert bool(block["flip_require_pos_edge"]) is False
     assert float(block["flip_min_edge_execute"]) == pytest.approx(0.04)
@@ -118,6 +120,8 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert resolved["flip_require_auto_learn"] is True
     assert resolved["flip_allow_seed_on_scale_discord"] is True
     assert resolved["flip_allow_seed_on_cal_discord"] is True
+    assert resolved["flip_allow_seed_on_candle_discord"] is True
+    assert float(resolved["flip_waive_guards_above_p_loss"]) == pytest.approx(0.85)
     assert resolved["flip_cal_discord_margin"] == pytest.approx(0.03)
     assert resolved["flip_require_pos_edge"] is False
     assert resolved["flip_min_edge_execute"] == pytest.approx(0.04)
@@ -174,8 +178,11 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["regime_gate_enabled"]) is True
     assert bool(skip["micro_discord_hard_skip"]) is True
     assert float(skip["micro_discord_min_body"]) == pytest.approx(0.10)
+    assert bool(skip["micro_discord_follow_candle"]) is True
+    assert float(skip["micro_discord_follow_kelly_mult"]) == pytest.approx(0.55)
     assert bool(skip["chop_loss_risk_hard_skip"]) is True
-    assert float(skip["chop_loss_risk_p_loss_floor"]) == pytest.approx(0.80)
+    assert float(skip["chop_loss_risk_p_loss_floor"]) == pytest.approx(0.90)
+
     assert bool(skip["soft_confirm_weak_hard_skip"]) is True
     assert int(skip["soft_exec_min_confirmations"]) == 2
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip

@@ -390,8 +390,8 @@ def test_continuous_payoff_target_maps_call_to_bull_and_put_to_bear():
 
 
 def test_continuous_payoff_threshold_constants():
-    assert pytest.approx(0.565) == TCN_CALL_PROXY_THRESHOLD
-    assert pytest.approx(0.435) == TCN_PUT_PROXY_THRESHOLD
+    assert pytest.approx(0.53) == TCN_CALL_PROXY_THRESHOLD
+    assert pytest.approx(0.47) == TCN_PUT_PROXY_THRESHOLD
 
 
 @pytest.mark.asyncio

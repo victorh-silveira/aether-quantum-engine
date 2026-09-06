@@ -262,13 +262,21 @@ def test_flip_waiver_and_block_follow_window():
     }
     assert tcn_pos_edge_blocks_flip(waive, TradeDirection.PUT, cfg=cfg) is False
     assert waive.get("loss_clf_flip_tcn_edge_waive_discord") is True
-    keep = {
+    micro_only = {
         "calibrated_prob": 0.36,
         "raw_prob": 0.36,
         "scale_tape_consensus": "PUT",
         "ops_window_candle_dir": "PUT",
         "closed_micro_candle_dir": "CALL",
     }
+    assert tcn_pos_edge_blocks_flip(micro_only, TradeDirection.PUT, cfg=cfg) is False
+    keep = {
+        "calibrated_prob": 0.36,
+        "raw_prob": 0.36,
+        "scale_tape_consensus": "PUT",
+        "ops_window_candle_dir": "PUT",
+        "closed_micro_candle_dir": "PUT",
+    }
     assert tcn_pos_edge_blocks_flip(keep, TradeDirection.PUT, cfg=cfg) is True
-    seed = {"ops_window_candle_dir": "PUT", "closed_micro_candle_dir": "CALL"}
+    seed = {"ops_window_candle_dir": "PUT", "closed_micro_candle_dir": "PUT"}
     assert seed_candle_blocks_flip(seed, {"auto_learn_applied": False}, TradeDirection.PUT, cfg=cfg) is True

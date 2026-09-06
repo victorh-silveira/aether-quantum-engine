@@ -15,8 +15,8 @@ alwaysApply: true
 - ACC / val_accuracy gate importa; nao ignorar deploy_gate; gate pos-promote tambem aceita settle elegivel
 - Sample weighting SSOT: `deep_learning.sample_weighting` — class balance + recency (`recency_half_life_n` default **500**); `compose_train_weights` no walkforward
 - Majority-collapse no deploy: `reject_majority_collapse`, `max_label_call_frac_bias` (0.20), `min_minority_recall` (0.25); telemetria `label_call_frac` / `pred_call_frac` / `minority_recall`
-- Calibracao: modo `raw_extreme` substituiu `tcn_macro_override` — raw extremo **nao** substitui Cal; Kelly usa Cal; clamp `[raw±0.08]` **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.565/0.435**; chaves `tcn_macro_*_override` so limiam raw (nao sao TF MACRO OHLC)
+- Calibracao: modo `raw_extreme` substituiu `tcn_macro_override` — raw extremo **nao** substitui Cal; Kelly usa Cal; clamp `[raw±0.08]` **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.53/0.47**; chaves `tcn_macro_*_override` so limiam raw (nao sao TF MACRO OHLC)
 - Vies de classe corrige-se no treino/deploy, nao com veto de sinal live
 - Doc: `docs/engineering-deep-learning.md` + `docs/engineering-architecture-senior.md`; skill: `aether-dl-train`
 
-- Vetor TCN ortogonal **14D** + normalizacao causal (`causal_norm_window` **288**, Median/IQR sem lookahead); `ema_50` **50**; limiares call/put **0.565/0.435**; meta **23D** (=14+9). Checkpoints 34D/meta 43D invalidos (fail-closed).
+- Vetor TCN ortogonal **14D** + normalizacao causal (`causal_norm_window` **288**, Median/IQR sem lookahead); `ema_50` **50**; limiares call/put **0.53/0.47**; meta **23D** (=14+9). Checkpoints 34D/meta 43D invalidos (fail-closed).

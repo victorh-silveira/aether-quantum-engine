@@ -29,7 +29,7 @@ Runtime SSOT: **1HZ75V** M5, micro/MINI **300 s** (500 barras); macro **86400 s*
 
 - Distinguir EXPLORE vs RECOVER (label/telemetria); `cover_enabled` **false** — PEND nao infla stake via cover; stake = Kelly + piso **1%** + caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; damping inicio **1.0** / perto stop-win **0.50**; Soft_SIZE usa piso `soft_size_min_stake_pct` **2.5%** so se Edge >= **0.015** (Soft_SIZE so com Edge >= floor); **nunca** cover pleno / amortizacao em massa; **nunca** `dlambert_unit` sticky
 - Matriz anti-loss: EMA/candle discord → flip microestrutura (`anti_loss_allow_candle_flip` **false**) **so se** Edge Cal da vela >= **0.015** (explore = recovery); hybrid `anti_loss_anchor_agree=false` + last ≠ EXEC → soft `live_discord_weak` ou flip se Edge last >= floor; subfloor de flip → soft no anchor sem flip; slope + live confirm/discord/weak + RSI = **soft Kelly**; seed unstamped = **HARD**; Edge `<= 0` ou Edge `< floor` = **HARD** via neg_edge; pos-flip `fusion_p_eff` alinha ao lado EXEC
-- Soft_SIZE + Edge >= 0.015 → stake ~2.5% **tambem com PEND** (`cover_enabled` false)
+- Soft_SIZE + Edge >= 0.015 → stake ~2.5% **tambem com PEND** (`cover_enabled` false) e **tambem sob D-SQUEEZE** (`d_squeeze_floor_waived_for_soft_size`; nao comprimir a `stake_min`)
 - Tratar EXEC_EMPTY Edge`<=0` / Edge`<floor` / `neutral_zone` / seed unstamped como sucesso de processo quando coerente
 - Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE
 - Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
@@ -39,4 +39,4 @@ Runtime SSOT: **1HZ75V** M5, micro/MINI **300 s** (500 barras); macro **86400 s*
 
 ## Diagnostico de log
 
-Ordem: CLUSTER → SCALE → FUSION (`fusion_side`) → LOSS_CLF → ANTI_LOSS (flip micro so se Edge vela>=floor; hybrid disagree → `live_discord_weak`; EMA slope/confirm/RSI soft) → NEG_EDGE → KELLY (Single-Strike so ALLOW; Soft_SIZE piso **2.5%** se Edge>=**0.015** com ou sem PEND) → EXEC → RESOLVED. Regressao: Edge`<floor`+EXEC; Soft_SIZE com Edge subfloor; Soft+Edge forte+stake<1%; Soft+PEND+Edge>=0.015+stake≈1%; flip com Edge candle subfloor; Soft+PEND+stake≈cover amort. Proibido narrar “mao quente”.
+Ordem: CLUSTER → SCALE → FUSION (`fusion_side`) → LOSS_CLF → ANTI_LOSS (flip micro so se Edge vela>=floor; hybrid disagree → `live_discord_weak`; EMA slope/confirm/RSI soft) → MICRO (FOLLOW Soft_SIZE se Edge Cal vela>=**0.015**; senao HARD `micro_discord`) → REGIME → NEG_EDGE → KELLY (Single-Strike so ALLOW; Soft_SIZE piso **2.5%** se Edge>=**0.015** com ou sem PEND) → EXEC → RESOLVED. Regressao: Edge`<floor`+EXEC; Soft_SIZE com Edge subfloor; Soft+Edge forte+stake<1%; Soft+PEND+Edge>=0.015+stake≈1%; flip com Edge candle subfloor; Soft+PEND+stake≈cover amort. Proibido narrar “mao quente”.

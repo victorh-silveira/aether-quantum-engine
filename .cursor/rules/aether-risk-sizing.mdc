@@ -8,7 +8,7 @@ alwaysApply: true
 
 - Soft recovery: `cover_enabled` **false** — PEND material **nao** usa cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** + caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; ledger WIN abate lucro real; nao `max(exponencial, cover)` revenge; amort/cover_multiple legado inerte enquanto cover off.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
-- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**); Soft_SIZE eleva ao piso `soft_size_min_stake_pct` **2.5%** so se Edge >= `soft_size_min_edge` **0.015** (cap do piso **2.5%**, sem Single-Strike); subfloor permanece no piso **1%**.
+- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**); Soft_SIZE eleva ao piso `soft_size_min_stake_pct` **2.5%** so se Edge >= `soft_size_min_edge` **0.015** (cap do piso **2.5%**, sem Single-Strike); subfloor permanece no piso **1%**. D-SQUEEZE com PEND=0 comprime a `stake_min` **exceto** Soft_SIZE + Edge >= **0.015** (`d_squeeze_floor_waived_for_soft_size`).
 - Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$).
 - Cooldown linear apos loss; anti revenge sizing.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.

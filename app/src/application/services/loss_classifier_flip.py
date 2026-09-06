@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_fusion_p_eff import sync_fusion_p_eff_for_direction
-from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.market_audit_log_helpers import resolve_predicted_edge, resolve_raw_predicted_edge
 from src.application.services.market_audit_ops_window import ops_window_candle_side
 from src.domain.models.trade import TradeDirection
@@ -96,7 +95,7 @@ def _tape_or_candle_opposes_ref(metrics: dict[str, Any], ref_dir: TradeDirection
     tape = str(metrics.get("scale_tape_consensus") or "").strip().upper()
     if tape in {TradeDirection.CALL.name, TradeDirection.PUT.name} and tape != ref_dir.name:
         return True
-    candle = ops_window_candle_side(metrics)
+    candle = closed_micro_candle_side(metrics) or ops_window_candle_side(metrics)
     return candle is not None and candle != ref_dir.name
 
 
@@ -162,7 +161,7 @@ def seed_candle_blocks_flip(
         return False
     if not bool(cfg.get("flip_seed_block_against_closed_candle", True)):
         return False
-    candle = ops_window_candle_side(metrics)
+    candle = closed_micro_candle_side(metrics) or ops_window_candle_side(metrics)
     if candle is None or candle != ref_dir.name:
         return False
     metrics["loss_clf_flip_block_seed_candle"] = True
@@ -177,7 +176,7 @@ def resolve_flip_waivers(
     cfg: dict[str, Any],
     p_loss: float = 0.0,
 ) -> tuple[bool, bool]:
-    """Aplica waivers de scale; seed auto=0 permanece bloqueado (p_ovr nao fura)."""
+    """Aplica waivers de scale; seed auto=0 so fura com vela no alvo do FLIP."""
     seed_block = is_seed_model(response, require_auto_learn=bool(cfg.get("flip_require_auto_learn", True)))
     scale_block = scale_confirms_ref(metrics, ref_dir)
     cal_margin = float(cfg.get("flip_cal_discord_margin", 0.03))
@@ -191,7 +190,7 @@ def resolve_flip_waivers(
         scale_block = False
         metrics["loss_clf_flip_cal_overrides_scale"] = True
     flip_target = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
-    candle = ops_window_candle_side(metrics)
+    candle = closed_micro_candle_side(metrics) or ops_window_candle_side(metrics)
     if scale_block and candle == flip_target.name and bool(cfg.get("flip_waive_on_closed_candle", True)):
         scale_block = False
         metrics["loss_clf_flip_candle_waive_scale"] = True
@@ -199,17 +198,32 @@ def resolve_flip_waivers(
     if p_loss + 1e-12 >= override and scale_block:
         scale_block = False
         metrics["loss_clf_flip_scale_p_override"] = True
+    hard_floor = float(cfg.get("hard_p_loss_floor", 0.9))
+    if (
+        seed_block
+        and candle == flip_target.name
+        and p_loss + 1e-12 >= hard_floor
+        and bool(cfg.get("flip_allow_seed_on_candle_discord", False))
+    ):
+        seed_block = False
+        metrics["loss_clf_flip_seed_candle_discord"] = True
     return seed_block, scale_block
 
 
 def flip_reason_token(metrics: dict[str, Any]) -> str:
     """Razao curta de FLIP para telemetria GATES."""
-    if metrics.get("loss_clf_flip_candle_waive_scale") or metrics.get("loss_clf_flip_candle_waive_edge"):
+    if metrics.get("loss_clf_flip_guards_p_override") or metrics.get("loss_clf_flip_tcn_edge_p_override"):
+        return "p_ovr"
+    if metrics.get("loss_clf_flip_seed_candle_discord"):
+        return "seed_candle"
+    if (
+        metrics.get("loss_clf_flip_candle_waive_scale")
+        or metrics.get("loss_clf_flip_candle_waive_edge")
+        or metrics.get("loss_clf_flip_candle_floor")
+    ):
         return "candle"
     if metrics.get("loss_clf_flip_scale_p_override") or metrics.get("loss_clf_flip_seed_p_override"):
         return "p_ovr"
-    if metrics.get("loss_clf_flip_candle_floor"):
-        return "candle"
     if metrics.get("loss_clf_flip_cal_overrides_scale"):
         return "cal_ovr"
     if metrics.get("loss_clf_flip_seed_discord"):
@@ -272,17 +286,3 @@ def revert_loss_flip(metrics: dict[str, Any], ref_dir: TradeDirection, *, reason
     metrics["loss_clf_flip_blocked"] = str(reason)
     metrics["loss_clf_flip_ref"] = ref_dir.name
     metrics["execution_candidate_ready"] = True
-
-
-def apply_soft_kelly(metrics: dict[str, Any], mult: float, *, p_loss: float, cfg: dict[str, Any]) -> None:
-    """Atenua kelly_fraction_scale; teto absoluto so sem FLIP_BLOCK (keep TCN)."""
-    scale = float(metrics.get("kelly_fraction_scale", 1.0) or 1.0)
-    metrics["kelly_fraction_scale"] = max(0.05, scale * float(mult))
-    metrics["loss_clf_soft"] = True
-    metrics["loss_clf_soft_kelly_mult"] = float(mult)
-    if str(metrics.get("loss_clf_flip_blocked") or "").strip():
-        metrics.pop("loss_clf_soft_max_stake_pct", None)
-    else:
-        metrics["loss_clf_soft_max_stake_pct"] = float(cfg["soft_max_stake_pct_high"])
-    stamp_soft_size(metrics, "loss_clf_soft")
-    _ = p_loss

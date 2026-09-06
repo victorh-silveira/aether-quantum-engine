@@ -170,8 +170,8 @@ def infer_teacher_probs_from_checkpoints(
             path_rel = str(Path(path).resolve().relative_to(REPO_ROOT.resolve())).replace("\\", "/")
         except ValueError:
             path_rel = Path(path).name
-        call_thr = float(params.get("confidence_call_threshold", 0.565))
-        put_thr = float(params.get("confidence_put_threshold", 0.435))
+        call_thr = float(params.get("confidence_call_threshold", 0.53))
+        put_thr = float(params.get("confidence_put_threshold", 0.47))
         gray_mask = (active >= put_thr) & (active <= call_thr)
         logger.info(
             "[META] teacher %s n=%d lb=%d p=%.2f/%.2f/%.2f gray=%.0f%% ckpt=%s",

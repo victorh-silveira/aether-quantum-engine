@@ -2,10 +2,12 @@ import pytest
 
 from src.domain.risk.consensus_stake_penalty import (
     _recovery_waives_consensus_penalty,
+    _soft_size_cycle_edge,
     apply_neutral_edge_kelly_base,
     apply_turbo_edge_stake,
     consensus_kelly_retention,
     d_squeeze_sovereignty_active,
+    enforce_d_squeeze_stake_floor,
     neutral_edge_dynamic_unit,
     turbo_edge_stake_multiplier,
 )
@@ -260,3 +262,98 @@ def test_turbo_edge_multiplier_requires_live_health():
     assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 10}) == 1.0
     assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": 0.30}) == 1.0
     assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": object()}) == 1.0
+
+
+def test_d_squeeze_waives_stake_min_for_soft_size_edge():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "cal_side_edge": 0.132,
+    }
+    out = enforce_d_squeeze_stake_floor(234.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(234.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is not True
+
+
+def test_d_squeeze_waives_when_soft_size_floor_already_applied():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "loss_clf_soft": True,
+        "soft_size_stake_floor_applied": True,
+    }
+    out = enforce_d_squeeze_stake_floor(200.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(200.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+
+
+def test_d_squeeze_still_crushes_without_soft_size():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "ALLOW",
+        "cal_side_edge": 0.132,
+    }
+    out = enforce_d_squeeze_stake_floor(234.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is not True
+
+
+def test_d_squeeze_soft_size_subfloor_still_crushes():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "cal_side_edge": 0.010,
+    }
+    out = enforce_d_squeeze_stake_floor(50.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+
+
+def test_d_squeeze_soft_size_skips_bad_edge_keys():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "edge": object(),
+        "cal_side_edge": 0.20,
+    }
+    out = enforce_d_squeeze_stake_floor(100.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(100.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+
+
+def test_d_squeeze_soft_size_without_edge_crushes():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+    }
+    out = enforce_d_squeeze_stake_floor(80.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+
+
+def test_d_squeeze_inactive_returns_stake():
+    metrics = {"gate_verdict": "ALLOW", "trade_score": 0.70}
+    out = enforce_d_squeeze_stake_floor(55.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(55.0)
+
+
+def test_d_squeeze_pending_waives_recovery():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "ALLOW",
+    }
+    out = enforce_d_squeeze_stake_floor(120.0, 1.0, metrics, pending_total=10.0)
+    assert out == pytest.approx(120.0)
+    assert metrics.get("d_squeeze_floor_waived_for_recovery") is True
+
+
+def test_soft_size_cycle_edge_none_metrics():
+    assert _soft_size_cycle_edge(None) is None

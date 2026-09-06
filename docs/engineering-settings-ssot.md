@@ -12,7 +12,7 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `orchestrator` | ciclo (**300 s**, `require_signature_boundary` **true**, abertura M5), signature boundary (**300 s**), warmup, watchdog, WS |
 | `orchestrator.execution` | mandatory/force, **`invert_exec_side`** (experimento: inverte CALL/PUT apos gates), settlement, SIDE_EQ soft, `scale_vision`, `signal_skip`, sample_size_policy |
 | `infra.meta_classifier` | HTTP :8005; edge continuo 23D; `online_learn` **true**; `/v1/learn` a cada settle (`retrain_min_n` **2**, piso LGBM); `timeout_seconds` **8** |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **soft** + banda flip: floor soft **0.65**; `hard_p_loss_floor` **0.90**; `flip_require_auto_learn` **true**; `flip_allow_seed_on_candle_discord` **true**; `flip_waive_guards_above_p_loss` **0.85** (override seed/tcn_edge/seed_candle + floor FLIP efetivo); soft Kelly **0.55→0.40**; `timeout_seconds` **8** |
 | `risk_management` | Kelly Single-Strike (**4.31% da banca em 1 trade M5**, payout **0.85**), soft_recovery, stop-win **4.31%**, duration contrato **5 m** |
 | `infra` | Redis, Timescale, MinIO, meta, loss |
 | `logging` | level, log_file, quiet_channels |
@@ -38,11 +38,11 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.target_damping_floor` / `target_damping_span` | `risk_management.kelly` | Damping stop-win: inicio sessao **1.0** (`floor` **0.50** + `span` **0.50`); perto da meta **0.50** (cover RECOVER nao esmagado no arranque) |
 | `sample_size_policy.explore_stake_scale_floor` | `orchestrator.execution` | Piso relativo EXPLORE cold-start (**0.40**); doutrina exige `>0` |
 | `kelly.neutral_bankroll_pct` / `min_stake_pct` / `micro_bankroll_pct` | `risk_management.kelly` | Piso operacional de stake Kelly (**1%** banca M5); proibido comprimir abaixo |
-| `kelly.soft_size_min_stake_pct` / `soft_size_max_stake_pct` / `soft_size_min_edge` | `risk_management.kelly` | Piso Soft_SIZE (**2.5%** banca) so se Edge >= **0.015**; Soft_SIZE so existe com Edge >= floor (soft flags); Edge `< floor` = HARD via neg_edge; aplica tambem com PEND (`cover_enabled` false); sem Single-Strike |
+| `kelly.soft_size_min_stake_pct` / `soft_size_max_stake_pct` / `soft_size_min_edge` | `risk_management.kelly` | Piso Soft_SIZE (**2.5%** banca) so se Edge >= **0.015**; Soft_SIZE so existe com Edge >= floor (soft flags); Edge `< floor` = HARD via neg_edge; aplica tambem com PEND (`cover_enabled` false); sem Single-Strike; D-SQUEEZE nao esmaga este piso (`d_squeeze_floor_waived_for_soft_size`) |
 | `signal_skip.anti_loss_allow_candle_flip` | `orchestrator.execution.signal_skip` | **false** — anti-loss direcional off; flip de vela inerte no SSOT; filtro vivo = `regime_gate` HARD `regime_squeeze` |
 | `signal_skip.regime_gate_enabled` / `regime_adx_max` / `regime_bb_squeeze_enabled` | `orchestrator.execution.signal_skip` | **true** / **0.1** / **true** — HARD `regime_squeeze` sem alterar CALL/PUT |
-| `signal_skip.micro_discord_hard_skip` / `micro_discord_min_body` | `orchestrator.execution.signal_skip` | **true** / **0.1** — HARD `micro_discord` se vela M5 ≠ EXEC com corpo minimo (sem voto tape; sem flip) |
-| `signal_skip.chop_loss_risk_hard_skip` / `chop_loss_risk_p_loss_floor` | `orchestrator.execution.signal_skip` | **true** / **0.80** — HARD `chop_loss_risk` se soft/FLIP_BLOCK + p_loss alto (qualquer regime) |
+| `signal_skip.micro_discord_hard_skip` / `micro_discord_min_body` / `micro_discord_follow_candle` / `micro_discord_follow_kelly_mult` | `orchestrator.execution.signal_skip` | **true** / **0.1** / **true** / **0.55** — discord vela×EXEC com corpo minimo: se Edge Cal do lado da vela >= `min_edge_*` (**0.015**) → FOLLOW Soft_SIZE (`micro_discord_follow`); senao HARD `micro_discord` (sem voto tape) |
+| `signal_skip.chop_loss_risk_hard_skip` / `chop_loss_risk_p_loss_floor` | `orchestrator.execution.signal_skip` | **true** / **0.90** — HARD `chop_loss_risk` se soft/FLIP_BLOCK + p_loss alto **e** vela M5 ≠ EXEC (vela alinhada nao HARD) |
 | `signal_skip.soft_confirm_weak_hard_skip` / `soft_exec_min_confirmations` | `orchestrator.execution.signal_skip` | **true** / **2** — HARD `soft_confirm_weak` se soft/FLIP_BLOCK e score de peers (vela/tape/mi/mili/ops) &lt; min |
 | `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv **1HZ75V** **0.85** (live) |
 | `kelly.mandatory_weak_max_stake_pct` | `risk_management.kelly` | Cap mandatory weak alinhado ao piso (**1%**) |

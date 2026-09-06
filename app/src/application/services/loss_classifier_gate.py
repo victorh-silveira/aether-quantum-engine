@@ -20,6 +20,7 @@ from src.application.services.loss_classifier_flip import (
     tcn_pos_edge_blocks_flip,
 )
 from src.application.services.loss_classifier_gate_support import (
+    apply_flip_guards_p_override,
     clear_stale_loss_clf_metrics,
     emit_loss_clf_soft,
     resolve_tcn_ref,
@@ -108,6 +109,16 @@ def apply_loss_classifier_gate(
     seed_block, scale_block = resolve_flip_waivers(metrics, response, ref_dir, cfg=cfg, p_loss=p_loss)
     pos_edge_block = tcn_pos_edge_blocks_flip(metrics, ref_dir, cfg=cfg)
     seed_candle_block = seed_candle_blocks_flip(metrics, response, ref_dir, cfg=cfg)
+    seed_block, scale_block, pos_edge_block, seed_candle_block, flip_floor = apply_flip_guards_p_override(
+        metrics,
+        p_loss=p_loss,
+        cfg=cfg,
+        seed_block=seed_block,
+        scale_block=scale_block,
+        pos_edge_block=pos_edge_block,
+        seed_candle_block=seed_candle_block,
+        flip_floor=flip_floor,
+    )
     can_flip = (
         bool(veto_ready)
         and p_loss + 1e-12 >= flip_floor

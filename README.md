@@ -32,7 +32,7 @@ Layout: `app/` (código e testes), `config/settings.json`, `docs/`, `linters/`. 
 | Predição DL | `decision_bridge` + `dl_predict_*` + TCN | **14 features** TCN ortogonais; bundle meta **23D**; inferência eager/CUDA local |
 | Meta GBDT | `meta_classifier_client` + `aether-meta-classifier` | Regressão tabular **23D**; `predicted_payoff_edge` contínuo (opcional para execução) |
 | Z-Score payoff | `payoff_edge_zscore` | Janela adaptativa 15–45; `meta_payoff_edge_zscore` |
-| Direção | `execution_direction_*` (resolver + checks + persistence + meta_edge + discordance) | TCN define lado (thresholds **0.565/0.435**); regime boolean HARD squeeze; anti-loss direcional **off**; SIDE_EQ soft Kelly |
+| Direção | `execution_direction_*` (resolver + checks + persistence + meta_edge + discordance) | TCN define lado (thresholds **0.53/0.47**); regime boolean HARD squeeze; anti-loss direcional **off**; SIDE_EQ soft Kelly |
 | Rotulagem DL | `dl_labels` + `LabelSpec` | SSOT `quantum_multi_barrier` (horizonte N=1 vela M5) |
 | Quality / starvation | `execution_quality_gate*` | Dual soft TCN+meta; pisos regulares de margem/ADX **0.0**; starvation a partir de **6** skips; edge decay a partir de **8** |
 | Ranking | `execution_market_rank` | Score `tcn × max(0.1, 1+z)` |
@@ -53,7 +53,7 @@ Arquivo: [`config/settings.json`](config/settings.json)
 |-------|--------|
 | `symbols` / `anchor` | Universo (`1HZ75V`; ancora `1HZ75V`) |
 | `data_handler` | `granularity` (macro **86400 s**), `micro_granularity` / `mini_granularity` (**300 s**), historico treino **365** barras D1 |
-| `deep_learning` | `arch`, `lookback` (**30**), `online_training` **false**, calibration, thresholds **0.565/0.435**, `deploy_gate`, FEATURE_DIM **14** |
+| `deep_learning` | `arch`, `lookback` (**30**), `online_training` **false**, calibration, thresholds **0.53/0.47**, `deploy_gate`, FEATURE_DIM **14** |
 | `orchestrator.execution` | `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `scale_vision.fusion_*`, `signal_skip` 1.1, settlement **600 s** |
 | `risk_management.kelly` | Stake Kelly Single-Strike 4.31% (`fraction: 0.08`, stop-win Kelly **4.31%**, tetos stop-win ate **5%**) |
 | `risk_management.soft_recovery` | RECOVER: amort **2/3**, cover **1.10**, linear3 **2.5%** |

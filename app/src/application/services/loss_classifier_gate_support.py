@@ -7,7 +7,7 @@ from typing import Any
 
 from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.log_dedupe import log_debug_if_changed
-from src.application.services.loss_classifier_flip import apply_soft_kelly, resolve_soft_kelly_mult
+from src.application.services.loss_classifier_flip import resolve_soft_kelly_mult
 from src.domain.models.trade import TradeDirection
 
 
@@ -23,6 +23,9 @@ _STALE_LOSS_CLF_KEYS = (
     "loss_clf_flip_edge_floor",
     "loss_clf_flip_seed_discord",
     "loss_clf_flip_seed_cal_discord",
+    "loss_clf_flip_seed_candle_discord",
+    "loss_clf_flip_guards_p_override",
+    "loss_clf_flip_tcn_edge_p_override",
     "loss_clf_flip_cal_overrides_scale",
     "loss_clf_flip_candle_waive_scale",
     "loss_clf_flip_candle_waive_edge",
@@ -70,6 +73,59 @@ def resolve_tcn_ref(metrics: dict[str, Any], exec_dir: TradeDirection) -> TradeD
     if name == TradeDirection.PUT.name:
         return TradeDirection.PUT
     return exec_dir
+
+
+def apply_soft_kelly(metrics: dict[str, Any], mult: float, *, p_loss: float, cfg: dict[str, Any]) -> None:
+    """Atenua kelly_fraction_scale; teto absoluto so sem FLIP_BLOCK (keep TCN)."""
+    _ = p_loss
+    scale = float(metrics.get("kelly_fraction_scale", 1.0) or 1.0)
+    metrics["kelly_fraction_scale"] = max(0.05, scale * float(mult))
+    metrics["loss_clf_soft"] = True
+    metrics["loss_clf_soft_kelly_mult"] = float(mult)
+    if str(metrics.get("loss_clf_flip_blocked") or "").strip():
+        metrics.pop("loss_clf_soft_max_stake_pct", None)
+    else:
+        metrics["loss_clf_soft_max_stake_pct"] = float(cfg["soft_max_stake_pct_high"])
+    stamp_soft_size(metrics, "loss_clf_soft")
+
+
+def flip_guards_p_override(p_loss: float, cfg: dict[str, Any]) -> bool:
+    """True se p_loss >= flip_waive_guards_above_p_loss (override seed/tcn/seed_candle)."""
+    raw = cfg.get("flip_waive_guards_above_p_loss")
+    if raw is None:
+        return False
+    try:
+        thr = float(raw)
+    except (TypeError, ValueError):
+        return False
+    if thr <= 0.0:
+        return False
+    return float(p_loss) + 1e-12 >= thr
+
+
+def apply_flip_guards_p_override(
+    metrics: dict[str, Any],
+    *,
+    p_loss: float,
+    cfg: dict[str, Any],
+    seed_block: bool,
+    scale_block: bool,
+    pos_edge_block: bool,
+    seed_candle_block: bool,
+    flip_floor: float,
+) -> tuple[bool, bool, bool, bool, float]:
+    """Limpa guards e baixa floor efetivo quando p_loss >= override."""
+    if not flip_guards_p_override(p_loss, cfg):
+        return seed_block, scale_block, pos_edge_block, seed_candle_block, float(flip_floor)
+    thr = float(cfg["flip_waive_guards_above_p_loss"])
+    if seed_block or scale_block or pos_edge_block or seed_candle_block:
+        metrics["loss_clf_flip_guards_p_override"] = True
+    if pos_edge_block:
+        metrics["loss_clf_flip_tcn_edge_p_override"] = True
+        metrics.pop("loss_clf_flip_block_tcn_pos_edge", None)
+    if seed_candle_block:
+        metrics.pop("loss_clf_flip_block_seed_candle", None)
+    return False, False, False, False, min(float(flip_floor), thr)
 
 
 def emit_loss_clf_soft(

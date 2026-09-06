@@ -60,7 +60,7 @@ SSOT operacional: [`config/settings.json`](../config/settings.json) — universo
 
 **Anti-padrao do LLM:** reinventar stop-loss interno; recovery sem pending; sizing sem teto de banca.
 
-**Regra no Aether:** `cover_enabled` **false** — PEND material **nao** dimensiona stake por cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) + caps L0/L1 **3.5%**; ledger WIN abate lucro real (sem zerar pending em massa via sizing). Soft_SIZE (so com Edge >= floor) eleva a **2.5%** (`soft_size_min_edge` **0.015**); Edge `< floor` e HARD via neg_edge (nao Soft_SIZE). Stop-win ativo; damping `target_damping_*` inicio **1.0** / perto-meta **0.50**; stop-loss interno desativado. **Nunca** amortizacao em massa / cover pleno; **nunca** `dlambert_unit` sticky.
+**Regra no Aether:** `cover_enabled` **false** — PEND material **nao** dimensiona stake por cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) + caps L0/L1 **3.5%**; ledger WIN abate lucro real (sem zerar pending em massa via sizing). Soft_SIZE (so com Edge >= floor) eleva a **2.5%** (`soft_size_min_edge` **0.015**); Edge `< floor` e HARD via neg_edge (nao Soft_SIZE). D-SQUEEZE com PEND=0 **nao** esmaga Soft_SIZE+Edge>=floor a `stake_min` (`d_squeeze_floor_waived_for_soft_size`). Stop-win ativo; damping `target_damping_*` inicio **1.0** / perto-meta **0.50**; stop-loss interno desativado. **Nunca** amortizacao em massa / cover pleno; **nunca** `dlambert_unit` sticky.
 
 **Ancoras:** `soft_recovery_policy`; `soft_recovery_explore.py`; `pending_loss`; stop-win composto; `stake_target_proximity.py`; `app/src/domain/risk/risk_recovery_state.py`.
 
@@ -139,4 +139,4 @@ Narrativas proibidas no diagnostico: “estava quente”, “o mercado deve reve
 | Caps e settlement permanecem? | Bernstein / LTCM |
 | TA vira oraculo ou filtro? | Murphy |
 
-- `regime_gate_enabled` **true** + ADX/squeeze -> HARD `regime_squeeze` (sem flip direcional); TCN 14D / meta 23D; call/put **0.565/0.435**; `ema_50` **50**.
+- `regime_gate_enabled` **true** + ADX/squeeze -> HARD `regime_squeeze` (sem flip direcional); TCN 14D / meta 23D; call/put **0.53/0.47**; `ema_50` **50**.

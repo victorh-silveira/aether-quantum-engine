@@ -42,8 +42,10 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["anti_loss_allow_candle_flip"] is False
     assert cfg["regime_gate_enabled"] is True
     assert cfg["micro_discord_hard_skip"] is True
+    assert cfg["micro_discord_follow_candle"] is True
+    assert cfg["micro_discord_follow_kelly_mult"] == pytest.approx(0.55)
     assert cfg["chop_loss_risk_hard_skip"] is True
-    assert cfg["chop_loss_risk_p_loss_floor"] == pytest.approx(0.80)
+    assert cfg["chop_loss_risk_p_loss_floor"] == pytest.approx(0.90)
     assert cfg["soft_confirm_weak_hard_skip"] is True
     assert cfg["soft_exec_min_confirmations"] == 2
     for k, v in (
@@ -62,6 +64,7 @@ def test_parse_signal_skip_from_ssot():
         ("anti_loss_rsi_min", -0.1),
         ("anti_loss_rsi_max", 1.5),
         ("micro_discord_min_body", -0.1),
+        ("micro_discord_follow_kelly_mult", 0.0),
         ("chop_loss_risk_p_loss_floor", 1.5),
         ("soft_exec_min_confirmations", 0),
     ):

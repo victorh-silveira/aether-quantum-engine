@@ -253,3 +253,44 @@ def _pop_legacy(args: tuple[Any, ...]) -> tuple[Any, ...]:
         data.get("meta_payoff_edge_zscore"),
         data.get("raw_prob"),
     )
+
+
+_MICRO_SKIP_REASONS = frozenset({"micro_discord", "chop_loss_risk", "soft_confirm_weak"})
+_REGIME_SKIP_REASONS = frozenset({"regime_squeeze"})
+
+
+def format_micro_gate_token(metrics: dict[str, Any], gate: str, p_loss: float) -> str:
+    """Token MICRO para o compacto [GATES] (FOLLOW / HARD / off)."""
+    if bool(metrics.get("micro_discord_followed")):
+        frm = str(metrics.get("micro_discord_follow_from") or "-")
+        to = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
+        edge = metrics.get("micro_discord_follow_candle_edge")
+        edge_s = f"{float(edge):+.4f}" if edge is not None else "-"
+        return f"MICRO FOLLOW why=micro_discord_follow from={frm} to={to} edge={edge_s}"
+    if gate not in _MICRO_SKIP_REASONS:
+        return "MICRO off"
+    exec_s = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
+    candle = str(metrics.get("closed_micro_candle_dir") or metrics.get("scale_micro_bar_dir") or "-")
+    pl = f"{p_loss:.5f}" if p_loss >= 0.0 else "-"
+    return f"MICRO HARD why={gate} exec={exec_s} candle={candle} p_loss={pl}"
+
+
+def format_regime_gate_token(metrics: dict[str, Any], gate: str) -> str:
+    """Token REGIME para o compacto [GATES] (squeeze / REGIME_CHOP / off)."""
+    if gate in _REGIME_SKIP_REASONS:
+        adx = metric_float(metrics, "regime_gate_adx", "regime_chop_adx", default=0.0)
+        sq = "yes" if bool(metrics.get("regime_gate_bb_squeeze")) else "no"
+        return f"REGIME HARD why={gate} adx={adx:.4f} squeeze={sq}"
+    if bool(metrics.get("regime_chop_soft")):
+        adx = metric_float(metrics, "regime_chop_adx", default=0.0)
+        hurst = metric_float(metrics, "regime_chop_hurst", default=0.0)
+        scale_chop = "yes" if bool(metrics.get("regime_chop_via_scale")) else "band"
+        return f"REGIME REGIME_CHOP adx={adx:.4f} hurst={hurst:.4f} scale={scale_chop}"
+    return "REGIME off"
+
+
+def resolve_gates_skip_token(gate: str, skip: str) -> str:
+    """Prioriza gate_reason de MICRO/REGIME no skip= do compacto."""
+    if gate in _MICRO_SKIP_REASONS or gate in _REGIME_SKIP_REASONS:
+        return gate
+    return skip or "-"

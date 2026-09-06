@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.application.services.loss_classifier_flip import apply_soft_kelly
+from src.application.services.loss_classifier_gate_support import apply_soft_kelly
 from src.domain.risk.risk_stake_calc_helpers import (
     apply_loss_clf_soft_stake_cap,
     apply_post_kelly_stake_caps,

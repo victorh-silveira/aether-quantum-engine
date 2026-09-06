@@ -27,7 +27,7 @@ description: >-
 15. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes
 16. Anti-overfit: `weight_decay` **0.005**, `tcn.dropout` **0.35**, `learning_rate` **0.001**
 17. Pos-treino: `make docker-rebuild` recarrega meta/loss **sem** apagar `data/dl`
-18. Cal overconfident: clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.565/0.435**; flag `cal_raw_gap_capped`; `temperature_min` **1.0**
+18. Cal overconfident: clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.53/0.47**; flag `cal_raw_gap_capped`; `temperature_min` **1.0**
 19. Optuna/tuning offline — nao disputar VRAM com inferencia live; artefatos no MinIO
 20. Pos-launch: telemetria `label_call_frac` / `pred_call_frac` / `minority_recall`; vies de classe corrige-se com sample_weighting + majority-collapse — **nao** com flip live
 

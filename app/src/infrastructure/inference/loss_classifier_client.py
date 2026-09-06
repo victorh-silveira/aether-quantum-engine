@@ -46,12 +46,14 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_require_auto_learn",
             "flip_allow_seed_on_scale_discord",
             "flip_allow_seed_on_cal_discord",
+            "flip_allow_seed_on_candle_discord",
             "flip_cal_discord_margin",
             "flip_require_pos_edge",
             "flip_min_edge_execute",
             "flip_waive_on_closed_candle",
             "flip_candle_p_loss_floor",
             "flip_waive_scale_above_p_loss",
+            "flip_waive_guards_above_p_loss",
             "flip_block_when_tcn_pos_edge",
             "flip_waive_tcn_pos_edge_on_discord",
             "flip_waive_edge_min",
@@ -97,6 +99,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     scale_override = require_float(block, "flip_waive_scale_above_p_loss")
     if scale_override < hard_floor or scale_override > 1.0:
         raise ValueError("infra.loss_classifier.flip_waive_scale_above_p_loss deve estar em [hard_p_loss_floor, 1]")
+    guards_override = require_float(block, "flip_waive_guards_above_p_loss")
+    if guards_override < floor or guards_override > 1.0:
+        raise ValueError("infra.loss_classifier.flip_waive_guards_above_p_loss deve estar em [veto_p_loss_floor, 1]")
     waive_edge_min = require_float(block, "flip_waive_edge_min")
     if waive_edge_min > 0.0 or waive_edge_min < -1.0:
         raise ValueError("infra.loss_classifier.flip_waive_edge_min deve estar em [-1, 0]")
@@ -125,12 +130,14 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
         "flip_allow_seed_on_scale_discord": require_bool(block, "flip_allow_seed_on_scale_discord"),
         "flip_allow_seed_on_cal_discord": require_bool(block, "flip_allow_seed_on_cal_discord"),
+        "flip_allow_seed_on_candle_discord": require_bool(block, "flip_allow_seed_on_candle_discord"),
         "flip_cal_discord_margin": cal_margin,
         "flip_require_pos_edge": require_bool(block, "flip_require_pos_edge"),
         "flip_min_edge_execute": min_edge,
         "flip_waive_on_closed_candle": require_bool(block, "flip_waive_on_closed_candle"),
         "flip_candle_p_loss_floor": candle_floor,
         "flip_waive_scale_above_p_loss": scale_override,
+        "flip_waive_guards_above_p_loss": guards_override,
         "flip_block_when_tcn_pos_edge": require_bool(block, "flip_block_when_tcn_pos_edge"),
         "flip_waive_tcn_pos_edge_on_discord": require_bool(block, "flip_waive_tcn_pos_edge_on_discord"),
         "flip_waive_edge_min": waive_edge_min,

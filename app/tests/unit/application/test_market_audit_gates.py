@@ -22,8 +22,10 @@ def test_format_gates_audit_line():
     assert gates[0].startswith("[GATES] || FUSION:")
     assert gates[1].startswith("[GATES] || LOSS_CLF: SOFT")
     assert gates[2].startswith("[GATES] || ANTI_LOSS")
-    assert gates[3].startswith("[GATES] || NEG_EDGE soft side=CALL")
-    assert "CHOP adx=" in line
+    assert gates[3].startswith("[GATES] || MICRO off")
+    assert gates[4].startswith("[GATES] || REGIME REGIME_CHOP")
+    assert gates[5].startswith("[GATES] || NEG_EDGE soft side=CALL")
+    assert "REGIME_CHOP adx=" in line
     hard_neg = format_gates_audit_line(
         {
             "gate_reason": "neg_edge",
@@ -41,8 +43,73 @@ def test_format_gates_audit_line():
     assert "raw_edge=" in hard_neg
     assert "be=0.541" in hard_neg
     assert "skip=neg_edge" in hard_neg
-    assert hard_neg.count("[GATES]") == 4
+    assert hard_neg.count("[GATES]") == 6
     assert "ANTI_LOSS off" in hard_neg
+    assert "MICRO off" in hard_neg
+    assert "REGIME off" in hard_neg
+    micro_hard = format_gates_audit_line(
+        {
+            "gate_reason": "micro_discord",
+            "signal_status": "SKIP:MICRO_DISCORD",
+            "gate_verdict": "HARD_SKIP",
+            "exec_direction": "PUT",
+            "closed_micro_candle_dir": "CALL",
+            "loss_clf_p_loss": 0.90,
+            "loss_clf_soft": True,
+        }
+    )
+    assert "MICRO HARD why=micro_discord exec=PUT candle=CALL" in micro_hard
+    assert "skip=micro_discord" in micro_hard
+    micro_follow = format_gates_audit_line(
+        {
+            "micro_discord_followed": True,
+            "micro_discord_follow_from": "PUT",
+            "exec_direction": "CALL",
+            "micro_discord_follow_candle_edge": 0.036,
+            "loss_clf_p_loss": 0.32,
+        }
+    )
+    assert "MICRO FOLLOW why=micro_discord_follow from=PUT to=CALL edge=+0.0360" in micro_follow
+    chop_hard = format_gates_audit_line(
+        {
+            "gate_reason": "chop_loss_risk",
+            "signal_status": "SKIP:CHOP_LOSS_RISK",
+            "gate_verdict": "HARD_SKIP",
+            "exec_direction": "PUT",
+            "closed_micro_candle_dir": "PUT",
+            "loss_clf_p_loss": 0.91,
+            "loss_clf_soft": True,
+        }
+    )
+    assert "MICRO HARD why=chop_loss_risk" in chop_hard
+    assert "skip=chop_loss_risk" in chop_hard
+    regime_hard = format_gates_audit_line(
+        {
+            "gate_reason": "regime_squeeze",
+            "signal_status": "SKIP:REGIME_SQUEEZE",
+            "gate_verdict": "HARD_SKIP",
+            "exec_direction": "CALL",
+            "regime_gate_adx": 0.08,
+            "regime_gate_bb_squeeze": True,
+            "loss_clf_p_loss": -1.0,
+        }
+    )
+    assert "REGIME HARD why=regime_squeeze adx=0.0800 squeeze=yes" in regime_hard
+    assert "skip=regime_squeeze" in regime_hard
+    soft_confirm = format_gates_audit_line(
+        {
+            "gate_reason": "soft_confirm_weak",
+            "signal_status": "SKIP:SOFT_CONFIRM_WEAK",
+            "gate_verdict": "HARD_SKIP",
+            "exec_direction": "CALL",
+            "closed_micro_candle_dir": "CALL",
+            "loss_clf_p_loss": -1.0,
+            "loss_clf_soft": True,
+        }
+    )
+    assert "MICRO HARD why=soft_confirm_weak" in soft_confirm
+    assert "p_loss=-" in soft_confirm
+    assert "skip=soft_confirm_weak" in soft_confirm
     anti_line = format_gates_audit_line(
         {
             "anti_loss_seed_discord": True,

@@ -81,7 +81,7 @@ def apply_regime_boolean_gate(
     metrics["signal_status"] = "SKIP:REGIME_SQUEEZE"
     stamp_hard_skip(metrics, reason)
     if orch is not None:
-        logger.info(
+        logger.debug(
             "REGIME || HARD_SKIP why=%s adx=%.4f thr=%.4f squeeze=%s",
             reason,
             float(adx),

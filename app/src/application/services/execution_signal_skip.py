@@ -56,6 +56,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "regime_bb_squeeze_enabled",
             "micro_discord_hard_skip",
             "micro_discord_min_body",
+            "micro_discord_follow_candle",
+            "micro_discord_follow_kelly_mult",
             "chop_loss_risk_hard_skip",
             "chop_loss_risk_p_loss_floor",
             "soft_confirm_weak_hard_skip",
@@ -113,6 +115,9 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     micro_body = require_float(block, "micro_discord_min_body")
     if micro_body < 0.0:
         raise ValueError("orchestrator.execution.signal_skip.micro_discord_min_body deve ser >= 0")
+    follow_mult = require_float(block, "micro_discord_follow_kelly_mult")
+    if follow_mult <= 0.0 or follow_mult > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.micro_discord_follow_kelly_mult deve estar em (0, 1]")
     chop_p = require_float(block, "chop_loss_risk_p_loss_floor")
     if chop_p < 0.0 or chop_p > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.chop_loss_risk_p_loss_floor deve estar em [0, 1]")
@@ -158,6 +163,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "regime_bb_squeeze_enabled": require_bool(block, "regime_bb_squeeze_enabled"),
         "micro_discord_hard_skip": require_bool(block, "micro_discord_hard_skip"),
         "micro_discord_min_body": micro_body,
+        "micro_discord_follow_candle": require_bool(block, "micro_discord_follow_candle"),
+        "micro_discord_follow_kelly_mult": follow_mult,
         "chop_loss_risk_hard_skip": require_bool(block, "chop_loss_risk_hard_skip"),
         "chop_loss_risk_p_loss_floor": chop_p,
         "soft_confirm_weak_hard_skip": require_bool(block, "soft_confirm_weak_hard_skip"),

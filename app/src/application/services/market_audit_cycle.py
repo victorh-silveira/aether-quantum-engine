@@ -6,9 +6,12 @@ from typing import Any
 
 from src.application.services.execution_scale_vision import format_scale_ind_token
 from src.application.services.market_audit_log_helpers import (
+    format_micro_gate_token,
+    format_regime_gate_token,
     indicator_snapshot,
     metric_float,
     resolve_edge_breakeven_p,
+    resolve_gates_skip_token,
     resolve_predicted_edge,
     resolve_raw_predicted_edge,
 )
@@ -45,7 +48,7 @@ def _gates_block_token(blocked: str) -> str:
 
 
 def format_gates_audit_line(metrics: dict[str, Any]) -> str:
-    """Compacta FUSION, LOSS_CLF+CHOP, ANTI_LOSS e NEG_EDGE na ordem do pipeline."""
+    """Compacta FUSION → LOSS_CLF → ANTI → MICRO → REGIME → NEG_EDGE."""
     p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
     soft = bool(metrics.get("loss_clf_soft"))
     flipped = bool(metrics.get("loss_clf_flip"))
@@ -70,13 +73,6 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         loss_tok = f"OK auto={auto_learn} p={p_loss:.5f} ready={veto_ready} n={n_train} ver={ver}"
     else:
         loss_tok = "OFF"
-    if bool(metrics.get("regime_chop_soft")):
-        adx = _f(metrics, "regime_chop_adx", default=0.0)
-        hurst = _f(metrics, "regime_chop_hurst", default=0.0)
-        scale_chop = "yes" if bool(metrics.get("regime_chop_via_scale")) else "band"
-        chop_tok = f"CHOP adx={adx:.4f} hurst={hurst:.4f} scale={scale_chop}"
-    else:
-        chop_tok = "CHOP off"
     edge = _f(metrics, "cal_side_edge", default=resolve_predicted_edge(metrics))
     floor = _f(metrics, "cal_side_edge_floor", default=0.0)
     waived = str(metrics.get("signal_skip_waived") or "")
@@ -168,12 +164,17 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
             skip = gate if gate else why
     else:
         anti_tok = "ANTI_LOSS off"
+    micro_tok = format_micro_gate_token(metrics, gate, p_loss)
+    regime_tok = format_regime_gate_token(metrics, gate)
+    skip = resolve_gates_skip_token(gate, skip)
     verdict = str(metrics.get("gate_verdict") or "").strip().upper()
     verdict_tok = f" | verdict={verdict}" if verdict else ""
     return (
         f"[GATES] || {fusion_tok}\n"
-        f"[GATES] || LOSS_CLF: {loss_tok} | {chop_tok}\n"
+        f"[GATES] || LOSS_CLF: {loss_tok}\n"
         f"[GATES] || {anti_tok}\n"
+        f"[GATES] || {micro_tok}\n"
+        f"[GATES] || {regime_tok}\n"
         f"[GATES] || {neg_tok} | skip={skip}{verdict_tok}"
     )
 

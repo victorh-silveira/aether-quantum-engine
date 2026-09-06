@@ -21,6 +21,7 @@ from src.domain.risk.consensus_stake_helpers import (
     soft_recovery_progression_multiplier,
     turbo_edge_stake_multiplier,
 )
+from src.domain.risk.gate_verdict_sizing import blocks_single_strike_boost
 from src.domain.risk.recovery_state_config import load_recovery_state_from_settings
 from src.domain.risk.soft_recovery_config import soft_cfg
 from src.domain.risk.soft_recovery_explore import (
@@ -192,6 +193,31 @@ def max_safe_stake_cap(
     return apply_small_account_hard_floor(bal * pct, bal, soft_recovery=soft_recovery)
 
 
+def _soft_size_cycle_edge(metrics: dict | None) -> float | None:
+    """Le Edge calibrado do ciclo para waiver Soft_SIZE vs D-SQUEEZE."""
+    if not isinstance(metrics, dict):
+        return None
+    for key in ("neg_edge_tcn_cal_edge", "edge", "cal_edge", "payoff_edge", "cal_side_edge"):
+        raw = metrics.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _soft_size_waives_d_squeeze_floor(metrics: dict | None, *, min_edge: float = 0.015) -> bool:
+    """True se Soft_SIZE com Edge >= floor — nao comprimir ao stake_min."""
+    if not blocks_single_strike_boost(metrics):
+        return False
+    if isinstance(metrics, dict) and bool(metrics.get("soft_size_stake_floor_applied")):
+        return True
+    edge = _soft_size_cycle_edge(metrics)
+    return edge is not None and edge + 1e-12 >= float(min_edge)
+
+
 def enforce_d_squeeze_stake_floor(
     final_stake: float, stake_min: float, metrics: dict | None, *, pending_total: float = 0.0
 ) -> float:
@@ -201,6 +227,10 @@ def enforce_d_squeeze_stake_floor(
     if float(pending_total) > 0.0:
         if isinstance(metrics, dict):
             metrics["d_squeeze_floor_waived_for_recovery"] = True
+        return final_stake
+    if _soft_size_waives_d_squeeze_floor(metrics):
+        if isinstance(metrics, dict):
+            metrics["d_squeeze_floor_waived_for_soft_size"] = True
         return final_stake
     if isinstance(metrics, dict):
         metrics["d_squeeze_recovery_waiver_revoked"] = True

@@ -40,11 +40,11 @@ Ordem obrigatoria:
 
 1. CLUSTER — Prob / Cal / Margin / Edge (telemetria); TF micro **M5** (300 s); anotar `live_n`
 2. SCALE — MACRO (D1)/MICRO (M5)/MINI (M5)/MILI (ticks) + `tape`/`adapted` (adaptacao sob raw_extreme; soft Kelly; sem SKIP por escala)
-3. GATES — FUSION → LOSS_CLF → REGIME (`regime_squeeze` HARD sem flip) → NEG_EDGE (Edge<=0 HARD; Edge < **0.015** HARD `neg_edge_subfloor_hard`; Soft_SIZE so soft flags com Edge >= floor; Soft_SIZE piso 2.5% so se Edge>=0.015 tambem com PEND). EMPTY Edge<=0 / Edge&lt;floor / `neutral_zone` / `regime_squeeze` = processo ok. Anti-loss direcional **off** no SSOT — nao narrar flip/RSI soft como filtro vivo.
+3. GATES — FUSION → LOSS_CLF → ANTI → MICRO → REGIME (`regime_squeeze` HARD sem flip; `REGIME_CHOP` soft) → NEG_EDGE (Edge<=0 HARD; Edge < **0.015** HARD `neg_edge_subfloor_hard`; Soft_SIZE so soft flags com Edge >= floor; Soft_SIZE piso 2.5% so se Edge>=0.015 tambem com PEND). EMPTY Edge<=0 / Edge&lt;floor / `neutral_zone` / `regime_squeeze` / `micro_discord` / `chop_loss_risk` / `soft_confirm_weak` = processo ok. Anti-loss direcional **off** no SSOT — nao narrar flip/RSI soft como filtro vivo.
 4. EXEC / EMPTY — `regime_squeeze` / Edge<=0 / Edge&lt;floor / `neutral_zone` = HARD EMPTY (sucesso de processo quando coerente).
 5. RESOLVED / RISK — pending, linear, pnl vs 4.31%.
 
-Notas: Soft_SIZE sem Single-Strike; piso **2.5%** so com Edge >= **0.015**; Soft_SIZE so com Edge >= floor. Nao julgar EMPTY Edge<=0 ou Edge&lt;floor ou regime como bug. Nao reabrir `neg_edge_hard_skip`.
+Notas: Soft_SIZE sem Single-Strike; piso **2.5%** so com Edge >= **0.015**; Soft_SIZE so com Edge >= floor; D-SQUEEZE nao pode reduzir Soft_SIZE+Edge>=floor a `$1`. Nao julgar EMPTY Edge<=0 ou Edge&lt;floor ou regime como bug. Nao reabrir `neg_edge_hard_skip`.
 
 ## Pos-mortem (9 perguntas)
 
@@ -67,4 +67,4 @@ Resposta curta em PT-BR:
 - Acoes: manter knobs | ajuste minimo nomeado | retreino se ACC estruturalmente baixo
 - Nunca recomendar `force_trade_every_cycle=true` como correcao; nunca rearmar quality gate amplo
 
-- TCN ortogonal **14D** / meta **23D**; limiares **0.565/0.435**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.
+- TCN ortogonal **14D** / meta **23D**; limiares **0.53/0.47**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.

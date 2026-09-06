@@ -26,7 +26,9 @@ def test_log_execution_decision_direct():
     assert payloads[0].startswith("[GATES] || FUSION:")
     assert payloads[1].startswith("[GATES] || LOSS_CLF:")
     assert payloads[2].startswith("[GATES] || ANTI_LOSS")
-    assert "NEG_EDGE" in payloads[3] or "skip=" in payloads[3]
+    assert payloads[3].startswith("[GATES] || MICRO")
+    assert payloads[4].startswith("[GATES] || REGIME")
+    assert "NEG_EDGE" in payloads[5] or "skip=" in payloads[5]
     assert any(str(p).startswith("[IND] ||") for p in payloads)
 
 

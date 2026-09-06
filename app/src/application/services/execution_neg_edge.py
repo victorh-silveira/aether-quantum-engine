@@ -241,21 +241,30 @@ def apply_negative_cal_edge_pause(
     soft_kelly = float(cfg.get("neg_edge_soft_kelly_mult", 0.55))
     nonpositive = edge + 1e-12 <= 0.0
     below_floor = edge + 1e-12 < floor
+    flip_candle_soft = bool(metrics.get("loss_clf_flip"))
     if nonpositive:
-        if hard_skip:
+        if hard_skip and not flip_candle_soft:
             _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
             if (not auto_learn) and edge + 1e-12 < deep_floor:
                 metrics["neg_edge_bootstrap_deep"] = True
             else:
                 metrics["neg_edge_nonpositive_hard"] = True
             return True
+        if flip_candle_soft:
+            metrics["neg_edge_candle_soft"] = True
+            _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_flip_candle")
+            return False
         _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
         return False
     if below_floor:
-        if hard_skip:
+        if hard_skip and not flip_candle_soft:
             _apply_neg_edge_hard(metrics, direction=direction, edge=edge, floor=floor)
             metrics["neg_edge_subfloor_hard"] = True
             return True
+        if flip_candle_soft:
+            metrics["neg_edge_candle_soft"] = True
+            _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_flip_candle")
+            return False
         _apply_neg_edge_soft(metrics, soft_kelly=soft_kelly, reason="neg_edge_soft")
         return False
     stamp_allow(metrics, "neg_edge_pass")
