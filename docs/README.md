@@ -13,7 +13,7 @@
 | [llm-trading-doctrine.md](llm-trading-doctrine.md) | Doutrina LLM/Cursor: 9 livros mapeados a gates, risco e anti-padroes de engenharia |
 | [binary-senior-playbook.md](binary-senior-playbook.md) | Playbook trader senior: CALL/PUT/SKIP, catalogo gate_reason, knobs M5 (micro 300s) |
 | [engineering-standards.md](engineering-standards.md) | QA: pre-commit, cobertura 100%, 300 linhas, commitlint, contribuicao |
-| [../.github/README.md](../.github/README.md) | CI matriz Python/Docker/Shell; JSON/YAML no job Python; release |
+| [../.github/README.md](../.github/README.md) | CI Python/Docker/Shell (steps unicos por stage); JSON/YAML no job Python; release |
 | [../linters/README.md](../linters/README.md) | Hooks locais: Ruff, pytest, Bandit, commitlint, semantic-release |
 | [engineering-python-deps.md](engineering-python-deps.md) | SSOT deps sênior: pins, websockets/httpx, Polars, MinIO, ML, QA |
 | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | Higienizacao: ondas seguras, morto comprovado, never-delete |

@@ -108,8 +108,35 @@ jobs:
     steps:
       - name: Obter codigo fonte
         uses: actions/checkout@v4
-      - name: Docker matriz
-        uses: ./.github/actions/ci/validate-docker
+      - name: Setup Python
+        uses: ./.github/actions/ci/setup-python
+        with:
+          install_app_deps: "false"
+      - name: Instalar Hadolint
+        shell: bash
+        run: |
+          curl -fsSL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x /tmp/hadolint
+          sudo mv /tmp/hadolint /usr/local/bin/hadolint
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          version: v0.74.0
+      - name: Docker | Lint
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area docker --stage lint
+      - name: Docker | Validate
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area docker --stage validate
+      - name: Docker | Seguranca
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area docker --stage security
+      - name: Docker | Testes
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area docker --stage test
+      - name: Docker | Build
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area docker --stage build
 
   shell:
     name: CI - Shell
@@ -119,8 +146,28 @@ jobs:
     steps:
       - name: Obter codigo fonte
         uses: actions/checkout@v4
-      - name: Shell matriz
-        uses: ./.github/actions/ci/validate-shell
+      - name: Setup Python
+        uses: ./.github/actions/ci/setup-python
+        with:
+          install_app_deps: "false"
+      - name: Instalar shellcheck
+        shell: bash
+        run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+      - name: Shell | Lint
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area shell --stage lint
+      - name: Shell | Validate
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area shell --stage validate
+      - name: Shell | Seguranca
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area shell --stage security
+      - name: Shell | Testes
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area shell --stage test
+      - name: Shell | Build
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area shell --stage build
 
   release:
     name: CI - Release

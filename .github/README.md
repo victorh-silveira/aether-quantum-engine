@@ -19,17 +19,18 @@ flowchart LR
 
 | Fase | Job | Notas |
 |------|-----|-------|
-| CI | Python | Lint, JSON/YAML, Validate, Seguranca, Testes, Build |
-| CI | Docker / Shell | Mesmo orquestrador e nomes do pre-commit |
+| CI | Python | Steps unicos: Lint, JSON/YAML, Validate, Seguranca, Testes, Build |
+| CI | Docker | Steps unicos: Lint, Validate, Seguranca, Testes, Build |
+| CI | Shell | Steps unicos: Lint, Validate, Seguranca, Testes, Build |
 | Release | Semantic release | Apos gates verdes no push `main` |
 
-Crash-first em cada stack: lint, validate, security, test, build.
+Crash-first em cada stack: lint, validate, security, test, build. Jobs por tecnologia; cada stage e um step nomeado (sem step agregador "matriz").
 
 ## Workflows
 
 | Workflow | Gatilho | Uso |
 |----------|---------|-----|
-| [ci.yml](workflows/ci.yml) | push/PR `main`, manual | CI matriz; release no push `main` |
+| [ci.yml](workflows/ci.yml) | push/PR `main`, manual | CI por stack (Python/Docker/Shell); release no push `main` |
 
 ## Composite actions
 
@@ -38,10 +39,8 @@ Crash-first em cada stack: lint, validate, security, test, build.
 ├── shared/pipeline-summary/
 └── ci/
     ├── setup-python/
-    ├── validate-docker/
-    ├── validate-shell/
     ├── release/
     └── sync-tags/
 ```
 
-Pre-commit usa os mesmos nomes de step (`Python | Lint`, `Docker | Lint`, `Shell | Lint`).
+Pre-commit e CI usam os mesmos nomes de step (`Python | Lint`, `Docker | Lint`, `Shell | Lint`).
