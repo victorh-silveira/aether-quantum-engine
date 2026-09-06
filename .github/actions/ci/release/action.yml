@@ -7,11 +7,11 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Configurar Node.js
+    - name: Release | Node
       uses: actions/setup-node@v4
       with:
         node-version: "24"
-    - name: Instalar release semantica
+    - name: Release | Install
       shell: bash
       run: |
         npm install --no-save \
@@ -23,7 +23,7 @@ runs:
           @semantic-release/exec \
           @semantic-release/github \
           conventional-changelog-conventionalcommits@^8.0.0
-    - name: Executar release semantica
+    - name: Release | Semantic
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}

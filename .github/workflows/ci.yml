@@ -64,11 +64,6 @@ jobs:
           curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz
           tar -xzf /tmp/gitleaks.tar.gz -C /tmp
           sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
-      - name: Instalar actionlint
-        shell: bash
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash
-          sudo mv actionlint /usr/local/bin/actionlint
       - name: Python | Lint
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage lint
@@ -169,9 +164,20 @@ jobs:
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area shell --stage build
 
+  workflows:
+    name: CI - Workflows
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Workflows | Lint
+        uses: ./.github/actions/ci/workflows
+
   release:
     name: CI - Release
-    needs: [python, docker, shell]
+    needs: [python, docker, shell, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -187,22 +193,22 @@ jobs:
         with:
           fetch-depth: 0
           fetch-tags: true
-      - name: Capturar tag anterior
+      - name: Release | Baseline
         id: before_tag
         shell: bash
         run: |
           git fetch --tags --force
           BEFORE="$(git describe --tags --abbrev=0 2>/dev/null || echo __none__)"
           echo "tag=${BEFORE}" >> "$GITHUB_OUTPUT"
-      - name: Sincronizar tags
+      - name: Release | Tags
         uses: ./.github/actions/ci/sync-tags
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Release semantica
+      - name: Release | Semantic
         uses: ./.github/actions/ci/release
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Capturar tag apos release
+      - name: Release | Status
         id: after_tag
         shell: bash
         run: |
@@ -216,20 +222,21 @@ jobs:
           fi
 
   pipeline-summary:
-    name: CI/CD - Resumo
-    needs: [python, docker, shell, release]
+    name: CI - Resumo
+    needs: [python, docker, shell, workflows, release]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Obter codigo fonte
         uses: actions/checkout@v4
-      - name: Resumo do pipeline
+      - name: Resumo | Pipeline
         uses: ./.github/actions/shared/pipeline-summary
         with:
           python: ${{ needs.python.result }}
           docker: ${{ needs.docker.result }}
           shell: ${{ needs.shell.result }}
+          workflows: ${{ needs.workflows.result }}
           release: ${{ needs.release.result }}
           release_tag: ${{ needs.release.outputs.tag }}
           release_published: ${{ needs.release.outputs.published }}

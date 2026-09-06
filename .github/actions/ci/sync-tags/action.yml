@@ -7,7 +7,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Sincronizar tags
+    - name: Release | Tags
       shell: bash
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}

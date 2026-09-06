@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from scripts.operations.qa.common import require_tool, run_cmd, skip
+from scripts.operations.qa.common import skip
 
 
 def _yaml_files(root: Path) -> list[Path]:
@@ -38,23 +38,8 @@ def run_yaml(stage: str, root: Path) -> None:
             print(f"[python] yaml lint ok {path.relative_to(root)}")
         return
     if stage == "validate":
-        workflows = root / ".github" / "workflows"
-        if not workflows.is_dir():
-            skip("python", "workflows ausentes")
-            return
-        workflow_files = sorted(path for path in workflows.glob("*.yml") if path.is_file()) + sorted(
-            path for path in workflows.glob("*.yaml") if path.is_file()
-        )
-        if not workflow_files:
-            skip("python", "nenhum workflow yml")
-            return
-        actionlint = require_tool("actionlint", area="python")
-        if actionlint is None:
-            return
-        run_cmd(
-            [actionlint, *[str(path) for path in workflow_files]],
-            cwd=root,
-            description="Actionlint workflows",
-        )
+        for path in files:
+            _assert_yaml_text(path)
+            print(f"[python] yaml validate ok {path.relative_to(root)}")
         return
     skip("python", f"yaml estagio {stage} coberto por gitleaks")

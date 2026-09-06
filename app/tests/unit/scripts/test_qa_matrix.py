@@ -143,7 +143,7 @@ def test_json_invalid_file(tmp_path: Path):
         run_json("lint", tmp_path)
 
 
-def test_yaml_github_workflow(tmp_path: Path, monkeypatch):
+def test_yaml_github_workflow(tmp_path: Path):
     workflow = tmp_path / ".github" / "workflows"
     workflow.mkdir(parents=True)
     (workflow / "ci.yml").write_text(
@@ -151,7 +151,6 @@ def test_yaml_github_workflow(tmp_path: Path, monkeypatch):
         encoding="utf-8",
     )
     run_yaml("lint", tmp_path)
-    monkeypatch.setattr("scripts.operations.qa.yaml_area.require_tool", lambda name, area: None)
     run_yaml("validate", tmp_path)
 
 

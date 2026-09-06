@@ -7,6 +7,8 @@ inputs:
     required: true
   shell:
     required: true
+  workflows:
+    required: true
   release:
     required: true
   release_tag:
@@ -18,7 +20,7 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Publicar resumo
+    - name: Resumo | Pipeline
       shell: bash
       run: |
         {
@@ -29,6 +31,7 @@ runs:
           echo "| Python | ${{ inputs.python }} |"
           echo "| Docker | ${{ inputs.docker }} |"
           echo "| Shell | ${{ inputs.shell }} |"
+          echo "| Workflows | ${{ inputs.workflows }} |"
           echo "| Release | ${{ inputs.release }} |"
           echo ""
           if [ "${{ inputs.release_published }}" = "true" ]; then
