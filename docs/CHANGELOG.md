@@ -1,3 +1,9 @@
+## [2.54.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.53.0...v2.54.0) (2026-09-06)
+
+### Funcionalidades
+
+* **engine:** HARD micro_discord e chop_loss_risk sem flip ([743320d](https://github.com/victorh-silveira/aether-quantum-engine/commit/743320da51fb17272d915edf643e8a6d5ae175d0))
+
 ## [2.53.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.52.0...v2.53.0) (2026-09-05)
 
 ### Funcionalidades
