@@ -117,6 +117,8 @@ def test_apply_loss_classifier_veto_and_ok_paths():
     assert pending_metrics["loss_clf_soft"] is True
     assert pending_metrics.get("loss_clf_soft_waived_pending") is True
     assert pending_metrics["kelly_fraction_scale"] == pytest.approx(1.0)
+    assert pending_metrics.get("gate_verdict") == "SOFT_SIZE"
+    assert pending_metrics.get("gate_verdict_reason") == "loss_clf_soft"
     orch.risk_manager.pending_loss_total = MagicMock(return_value=0.0)
     high_metrics = {
         "direction_margin": 0.03,

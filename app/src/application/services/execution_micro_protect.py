@@ -1,4 +1,4 @@
-"""Gates booleanos de microestrutura: discord vela/tape e chop+p_loss — HARD sem flip."""
+"""Gates booleanos de microestrutura: discord vela, soft+p_loss e score Soft — HARD sem flip."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from src.application.services.execution_gate_verdict import stamp_hard_skip
-from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
+from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 
 
@@ -16,7 +16,7 @@ _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
 
 
 def parse_micro_protect_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve knobs micro_discord / chop_loss_risk em signal_skip."""
+    """Resolve knobs micro_discord / chop_loss_risk / soft_confirm em signal_skip."""
     block = merge_settings_block(("orchestrator", "execution", "signal_skip"), raw)
     require_keys(
         block,
@@ -25,6 +25,8 @@ def parse_micro_protect_config(raw: dict[str, Any] | None = None) -> dict[str, A
             "micro_discord_min_body",
             "chop_loss_risk_hard_skip",
             "chop_loss_risk_p_loss_floor",
+            "soft_confirm_weak_hard_skip",
+            "soft_exec_min_confirmations",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -34,11 +36,16 @@ def parse_micro_protect_config(raw: dict[str, Any] | None = None) -> dict[str, A
     p_floor = require_float(block, "chop_loss_risk_p_loss_floor")
     if p_floor < 0.0 or p_floor > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.chop_loss_risk_p_loss_floor deve estar em [0, 1]")
+    min_conf = require_int(block, "soft_exec_min_confirmations")
+    if min_conf < 1:
+        raise ValueError("orchestrator.execution.signal_skip.soft_exec_min_confirmations deve ser >= 1")
     return {
         "micro_discord_hard_skip": require_bool(block, "micro_discord_hard_skip"),
         "micro_discord_min_body": min_body,
         "chop_loss_risk_hard_skip": require_bool(block, "chop_loss_risk_hard_skip"),
         "chop_loss_risk_p_loss_floor": p_floor,
+        "soft_confirm_weak_hard_skip": require_bool(block, "soft_confirm_weak_hard_skip"),
+        "soft_exec_min_confirmations": min_conf,
     }
 
 
@@ -81,6 +88,31 @@ def _confirm_candle_discord(metrics: dict[str, Any], candle: str, exec_side: str
     return votes > 0
 
 
+def _soft_or_flip_blocked(metrics: dict[str, Any]) -> bool:
+    """True se loss-clf soft ou FLIP_BLOCK ativo."""
+    if bool(metrics.get("loss_clf_soft")):
+        return True
+    return bool(str(metrics.get("loss_clf_flip_blocked") or "").strip())
+
+
+def score_soft_confirmations(metrics: dict[str, Any], exec_side: str) -> tuple[int, list[str]]:
+    """Conta peers definidos que concordam com EXEC; retorna (score, nomes que bateram)."""
+    peers: list[tuple[str, str | None]] = [
+        ("candle", _side(metrics.get("closed_micro_candle_dir") or metrics.get("scale_micro_bar_dir"))),
+        ("tape", _side(metrics.get("scale_tape_consensus"))),
+        ("mini", _side(metrics.get("scale_mini_bar_dir")) or _side(metrics.get("scale_mini_dir"))),
+        ("mili", _side(metrics.get("scale_mili_dir"))),
+        ("ops", _side(metrics.get("ops_window_candle_dir"))),
+    ]
+    hit: list[str] = []
+    for name, side in peers:
+        if side is None:
+            continue
+        if side == exec_side:
+            hit.append(name)
+    return len(hit), hit
+
+
 def _stamp(metrics: dict[str, Any], reason: str, *, orch: Any | None) -> None:
     """Aplica HARD SKIP preservando exec_direction."""
     metrics["execution_candidate_ready"] = False
@@ -105,7 +137,7 @@ def apply_micro_discord_hard_skip(
     force: bool = False,
     cfg: dict[str, Any] | None = None,
 ) -> bool:
-    """HARD se vela M5 fechada discorda do EXEC e ha confirmacao tape/ops — sem flip."""
+    """HARD se vela M5 fechada discorda do EXEC com corpo minimo — sem flip nem voto tape."""
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:
@@ -126,8 +158,7 @@ def apply_micro_discord_hard_skip(
     min_body = float(vision["micro_discord_min_body"])
     if body is None or body + 1e-12 < min_body:
         return False
-    if not _confirm_candle_discord(metrics, candle, exec_side):
-        return False
+    metrics["micro_discord_confirmed"] = _confirm_candle_discord(metrics, candle, exec_side)
     metrics["micro_discord_candle"] = candle
     metrics["micro_discord_exec"] = exec_side
     metrics["micro_discord_body"] = float(body)
@@ -142,7 +173,7 @@ def apply_chop_loss_risk_hard_skip(
     force: bool = False,
     cfg: dict[str, Any] | None = None,
 ) -> bool:
-    """HARD se micro=chop e loss-clf p_loss alto (seed soft/FLIP_BLOCK) — sem flip."""
+    """HARD se soft/FLIP_BLOCK e p_loss alto em qualquer regime — sem flip."""
     if force:
         return False
     if metrics.get("execution_candidate_ready") is False:
@@ -153,9 +184,6 @@ def apply_chop_loss_risk_hard_skip(
     vision = cfg if isinstance(cfg, dict) and "chop_loss_risk_hard_skip" in cfg else parse_micro_protect_config(cfg)
     if not bool(vision.get("chop_loss_risk_hard_skip", False)):
         return False
-    regime = str(metrics.get("scale_micro_regime") or "").strip().lower()
-    if regime != "chop":
-        return False
     try:
         p_loss = float(metrics.get("loss_clf_p_loss"))
     except (TypeError, ValueError):
@@ -163,12 +191,43 @@ def apply_chop_loss_risk_hard_skip(
     floor = float(vision["chop_loss_risk_p_loss_floor"])
     if p_loss + 1e-12 < floor:
         return False
-    soft = bool(metrics.get("loss_clf_soft"))
-    blocked = str(metrics.get("loss_clf_flip_blocked") or "").strip()
-    if not soft and not blocked:
+    if not _soft_or_flip_blocked(metrics):
         return False
     metrics["chop_loss_risk_p_loss"] = p_loss
     _stamp(metrics, "chop_loss_risk", orch=orch)
+    return True
+
+
+def apply_soft_confirm_weak_hard_skip(
+    metrics: dict[str, Any],
+    *,
+    orch: Any | None = None,
+    force: bool = False,
+    cfg: dict[str, Any] | None = None,
+) -> bool:
+    """HARD se soft/FLIP_BLOCK e confirm_score < min — sem flip."""
+    if force:
+        return False
+    if metrics.get("execution_candidate_ready") is False:
+        return False
+    status = str(metrics.get("signal_status") or "").strip().upper()
+    if status == "SKIP" or status.startswith("SKIP:"):
+        return False
+    vision = cfg if isinstance(cfg, dict) and "soft_confirm_weak_hard_skip" in cfg else parse_micro_protect_config(cfg)
+    if not bool(vision.get("soft_confirm_weak_hard_skip", False)):
+        return False
+    if not _soft_or_flip_blocked(metrics):
+        return False
+    exec_side = _side(metrics.get("exec_direction") or metrics.get("resolved_direction"))
+    if exec_side is None:
+        return False
+    score, peers = score_soft_confirmations(metrics, exec_side)
+    metrics["soft_confirm_score"] = score
+    metrics["soft_confirm_peers"] = ",".join(peers) if peers else "-"
+    min_conf = int(vision["soft_exec_min_confirmations"])
+    if score >= min_conf:
+        return False
+    _stamp(metrics, "soft_confirm_weak", orch=orch)
     return True
 
 
@@ -179,8 +238,10 @@ def apply_micro_protect_gates(
     force: bool = False,
     cfg: dict[str, Any] | None = None,
 ) -> bool:
-    """Aplica discord e chop+p_loss; retorna True se HARD SKIP."""
+    """Aplica discord, soft+p_loss e soft_confirm_weak; retorna True se HARD SKIP."""
     vision = cfg if isinstance(cfg, dict) and "micro_discord_hard_skip" in cfg else parse_micro_protect_config(cfg)
     if apply_micro_discord_hard_skip(metrics, orch=orch, force=force, cfg=vision):
         return True
-    return apply_chop_loss_risk_hard_skip(metrics, orch=orch, force=force, cfg=vision)
+    if apply_chop_loss_risk_hard_skip(metrics, orch=orch, force=force, cfg=vision):
+        return True
+    return apply_soft_confirm_weak_hard_skip(metrics, orch=orch, force=force, cfg=vision)

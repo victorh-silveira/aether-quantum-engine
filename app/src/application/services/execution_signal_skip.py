@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_gate_verdict import stamp_soft_size
-from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_keys
+from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 
 
@@ -58,6 +58,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "micro_discord_min_body",
             "chop_loss_risk_hard_skip",
             "chop_loss_risk_p_loss_floor",
+            "soft_confirm_weak_hard_skip",
+            "soft_exec_min_confirmations",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -114,6 +116,9 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
     chop_p = require_float(block, "chop_loss_risk_p_loss_floor")
     if chop_p < 0.0 or chop_p > 1.0:
         raise ValueError("orchestrator.execution.signal_skip.chop_loss_risk_p_loss_floor deve estar em [0, 1]")
+    soft_min_conf = require_int(block, "soft_exec_min_confirmations")
+    if soft_min_conf < 1:
+        raise ValueError("orchestrator.execution.signal_skip.soft_exec_min_confirmations deve ser >= 1")
     return {
         "enabled": require_bool(block, "enabled"),
         "min_direction_margin": require_float(block, "min_direction_margin"),
@@ -155,6 +160,8 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "micro_discord_min_body": micro_body,
         "chop_loss_risk_hard_skip": require_bool(block, "chop_loss_risk_hard_skip"),
         "chop_loss_risk_p_loss_floor": chop_p,
+        "soft_confirm_weak_hard_skip": require_bool(block, "soft_confirm_weak_hard_skip"),
+        "soft_exec_min_confirmations": soft_min_conf,
     }
 
 

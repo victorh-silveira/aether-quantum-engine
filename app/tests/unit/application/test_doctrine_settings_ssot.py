@@ -175,7 +175,9 @@ def test_production_loss_classifier_soft_veto_ssot():
     assert bool(skip["micro_discord_hard_skip"]) is True
     assert float(skip["micro_discord_min_body"]) == pytest.approx(0.10)
     assert bool(skip["chop_loss_risk_hard_skip"]) is True
-    assert float(skip["chop_loss_risk_p_loss_floor"]) == pytest.approx(0.85)
+    assert float(skip["chop_loss_risk_p_loss_floor"]) == pytest.approx(0.80)
+    assert bool(skip["soft_confirm_weak_hard_skip"]) is True
+    assert int(skip["soft_exec_min_confirmations"]) == 2
     assert "anti_loss_hard_skip_explore" not in skip and "anti_loss_recover_soft_kelly_mult" not in skip
     assert "calib_gray_margin_floor" not in skip
     assert "calib_gray_soft_kelly_mult" not in skip

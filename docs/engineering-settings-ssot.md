@@ -41,8 +41,9 @@ Unica fonte de knobs de runtime. Parsers fail-closed em `domain/config_knobs.py`
 | `kelly.soft_size_min_stake_pct` / `soft_size_max_stake_pct` / `soft_size_min_edge` | `risk_management.kelly` | Piso Soft_SIZE (**2.5%** banca) so se Edge >= **0.015**; Soft_SIZE so existe com Edge >= floor (soft flags); Edge `< floor` = HARD via neg_edge; aplica tambem com PEND (`cover_enabled` false); sem Single-Strike |
 | `signal_skip.anti_loss_allow_candle_flip` | `orchestrator.execution.signal_skip` | **false** — anti-loss direcional off; flip de vela inerte no SSOT; filtro vivo = `regime_gate` HARD `regime_squeeze` |
 | `signal_skip.regime_gate_enabled` / `regime_adx_max` / `regime_bb_squeeze_enabled` | `orchestrator.execution.signal_skip` | **true** / **0.1** / **true** — HARD `regime_squeeze` sem alterar CALL/PUT |
-| `signal_skip.micro_discord_hard_skip` / `micro_discord_min_body` | `orchestrator.execution.signal_skip` | **true** / **0.1** — HARD `micro_discord` se vela M5 ≠ EXEC com confirmacao tape/ops (sem flip) |
-| `signal_skip.chop_loss_risk_hard_skip` / `chop_loss_risk_p_loss_floor` | `orchestrator.execution.signal_skip` | **true** / **0.85** — HARD `chop_loss_risk` se micro=chop e loss-clf p_loss alto com soft/FLIP_BLOCK |
+| `signal_skip.micro_discord_hard_skip` / `micro_discord_min_body` | `orchestrator.execution.signal_skip` | **true** / **0.1** — HARD `micro_discord` se vela M5 ≠ EXEC com corpo minimo (sem voto tape; sem flip) |
+| `signal_skip.chop_loss_risk_hard_skip` / `chop_loss_risk_p_loss_floor` | `orchestrator.execution.signal_skip` | **true** / **0.80** — HARD `chop_loss_risk` se soft/FLIP_BLOCK + p_loss alto (qualquer regime) |
+| `signal_skip.soft_confirm_weak_hard_skip` / `soft_exec_min_confirmations` | `orchestrator.execution.signal_skip` | **true** / **2** — HARD `soft_confirm_weak` se soft/FLIP_BLOCK e score de peers (vela/tape/mi/mili/ops) &lt; min |
 | `kelly.payout_fallback` / `params.payout_estimate` / `default_payout` | `risk_management` | Payout Deriv **1HZ75V** **0.85** (live) |
 | `kelly.mandatory_weak_max_stake_pct` | `risk_management.kelly` | Cap mandatory weak alinhado ao piso (**1%**) |
 | `kelly.stop_win_kelly_*` | `risk_management.kelly` | Boost stop-win Single-Strike: `enabled`, `cycles_target` **1**, `live_n_min` **0**, fracoes **1.0–1.0**, teto **5%** |

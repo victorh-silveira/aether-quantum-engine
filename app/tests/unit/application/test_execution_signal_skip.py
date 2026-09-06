@@ -43,7 +43,9 @@ def test_parse_signal_skip_from_ssot():
     assert cfg["regime_gate_enabled"] is True
     assert cfg["micro_discord_hard_skip"] is True
     assert cfg["chop_loss_risk_hard_skip"] is True
-    assert cfg["chop_loss_risk_p_loss_floor"] == pytest.approx(0.85)
+    assert cfg["chop_loss_risk_p_loss_floor"] == pytest.approx(0.80)
+    assert cfg["soft_confirm_weak_hard_skip"] is True
+    assert cfg["soft_exec_min_confirmations"] == 2
     for k, v in (
         ("mini_pair_soft_kelly_mult", 0.0),
         ("cal_margin_soft_kelly_mult", 0.0),
@@ -61,6 +63,7 @@ def test_parse_signal_skip_from_ssot():
         ("anti_loss_rsi_max", 1.5),
         ("micro_discord_min_body", -0.1),
         ("chop_loss_risk_p_loss_floor", 1.5),
+        ("soft_exec_min_confirmations", 0),
     ):
         with pytest.raises(ValueError):
             parse_signal_skip_config({"chop_hurst_min": 0.60, k: v} if k == "chop_hurst_max" else {k: v})

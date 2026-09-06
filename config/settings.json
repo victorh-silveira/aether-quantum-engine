@@ -683,7 +683,9 @@
         "micro_discord_hard_skip": true,
         "micro_discord_min_body": 0.1,
         "chop_loss_risk_hard_skip": true,
-        "chop_loss_risk_p_loss_floor": 0.85
+        "chop_loss_risk_p_loss_floor": 0.80,
+        "soft_confirm_weak_hard_skip": true,
+        "soft_exec_min_confirmations": 2
       }
     },
     "idle_cycle_watchdog_seconds": 1200,

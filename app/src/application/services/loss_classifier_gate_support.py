@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.log_dedupe import log_debug_if_changed
 from src.application.services.loss_classifier_flip import apply_soft_kelly, resolve_soft_kelly_mult
 from src.domain.models.trade import TradeDirection
@@ -89,6 +90,7 @@ def emit_loss_clf_soft(
         metrics["loss_clf_soft"] = True
         metrics["loss_clf_soft_kelly_mult"] = float(soft_mult)
         metrics["loss_clf_soft_waived_pending"] = True
+        stamp_soft_size(metrics, "loss_clf_soft")
         log_debug_if_changed(
             orch,
             logger,

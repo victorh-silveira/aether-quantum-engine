@@ -30,8 +30,9 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 | `neg_edge` | Com SSOT `neg_edge_hard_skip` **true**: Edge `<= 0` → HARD SKIP; Edge `< min_edge_*` (**0.015** explore = recovery, inclusive subfloor positivo) → HARD (`neg_edge_subfloor_hard`, `gate_verdict=HARD_SKIP`). Soft_SIZE **nao** vem de subfloor. Seed+Cal &lt; `neg_edge_deep_edge_floor` **−0.12** marca `boot_deep` no hard. |
 | `neg_edge_zscore_panic` | Veto de pânico bilateral: CALL vetado se $Z < -2.0$ (faca caindo); PUT vetado se $Z > +2.0$ (explosão compradora); telemetria `[GATES]` / `EDGE \|\| NEG_ZSCORE_PANIC` com `Z=` / `side=` / `thr=` (±2.0) |
 | `regime_squeeze` | HARD SKIP: ADX &lt; `regime_adx_max` (**0.1**) e BB squeeze (`regime_bb_squeeze_enabled` **true**); **nao** altera CALL/PUT; log `REGIME \|\| HARD_SKIP` |
-| `micro_discord` | HARD SKIP: vela M5 fechada ≠ EXEC com corpo >= `micro_discord_min_body` e confirmacao tape/ops/mi; **nao** flip; log `MICRO \|\| HARD_SKIP` |
-| `chop_loss_risk` | HARD SKIP: `scale_micro_regime=chop` + `loss_clf_p_loss` >= **0.85** com soft/FLIP_BLOCK; **nao** flip |
+| `micro_discord` | HARD SKIP: vela M5 fechada ≠ EXEC com corpo >= `micro_discord_min_body` (**0.1**); **nao** exige confirmacao tape; telemetria `micro_discord_confirmed`; **nao** flip; log `MICRO \|\| HARD_SKIP` |
+| `chop_loss_risk` | HARD SKIP: soft/FLIP_BLOCK + `loss_clf_p_loss` >= **0.80** em **qualquer** regime; **nao** flip |
+| `soft_confirm_weak` | HARD SKIP: soft/FLIP_BLOCK + `confirm_score` < `soft_exec_min_confirmations` (**2**) entre peers definidos (vela/tape/mi/mili/ops); **nao** flip |
 | Kelly `EXEC_PAUSE` | `stop_win` / `bankroll_below_stake_min` (sizing; **sem** `kelly_no_edge`) |
 
 ## Metricas de processo (negocio)
@@ -51,7 +52,7 @@ Hierarquia: TCN Cal/Margin → SCALE dirs → soft `signal_skip` → **fusao EV*
 |-------|-------------|
 | `mini_pair_oppose` | Par MINI unanime ≠ lado executado → **sempre** soft Kelly (`mini_pair_soft_kelly_mult` **0.55**); sem hard SKIP |
 | `cal_margin` | `direction_margin` &lt; `min_direction_margin` → soft Kelly; waive com pending material |
-| `loss_clf_soft` | Container loss-clf: atenua Kelly; log `LOSS_CLF \|\| SOFT` |
+| `loss_clf_soft` | Container loss-clf: atenua Kelly; stamp `gate_verdict=SOFT_SIZE` tambem com PEND (`SOFT_WAIVE_PENDING`); log `LOSS_CLF \|\| SOFT` |
 | `loss_clf_flip` | `p_loss >= 0.90` + `veto_ready` + waivers; seed: `seed_candle` / `flip_seed_waive_edge_min` **−0.08**; live: `flip_waive_edge_min` **−1.0** → FLIP (`from→to`/`why` em `[GATES]`); senao `FLIP_BLOCK` (seed_candle/seed/scale/neg_edge/tcn_edge) + soft |
 | `regime_chop` | ADX/Hurst (ou SCALE chop) → soft Kelly (`chop_soft_kelly_mult` **0.55**); log `REGIME \|\| CHOP_SOFT` |
 | `neg_edge` | Hard se Edge `<= 0` ou Edge `< min_edge_*` (**0.015** explore = recovery) com `neg_edge_hard_skip` **true** (SSOT; `neg_edge_subfloor_hard` no subfloor positivo); Soft_SIZE **nao** para `0 < Edge < floor`; override **false** reabre soft em Edge `<= 0` / subfloor |
