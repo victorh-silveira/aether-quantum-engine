@@ -1,3 +1,9 @@
+## [2.55.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.54.0...v2.55.0) (2026-09-06)
+
+### Funcionalidades
+
+* **engine:** anti-loss Soft com score e Soft_SIZE no PEND ([b13b95f](https://github.com/victorh-silveira/aether-quantum-engine/commit/b13b95f1e784a25ec90f1f6070b9069b2a992151))
+
 ## [2.54.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.53.0...v2.54.0) (2026-09-06)
 
 ### Funcionalidades
