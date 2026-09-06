@@ -54,6 +54,10 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
             "regime_gate_enabled",
             "regime_adx_max",
             "regime_bb_squeeze_enabled",
+            "micro_discord_hard_skip",
+            "micro_discord_min_body",
+            "chop_loss_risk_hard_skip",
+            "chop_loss_risk_p_loss_floor",
         ),
         "orchestrator.execution.signal_skip",
     )
@@ -104,6 +108,12 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         raise ValueError(
             "orchestrator.execution.signal_skip.anti_loss_rsi_max deve estar em [0, 1] e >= anti_loss_rsi_min"
         )
+    micro_body = require_float(block, "micro_discord_min_body")
+    if micro_body < 0.0:
+        raise ValueError("orchestrator.execution.signal_skip.micro_discord_min_body deve ser >= 0")
+    chop_p = require_float(block, "chop_loss_risk_p_loss_floor")
+    if chop_p < 0.0 or chop_p > 1.0:
+        raise ValueError("orchestrator.execution.signal_skip.chop_loss_risk_p_loss_floor deve estar em [0, 1]")
     return {
         "enabled": require_bool(block, "enabled"),
         "min_direction_margin": require_float(block, "min_direction_margin"),
@@ -141,6 +151,10 @@ def parse_signal_skip_config(raw: dict[str, Any] | None = None) -> dict[str, Any
         "regime_gate_enabled": require_bool(block, "regime_gate_enabled"),
         "regime_adx_max": require_float(block, "regime_adx_max"),
         "regime_bb_squeeze_enabled": require_bool(block, "regime_bb_squeeze_enabled"),
+        "micro_discord_hard_skip": require_bool(block, "micro_discord_hard_skip"),
+        "micro_discord_min_body": micro_body,
+        "chop_loss_risk_hard_skip": require_bool(block, "chop_loss_risk_hard_skip"),
+        "chop_loss_risk_p_loss_floor": chop_p,
     }
 
 

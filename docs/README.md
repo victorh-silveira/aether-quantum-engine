@@ -66,7 +66,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **120 s** |
 | Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; `invert_exec_side: false`; fusao EV + anti-loss microestrutura M5 + signal_skip 1.1 |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
-| Calibração | Thresholds CALL/PUT **0.46/0.34**; override TCN macro se raw &gt;0.82 ou &lt;0.18 |
+| Calibração | Thresholds CALL/PUT **0.565/0.435**; clamp Cal em `[raw±0.08]` antes da zona neutra; modo `raw_extreme` |
 | Direção | Resolver modular com anti-loss microestrutura M5 (ancora hibrida, EMA slope 9/21, RSI momentum) |
 | Risco | Kelly Single-Strike 4.31% (`fraction=0.08`, alvo 4.31% da banca em payout 0.85 em 1 tacada M5); Soft Recovery RECOVER |
 | Settlement | Tolerância **600 s**, reconciliação passiva; pós-EXEC_EMPTY alinha fronteira |

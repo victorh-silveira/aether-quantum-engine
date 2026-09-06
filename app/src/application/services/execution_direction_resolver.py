@@ -14,6 +14,7 @@ from src.application.services.execution_direction_checks import (
 )
 from src.application.services.execution_direction_fusion import apply_direction_fusion, parse_direction_fusion_config
 from src.application.services.execution_invert_side import apply_invert_exec_side
+from src.application.services.execution_micro_protect import apply_micro_protect_gates
 from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
 from src.application.services.execution_regime_chop import apply_regime_chop_pause
@@ -132,6 +133,7 @@ def _finalize_execution_metrics(
             exec_dir = TradeDirection[ready_name]
         apply_scale_kelly_side_sync(metrics, exec_dir)
         sync_direction_margin(metrics, direction=exec_dir.name)
+        apply_micro_protect_gates(metrics, orch=orch, force=force)
     elif bool(fusion_cfg.get("fusion_enabled")):
         exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
         apply_scale_kelly_side_sync(metrics, exec_dir)

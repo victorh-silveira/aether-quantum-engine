@@ -54,7 +54,7 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 
 ### 2.1 Universo Drift
 
-Índices sintéticos correlacionados no eixo de barreiras. Cada símbolo tem modelo DL independente com **34 features** e volatilidade calibrada ao alvo do índice.
+Índices sintéticos correlacionados no eixo de barreiras. Cada símbolo tem modelo DL independente com **14 features** ortogonais e volatilidade calibrada ao alvo do índice.
 
 | Símbolo | Papel típico |
 |---------|----------------|
@@ -96,7 +96,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
-| Classificação macro | TCN processa lookback **30** em barras diárias **86400 s** (`[1, 30, 34]`); define direção (`dl_direction`) |
+| Classificação macro | TCN processa lookback **30** em M5 (**300 s**) com contexto D1 (**86400 s**) (`[1, 30, 14]`); define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (micro **300 s**) sobre vetor **23D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
@@ -113,7 +113,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
-| Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 34]` no contexto macro D1; proporção 1:288 |
+| Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 14]`; proporção 1:288 |
 | Meta-regressor GBDT | Micro **300 s** | Regressão tabular **23D**; edge contínuo via `/v2/predict_meta` |
 | Orquestrador / contrato | Ciclo **120 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
 | Resolução direcional | TCN + fusão EV + anti-loss | Ponderação e filtros de momentum em barras de 5m |

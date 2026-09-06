@@ -679,7 +679,11 @@
         "anti_loss_rsi_max": 0.7,
         "regime_gate_enabled": true,
         "regime_adx_max": 0.1,
-        "regime_bb_squeeze_enabled": true
+        "regime_bb_squeeze_enabled": true,
+        "micro_discord_hard_skip": true,
+        "micro_discord_min_body": 0.1,
+        "chop_loss_risk_hard_skip": true,
+        "chop_loss_risk_p_loss_floor": 0.85
       }
     },
     "idle_cycle_watchdog_seconds": 1200,

@@ -15,7 +15,7 @@ description: >-
 3. Balance: `deep_learning.sample_weighting.class_balance_*` via `compose_train_weights`
 4. Recency: `recency_enabled` / `recency_half_life_n` (default **500**)
 5. Deploy collapse: `reject_majority_collapse` — pred skew (`|pred-0.5|` / `|pred-label|` > **0.25**) rejeita sozinho; label skew + `min_minority_recall` (**0.25**)
-6. Checkpoint: feat_dim=34, lookback **30**, granularity macro **86400**, `val_accuracy`, `deploy_ok`
+6. Checkpoint: feat_dim=**14**, lookback **30**, granularity micro **300** (treino lean M5; macro D1 **86400** no buffer), `val_accuracy`, `deploy_ok`; ckpt 34D / meta 43D = invalidos
 7. Early stop: `min_epochs` **15** / patience **17**; restore pico de validação; sharp sem colapso
 8. ACC: soft_min **0.55** no path label; deploy_gate fail-closed
 9. Brier: `max_brier` **0.28** (= `soft_max_brier`); sharpness `min_oos_sharpness` **0.01**
@@ -29,6 +29,7 @@ description: >-
 17. Pos-treino: `make docker-rebuild` recarrega meta/loss **sem** apagar `data/dl`
 18. Cal overconfident: clipa p_call em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** da zona neutra; `min_calibration_margin_floor` **0.03**; call/put **0.565/0.435**; flag `cal_raw_gap_capped`; `temperature_min` **1.0**
 19. Optuna/tuning offline — nao disputar VRAM com inferencia live; artefatos no MinIO
+20. Pos-launch: telemetria `label_call_frac` / `pred_call_frac` / `minority_recall`; vies de classe corrige-se com sample_weighting + majority-collapse — **nao** com flip live
 
 ## Anti-padroes
 

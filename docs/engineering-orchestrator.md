@@ -4,7 +4,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 
 ## Relogio e triplo OHLC
 
-- Fronteira / ciclo: **`signature_boundary_seconds` = 300 s** / **`cycle_interval_seconds` = 120 s** (sync com fecho da vela M5; contrato Deriv **5 m**); `exec_empty_retry_seconds` **120**
+- Fronteira / ciclo: **`signature_boundary_seconds` = 300 s** / **`cycle_interval_seconds` = 300 s** (sync com abertura/fecho da vela M5; contrato Deriv **5 m**); `exec_empty_retry_seconds` **120**
 - Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo

@@ -41,6 +41,9 @@ def test_parse_signal_skip_from_ssot():
     assert "calib_gray_max_stake_pct" not in cfg
     assert cfg["anti_loss_allow_candle_flip"] is False
     assert cfg["regime_gate_enabled"] is True
+    assert cfg["micro_discord_hard_skip"] is True
+    assert cfg["chop_loss_risk_hard_skip"] is True
+    assert cfg["chop_loss_risk_p_loss_floor"] == pytest.approx(0.85)
     for k, v in (
         ("mini_pair_soft_kelly_mult", 0.0),
         ("cal_margin_soft_kelly_mult", 0.0),
@@ -56,6 +59,8 @@ def test_parse_signal_skip_from_ssot():
         ("chop_hurst_max", 0.40),
         ("anti_loss_rsi_min", -0.1),
         ("anti_loss_rsi_max", 1.5),
+        ("micro_discord_min_body", -0.1),
+        ("chop_loss_risk_p_loss_floor", 1.5),
     ):
         with pytest.raises(ValueError):
             parse_signal_skip_config({"chop_hurst_min": 0.60, k: v} if k == "chop_hurst_max" else {k: v})
