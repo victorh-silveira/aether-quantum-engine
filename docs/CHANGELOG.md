@@ -1,3 +1,9 @@
+## [2.56.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.55.0...v2.56.0) (2026-09-06)
+
+### Funcionalidades
+
+* **engine:** FLIP por p_loss alto e protecao Soft_SIZE na esteira M5 ([3e5b1af](https://github.com/victorh-silveira/aether-quantum-engine/commit/3e5b1afe5421180b32230019bd9e793f3fba543c))
+
 ## [2.55.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.54.0...v2.55.0) (2026-09-06)
 
 ### Funcionalidades
