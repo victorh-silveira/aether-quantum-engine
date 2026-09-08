@@ -19,12 +19,12 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 365 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
 - Runtime: `online_training` **false** — DEMO usa checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Runtime: `orchestrator.execution.invert_exec_side` **false**. Payout base mercado real: **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Soft Kelly em fusão EV fraca, anti-loss com microestrutura balanceada em barras de 5m.
+- Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = HARD SKIP por `P_LOSS` do loss-classifier (`hard_p_loss_floor` **0.90**).
 
 ## O que o LLM e / nao e
 
 - **E:** copiloto de engenharia e auditoria
-- **Nao e:** decisor de CALL/PUT em runtime (TCN + meta + gates/Kelly)
+- **Nao e:** decisor de CALL/PUT em runtime (TCN + loss-clf HARD + Kelly)
 
 Doutrina: [`docs/llm-trading-doctrine.md`](docs/llm-trading-doctrine.md)  
 Matriz 100% cobertura: [`docs/agent-coverage.md`](docs/agent-coverage.md)  
@@ -39,7 +39,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M5** + arquitetura continua): micro/mini em 300s; ciclo **300 s** (`require_signature_boundary` **true**, abertura M5); pipeline: SCALE → **fusao EV** → **loss-clf FLIP** → **anti-loss M5** (EMA/candle discord → flip microestrutura `anti_loss_allow_candle_flip` **false** **so se** Edge Cal vela >= **0.015**; hybrid `anti_loss_anchor_agree=false` + last ≠ EXEC → soft `live_discord_weak` ou flip se Edge last >= floor; live confirm/weak/RSI soft 0.30/0.70; seed unstamped HARD; `anti_loss_live_exec_candle_enabled` **false**; ancora hibrida; `fusion_p_eff` sync ao EXEC pos-flip) → **neg_edge** (Edge≤0 HARD; Edge < **0.015** HARD `neg_edge_subfloor_hard` incl. subfloor positivo; Soft_SIZE so soft flags com Edge >= floor; Soft_SIZE piso **2.5%** so se Edge >= **0.015** tambem com PEND; Single-Strike so ALLOW; Z-panic HARD). Sizing: piso Kelly **1%** banca; Soft_SIZE elevado **2.5%** com Edge>=0.015; Single-Strike 4.31% ≈ cap 5.0%. Soft recovery: `cover_enabled` **false** (sem amortizacao em massa); caps max_safe 3.5%. Sem revenge sizing. EMPTY Edge≤0 / Edge&lt;floor / `neutral_zone` = processo ok.
+Nota operacional (**Volatility 75 (1s) M5**): micro/mini em 300s; ciclo **300 s** (`require_signature_boundary` **true**, abertura M5); pipeline: SCALE vision (telemetria) → **loss-clf HARD** se `p_loss >= 0.90` (`gate_reason=loss_clf`; sem FLIP/Soft) → Kelly + SIDE_EQ sizing → EXEC. SKIP tecnico: treino/dados/deploy/predict/stop-win. **Removido:** fusao EV, signal_skip multi-gate, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, invert. Sizing: piso Kelly **1%** banca; Single-Strike 4.31% ≈ cap 5.0%. Soft recovery: `cover_enabled` **false**; caps max_safe 3.5%. Sem revenge sizing. EMPTY tecnico ou `loss_clf` = processo ok quando coerente.
 
 ## Escopos commitlint
 
@@ -65,6 +65,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Redis hiredis / ZSET settlement | `docs/engineering-settlement.md` + skill `aether-redis-hiredis` |
 | DevOps / CloudOps (Compose/Redis/TS/MinIO) | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
 | CALL/PUT/SKIP senior | `docs/binary-senior-playbook.md` + skill `aether-binary-senior` |
+| Gates por indicadores (catalogo / backlog) | `docs/engineering-indicator-gates.md` + rule `aether-execution-gates.mdc` + skills `aether-binary-senior` / `aether-session-review` |
 | Loss-classifier / Docker ml | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Risco / logs de sessao | doutrina + skill `aether-session-review` |
 | Knob em settings | `docs/engineering-settings-ssot.md` + skill `aether-settings-change` |
@@ -84,7 +85,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
 | Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-v75-market.mdc` + skill `aether-v75-market-analyst` |
 | Sizing Single-Strike 4.31% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-session-review` |
-| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + rule `aether-execution-gates.mdc` + skill `aether-binary-senior` |
+| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + `docs/engineering-indicator-gates.md` + rule `aether-execution-gates.mdc` + skill `aether-binary-senior` |
 
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)  

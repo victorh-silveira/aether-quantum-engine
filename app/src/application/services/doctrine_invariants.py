@@ -50,48 +50,19 @@ def _safe_stake(risk: dict[str, Any]) -> tuple[float, float]:
     return require_float(soft, "max_safe_stake_cap"), require_float(soft, "max_safe_stake_pct")
 
 
-def _loss_flip(settings: dict[str, Any]) -> dict[str, Any]:
-    """Le knobs flip_* do loss_classifier."""
+def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
+    """Le knobs HARD SKIP do loss_classifier."""
     infra = settings.get("infra")
     if not isinstance(infra, dict):
         raise ValueError("infra obrigatorio")
     block = infra.get("loss_classifier")
     if not isinstance(block, dict):
         raise ValueError("infra.loss_classifier obrigatorio")
-    require_keys(
-        block,
-        ("flip_require_auto_learn", "flip_seed_waive_edge_min"),
-        "infra.loss_classifier",
-    )
+    require_keys(block, ("veto_mode", "hard_p_loss_floor", "enabled"), "infra.loss_classifier")
     return {
-        "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
-        "flip_seed_waive_edge_min": require_float(block, "flip_seed_waive_edge_min"),
-    }
-
-
-def _fusion_and_skip(execution: dict[str, Any]) -> dict[str, Any]:
-    """Le fusion_block e neg_edge_deep do execution."""
-    scale = execution.get("scale_vision")
-    if not isinstance(scale, dict) or "fusion_block_when_tcn_pos_edge" not in scale:
-        raise ValueError("orchestrator.execution.scale_vision.fusion_block_when_tcn_pos_edge obrigatorio")
-    require_keys(
-        scale,
-        (
-            "fusion_block_when_tcn_candle_agree",
-            "fusion_loss_requires_auto_learn",
-            "fusion_loss_seed_weight_mult",
-        ),
-        "orchestrator.execution.scale_vision",
-    )
-    skip = execution.get("signal_skip")
-    if not isinstance(skip, dict) or "neg_edge_deep_edge_floor" not in skip:
-        raise ValueError("orchestrator.execution.signal_skip.neg_edge_deep_edge_floor obrigatorio")
-    return {
-        "fusion_block_when_tcn_pos_edge": require_bool(scale, "fusion_block_when_tcn_pos_edge"),
-        "fusion_block_when_tcn_candle_agree": require_bool(scale, "fusion_block_when_tcn_candle_agree"),
-        "fusion_loss_requires_auto_learn": require_bool(scale, "fusion_loss_requires_auto_learn"),
-        "fusion_loss_seed_weight_mult": require_float(scale, "fusion_loss_seed_weight_mult"),
-        "neg_edge_deep_edge_floor": require_float(skip, "neg_edge_deep_edge_floor"),
+        "loss_clf_enabled": require_bool(block, "enabled"),
+        "loss_clf_veto_mode": str(block["veto_mode"]).strip().lower(),
+        "loss_clf_hard_p_loss_floor": require_float(block, "hard_p_loss_floor"),
     }
 
 
@@ -147,9 +118,13 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     execution = _execution_block(full)
     require_keys(
         execution,
-        ("force_trade_every_cycle", "mandatory_trade_each_cycle", "invert_exec_side", "sample_size_policy"),
+        ("force_trade_every_cycle", "mandatory_trade_each_cycle", "sample_size_policy"),
         "orchestrator.execution",
     )
+    if "signal_skip" in execution:
+        raise ValueError("orchestrator.execution.signal_skip removido da doutrina (gates = tecnico + loss_clf)")
+    if "invert_exec_side" in execution:
+        raise ValueError("orchestrator.execution.invert_exec_side removido da doutrina")
     risk = full.get("risk_management")
     if not isinstance(risk, dict) or "min_validation_accuracy_gate" not in risk:
         raise ValueError("risk_management.min_validation_accuracy_gate obrigatorio")
@@ -162,24 +137,14 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
         "mandatory_trade_each_cycle": require_bool(execution, "mandatory_trade_each_cycle"),
-        "invert_exec_side": require_bool(execution, "invert_exec_side"),
         "online_training": require_bool(dl, "online_training"),
         "min_validation_accuracy_gate": require_float(risk, "min_validation_accuracy_gate"),
         "explore_stake_scale_floor": _explore_floor(execution),
         "max_safe_stake_cap": float(cap),
         "max_safe_stake_pct": float(pct),
-        "signal_skip_enabled": False,
-        "signal_skip_min_direction_margin": None,
-        **_loss_flip(full),
-        **_fusion_and_skip(execution),
+        **_loss_hard(full),
         **_recovery_timing(full, risk),
     }
-    signal_skip = execution.get("signal_skip")
-    if isinstance(signal_skip, dict) and "enabled" in signal_skip:
-        resolved["signal_skip_enabled"] = require_bool(signal_skip, "enabled")
-        if resolved["signal_skip_enabled"]:
-            require_keys(signal_skip, ("min_direction_margin",), "orchestrator.execution.signal_skip")
-            resolved["signal_skip_min_direction_margin"] = require_float(signal_skip, "min_direction_margin")
     if use_cache:
         _CACHE["invariants"] = dict(resolved)
     return resolved
@@ -192,24 +157,14 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("force_trade_every_cycle deve ser false na doutrina de producao")
     if inv["mandatory_trade_each_cycle"]:
         raise ValueError("mandatory_trade_each_cycle deve ser false na doutrina de producao")
-    if inv["invert_exec_side"]:
-        raise ValueError("invert_exec_side deve ser false na doutrina de producao")
     if inv["online_training"]:
         raise ValueError("online_training deve ser false na doutrina de producao")
-    if not inv["flip_require_auto_learn"]:
-        raise ValueError("flip_require_auto_learn deve ser true na doutrina de producao")
-    if abs(float(inv["flip_seed_waive_edge_min"]) + 0.08) > 1e-9:
-        raise ValueError("flip_seed_waive_edge_min deve ser -0.08")
-    if not inv["fusion_block_when_tcn_pos_edge"]:
-        raise ValueError("fusion_block_when_tcn_pos_edge deve ser true")
-    if inv["fusion_block_when_tcn_candle_agree"]:
-        raise ValueError("fusion_block_when_tcn_candle_agree deve ser false")
-    if not inv["fusion_loss_requires_auto_learn"]:
-        raise ValueError("fusion_loss_requires_auto_learn deve ser true")
-    if abs(float(inv["fusion_loss_seed_weight_mult"])) > 1e-12:
-        raise ValueError("fusion_loss_seed_weight_mult deve ser 0.0")
-    if abs(float(inv["neg_edge_deep_edge_floor"]) + 0.12) > 1e-9:
-        raise ValueError("neg_edge_deep_edge_floor deve ser -0.12")
+    if inv["loss_clf_veto_mode"] != "hard":
+        raise ValueError("loss_classifier.veto_mode deve ser hard")
+    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.9) > 1e-9:
+        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.9")
+    if not inv["loss_clf_enabled"]:
+        raise ValueError("loss_classifier.enabled deve ser true")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:
         raise ValueError("watchdog_stale_tick_seconds deve ser 300")
     if int(inv["settlement_tolerance_window_seconds"]) != 600:
@@ -236,8 +191,4 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("explore_stake_scale_floor deve ser 0.40")
     if float(inv["max_safe_stake_cap"]) <= 0.0 or float(inv["max_safe_stake_pct"]) <= 0.0:
         raise ValueError("max_safe_stake_cap/pct devem ser > 0")
-    if inv["signal_skip_enabled"]:
-        floor = float(inv["signal_skip_min_direction_margin"])
-        if abs(floor - 0.005) > 1e-9:
-            raise ValueError("signal_skip.min_direction_margin deve ser 0.005")
     return inv

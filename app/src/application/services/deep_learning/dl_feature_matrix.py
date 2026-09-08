@@ -14,6 +14,7 @@ from src.application.services.deep_learning.dl_indicator_config import load_indi
 
 
 def _causal_norm_knobs(indicator_cfg: dict | None = None) -> tuple[int, float]:
+    """Retorna (causal_norm_window, clip) do SSOT de indicadores."""
     cfg = indicator_cfg if isinstance(indicator_cfg, dict) else load_indicator_config_from_settings()
     norm = cfg.get("normalization", {}) if isinstance(cfg, dict) else {}
     window = int(norm.get("causal_norm_window", 288))

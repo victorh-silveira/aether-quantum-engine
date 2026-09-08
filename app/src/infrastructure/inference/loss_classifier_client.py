@@ -1,4 +1,4 @@
-"""Cliente HTTP do loss-classifier (telemetria + veto fail-open)."""
+"""Resolve infra.loss_classifier do SSOT (HARD SKIP por P_LOSS)."""
 
 from __future__ import annotations
 
@@ -32,82 +32,20 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "max_keepalive_connections",
             "feature_dim",
             "veto_mode",
-            "veto_p_loss_floor",
             "hard_p_loss_floor",
-            "hard_blocks_pending_waive",
-            "soft_kelly_mult",
-            "soft_kelly_mult_high",
-            "soft_p_loss_high",
-            "soft_max_stake_pct_high",
             "ready_n",
             "retrain_min_n",
             "retrain_on_loss_min_n",
             "max_buffer",
-            "flip_require_auto_learn",
-            "flip_allow_seed_on_scale_discord",
-            "flip_allow_seed_on_cal_discord",
-            "flip_allow_seed_on_candle_discord",
-            "flip_cal_discord_margin",
-            "flip_require_pos_edge",
-            "flip_min_edge_execute",
-            "flip_waive_on_closed_candle",
-            "flip_candle_p_loss_floor",
-            "flip_waive_scale_above_p_loss",
-            "flip_waive_guards_above_p_loss",
-            "flip_block_when_tcn_pos_edge",
-            "flip_waive_tcn_pos_edge_on_discord",
-            "flip_waive_edge_min",
-            "flip_seed_block_against_closed_candle",
-            "flip_seed_waive_edge_min",
         ),
         "infra.loss_classifier",
     )
     mode = str(block["veto_mode"]).strip().lower()
-    if mode != "soft":
-        raise ValueError("infra.loss_classifier.veto_mode deve ser soft (hard band via hard_p_loss_floor)")
-    soft_mult = require_float(block, "soft_kelly_mult")
-    if soft_mult <= 0.0 or soft_mult > 1.0:
-        raise ValueError("infra.loss_classifier.soft_kelly_mult deve estar em (0, 1]")
-    soft_high = require_float(block, "soft_kelly_mult_high")
-    if soft_high <= 0.0 or soft_high > 1.0:
-        raise ValueError("infra.loss_classifier.soft_kelly_mult_high deve estar em (0, 1]")
-    if soft_high > soft_mult + 1e-12:
-        raise ValueError("infra.loss_classifier.soft_kelly_mult_high deve ser <= soft_kelly_mult")
-    p_high = require_float(block, "soft_p_loss_high")
-    floor = require_float(block, "veto_p_loss_floor")
+    if mode != "hard":
+        raise ValueError("infra.loss_classifier.veto_mode deve ser hard")
     hard_floor = require_float(block, "hard_p_loss_floor")
-    if p_high <= floor:
-        raise ValueError("infra.loss_classifier.soft_p_loss_high deve ser > veto_p_loss_floor")
-    if hard_floor <= floor:
-        raise ValueError("infra.loss_classifier.hard_p_loss_floor deve ser > veto_p_loss_floor")
-    if hard_floor > 1.0:
-        raise ValueError("infra.loss_classifier.hard_p_loss_floor deve estar em (veto_p_loss_floor, 1]")
-    stake_pct = require_float(block, "soft_max_stake_pct_high")
-    if stake_pct <= 0.0 or stake_pct > 0.05:
-        raise ValueError("infra.loss_classifier.soft_max_stake_pct_high deve estar em (0, 0.05]")
-    cal_margin = require_float(block, "flip_cal_discord_margin")
-    if cal_margin < 0.0 or cal_margin > 0.2:
-        raise ValueError("infra.loss_classifier.flip_cal_discord_margin deve estar em [0, 0.2]")
-    min_edge = require_float(block, "flip_min_edge_execute")
-    if min_edge < 0.0 or min_edge > 0.5:
-        raise ValueError("infra.loss_classifier.flip_min_edge_execute deve estar em [0, 0.5]")
-    candle_floor = require_float(block, "flip_candle_p_loss_floor")
-    if candle_floor < floor or candle_floor > hard_floor + 1e-12:
-        raise ValueError(
-            "infra.loss_classifier.flip_candle_p_loss_floor deve estar em [veto_p_loss_floor, hard_p_loss_floor]"
-        )
-    scale_override = require_float(block, "flip_waive_scale_above_p_loss")
-    if scale_override < hard_floor or scale_override > 1.0:
-        raise ValueError("infra.loss_classifier.flip_waive_scale_above_p_loss deve estar em [hard_p_loss_floor, 1]")
-    guards_override = require_float(block, "flip_waive_guards_above_p_loss")
-    if guards_override < floor or guards_override > 1.0:
-        raise ValueError("infra.loss_classifier.flip_waive_guards_above_p_loss deve estar em [veto_p_loss_floor, 1]")
-    waive_edge_min = require_float(block, "flip_waive_edge_min")
-    if waive_edge_min > 0.0 or waive_edge_min < -1.0:
-        raise ValueError("infra.loss_classifier.flip_waive_edge_min deve estar em [-1, 0]")
-    seed_waive_edge = require_float(block, "flip_seed_waive_edge_min")
-    if seed_waive_edge > 0.0 or seed_waive_edge < -1.0:
-        raise ValueError("infra.loss_classifier.flip_seed_waive_edge_min deve estar em [-1, 0]")
+    if hard_floor <= 0.0 or hard_floor > 1.0:
+        raise ValueError("infra.loss_classifier.hard_p_loss_floor deve estar em (0, 1]")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -115,34 +53,13 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "max_connections": require_int(block, "max_connections"),
         "max_keepalive_connections": require_int(block, "max_keepalive_connections"),
         "feature_dim": require_int(block, "feature_dim"),
-        "veto_mode": "soft",
-        "veto_p_loss_floor": floor,
+        "veto_mode": "hard",
         "hard_p_loss_floor": hard_floor,
-        "hard_blocks_pending_waive": require_bool(block, "hard_blocks_pending_waive"),
-        "soft_kelly_mult": soft_mult,
-        "soft_kelly_mult_high": soft_high,
-        "soft_p_loss_high": p_high,
-        "soft_max_stake_pct_high": stake_pct,
+        "veto_p_loss_floor": hard_floor,
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
         "max_buffer": require_int(block, "max_buffer"),
-        "flip_require_auto_learn": require_bool(block, "flip_require_auto_learn"),
-        "flip_allow_seed_on_scale_discord": require_bool(block, "flip_allow_seed_on_scale_discord"),
-        "flip_allow_seed_on_cal_discord": require_bool(block, "flip_allow_seed_on_cal_discord"),
-        "flip_allow_seed_on_candle_discord": require_bool(block, "flip_allow_seed_on_candle_discord"),
-        "flip_cal_discord_margin": cal_margin,
-        "flip_require_pos_edge": require_bool(block, "flip_require_pos_edge"),
-        "flip_min_edge_execute": min_edge,
-        "flip_waive_on_closed_candle": require_bool(block, "flip_waive_on_closed_candle"),
-        "flip_candle_p_loss_floor": candle_floor,
-        "flip_waive_scale_above_p_loss": scale_override,
-        "flip_waive_guards_above_p_loss": guards_override,
-        "flip_block_when_tcn_pos_edge": require_bool(block, "flip_block_when_tcn_pos_edge"),
-        "flip_waive_tcn_pos_edge_on_discord": require_bool(block, "flip_waive_tcn_pos_edge_on_discord"),
-        "flip_waive_edge_min": waive_edge_min,
-        "flip_seed_block_against_closed_candle": require_bool(block, "flip_seed_block_against_closed_candle"),
-        "flip_seed_waive_edge_min": seed_waive_edge,
     }
 
 
@@ -258,7 +175,7 @@ def build_loss_classifier_client_from_config(config: dict[str, Any] | None) -> L
         base_url=url,
         timeout=float(cfg["timeout_seconds"]),
         enabled=bool(cfg["enabled"]),
-        veto_p_loss_floor=float(cfg["veto_p_loss_floor"]),
+        veto_p_loss_floor=float(cfg["hard_p_loss_floor"]),
         max_connections=int(cfg["max_connections"]),
         max_keepalive_connections=int(cfg["max_keepalive_connections"]),
     )

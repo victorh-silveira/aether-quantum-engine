@@ -2,7 +2,6 @@
 
 import pytest
 
-from src.application.services.loss_classifier_gate_support import apply_soft_kelly
 from src.domain.risk.risk_stake_calc_helpers import (
     apply_loss_clf_soft_stake_cap,
     apply_post_kelly_stake_caps,
@@ -26,19 +25,6 @@ def test_loss_clf_soft_cap_uses_configured_pct():
     metrics = {"loss_clf_soft": True, "loss_clf_soft_max_stake_pct": 0.05}
     capped = apply_loss_clf_soft_stake_cap(500.0, 10000.0, metrics, pending_total=0.0)
     assert capped == pytest.approx(500.0)
-
-
-def test_flip_block_skips_soft_max_stake_pct():
-    metrics = {"loss_clf_flip_blocked": "seed_candle", "kelly_fraction_scale": 1.0}
-    apply_soft_kelly(
-        metrics,
-        0.40,
-        p_loss=0.95,
-        cfg={"soft_max_stake_pct_high": 0.05},
-    )
-    assert metrics["loss_clf_soft"] is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(0.40)
-    assert "loss_clf_soft_max_stake_pct" not in metrics
 
 
 def test_soft_signal_cap_waived_with_material_pending():

@@ -17,7 +17,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **23** (`META_FEATURE_DIM` = 14 + 9) |
 | Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **300 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
-| Execução | `mandatory_trade_each_cycle: false`; `force` off; `invert_exec_side: false`; fusao EV + regime boolean + signal_skip 1.1 |
+| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf HARD (`p_loss>=0.90`) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
@@ -234,7 +234,7 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 | Container | `aether-loss-classifier`, host **8006→8000** |
 | Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
 | Cliente | `LossClassifierClient` + `loss_classifier_pool` |
-| Veto | Soft Kelly em `[0.65, 0.90)`; **FLIP** CALL↔PUT se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_ready`; log `LOSS_CLF \|\| FLIP`); seed com p_loss real |
+| Veto | Motor HARD SKIP se `p_loss >= hard_p_loss_floor` (**0.90**); sem FLIP/Soft; seed `loss_bootstrap_live64` |
 | Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-reset` limpa + seed predictivo (`veto_ready` se n>=ready_n); `docker-rebuild` recarrega sem apagar TCN |
 
 ### 5.2 Vetor 23D
@@ -273,9 +273,9 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ---
 
-## 6. Direção, fusao EV e gates (escopo 1.1)
+## 6. Direção e gates (minimo)
 
-Runtime atual: TCN ancora Cal → SCALE → soft `signal_skip` → **fusao EV** (`execution_direction_fusion`) escolhe CALL/PUT → **loss-clf FLIP** (ref TCN, ultimo) → **neg_edge** (Cal TCN; `fusion_p_eff` nao lava) / Kelly (`fusion_p_eff` so apos o gate) / caps. Nota: `fusion_loss_weight` nao ve o `p_loss` do mesmo ciclo (FLIP apos fusao); sob seed, `loss_bonus` ja e **0**. Quality gate amplo (RSI/price_zone/SIDE_EQ block) permanece **fora** do codigo; starvation/recovery_relax abaixo sao legado de modulos ainda presentes, nao o eixo operacional.
+Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf HARD** se `p_loss >= 0.90` (`gate_reason=loss_clf`; sem FLIP/Soft) → Kelly + SIDE_EQ sizing / caps. Quality gate amplo (RSI/price_zone) permanece **fora** do codigo. Catalogo: `docs/engineering-indicator-gates.md`.
 
 ### 6.1 Motor de direção (modular)
 
@@ -330,7 +330,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.1 Fases
 
 - **FASE TREINO** — suspende ordens até `session_trained` em todos os símbolos
-- **FASE OPERACAO** — `mandatory_trade_each_cycle: false`; lado via TCN + fusao EV + signal_skip 1.1 (sem quality gate amplo)
+- **FASE OPERACAO** — `mandatory_trade_each_cycle: false`; lado via TCN + loss-clf HARD + Kelly (sem quality gate amplo)
 
 ### 7.2 ExecutionManager
 
@@ -408,7 +408,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `arch`, `lookback` (**30**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `invert_exec_side` (**false**), `require_meta_for_execution` (**false**), `scale_vision.fusion_*` + `signal_skip` 1.1 + `regime_gate_*`, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `require_meta_for_execution` (**false**), loss-clf `veto_mode=hard` + `hard_p_loss_floor` **0.90**, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
 `kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2/3**, cover **1.10**, linear3 **3.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate **0.85**), `large_account_stop_win_pct` (**4.31**), `small_account_*`.

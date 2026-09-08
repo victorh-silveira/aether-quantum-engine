@@ -28,17 +28,25 @@ def _default_anomaly_ratio() -> float:
     return load_bb_width_anomaly_ratio()
 
 
+def _bb_width_from_bucket(bucket: Any) -> float | None:
+    """Prefere bb_width_raw absoluto; fallback bb_width so se positivo."""
+    if not isinstance(bucket, dict):
+        return None
+    raw = bucket.get("bb_width_raw")
+    if raw is not None:
+        return float(raw)
+    width = bucket.get("bb_width")
+    if width is not None and float(width) > 0.0:
+        return float(width)
+    return None
+
+
 def _read_micro_bb_width(metrics: dict[str, Any]) -> float | None:
-    """Le bb_width priorizando micro, indicators e macro."""
-    micro = metrics.get("micro_indicators")
-    if isinstance(micro, dict) and micro.get("bb_width") is not None:
-        return float(micro["bb_width"])
-    indicators = metrics.get("indicators") or {}
-    if indicators.get("bb_width") is not None:
-        return float(indicators["bb_width"])
-    macro = metrics.get("macro_indicators") or {}
-    if macro.get("bb_width") is not None:
-        return float(macro["bb_width"])
+    """Le bb_width_raw (absoluto) em micro/indicators/macro; z<=0 nao serve."""
+    for name in ("micro_indicators", "indicators", "macro_indicators"):
+        value = _bb_width_from_bucket(metrics.get(name))
+        if value is not None:
+            return value
     return None
 
 

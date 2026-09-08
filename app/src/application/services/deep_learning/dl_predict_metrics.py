@@ -17,6 +17,7 @@ def indicators_from_series(series: dict) -> dict[str, float]:
         "vol_ratio": _series_last(series, "vol_ratio_short_long"),
         "implied_vol_ratio": _series_last(series, "implied_vol_ratio", 1.0),
         "bb_width": _series_last(series, "bb_width"),
+        "bb_width_raw": _series_last(series, "bb_width_raw"),
         "atr_norm": _series_last(series, "atr_norm"),
         "cmo": _series_last(series, "cmo"),
         "keltner": _series_last(series, "keltner_pct_b"),

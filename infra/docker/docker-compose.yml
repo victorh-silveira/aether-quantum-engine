@@ -170,7 +170,7 @@ services:
       - ./meta-models:/models
     environment:
       <<: *aether-omp
-      META_RETRAIN_MIN_N: "2"
+      META_RETRAIN_MIN_N: "32"
       META_MAX_BUFFER: "2000"
     mem_limit: 512m
     mem_swappiness: 0

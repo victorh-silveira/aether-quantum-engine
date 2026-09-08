@@ -1,4 +1,4 @@
-"""Congela Single-Strike 4.31% e anti-loss RSI no SSOT."""
+"""Congela Single-Strike 4.31% e loss-clf HARD no SSOT."""
 
 from __future__ import annotations
 
@@ -15,17 +15,17 @@ def _reset_cache():
     reset_doctrine_invariants_cache()
 
 
-def test_production_single_strike_and_anti_loss_rsi_ssot():
+def test_production_single_strike_and_loss_clf_hard_ssot():
     settings = load_settings_json()
     params = settings["risk_management"]["params"]
     kelly = settings["risk_management"]["kelly"]
-    skip = settings["orchestrator"]["execution"]["signal_skip"]
+    loss_clf = settings["infra"]["loss_classifier"]
     assert float(kelly["stop_win_kelly_min_fraction"]) == pytest.approx(1.0)
     assert float(kelly["stop_win_kelly_max_fraction"]) == pytest.approx(1.0)
     assert float(kelly["stop_win_kelly_min_conviction"]) == pytest.approx(0.52)
     assert float(params["compounding_rate_daily"]) == pytest.approx(0.0431)
-    assert float(skip["anti_loss_rsi_min"]) == pytest.approx(0.30)
-    assert float(skip["anti_loss_rsi_max"]) == pytest.approx(0.70)
+    assert float(loss_clf["hard_p_loss_floor"]) == pytest.approx(0.90)
+    assert str(loss_clf["veto_mode"]).lower() == "hard"
     single_strike = float(params["compounding_rate_daily"]) / float(params["payout_estimate"])
     assert single_strike == pytest.approx(0.0431 / 0.85)
     assert single_strike == pytest.approx(0.0507058823)

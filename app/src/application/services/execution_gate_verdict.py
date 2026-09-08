@@ -56,3 +56,18 @@ def is_soft_size(metrics: dict[str, Any] | None) -> bool:
 def blocks_single_strike(metrics: dict[str, Any] | None) -> bool:
     """True quando Single-Strike / stop-win boost nao deve elevar stake."""
     return is_soft_size(metrics)
+
+
+def is_skip_signal_status(status: object) -> bool:
+    """True para SKIP tecnico (SKIP / SKIP:REASON)."""
+    token = str(status or "").strip().upper()
+    return token == "SKIP" or token.startswith("SKIP:")
+
+
+def metrics_block_execution(metrics: dict[str, Any] | None) -> bool:
+    """True quando candidato nao pode EXEC (ready=False ou SKIP)."""
+    if not isinstance(metrics, dict):
+        return False
+    if metrics.get("execution_candidate_ready") is False:
+        return True
+    return is_skip_signal_status(metrics.get("signal_status"))

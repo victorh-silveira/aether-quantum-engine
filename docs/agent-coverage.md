@@ -20,7 +20,8 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Doutrina / sessao | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
 | Playbook senior binario | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
-| Execution gates | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-execution-gates.mdc` | `aether-session-review` + `aether-binary-senior` |
+| Execution gates | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) + [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-session-review` + `aether-binary-senior` |
+| Gates por indicadores (catalogo / backlog) | [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-session-review` |
 | Fusao EV multi-escala | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-cycle-debug` |
 | Loss-classifier (Docker) | [infra-docker.md](infra-docker.md) | `aether-execution-gates.mdc` + `aether-infra.mdc` | `aether-infra-stack` |
 | Sample size / SIDE_EQ | [sample-size-lln.md](sample-size-lln.md) | `aether-sample-size.mdc` | `aether-session-review` |
@@ -51,10 +52,10 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 |-------|-----------------|
 | `app/src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
-| `app/src/application/services/execution_scale_*.py` | Scale vision + adaptacao de fita (lado/sizing) |
-| `app/src/application/services/execution_direction_fusion*.py` | Fusao EV multi-escala |
+| `app/src/application/services/execution_scale_*.py` | Scale vision telemetria (sem adapt de lado) |
+| `app/src/application/services/loss_classifier_*.py` | Loss-clf HARD SKIP por P_LOSS |
 | `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
-| `app/src/application/services/execution_*.py` | Execution gates + signal_skip + fusao + anti-loss |
+| `app/src/application/services/execution_*.py` | Execution: tecnico + TCN + loss_clf HARD + Kelly |
 | `app/src/domain/risk/` | Risco / Kelly |
 | `app/src/domain/analytics/` | Sample size / SIDE_EQ |
 | `app/src/domain/models|math|symbols/` | Domain models/math/symbols |

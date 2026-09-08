@@ -18,7 +18,7 @@ alwaysApply: true
 2. **Volatilidade e Momentum**:
    - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
    - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 5m capturam a tendência genuína de fluxo.
-   - **Anti-loss RSI M5**: CALL soft se $\text{RSI}_{\text{M5}} < 0.30$; PUT soft se $\text{RSI}_{\text{M5}} > 0.70$ (`why=anti_loss_rsi_momentum`, soft Kelly pos-lado); confirmação de janela `ops_window_bars` **3** velas M5 (corpo ≥ **0.15**); `anti_loss_live_exec_candle_enabled` **false**.
+   - Anti-loss vivo = HARD SKIP do loss-classifier se $p_{\text{loss}} \ge 0.90$ (`gate_reason=loss_clf`); sem FLIP/Soft Kelly do loss-clf.
 3. **Payout e Breakeven**:
    - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
    - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
@@ -26,4 +26,4 @@ alwaysApply: true
 4. **Dimensionamento Single-Strike**:
    - Meta de **4.31% de Stop-Win** em uma tacada: $\text{Stake} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$ da banca.
 
-- TCN ortogonal **14D** / meta **23D**; limiares **0.53/0.47**; `ema_50` **50**; anti-loss direcional off; `regime_gate_enabled` HARD squeeze.
+- TCN ortogonal **14D** / meta **23D**; limiares **0.53/0.47**; `ema_50` **50**; gates vivos = tecnico + `loss_clf` HARD.

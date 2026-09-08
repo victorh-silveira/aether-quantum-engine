@@ -56,32 +56,14 @@ def test_mili_direction_from_flow():
 def test_parse_scale_vision_from_ssot():
     cfg = parse_scale_vision_config({})
     assert cfg["enabled"] is True
-    assert cfg["kelly_mult_discord"] == pytest.approx(0.55)
-    assert cfg["adapt_direction_enabled"] is True
+    assert cfg["kelly_mult_discord"] == pytest.approx(1.0)
+    assert cfg["adapt_direction_enabled"] is False
     assert cfg["use_last_bar"] is True
-    assert cfg["adapt_require_bar_pair_agree"] is True
-    assert cfg["adapt_allow_strong_tape"] is False
-    assert "adapt_max_cal_margin" not in cfg
-    assert "adapt_min_cal_margin" not in cfg
-    assert cfg["adapt_strong_mini_pair"] is True
-    assert cfg["adapt_kelly_p_floor"] >= 0.51
-    assert cfg["adapt_min_votes"] >= 1
-    assert cfg["adapt_on_retraction"] is True
-    assert cfg["adapt_on_explosion"] is True
-    assert cfg["adapt_on_mili_tape"] is True
-    assert cfg["adapt_mili_tape_skip_chop"] is True
-    assert cfg["adapt_skip_chop"] is True
-    assert cfg["adapt_require_cal_agree"] is True
-    assert cfg["adapt_on_majority_votes"] is True
-    assert cfg["adapt_majority_min_lead"] == 2
-    assert cfg["adapt_majority_min_votes"] == 3
-    assert cfg["adapt_majority_include_rsi"] is True
-    assert cfg["adapt_majority_include_micro_bar"] is True
-    assert cfg["adapt_majority_rsi_neutral"] == pytest.approx(0.5)
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
     assert cfg["max_stake_pct_discord"] == pytest.approx(0.05)
     assert cfg["ops_window_bars"] == 3
+    assert cfg["adapt_kelly_p_floor"] >= 0.51
 
 
 def test_compute_scale_discordance():

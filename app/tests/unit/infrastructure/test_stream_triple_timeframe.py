@@ -21,3 +21,5 @@ def test_ohlc_payload_prefers_explicit_granularity():
     assert ohlc_payload_granularity({"open_time": 300}, 300, 60, 60) == 300
     assert ohlc_payload_granularity({"open_time": 60}, 300, 60, 60) == 60
     assert ohlc_payload_granularity({"open_time": 61}, 300, 60, 60) == 60
+    assert ohlc_payload_granularity({"open_time": 61}, 300, 60) == 60
+    assert ohlc_payload_granularity({"open_time": 77}, 300, 60, 180) == 180

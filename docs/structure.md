@@ -35,6 +35,7 @@ aether-quantum-engine/
 │   ├── deriv-api-aether.md
 │   ├── deriv-indices-algorithm.md
 │   ├── engineering-deep-learning.md
+│   ├── engineering-indicator-gates.md
 │   ├── engineering-observability.md
 │   ├── engineering-logging-inventory.md
 │   ├── engineering-orchestrator.md

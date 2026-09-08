@@ -58,6 +58,14 @@ def test_micro_volatility_squeeze_active_bb_width_and_negative_accel():
     assert micro_volatility_squeeze_active({"indicators": {"bb_width": 0.035}}) is False
 
 
+def test_bb_width_raw_preferred_over_zscore_negative():
+    assert micro_volatility_squeeze_active({"indicators": {"bb_width": -0.74}}) is False
+    _prime_bb(0.050)
+    assert micro_volatility_squeeze_active({"indicators": {"bb_width": -0.74, "bb_width_raw": 0.015}}) is True
+    _prime_bb(0.050)
+    assert micro_volatility_squeeze_active({"micro_indicators": {"bb_width": -0.5, "bb_width_raw": 0.012}}) is True
+
+
 def test_chop_congestion_and_freeze():
     metrics = {
         "edge_zscore": float(resolve_regime_micro_freeze_config()["chop_congestion_z_edge"]) * 0.5,

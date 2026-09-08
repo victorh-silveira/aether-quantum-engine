@@ -79,11 +79,11 @@ def test_soft_recovery_and_stake_helpers_branches():
     )
 
 
-def test_loss_classifier_config_high_bounds():
-    with pytest.raises(ValueError, match="soft_kelly_mult_high deve estar"):
-        resolve_loss_classifier_config({"soft_kelly_mult_high": 0.0})
-    with pytest.raises(ValueError, match="soft_max_stake_pct_high"):
-        resolve_loss_classifier_config({"soft_max_stake_pct_high": 0.06})
+def test_loss_classifier_config_hard_mode_bounds():
+    with pytest.raises(ValueError, match="veto_mode deve ser hard"):
+        resolve_loss_classifier_config({"veto_mode": "soft"})
+    with pytest.raises(ValueError, match="hard_p_loss_floor"):
+        resolve_loss_classifier_config({"hard_p_loss_floor": 0.0})
 
 
 @pytest.mark.asyncio

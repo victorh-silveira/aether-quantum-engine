@@ -69,6 +69,8 @@ def stamp_micro_frame_telemetry(
     metrics["micro_indicators"] = {
         "rsi": _series_last(series, "rsi"),
         "vol_ratio": _series_last(series, "vol_ratio_short_long"),
+        "bb_width": _series_last(series, "bb_width"),
+        "bb_width_raw": _series_last(series, "bb_width_raw"),
     }
     flow = flow_features_from_micro_series(
         closes,

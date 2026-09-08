@@ -1,42 +1,30 @@
 ---
-description: Doutrina LLM Aether — processo > P&L; LLM nao decide trade; anti-padroes dos 9 livros
+description: Doutrina LLM Aether — TCN + HARD SKIP P_LOSS
 alwaysApply: true
 ---
 
 # Doutrina LLM Aether
 
-LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + meta + gates/fusao). Doutrina completa: `docs/llm-trading-doctrine.md`. Arquitetura senior: `docs/engineering-architecture-senior.md`.
+LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + loss-clf HARD + Kelly). Doutrina: `docs/llm-trading-doctrine.md`. Arquitetura: `docs/engineering-architecture-senior.md`.
 
-Runtime SSOT: **1HZ75V** M5, micro/MINI **300 s** (500 barras); macro **86400 s** (D1, 365 barras); lookback **30**; ciclo **300 s** (`require_signature_boundary` **true**, abertura M5); contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`); rotulagem `quantum_multi_barrier`; payout real **0.85** (breakeven $p_{\text{be}} \approx 0.541$); `online_training` **false**; `invert_exec_side` **false**; stop-win **4.31%** composto = atingido em tacada única via Kelly Single-Strike ($\text{Stake} \approx 5,0\%$). `quiet_train_logs` → celula **CRITICAL** + pos-sweep denso. Motor host Python 3.13 + asyncio; inferencia eager/CUDA local; Docker profiles `core,ml`.
+Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback **30**; ciclo **300 s**; contrato **5 m**; payout **0.85**; `online_training` **false**; stop-win **4.31%** Single-Strike. Motor host Python 3.13 + asyncio; Docker `core,ml`.
 
 ## Nunca propor
 
-- `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY / `neutral_zone` / Edge `<= 0` / Edge `< min_edge_*`
-- Julgar `EXEC_EMPTY` por Edge `<= 0`, Edge `< floor` ou `neutral_zone` como bug de frequencia
-- Reabrir `neg_edge_hard_skip=false` / softar Edge `<= 0` ou subfloor positivo sem mandato e evidencia
-- Soft_SIZE / EXEC com Edge `< min_edge_*` (deveria HARD `neg_edge_subfloor_hard`)
-- Soft_SIZE + Edge forte com stake ≈ `neutral_bankroll_pct` **1%** sem Soft_SIZE floor (aniquilacao relativa; Soft_SIZE com Edge>=0.015 deve ~2.5%)
-- Soft_SIZE com stake < **1%** banca
-- PEND material + stake ≈ cover amort 2/3 (cover_enabled deve ser false)
-- `min_payoff_edge` negativo amplo ou `signal_skip.min_direction_margin` fora de **[0.015, 0.05]** / floor **0.05** sem mandato e evidencia de frequencia
-- ACC gate < **0.53** ou desligar `align_rsi_trend` sem hipotese
-- Inflar stake apos LOSS (revenge sizing) ou “operar mais para aprender” com N baixo
+- `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
+- Reabrir bloco `signal_skip` / fusao EV / FLIP loss-clf / Soft Kelly do loss-clf / quality gate amplo
+- Inflar stake apos LOSS (revenge) ou “operar mais para aprender” com N baixo
 - Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
-- Julgar mudanca so pelo P&L de poucos ciclos; confiar WR bruto sem Cal/Edge/`live_n`
-- Afrouxar `flip_require_auto_learn` / `fusion_block_when_tcn_pos_edge` / `fusion_block_when_tcn_candle_agree` / `fusion_loss_requires_auto_learn` / `neg_edge_deep_edge_floor` sem mandato
+- Afrouxar `hard_p_loss_floor` / `veto_mode=hard` sem mandato e evidencia
 
 ## Sempre fazer
 
-- Distinguir EXPLORE vs RECOVER (label/telemetria); `cover_enabled` **false** — PEND nao infla stake via cover; stake = Kelly + piso **1%** + caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; damping inicio **1.0** / perto stop-win **0.50**; Soft_SIZE usa piso `soft_size_min_stake_pct` **2.5%** so se Edge >= **0.015** (Soft_SIZE so com Edge >= floor); **nunca** cover pleno / amortizacao em massa; **nunca** `dlambert_unit` sticky
-- Matriz anti-loss: EMA/candle discord → flip microestrutura (`anti_loss_allow_candle_flip` **false**) **so se** Edge Cal da vela >= **0.015** (explore = recovery); hybrid `anti_loss_anchor_agree=false` + last ≠ EXEC → soft `live_discord_weak` ou flip se Edge last >= floor; subfloor de flip → soft no anchor sem flip; slope + live confirm/discord/weak + RSI = **soft Kelly**; seed unstamped = **HARD**; Edge `<= 0` ou Edge `< floor` = **HARD** via neg_edge; pos-flip `fusion_p_eff` alinha ao lado EXEC
-- Soft_SIZE + Edge >= 0.015 → stake ~2.5% **tambem com PEND** (`cover_enabled` false) e **tambem sob D-SQUEEZE** (`d_squeeze_floor_waived_for_soft_size`; nao comprimir a `stake_min`)
-- Tratar EXEC_EMPTY Edge`<=0` / Edge`<floor` / `neutral_zone` / seed unstamped como sucesso de processo quando coerente
-- Exigir evidencia: `live_n`, Cal/Margin, Edge, `val_accuracy`, linha SCALE
-- Nomear o setup e o bloqueio antes de mudar risco (PlayBook)
-- Hipotese falsificavel para cada knob; pos-LOSS → container loss-clf `/learn`
-- Vies de treino corrige-se com sample_weighting + majority-collapse + SIDE_EQ soft — **nao** rearmar quality gate amplo
-- `raw_extreme` ≠ timeframe MACRO; Cal nao e substituido; Kelly ancora `fusion_p_eff` so apos neg_edge
+- Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso Kelly **1%**; Single-Strike so ALLOW
+- Anti-loss vivo = HARD SKIP se `p_loss >= 0.90` (`gate_reason=loss_clf`)
+- Tratar EXEC_EMPTY tecnico ou `loss_clf` como sucesso de processo quando coerente
+- Exigir evidencia: `live_n`, Cal/Edge, `val_accuracy`, linha LOSS_CLF
 
 ## Diagnostico de log
 
-Ordem: CLUSTER → SCALE → FUSION (`fusion_side`) → LOSS_CLF → ANTI_LOSS (flip micro so se Edge vela>=floor; hybrid disagree → `live_discord_weak`; EMA slope/confirm/RSI soft) → MICRO (FOLLOW Soft_SIZE se Edge Cal vela>=**0.015**; senao HARD `micro_discord`) → REGIME → NEG_EDGE → KELLY (Single-Strike so ALLOW; Soft_SIZE piso **2.5%** se Edge>=**0.015** com ou sem PEND) → EXEC → RESOLVED. Regressao: Edge`<floor`+EXEC; Soft_SIZE com Edge subfloor; Soft+Edge forte+stake<1%; Soft+PEND+Edge>=0.015+stake≈1%; flip com Edge candle subfloor; Soft+PEND+stake≈cover amort. Proibido narrar “mao quente”.
+Ordem: CLUSTER → SCALE (vision) → `[GATES] || LOSS_CLF` → KELLY → EXEC → RESOLVED.
+Proibido narrar “mao quente”.

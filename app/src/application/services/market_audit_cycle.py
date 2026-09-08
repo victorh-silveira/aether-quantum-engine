@@ -1,20 +1,25 @@
-"""Formatadores do pacote de 6 linhas de auditoria por ciclo."""
+"""Formatadores do pacote de auditoria por ciclo."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from src.application.services.execution_scale_vision import format_scale_ind_token
+from src.application.services.market_audit_gate_tokens import format_gates_audit_line
 from src.application.services.market_audit_log_helpers import (
-    format_micro_gate_token,
-    format_regime_gate_token,
     indicator_snapshot,
     metric_float,
-    resolve_edge_breakeven_p,
-    resolve_gates_skip_token,
     resolve_predicted_edge,
-    resolve_raw_predicted_edge,
 )
+
+
+__all__ = [
+    "format_execution_ticket_line",
+    "format_gates_audit_line",
+    "format_indicators_audit_line",
+    "format_kelly_audit_line",
+    "format_settlement_audit_line",
+]
 
 
 def _f(metrics: dict[str, Any], *keys: str, default: float = 0.0) -> float:
@@ -31,152 +36,6 @@ def _snap_f(snap: dict[str, Any], key: str, default: float = 0.0) -> float:
         return float(raw)
     except (TypeError, ValueError):
         return default
-
-
-def _gates_block_token(blocked: str) -> str:
-    """Normaliza razao de FLIP_BLOCK para telemetria curta."""
-    key = str(blocked or "").strip().lower()
-    if key in {"scale_consensus", "scale"}:
-        return "scale"
-    if key in {"neg_edge", "seed"}:
-        return key
-    if key in {"seed_candle", "seed_cndl"}:
-        return "seed_candle"
-    if key in {"tcn_pos_edge", "tcn_edge", "pos_edge"}:
-        return "tcn_edge"
-    return key or "na"
-
-
-def format_gates_audit_line(metrics: dict[str, Any]) -> str:
-    """Compacta FUSION → LOSS_CLF → ANTI → MICRO → REGIME → NEG_EDGE."""
-    p_loss = _f(metrics, "loss_clf_p_loss", default=-1.0)
-    soft = bool(metrics.get("loss_clf_soft"))
-    flipped = bool(metrics.get("loss_clf_flip"))
-    blocked = str(metrics.get("loss_clf_flip_blocked") or "").strip()
-    auto_learn = 1 if metrics.get("loss_clf_auto_learn") else 0
-    n_train = int(metrics.get("loss_clf_n_train") or 0)
-    ver = str(metrics.get("loss_clf_model_version") or "-")
-    veto_ready = 1 if metrics.get("loss_clf_veto_ready") else 0
-    soft_mult = _f(metrics, "loss_clf_soft_kelly_mult", default=0.0)
-    ref = str(metrics.get("loss_clf_flip_ref") or "").strip().upper()
-    flip_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").strip().upper()
-    why = str(metrics.get("loss_clf_flip_reason") or "").strip() or "ok"
-    if flipped:
-        from_to = f"{ref}->{flip_side}" if ref and flip_side else flip_side or "-"
-        loss_tok = f"FLIP {from_to} why={why} auto={auto_learn} p={p_loss:.5f} n={n_train}"
-    elif blocked:
-        blk = _gates_block_token(blocked)
-        loss_tok = f"FLIP_BLOCK:{blk} auto={auto_learn} p={p_loss:.5f} soft={soft_mult:.2f}"
-    elif soft and p_loss >= 0.0:
-        loss_tok = f"SOFT auto={auto_learn} p={p_loss:.5f} mult={soft_mult:.2f} n={n_train}"
-    elif p_loss >= 0.0:
-        loss_tok = f"OK auto={auto_learn} p={p_loss:.5f} ready={veto_ready} n={n_train} ver={ver}"
-    else:
-        loss_tok = "OFF"
-    edge = _f(metrics, "cal_side_edge", default=resolve_predicted_edge(metrics))
-    floor = _f(metrics, "cal_side_edge_floor", default=0.0)
-    waived = str(metrics.get("signal_skip_waived") or "")
-    neg_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
-    gate = str(metrics.get("gate_reason") or "").strip().lower()
-    status = str(metrics.get("signal_status") or "").strip().upper()
-    side_dir = neg_side if neg_side in {"CALL", "PUT"} else None
-    raw_edge = resolve_raw_predicted_edge(metrics, direction=side_dir)
-    be = resolve_edge_breakeven_p()
-    gap = f" raw_edge={raw_edge:+.4f} be={be:.3f}"
-    if gate == "neg_edge_zscore_panic" or status == "SKIP:NEG_EDGE_ZSCORE_PANIC":
-        z_panic = _f(metrics, "neg_edge_zscore", default=_f(metrics, "edge_zscore", default=0.0))
-        thr_default = 2.0 if str(neg_side).upper() == "PUT" else -2.0
-        thr_panic = _f(metrics, "neg_edge_zscore_threshold", default=thr_default)
-        neg_tok = f"NEG_EDGE zscore_panic side={neg_side} Z={z_panic:+.3f} thr={thr_panic:+.1f}"
-        skip = "neg_edge_zscore_panic"
-    elif gate == "neg_edge" or status == "SKIP:NEG_EDGE":
-        if bool(metrics.get("neg_edge_bootstrap_deep")):
-            tag = "boot_deep"
-        elif bool(metrics.get("neg_edge_nonpositive_hard")):
-            tag = "nonpos"
-        else:
-            tag = "hard"
-        neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
-        skip = "neg_edge"
-    elif waived == "neg_edge_soft" or floor > 1e-12:
-        tag = "candle" if bool(metrics.get("neg_edge_candle_soft")) else "soft"
-        if bool(metrics.get("neg_edge_p_ovr_soft")):
-            tag = "p_ovr"
-        if bool(metrics.get("neg_edge_bootstrap_soft")):
-            tag = f"boot_{tag}"
-        neg_tok = f"NEG_EDGE {tag} side={neg_side} edge={edge:+.4f}{gap} floor={floor:.4f}"
-        skip = waived if waived else "-"
-    else:
-        neg_tok = "NEG_EDGE off"
-        skip = waived if waived else "-"
-    fusion_side = str(
-        metrics.get("fusion_side_pre_invert")
-        or metrics.get("fusion_side")
-        or metrics.get("exec_direction")
-        or metrics.get("resolved_direction")
-        or "-"
-    )
-    exec_side = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "-")
-    if bool(metrics.get("fusion_applied")):
-        ev_c = _f(metrics, "fusion_ev_call", default=0.0)
-        ev_p = _f(metrics, "fusion_ev_put", default=0.0)
-        p_eff = _f(metrics, "fusion_p_eff", default=0.0)
-        fusion_why = str(metrics.get("fusion_reason") or "ok")
-        soft_ev = ""
-        if bool(metrics.get("fusion_weak_ev_soft")):
-            soft_ev = f" soft_ev={_f(metrics, 'fusion_chosen_ev', default=0.0):+.3f}"
-        fusion_tok = (
-            f"FUSION: side={fusion_side} ev_c={ev_c:+.3f} ev_p={ev_p:+.3f} p_eff={p_eff:.3f} why={fusion_why}{soft_ev}"
-        )
-    else:
-        fusion_why = str(metrics.get("fusion_reason") or "idle")
-        fusion_tok = f"FUSION: off why={fusion_why}"
-    if bool(metrics.get("invert_exec_side")):
-        inv_from = str(metrics.get("invert_from") or "-")
-        fusion_tok = f"{fusion_tok} | INVERT {inv_from}->{exec_side}"
-    elif str(metrics.get("invert_skipped_reason") or ""):
-        skip_why = str(metrics.get("invert_skipped_reason"))
-        fusion_tok = f"{fusion_tok} | INVERT skip={skip_why}"
-    if bool(metrics.get("anti_loss_seed_discord")):
-        mode = (
-            "skip"
-            if (
-                gate.startswith("anti_loss")
-                or gate == "live_exec_discord"
-                or status.startswith("SKIP:ANTI_LOSS")
-                or status.startswith("SKIP:LIVE_EXEC")
-            )
-            else "soft"
-        )
-        why = str(metrics.get("anti_loss_why") or "seed_discord")
-        p_anti = _f(metrics, "anti_loss_p_loss", default=p_loss if p_loss >= 0.0 else 0.0)
-        side_anti = str(metrics.get("anti_loss_side") or metrics.get("anti_loss_tcn") or neg_side or "-")
-        candle_anti = str(metrics.get("anti_loss_candle") or "-")
-        body_raw = metrics.get("anti_loss_body")
-        body_tok = ""
-        if body_raw is not None:
-            try:
-                body_tok = f" body={float(body_raw):.3f}"
-            except (TypeError, ValueError):
-                body_tok = ""
-        anti_tok = f"ANTI_LOSS {mode} why={why} p={p_anti:.5f} side={side_anti} candle={candle_anti}{body_tok}"
-        if mode == "skip" or status.startswith("SKIP:"):
-            skip = gate if gate else why
-    else:
-        anti_tok = "ANTI_LOSS off"
-    micro_tok = format_micro_gate_token(metrics, gate, p_loss)
-    regime_tok = format_regime_gate_token(metrics, gate)
-    skip = resolve_gates_skip_token(gate, skip)
-    verdict = str(metrics.get("gate_verdict") or "").strip().upper()
-    verdict_tok = f" | verdict={verdict}" if verdict else ""
-    return (
-        f"[GATES] || {fusion_tok}\n"
-        f"[GATES] || LOSS_CLF: {loss_tok}\n"
-        f"[GATES] || {anti_tok}\n"
-        f"[GATES] || {micro_tok}\n"
-        f"[GATES] || {regime_tok}\n"
-        f"[GATES] || {neg_tok} | skip={skip}{verdict_tok}"
-    )
 
 
 def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, Any]) -> str:

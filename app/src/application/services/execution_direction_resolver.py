@@ -1,10 +1,9 @@
-"""Motor de direcao TCN com telemetria meta e catalogo minimo de SKIP de sinal."""
+"""Motor de direcao TCN com SKIP tecnico e HARD SKIP por P_LOSS."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.execution_anti_loss import apply_anti_loss_seed_discord
 from src.application.services.execution_direction_checks import (
     infer_dl_direction,
     initial_direction_checks,
@@ -12,18 +11,9 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
-from src.application.services.execution_direction_fusion import apply_direction_fusion, parse_direction_fusion_config
-from src.application.services.execution_invert_side import apply_invert_exec_side
-from src.application.services.execution_micro_protect import apply_micro_protect_gates
-from src.application.services.execution_neg_edge import apply_negative_cal_edge_pause
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
-from src.application.services.execution_regime_chop import apply_regime_chop_pause
-from src.application.services.execution_regime_gate import apply_regime_boolean_gate
-from src.application.services.execution_scale_adapt import apply_scale_direction_adapt, apply_scale_kelly_side_sync
-from src.application.services.execution_scale_sizing import apply_scale_kelly_sizing
 from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
-from src.application.services.execution_signal_skip import apply_signal_skip_gates
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
@@ -31,6 +21,8 @@ from src.application.services.meta_classifier_stacking import resolve_meta_payof
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.kelly_p_align import apply_kelly_side_p
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
 __all__ = (
@@ -47,6 +39,18 @@ def _stamp_direction_resolved_cycle(entry: dict, cycle_id: int) -> None:
         metrics["_direction_resolved_cycle"] = int(cycle_id)
 
 
+def _sync_kelly_side(metrics: dict[str, Any], exec_dir: TradeDirection) -> None:
+    """Alinha p Kelly ao lado EXEC com piso SSOT."""
+    rt = load_kelly_runtime_from_settings()
+    conviction = float(metrics.get("conviction", metrics.get("trade_score", 0.5)) or 0.5)
+    apply_kelly_side_p(
+        metrics,
+        order_direction=exec_dir.name,
+        kelly_config={"kelly_p_floor": rt["kelly_p_floor"]},
+        conviction=conviction,
+    )
+
+
 def _finalize_execution_metrics(
     entry: dict,
     metrics: dict,
@@ -60,7 +64,7 @@ def _finalize_execution_metrics(
     orch: Any | None = None,
     force: bool = False,
 ) -> tuple[TradeDirection, dict]:
-    """Aplica telemetria meta, SCALE e catalogo minimo de SKIP de sinal."""
+    """Aplica telemetria, SIDE_EQ sizing e HARD SKIP por P_LOSS."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)
@@ -95,58 +99,26 @@ def _finalize_execution_metrics(
             except (TypeError, ValueError):
                 metrics.setdefault("pending_loss_total", 0.0)
     compute_scale_directions(orch, symbol, exec_dir, metrics)
-    fusion_raw = None
-    if orch is not None and isinstance(getattr(orch, "config", None), dict):
-        orch_block = orch.config.get("orchestrator")
-        if isinstance(orch_block, dict):
-            ex_block = orch_block.get("execution")
-            if isinstance(ex_block, dict) and isinstance(ex_block.get("scale_vision"), dict):
-                fusion_raw = ex_block["scale_vision"]
-    fusion_cfg = parse_direction_fusion_config(fusion_raw)
-    replace_adapt = bool(fusion_cfg.get("fusion_enabled")) and bool(fusion_cfg.get("fusion_replace_adapt_flip"))
-    if not replace_adapt:
-        exec_dir = apply_scale_direction_adapt(metrics, exec_dir)
-    else:
-        metrics.setdefault("scale_adapted", False)
-        metrics.setdefault("scale_adapt_reason", "fusion_replace")
+    metrics["scale_adapted"] = False
+    metrics.setdefault("scale_adapt_reason", "off")
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["execution_candidate_ready"] = True
-    apply_scale_kelly_side_sync(metrics, exec_dir)
+    _sync_kelly_side(metrics, exec_dir)
     sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
-    apply_scale_kelly_sizing(orch, symbol, exec_dir, metrics)
     metrics["scale_audit"] = format_scale_audit_line(metrics)
     metrics.pop("quality_guard_reject", None)
     metrics.pop("regime_skip_cycle", None)
     metrics.pop("gate_reason", None)
     if orch is not None:
-        apply_signal_skip_gates(metrics, exec_dir, orch=orch, force=force, symbol=symbol)
-        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
-        apply_scale_kelly_side_sync(metrics, exec_dir)
-        sync_direction_margin(metrics, direction=exec_dir.name)
         tcn_ref = TradeDirection[str(metrics.get("tcn_direction") or dl_dir.name).upper()]
         apply_loss_classifier_gate(metrics, tcn_ref, orch=orch, force=force, symbol=symbol)
-        apply_anti_loss_seed_discord(metrics, orch=orch, force=force, symbol=symbol)
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
-        apply_scale_kelly_side_sync(metrics, exec_dir)
+        _sync_kelly_side(metrics, exec_dir)
         sync_direction_margin(metrics, direction=exec_dir.name)
-        apply_micro_protect_gates(metrics, orch=orch, force=force)
-    elif bool(fusion_cfg.get("fusion_enabled")):
-        exec_dir = apply_direction_fusion(metrics, exec_dir, orch=orch, cfg=fusion_cfg)
-        apply_scale_kelly_side_sync(metrics, exec_dir)
-        sync_direction_margin(metrics, direction=exec_dir.name)
-    apply_regime_boolean_gate(metrics, orch=orch, force=force)
-    apply_regime_chop_pause(metrics, orch=orch, force=force)
-    apply_negative_cal_edge_pause(metrics, orch=orch, force=force)
-    ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
-    if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
-        exec_dir = TradeDirection[ready_name]
-    exec_dir = apply_invert_exec_side(metrics, exec_dir, orch=orch)
-    apply_scale_kelly_side_sync(metrics, exec_dir)
-    sync_direction_margin(metrics, direction=exec_dir.name)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 

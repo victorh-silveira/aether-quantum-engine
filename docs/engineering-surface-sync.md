@@ -16,7 +16,7 @@ Complementa:
 |---------|-------------------|
 | Arquitetura / camadas / event loop / host | `engineering-architecture-senior` + rule/skill `aether-architecture-senior` + `arquitetura.md` |
 | Knob / settings | doc settings SSOT + rule `aether-settings-ssot` + skill `aether-settings-change` |
-| Gate / risco / fusao | playbook + doutrina + rules de execucao/risco |
+| Gate / risco / fusao | playbook + doutrina + rules de execucao/risco + [`engineering-indicator-gates.md`](engineering-indicator-gates.md) |
 | DL / horizon / label | `engineering-deep-learning` + rule/skill DL |
 | Docker / meta / loss | `infra-docker` + `engineering-devops-cloudops-senior` + rule/skill infra / devops |
 | Nova skill ou rule | `docs/agent-coverage.md` + tabela em `AGENTS.md` |

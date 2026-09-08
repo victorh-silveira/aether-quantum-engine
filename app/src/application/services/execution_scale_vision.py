@@ -28,7 +28,7 @@ from src.application.services.market_audit_candle import (
     last_closed_micro_candle,
 )
 from src.application.services.market_audit_ops_window import stamp_ops_window_metrics
-from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
+from src.domain.config_knobs import merge_settings_block, require_bool, require_int, require_keys
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
@@ -37,32 +37,11 @@ _SCALE_VISION_KEYS = (
     "enabled",
     "slope_bars",
     "ops_window_bars",
-    "kelly_mult_discord",
     "min_disagree_to_dampen",
     "block_recover_on_discord",
     "use_last_bar",
-    "adapt_direction_enabled",
-    "adapt_require_raw_extreme",
-    "adapt_require_bar_pair_agree",
-    "adapt_allow_strong_tape",
-    "adapt_strong_mini_pair",
-    "adapt_kelly_p_floor",
-    "adapt_min_votes",
-    "adapt_on_retraction",
-    "adapt_on_explosion",
-    "adapt_on_mili_tape",
-    "adapt_mili_tape_skip_chop",
-    "adapt_skip_chop",
-    "adapt_require_cal_agree",
-    "adapt_on_majority_votes",
-    "adapt_majority_min_lead",
-    "adapt_majority_min_votes",
-    "adapt_majority_include_rsi",
-    "adapt_majority_include_micro_bar",
-    "adapt_majority_rsi_neutral",
     "retraction_require_mili",
     "retraction_use_tick_accel",
-    "max_stake_pct_discord",
 )
 
 __all__ = (
@@ -82,7 +61,7 @@ __all__ = (
 
 
 def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve orchestrator.execution.scale_vision com merge SSOT."""
+    """Resolve orchestrator.execution.scale_vision com merge SSOT (telemetria only)."""
     block = require_keys(
         merge_settings_block(
             ("orchestrator", "execution", "scale_vision"),
@@ -95,32 +74,15 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "enabled": require_bool(block, "enabled"),
         "slope_bars": max(2, require_int(block, "slope_bars")),
         "ops_window_bars": max(1, require_int(block, "ops_window_bars")),
-        "kelly_mult_discord": max(0.05, min(1.0, require_float(block, "kelly_mult_discord"))),
         "min_disagree_to_dampen": max(1, require_int(block, "min_disagree_to_dampen")),
         "block_recover_on_discord": require_bool(block, "block_recover_on_discord"),
         "use_last_bar": require_bool(block, "use_last_bar"),
-        "adapt_direction_enabled": require_bool(block, "adapt_direction_enabled"),
-        "adapt_require_raw_extreme": require_bool(block, "adapt_require_raw_extreme"),
-        "adapt_require_bar_pair_agree": require_bool(block, "adapt_require_bar_pair_agree"),
-        "adapt_allow_strong_tape": require_bool(block, "adapt_allow_strong_tape"),
-        "adapt_strong_mini_pair": require_bool(block, "adapt_strong_mini_pair"),
-        "adapt_kelly_p_floor": float(load_kelly_runtime_from_settings()["kelly_p_floor"]),
-        "adapt_min_votes": max(1, require_int(block, "adapt_min_votes")),
-        "adapt_on_retraction": require_bool(block, "adapt_on_retraction"),
-        "adapt_on_explosion": require_bool(block, "adapt_on_explosion"),
-        "adapt_on_mili_tape": require_bool(block, "adapt_on_mili_tape"),
-        "adapt_mili_tape_skip_chop": require_bool(block, "adapt_mili_tape_skip_chop"),
-        "adapt_skip_chop": require_bool(block, "adapt_skip_chop"),
-        "adapt_require_cal_agree": require_bool(block, "adapt_require_cal_agree"),
-        "adapt_on_majority_votes": require_bool(block, "adapt_on_majority_votes"),
-        "adapt_majority_min_lead": max(1, require_int(block, "adapt_majority_min_lead")),
-        "adapt_majority_min_votes": max(2, require_int(block, "adapt_majority_min_votes")),
-        "adapt_majority_include_rsi": require_bool(block, "adapt_majority_include_rsi"),
-        "adapt_majority_include_micro_bar": require_bool(block, "adapt_majority_include_micro_bar"),
-        "adapt_majority_rsi_neutral": max(0.0, min(1.0, require_float(block, "adapt_majority_rsi_neutral"))),
         "retraction_require_mili": require_bool(block, "retraction_require_mili"),
         "retraction_use_tick_accel": require_bool(block, "retraction_use_tick_accel"),
-        "max_stake_pct_discord": max(0.0, min(0.05, require_float(block, "max_stake_pct_discord"))),
+        "adapt_kelly_p_floor": float(load_kelly_runtime_from_settings()["kelly_p_floor"]),
+        "adapt_direction_enabled": False,
+        "kelly_mult_discord": 1.0,
+        "max_stake_pct_discord": 0.05,
     }
 
 

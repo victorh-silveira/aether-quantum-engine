@@ -15,6 +15,7 @@ from runtime import (
     fit_classifier,
     is_bootstrap_bundle,
     is_collapsed_classifier,
+    is_stale_gaussian_bootstrap,
     load_latest_classifier,
     persist_bundle,
     predict_p_loss,
@@ -233,8 +234,12 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
 async def startup() -> None:
     with _lock:
         _load_buffer_unlocked()
-        if _load_latest_model():
+        loaded = _load_latest_model()
+        stale_seed = bool(loaded) and bool(_bootstrap) and is_stale_gaussian_bootstrap(_model_version)
+        if loaded and not stale_seed:
             return
+        if stale_seed:
+            logger.info("Reseed loss: bootstrap OOD legado version=%s", _model_version)
         seeded = seed_bootstrap_classifier(MODELS_DIR, FEATURE_DIM, FEATURE_NAMES)
         if seeded is None:
             logger.error("Falha ao semear loss-classifier em %s", MODELS_DIR)
@@ -292,7 +297,8 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
         if _model is None:
             raise HTTPException(status_code=503, detail="loss-classifier sem modelo carregado")
         try:
-            p_loss = predict_p_loss(_model, vector)
+            temp = 2.0 if bool(_bootstrap) or str(_model_version).startswith("loss_bootstrap_live") else 1.0
+            p_loss = predict_p_loss(_model, vector, temperature=temp)
         except Exception as exc:
             logger.warning("predict falhou: %s", exc)
             return LossPredictResult(

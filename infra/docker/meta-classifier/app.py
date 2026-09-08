@@ -12,10 +12,14 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
 from learn_runtime import (
+    bundle_n_train,
+    clamp_meta_edge,
     fit_regressor,
+    is_tiny_online_bundle,
     load_learn_buffer,
     meta_retrain_floor,
     persist_regressor_bundle,
+    rank_meta_bundle,
     save_learn_buffer,
     should_retrain_meta,
 )
@@ -102,7 +106,7 @@ _n_loaded: int = 0
 _buffer_x: list[list[float]] = []
 _buffer_y: list[float] = []
 _lock = threading.Lock()
-RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "2"))
+RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "32"))
 MAX_BUFFER = int(os.getenv("META_MAX_BUFFER", "2000"))
 BUFFER_PATH = MODELS_DIR / "meta_learn_buffer.pkl"
 
@@ -134,63 +138,84 @@ def _model_version() -> str:
     return str((_model_bundle or {}).get("model_version") or "none")
 
 
+def _try_load_bundle(path: Path) -> tuple[dict[str, Any] | None, str | None]:
+    try:
+        bundle = joblib.load(path)
+    except Exception as exc:
+        logger.warning("Falha ao carregar modelo %s: %s", path, exc)
+        return None, f"{path.name}: {exc}"
+    if not isinstance(bundle, dict) or bundle.get("model") is None:
+        return None, f"{path.name}: bundle sem chave model"
+    model = bundle["model"]
+    model_type = str(bundle.get("model_type") or "regressor")
+    if model_type != "regressor":
+        logger.warning("Artefato %s ignorado: model_type=%s", path.name, model_type)
+        return None, f"{path.name}: model_type={model_type}"
+    if not callable(getattr(model, "predict", None)):
+        logger.warning("Artefato %s sem metodo predict", path.name)
+        return None, f"{path.name}: metodo predict ausente"
+    return bundle, None
+
+
 def _load_model_bundle() -> dict[str, Any] | None:
     global _model_load_error, _model_path, _model_mtime, _n_loaded
     failures: list[str] = []
     if not MODELS_DIR.is_dir():
         _model_load_error = f"diretorio de modelos ausente: {MODELS_DIR}"
         return None
-    candidates = sorted(MODELS_DIR.glob("*.pkl"), key=lambda path: path.stat().st_mtime, reverse=True)
+    candidates = list(MODELS_DIR.glob("*.pkl"))
     if not candidates:
         _model_load_error = f"nenhum artefato .pkl encontrado em {MODELS_DIR}"
         return None
+    floor = meta_retrain_floor(int(RETRAIN_MIN_N))
+    valid: list[tuple[Path, dict[str, Any]]] = []
     for path in candidates:
-        try:
-            bundle = joblib.load(path)
-        except Exception as exc:
-            message = f"{path.name}: {exc}"
-            failures.append(message)
-            logger.warning("Falha ao carregar modelo %s: %s", path, exc)
+        if path.name == BUFFER_PATH.name:
             continue
-        if not isinstance(bundle, dict) or bundle.get("model") is None:
-            failures.append(f"{path.name}: bundle sem chave model")
+        bundle, err = _try_load_bundle(path)
+        if bundle is None:
+            if err:
+                failures.append(err)
             continue
-        model = bundle["model"]
-        model_type = str(bundle.get("model_type") or "regressor")
-        if model_type != "regressor":
-            failures.append(f"{path.name}: model_type={model_type}")
-            logger.warning("Artefato %s ignorado: model_type=%s", path.name, model_type)
-            continue
-        if not callable(getattr(model, "predict", None)):
-            failures.append(f"{path.name}: metodo predict ausente")
-            logger.warning("Artefato %s sem metodo predict", path.name)
-            continue
-        _model_load_error = None
-        _model_path = path
-        _model_mtime = float(path.stat().st_mtime)
-        _n_loaded += 1
-        feature_count = len(_resolve_feature_names(bundle))
-        logger.info("Modelo meta-regressor carregado: %s | feature_dim=%d", path.name, feature_count)
-        return bundle
-    _model_load_error = "; ".join(failures) if failures else f"nenhum regressor valido em {MODELS_DIR}"
-    return None
+        valid.append((path, bundle))
+    if not valid:
+        _model_load_error = "; ".join(failures) if failures else f"nenhum regressor valido em {MODELS_DIR}"
+        return None
+    valid.sort(key=lambda item: rank_meta_bundle(item[0], item[1]), reverse=True)
+    path, bundle = valid[0]
+    if is_tiny_online_bundle(path, bundle, floor=floor):
+        offline = [item for item in valid if not is_tiny_online_bundle(item[0], item[1], floor=floor)]
+        if offline:
+            logger.info(
+                "META: ignore tiny online n=%d version=%s floor=%d",
+                bundle_n_train(bundle),
+                path.name,
+                floor,
+            )
+            path, bundle = offline[0]
+    _model_load_error = None
+    _model_path = path
+    _model_mtime = float(path.stat().st_mtime)
+    _n_loaded += 1
+    feature_count = len(_resolve_feature_names(bundle))
+    logger.info("Modelo meta-regressor carregado: %s | feature_dim=%d", path.name, feature_count)
+    return bundle
 
 
 def _maybe_hot_reload() -> None:
     global _model_bundle, _model_mtime
     if not MODELS_DIR.is_dir():
         return
-    candidates = sorted(MODELS_DIR.glob("*.pkl"), key=lambda path: path.stat().st_mtime, reverse=True)
+    candidates = [p for p in MODELS_DIR.glob("*.pkl") if p.name != BUFFER_PATH.name]
     if not candidates:
         return
-    latest = candidates[0]
-    mtime = float(latest.stat().st_mtime)
-    if _model_bundle is not None and mtime <= float(_model_mtime) + 1e-9:
+    latest_mtime = max(float(p.stat().st_mtime) for p in candidates)
+    if _model_bundle is not None and latest_mtime <= float(_model_mtime) + 1e-9:
         return
     bundle = _load_model_bundle()
     if bundle is not None:
         _model_bundle = bundle
-        logger.info("Hot-reload meta: %s", latest.name)
+        logger.info("Hot-reload meta: %s", _model_version())
 
 
 def _regressor_unavailable_detail() -> str:
@@ -248,7 +273,12 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
     try:
         input_features_dataframe = _build_feature_dataframe(bundle, payload.feature_vector)
         raw_edge = model.predict(input_features_dataframe.to_numpy())[0]
-        edge = float(raw_edge)
+        edge = clamp_meta_edge(
+            float(raw_edge),
+            auto_learn=bool(bundle.get("auto_learn_applied")),
+            n_train=bundle_n_train(bundle),
+            floor=meta_retrain_floor(int(RETRAIN_MIN_N)),
+        )
     except Exception as exc:
         logger.warning("Inferencia meta-regressor falhou: %s", exc)
         return MetaPredictResult(
