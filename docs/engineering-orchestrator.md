@@ -8,7 +8,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
-- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.90** + `flip_require_auto_learn` **true**
+- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.20** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
 - MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / 500 barras de histórico)
 - Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`quantum_multi_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
@@ -64,7 +64,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 ## Gates de fase
 
 - **FASE TREINO:** sem ordens ate modelos da sessao prontos
-- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `invert_exec_side: false`, `online_training: false`
+- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `online_training: false`; unica inversao de lado = loss-clf FLIP se `p_loss >= 0.20`
 - Lock/barreira serializa inferencia, liquidacao e persistencia
 
 ## Diagnostico rapido
@@ -75,7 +75,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 | So EXEC_EMPTY | bloqueio tecnico / Kelly — processo pode estar correto |
 | Stake baixo com SCALE discord/adapt | Se EXPLORE << Single-Strike (~5%): checar `max_stake_pct_discord` (**0.05**) e `kelly_mult_discord` (**0.55**); teto 1% legado e regressao |
 | RECOVER/EXPLORE_DAL nao arma | `adapted_force_explore` / ACC / live_wr / `scale_force_explore` |
-| Lado ≠ TCN no EXEC | `scale_adapted` via **majority_votes**, tape/`raw_extreme` ou regimes (sem hold Cal) |
+| Lado ≠ TCN no EXEC | Esperado so com `LOSS_CLF FLIP` (`p_loss >= 0.20`); qualquer outro flip e bug/regressao |
 | Travado apos trade | settlement queue / post_settlement |
 | Reconnect loop | watchdog stale + cooldown |
 

@@ -1,4 +1,4 @@
-"""Pass-through de direcao TCN com SKIP tecnico e HARD SKIP loss-clf."""
+"""Pass-through de direcao TCN com SKIP tecnico e FLIP loss-clf."""
 
 from unittest.mock import MagicMock, patch
 

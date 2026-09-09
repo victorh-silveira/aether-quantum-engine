@@ -1,16 +1,17 @@
-"""HARD SKIP por P_LOSS do aether-loss-classifier (sem FLIP, sem Soft Kelly)."""
+"""FLIP CALL↔PUT por p_eff do aether-loss-classifier (sem HARD SKIP, sem Soft Kelly)."""
 
 from __future__ import annotations
 
 import logging
 from typing import Any
 
-from src.application.services.execution_gate_verdict import stamp_hard_skip
 from src.application.services.execution_quality_gate import read_risk_session_state
 from src.application.services.log_dedupe import log_debug_if_changed
 from src.application.services.loss_classifier_features import build_loss_feature_vector
 from src.application.services.loss_classifier_gate_support import (
     clear_stale_loss_clf_metrics,
+    compute_loss_clf_p_eff,
+    resolve_scale_tape,
     resolve_tcn_ref,
 )
 from src.application.services.loss_classifier_vectors import store_loss_feature_vector
@@ -35,7 +36,7 @@ def apply_loss_classifier_gate(
     force: bool = False,
     symbol: str | None = None,
 ) -> bool:
-    """Consulta loss-clf; HARD SKIP se p_loss >= hard_p_loss_floor."""
+    """Consulta loss-clf; FLIP se auto_learn e p_eff >= piso (young/mature). Retorna False."""
     if force or orch is None:
         return False
     clear_stale_loss_clf_metrics(metrics)
@@ -83,43 +84,90 @@ def apply_loss_classifier_gate(
         },
     )
     p_loss = float(response["p_loss"])
+    n_train = int(response["n_train"])
+    bootstrap = bool(response.get("bootstrap", False))
+    auto_learn = bool(response["auto_learn_applied"])
+    tape = resolve_scale_tape(metrics)
+    p_eff, young, tape_discord, flip_floor = compute_loss_clf_p_eff(
+        p_loss,
+        n_train=n_train,
+        flip_trust_n=int(cfg["flip_trust_n"]),
+        flip_young_shrink=float(cfg["flip_young_shrink"]),
+        hard_floor=hard_floor,
+        flip_young_p_eff_floor=float(cfg["flip_young_p_eff_floor"]),
+        tcn_ref=ref_dir,
+        tape=tape,
+    )
     metrics["loss_clf_p_loss"] = p_loss
+    metrics["loss_clf_p_eff"] = p_eff
+    metrics["loss_clf_young_shrink"] = young
+    metrics["loss_clf_tape_discord"] = tape_discord
+    metrics["loss_clf_flip_floor"] = flip_floor
+    metrics["loss_clf_bootstrap"] = bootstrap
     metrics["loss_clf_model_version"] = str(response["model_version"])
-    metrics["loss_clf_n_train"] = int(response["n_train"])
-    metrics["loss_clf_auto_learn"] = bool(response["auto_learn_applied"])
+    metrics["loss_clf_n_train"] = n_train
+    metrics["loss_clf_auto_learn"] = auto_learn
     metrics["loss_clf_veto_ready"] = bool(response["veto_ready"])
     metrics["loss_clf_veto_mode"] = "hard"
-    auto_flag = 1 if response["auto_learn_applied"] else 0
+    auto_flag = 1 if auto_learn else 0
     ver = str(response.get("model_version") or "none")
-    if p_loss + 1e-12 >= hard_floor:
-        metrics["execution_candidate_ready"] = False
-        metrics["gate_reason"] = "loss_clf"
-        metrics["signal_status"] = "SKIP:LOSS_CLF"
-        metrics["loss_clf_hard"] = True
-        stamp_hard_skip(metrics, "loss_clf")
+    blocked = None
+    if bootstrap:
+        blocked = "bootstrap"
+    elif not auto_learn:
+        blocked = "no_auto_learn"
+    if blocked is not None:
+        metrics["loss_clf_flip_blocked"] = blocked
+        metrics.pop("loss_clf_flip", None)
         log_debug_if_changed(
             orch,
             logger,
-            f"loss_clf_hard:{cycle_id}",
-            f"{ver}:{p_loss:.5f}:{hard_floor:.2f}:{auto_flag}",
-            "LOSS_CLF || HARD auto_learn=%d ver=%s n=%d p_loss=%.5f floor=%.2f",
+            f"loss_clf_ok:{cycle_id}",
+            f"{ver}:{p_loss:.5f}:{p_eff:.5f}:{auto_flag}:{blocked}",
+            "LOSS_CLF || OK auto_learn=%d ver=%s n=%d p_loss=%.5f p_eff=%.5f blocked=%s",
             auto_flag,
             ver,
-            int(response["n_train"]),
+            n_train,
             p_loss,
-            hard_floor,
+            p_eff,
+            blocked,
         )
-        return True
+        return False
+    metrics.pop("loss_clf_flip_blocked", None)
+    if p_eff + 1e-12 >= flip_floor:
+        flipped = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
+        metrics["exec_direction"] = flipped.name
+        metrics["resolved_direction"] = flipped.name
+        metrics["loss_clf_flip"] = True
+        metrics.pop("loss_clf_hard", None)
+        log_debug_if_changed(
+            orch,
+            logger,
+            f"loss_clf_flip:{cycle_id}",
+            f"{ver}:{p_loss:.5f}:{p_eff:.5f}:{flip_floor:.2f}:{ref_dir.name}->{flipped.name}:{auto_flag}",
+            "LOSS_CLF || FLIP %s->%s auto_learn=%d ver=%s n=%d p_loss=%.5f p_eff=%.5f floor=%.2f",
+            ref_dir.name,
+            flipped.name,
+            auto_flag,
+            ver,
+            n_train,
+            p_loss,
+            p_eff,
+            flip_floor,
+        )
+        return False
+    metrics.pop("loss_clf_flip", None)
     log_debug_if_changed(
         orch,
         logger,
         f"loss_clf_ok:{cycle_id}",
-        f"{ver}:{p_loss:.5f}:{auto_flag}:{1 if response['veto_ready'] else 0}",
-        "LOSS_CLF || OK auto_learn=%d ver=%s n=%d p_loss=%.5f veto_ready=%d",
+        f"{ver}:{p_loss:.5f}:{p_eff:.5f}:{auto_flag}:{1 if response['veto_ready'] else 0}",
+        "LOSS_CLF || OK auto_learn=%d ver=%s n=%d p_loss=%.5f p_eff=%.5f veto_ready=%d",
         auto_flag,
         ver,
-        int(response["n_train"]),
+        n_train,
         p_loss,
+        p_eff,
         1 if response["veto_ready"] else 0,
     )
     return False

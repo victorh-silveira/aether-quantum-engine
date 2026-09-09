@@ -27,7 +27,10 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["mandatory_trade_each_cycle"] is False
     assert inv["online_training"] is False
     assert inv["loss_clf_veto_mode"] == "hard"
-    assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.9)
+    assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.55)
+    assert inv["loss_clf_flip_trust_n"] == 32
+    assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
+    assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.55)
     assert inv["loss_clf_enabled"] is True
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600

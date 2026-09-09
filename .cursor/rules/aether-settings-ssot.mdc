@@ -1,5 +1,5 @@
 ---
-description: Settings SSOT Aether — loss HARD + sem signal_skip
+description: Settings SSOT Aether — loss FLIP no piso + sem signal_skip
 globs: config/settings.json
 alwaysApply: true
 ---
@@ -9,8 +9,8 @@ alwaysApply: true
 - Knob novo = settings + resolve_* + teste + doc se mudar semantica
 - Nao hardcodar o mesmo default em tres lugares
 - Nao afrouxar: force_trade, ACC gate, max_safe_stake_*, sample_size_policy (`evidence_n_min`/**12**, `large_n_min`/**32**)
-- Loss-clf: `veto_mode` **hard**, `hard_p_loss_floor` **0.90**; **proibido** reintroduzir `flip_*` / soft Kelly do loss-clf / bloco `signal_skip` / `invert_exec_side` / `fusion_*` de lado
+- Loss-clf: `veto_mode` **hard**, `hard_p_loss_floor` **0.55**; `flip_young_p_eff_floor` **0.55**; `flip_trust_n` **32**, `flip_young_shrink` **0.35**; FLIP so apos auto_learn (nao bootstrap); tape so telemetria; **proibido** Soft Kelly do loss-clf / HARD SKIP / bloco `signal_skip` / `invert_exec_side` / `fusion_*` de lado
 - Proteger sizing: `cover_enabled` **false**, piso Kelly **1%**, Soft_SIZE legado inerte, caps recovery, `online_training` **false**, `require_signature_boundary` **true**, ciclo **300 s**
 - Auth/PAT: nao commitar segredos
 - Doc: `docs/engineering-settings-ssot.md`; skill: `aether-settings-change`
-- Catalogo gates: `docs/engineering-indicator-gates.md` (tecnico + `loss_clf` HARD)
+- Catalogo gates: `docs/engineering-indicator-gates.md` (tecnico + `loss_clf` FLIP)

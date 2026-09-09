@@ -20,7 +20,10 @@ def _loss_cfg(**overrides: object) -> dict:
         "max_keepalive_connections": 4,
         "feature_dim": 24,
         "veto_mode": "hard",
-        "hard_p_loss_floor": 0.9,
+        "hard_p_loss_floor": 0.55,
+        "flip_trust_n": 32,
+        "flip_young_shrink": 0.35,
+        "flip_young_p_eff_floor": 0.55,
         "ready_n": 8,
         "retrain_min_n": 1,
         "retrain_on_loss_min_n": 1,
@@ -33,8 +36,11 @@ def _loss_cfg(**overrides: object) -> dict:
 def test_resolve_loss_classifier_config_from_ssot():
     resolved = resolve_loss_classifier_config(None)
     assert resolved["veto_mode"] == "hard"
-    assert resolved["hard_p_loss_floor"] == pytest.approx(0.9)
-    assert resolved["veto_p_loss_floor"] == pytest.approx(0.9)
+    assert resolved["hard_p_loss_floor"] == pytest.approx(0.55)
+    assert resolved["veto_p_loss_floor"] == pytest.approx(0.55)
+    assert resolved["flip_trust_n"] == 32
+    assert resolved["flip_young_shrink"] == pytest.approx(0.35)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
     assert resolved["http_url"] == "http://localhost:8006"
 
 
@@ -53,6 +59,23 @@ def test_resolve_loss_classifier_config_rejects_non_hard_veto():
 def test_resolve_loss_classifier_config_rejects_invalid_floor(floor):
     with pytest.raises(ValueError, match="hard_p_loss_floor"):
         resolve_loss_classifier_config({"hard_p_loss_floor": floor})
+
+
+@pytest.mark.parametrize("shrink", [0.0, 1.5])
+def test_resolve_loss_classifier_config_rejects_invalid_young_shrink(shrink):
+    with pytest.raises(ValueError, match="flip_young_shrink"):
+        resolve_loss_classifier_config({"flip_young_shrink": shrink})
+
+
+def test_resolve_loss_classifier_config_rejects_invalid_trust_n():
+    with pytest.raises(ValueError, match="flip_trust_n"):
+        resolve_loss_classifier_config({"flip_trust_n": 0})
+
+
+@pytest.mark.parametrize("floor", [0.0, 1.5])
+def test_resolve_loss_classifier_config_rejects_invalid_young_p_eff_floor(floor):
+    with pytest.raises(ValueError, match="flip_young_p_eff_floor"):
+        resolve_loss_classifier_config({"flip_young_p_eff_floor": floor})
 
 
 def test_loss_classifier_enabled_from_root_config():

@@ -184,6 +184,9 @@ def _mutate_inv(key: str, *, value: object):
     [
         (_mutate_inv("mandatory_trade_each_cycle", value=True), "mandatory_trade"),
         (_mutate_inv("loss_clf_hard_p_loss_floor", value=0.8), "hard_p_loss_floor"),
+        (_mutate_inv("loss_clf_flip_trust_n", value=16), "flip_trust_n"),
+        (_mutate_inv("loss_clf_flip_young_shrink", value=0.5), "flip_young_shrink"),
+        (_mutate_inv("loss_clf_flip_young_p_eff_floor", value=0.4), "flip_young_p_eff_floor"),
         (_mutate_inv("loss_clf_enabled", value=False), "enabled"),
         (_mutate_inv("watchdog_stale_tick_seconds", value=120), "watchdog"),
         (_mutate_inv("settlement_tolerance_window_seconds", value=120), "settlement_tolerance"),
@@ -227,6 +230,9 @@ def _settings_from_invariants(inv: dict) -> dict:
     settings["deep_learning"]["online_training"] = inv["online_training"]
     settings["infra"]["loss_classifier"]["veto_mode"] = inv["loss_clf_veto_mode"]
     settings["infra"]["loss_classifier"]["hard_p_loss_floor"] = inv["loss_clf_hard_p_loss_floor"]
+    settings["infra"]["loss_classifier"]["flip_trust_n"] = inv["loss_clf_flip_trust_n"]
+    settings["infra"]["loss_classifier"]["flip_young_shrink"] = inv["loss_clf_flip_young_shrink"]
+    settings["infra"]["loss_classifier"]["flip_young_p_eff_floor"] = inv["loss_clf_flip_young_p_eff_floor"]
     settings["infra"]["loss_classifier"]["enabled"] = inv["loss_clf_enabled"]
     settings["orchestrator"]["watchdog_stale_tick_seconds"] = inv["watchdog_stale_tick_seconds"]
     settings["orchestrator"]["settlement_tolerance_window_seconds"] = inv["settlement_tolerance_window_seconds"]

@@ -1,4 +1,4 @@
-"""Motor de direcao TCN com SKIP tecnico e HARD SKIP por P_LOSS."""
+"""Motor de direcao TCN com SKIP tecnico e FLIP por P_LOSS alto."""
 
 from __future__ import annotations
 
@@ -64,7 +64,7 @@ def _finalize_execution_metrics(
     orch: Any | None = None,
     force: bool = False,
 ) -> tuple[TradeDirection, dict]:
-    """Aplica telemetria, SIDE_EQ sizing e HARD SKIP por P_LOSS."""
+    """Aplica telemetria, SIDE_EQ sizing e FLIP por P_LOSS alto."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)

@@ -24,7 +24,7 @@ def test_production_single_strike_and_loss_clf_hard_ssot():
     assert float(kelly["stop_win_kelly_max_fraction"]) == pytest.approx(1.0)
     assert float(kelly["stop_win_kelly_min_conviction"]) == pytest.approx(0.52)
     assert float(params["compounding_rate_daily"]) == pytest.approx(0.0431)
-    assert float(loss_clf["hard_p_loss_floor"]) == pytest.approx(0.90)
+    assert float(loss_clf["hard_p_loss_floor"]) == pytest.approx(0.55)
     assert str(loss_clf["veto_mode"]).lower() == "hard"
     single_strike = float(params["compounding_rate_daily"]) / float(params["payout_estimate"])
     assert single_strike == pytest.approx(0.0431 / 0.85)

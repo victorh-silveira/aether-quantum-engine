@@ -53,7 +53,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | `app/src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
 | `app/src/application/services/execution_scale_*.py` | Scale vision telemetria (sem adapt de lado) |
-| `app/src/application/services/loss_classifier_*.py` | Loss-clf HARD SKIP por P_LOSS |
+| `app/src/application/services/loss_classifier_*.py` | Loss-clf FLIP por p_eff (auto_learn; pe>=0.55) |
 | `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
 | `app/src/application/services/execution_*.py` | Execution: tecnico + TCN + loss_clf HARD + Kelly |
 | `app/src/domain/risk/` | Risco / Kelly |

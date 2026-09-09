@@ -5,7 +5,7 @@
 | [../AGENTS.md](../AGENTS.md) | Entrada para agentes Cursor/LLM |
 | [../prompt-model.md](../prompt-model.md) | Contrato reutilizavel: DDD/hexagonal/TDD/DX para scaffold de novos repos |
 | [agent-coverage.md](agent-coverage.md) | Matriz 100%: doc + rule + skill por superficie |
-| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 14D, meta 23D, loss-clf HARD, Soft Recovery, settlement |
+| [arquitetura.md](arquitetura.md) | Arquitetura runtime: DL 14D, meta 23D, loss-clf FLIP, Soft Recovery, settlement |
 | [engineering-architecture-senior.md](engineering-architecture-senior.md) | Doutrina sênior: host Python 3.13, DDD/hexagonal, asyncio/CUDA, Polars SSOT, sidecars ML, Docker core/ml, QA |
 | [structure.md](structure.md) | Layout do repositório e inventário de módulos Python em `app/src/` (**246**) |
 | [medallion.md](medallion.md) | Metodologia: TCN × meta Z-Score, price zone, Kelly + Soft Recovery, SIDE_EQ, starvation |
@@ -64,7 +64,7 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=23` (micro **300 s**); **opcional** para execução |
 | Relógio | Micro/MINI **300 s** (M5) + macro **86400 s** (D1); contrato ops **5 m (M5)**; label TCN **N=1** vela M5; ratio **1:288**; ciclo **120 s** |
 | Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **120 s** |
-| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; TCN + loss-clf HARD (`p_loss>=0.90`) + Kelly |
+| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; TCN + loss-clf FLIP (`p_loss>=0.20`) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Calibração | Thresholds CALL/PUT **0.53/0.47**; clamp Cal em `[raw±0.08]` antes da zona neutra; modo `raw_extreme` |
 | Direção | Resolver modular com anti-loss microestrutura M5 (ancora hibrida, EMA slope 9/21, RSI momentum) |

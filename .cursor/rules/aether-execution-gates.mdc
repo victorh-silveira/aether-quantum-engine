@@ -1,5 +1,5 @@
 ---
-description: Gates de execucao Aether — tecnico + HARD SKIP por P_LOSS
+description: Gates de execucao Aether — tecnico + FLIP por p_eff
 globs: app/src/application/services/execution_*.py
 alwaysApply: true
 ---
@@ -7,7 +7,9 @@ alwaysApply: true
 # Execution gates
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-- Anti-loss unico vivo: loss-classifier HARD SKIP se `p_loss >= hard_p_loss_floor` (**0.90**), `gate_reason=loss_clf` — **sem FLIP**, **sem Soft Kelly** do loss-clf
-- TCN escolhe CALL/PUT; Kelly + SIDE_EQ sizing; SCALE vision so telemetria
+- Anti-loss unico vivo: loss-classifier **FLIP** CALL↔PUT se `p_eff` >= piso de decisao — **unica inversao de ordem**; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf; **proibido** qualquer outro flip
+- `p_eff`: shrink de `p_loss` para 0.5 se `n_train < flip_trust_n` (**32**, `flip_young_shrink` **0.35**); tape so telemetria (nao auto-floor)
+- Piso: young **`flip_young_p_eff_floor` 0.55**; mature **`hard_p_loss_floor` 0.55**; FLIP so apos `auto_learn` (nao bootstrap); ainda so P_LOSS flipa
+- TCN escolhe CALL/PUT; apos FLIP o lado invertido segue para Kelly + SIDE_EQ; SCALE vision so telemetria
 - **Proibido** reabrir quality gate amplo, signal_skip multi-gate, fusao EV, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI
 - Catalogo: `docs/engineering-indicator-gates.md` + playbook

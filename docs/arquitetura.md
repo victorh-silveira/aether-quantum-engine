@@ -17,12 +17,12 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **23** (`META_FEATURE_DIM` = 14 + 9) |
 | Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **300 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
-| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf HARD (`p_loss>=0.90`) + Kelly |
+| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf FLIP (`p_loss>=0.20`) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.53/0.47**; o meta-regressor LightGBM estima `predicted_payoff_edge`; o ranking usa `tcn × max(0.1, 1+z)`. A fusão EV pondera votos direcionais; o gate de regime (ADX+BB squeeze) gera HARD `regime_squeeze` sem inverter CALL/PUT.
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.53/0.47**; o meta-regressor LightGBM estima `predicted_payoff_edge` (telemetria); o ranking usa `tcn × max(0.1, 1+z)`. **Unica inversao de ordem:** loss-classifier FLIP se `p_loss >= 0.20`. Proibido qualquer outro flip (fusao, persistence, candle, invert_exec_side).
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (**300 s**) via `get_data_state_signature()` — alinhado a **300 s** (micro M5) e **86400 s** (macro D1); ratio macro:micro **1:288**.
 
@@ -110,13 +110,9 @@ flowchart TD
   DL --> BUNDLE[prepare_meta_classifier_cross_symbol_bundle]
   BUNDLE --> META[prefetch_meta_payoff_for_decisions]
   META --> RES[resolve_execution_direction]
-  RES --> CHK[execution_direction_checks + discordance]
-  CHK --> PSIST[persistence flip ou skip]
-  PSIST --> EDGE[meta_edge floor dinamico]
-  EDGE --> QG[quality_conviction_suspends_cluster]
-  QG -->|HARD micro| MICRO[execution_quality_gate_microstructure]
-  QG -->|skip| STV[record_quality_guard_cycle_skip]
-  QG -->|ok| COL[collect_cluster_orders / execute_cluster]
+  RES --> CHK[execution_direction_checks tecnico]
+  CHK --> LOSS[loss_classifier_gate FLIP se p_loss>=0.20]
+  LOSS --> COL[collect_cluster_orders / execute_cluster]
   COL --> RM[RiskManager.calculate_stake]
   RM --> TH[TradeHandler.buy_with_parameters]
   TH --> SET[process_contract_settlement]
@@ -234,7 +230,7 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 | Container | `aether-loss-classifier`, host **8006→8000** |
 | Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
 | Cliente | `LossClassifierClient` + `loss_classifier_pool` |
-| Veto | Motor HARD SKIP se `p_loss >= hard_p_loss_floor` (**0.90**); sem FLIP/Soft; seed `loss_bootstrap_live64` |
+| Veto | Motor **FLIP** se `p_loss >= hard_p_loss_floor` (**0.20**); sem HARD SKIP/Soft; seed `loss_bootstrap_live64` |
 | Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-reset` limpa + seed predictivo (`veto_ready` se n>=ready_n); `docker-rebuild` recarrega sem apagar TCN |
 
 ### 5.2 Vetor 23D
@@ -275,7 +271,7 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ## 6. Direção e gates (minimo)
 
-Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf HARD** se `p_loss >= 0.90` (`gate_reason=loss_clf`; sem FLIP/Soft) → Kelly + SIDE_EQ sizing / caps. Quality gate amplo (RSI/price_zone) permanece **fora** do codigo. Catalogo: `docs/engineering-indicator-gates.md`.
+Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP** se `p_loss >= 0.20` (unica inversao CALL↔PUT; sem HARD SKIP/Soft) → Kelly + SIDE_EQ sizing / caps. Quality gate amplo (RSI/price_zone) permanece **fora** do codigo. Catalogo: `docs/engineering-indicator-gates.md`.
 
 ### 6.1 Motor de direção (modular)
 
@@ -283,38 +279,28 @@ Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf HARD*
 
 | Módulo | Papel |
 |--------|-------|
-| `execution_direction_checks` | Clamps, sniper stubs, discordance (se ligado), price zone prévia |
-| `execution_direction_discordance` | Veto RSI/DI + votos (`discordance_veto_enabled`, default **false**) |
-| `execution_direction_persistence` | Após 2 losses no mesmo lado: **flip** toxic escape se o oposto estiver livre; senão skip |
-| `execution_direction_meta_edge` | Piso dinâmico de edge (`_resolve_meta_edge_floor`) + `_negative_edge_skip` |
-| `execution_direction_resolver` | Finalize: meta regression, price zone + `align_or_keep_meta_side`, SIDE_EQ |
-| `execution_price_zone_gate` | BUY/SELL; edge meta &gt; 0 pode manter lado contra a zona |
-| `side_equilibrium_gate` | Small-N hard skip / large-N soft; toxic escape **preserva** edge positivo |
+| `execution_direction_checks` | SKIP tecnico (treino/dados/deploy/predict) + seed TCN |
+| `execution_scale_vision` | Telemetria multi-escala (sem adapt de lado) |
+| `execution_side_eq_sizing` | Soft Kelly SIDE_EQ (nao inverte CALL/PUT) |
+| `loss_classifier_gate` | **Unico FLIP:** `p_loss >= hard_p_loss_floor` (**0.20**) |
+| `execution_direction_resolver` | Finalize: relê `exec_direction` pos-FLIP + sync Kelly |
 
 | Etapa | Comportamento |
 |-------|---------------|
-| `infer_dl_direction` | TCN: `P(CALL) ≥ pivot` → CALL, senão PUT (thresholds **0.62/0.38**) |
-| Meta edge | Refina score / D-SQUEEZE (meta opcional); edge abaixo do piso dinâmico → `meta_negative_edge` |
-| Persistence | Flip CALL↔PUT com `side_eq_toxic_escape` **ou** `persistence_guard_skip` |
-| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}` |
+| `infer_dl_direction` | TCN: limiares call/put **0.53/0.47** |
+| LOSS_CLF | Abaixo do piso: mantém TCN; no piso: inverte e executa |
+| Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}` / stop-win |
 
-### 6.2 Quality gate dual soft + HARD microestrutura
+### 6.2 Quality / telemetria (sem veto de lado)
 
 | Portão | Módulo | Critério |
 |--------|--------|----------|
-| TCN + meta soft | `execution_quality_gate` | Margem/edge com pisos regulares **0.0** nos settings atuais; Dynamic Recovery Relaxation com `linear≥2` e pendente |
-| Meta Z-Score | `execution_quality_gate_meta` | Z vs buffer; waiver recovery se edge ∈ [-0.05, 0.04] e Z&gt;0.5 |
-| Cluster | `execution_quality_gate_cluster` | `quality_conviction_suspends_cluster` |
-| Microestrutura HARD | `execution_quality_gate_microstructure` | ADX / `vol_ratio` / val_accuracy quando limiares &gt; 0 (settings atuais ADX **0.0**) |
-| Sniper stubs | `execution_sniper_gates` | Helpers de banda; stubs Hurst/BB retornam `False` |
-| Starvation | `execution_quality_gate_starvation` | Limiar **6** ciclos; edge decay a partir de **8**; Convicção Progressiva (−20%/5 skips) |
-| Drawdown relax | `execution_quality_gate_drawdown` | `edge_floor` até **-0.55** |
-| Calibração | `dl_calibration_tolerance` | Zona neutra **off**; override TCN em raw extremos |
-| Loss protection | `execution_loss_protection` | Caps edge/Z 999; margem operacional **0.0** |
-| Meta soft | `meta_payoff_regression` | Soft comprime score sob squeeze; sem hard-block do resolve |
-| Settlement | `orchestrator_settlement_queue` | Janela **600 s** + orphan cleaner |
+| SCALE vision | `execution_scale_vision*` | Log MACRO/MICRO/MINI/MILI/tape; sem flip |
+| SIDE_EQ | `execution_side_eq_sizing` | Soft Kelly por equilibrio de lado; sem flip |
+| Loss protection | `execution_loss_protection` | Penalties de sizing; sem flip |
+| Settlement | fila Redis ZSET | Janela **600 s** + orphan cleaner |
 
-Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTION_FLOW` e delega ao mandatory pick em vez de congelar a esteira por soft alone.
+Em modo mandatário (`mandatory` **false** no SSOT), a esteira nao forca trade.
 
 ### 6.3 Ranking e seleção
 
@@ -330,7 +316,7 @@ Em modo mandatário, o quality guard emite telemetria `QUALITY_GUARD` / `EXECUTI
 ### 7.1 Fases
 
 - **FASE TREINO** — suspende ordens até `session_trained` em todos os símbolos
-- **FASE OPERACAO** — `mandatory_trade_each_cycle: false`; lado via TCN + loss-clf HARD + Kelly (sem quality gate amplo)
+- **FASE OPERACAO** — `mandatory_trade_each_cycle: false`; lado via TCN + loss-clf FLIP no piso + Kelly (sem quality gate amplo)
 
 ### 7.2 ExecutionManager
 
@@ -370,9 +356,10 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Stop win sessão | `StopWinManager` + `compounding_rate_daily: 0.0431` |
 | Stop loss | Desativado |
 | Policy boot | `RiskPolicy` / `validate_engine_risk_config` |
-| Persistence | `execution_direction_persistence` → flip toxic escape / SKIP / FREEZE |
-| Side equilibrium | `side_equilibrium_gate` (toxic escape mantém edge positivo) |
+| Persistence de estado | Redis/JSON state + settlement ZSET (nao flipa lado) |
+| Side equilibrium | `execution_side_eq_sizing` (soft Kelly; sem flip) |
 | Val accuracy gate | Limiar configurável (settings atuais sem piso hard de 0.63) |
+| Loss-clf FLIP | `loss_classifier_gate` — **unica** inversao se `p_loss >= 0.20` |
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 
@@ -408,7 +395,7 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `arch`, `lookback` (**30**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `require_meta_for_execution` (**false**), loss-clf `veto_mode=hard` + `hard_p_loss_floor` **0.90**, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `require_meta_for_execution` (**false**), loss-clf `veto_mode=hard` + `hard_p_loss_floor` **0.20**, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
 `kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2/3**, cover **1.10**, linear3 **3.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate **0.85**), `large_account_stop_win_pct` (**4.31**), `small_account_*`.
@@ -455,15 +442,13 @@ flowchart LR
   end
   subgraph direcao
     RES[direction_resolver]
-    CHK[direction_checks]
-    PSIST[persistence flip/skip]
-    EDGE[meta_edge floor]
-    QG[quality_gate soft+HARD]
+    CHK[direction_checks tecnico]
+    LOSS[loss_clf FLIP p_loss]
   end
   subgraph exec
     COL[execution_collect]
     EM[ExecutionManager]
-    TH[TradeHandler RISE_FALL 30s]
+    TH[TradeHandler RISE_FALL 5m]
   end
   subgraph pos
     ST[settlement + Redis queue]
@@ -472,7 +457,7 @@ flowchart LR
   end
   WS --> SH --> TB
   WD -->|STALE_DATA| SH
-  SH --> FEAT --> LOCAL --> PRED --> TELE --> META --> RES --> CHK --> PSIST --> EDGE --> QG --> COL --> EM --> TH
+  SH --> FEAT --> LOCAL --> PRED --> TELE --> META --> RES --> CHK --> LOSS --> COL --> EM --> TH
   TH --> ST --> RM
   COL --> LOCK
   ST --> LOCK

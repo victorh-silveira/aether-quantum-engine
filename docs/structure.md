@@ -104,8 +104,7 @@ presentation  →  application  →  domain
 | `execution_direction_discordance.py` | Veto RSI/DI + votos técnicos (`discordance_veto_enabled`) |
 | `execution_direction_fallback.py` | Fallback quando pool DL vazio (scored + last resort) |
 | `execution_direction_meta_edge.py` | Piso dinâmico de edge meta e `negative_edge_skip` |
-| `execution_direction_persistence.py` | Flip toxic escape ou skip após losses consecutivos |
-| `execution_direction_resolver.py` | Orquestra resolve + finalize (meta, zona, SIDE_EQ) |
+| `execution_direction_resolver.py` | Orquestra TCN + SCALE vision + SIDE_EQ + loss-clf FLIP (so P_LOSS) |
 | `execution_entropy_fallback.py` | Fallback por menor entropia Shannon |
 | `execution_loss_protection.py` | Hard filters de loss protection |
 | `execution_mandatory_pick.py` | Seleção obrigatória por ranking |
@@ -481,12 +480,8 @@ flowchart TD
   PRED --> META[meta_classifier_client 23D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
-  CHK --> DG[execution_direction_persistence flip/skip]
-  DG --> EDGE[execution_direction_meta_edge]
-  EDGE --> ZS[payoff_edge_zscore]
-  ZS --> QG[execution_quality_gate soft]
-  QG --> MICRO[execution_quality_gate_microstructure HARD]
-  MICRO --> COL[execution_collect]
+  CHK --> LOSS[loss_classifier_gate FLIP se p_loss>=0.20]
+  LOSS --> COL[execution_collect]
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]

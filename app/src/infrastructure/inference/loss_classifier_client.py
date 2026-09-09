@@ -1,4 +1,4 @@
-"""Resolve infra.loss_classifier do SSOT (HARD SKIP por P_LOSS)."""
+"""Resolve infra.loss_classifier do SSOT (FLIP por P_LOSS no piso)."""
 
 from __future__ import annotations
 
@@ -33,6 +33,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "feature_dim",
             "veto_mode",
             "hard_p_loss_floor",
+            "flip_trust_n",
+            "flip_young_shrink",
+            "flip_young_p_eff_floor",
             "ready_n",
             "retrain_min_n",
             "retrain_on_loss_min_n",
@@ -46,6 +49,15 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     hard_floor = require_float(block, "hard_p_loss_floor")
     if hard_floor <= 0.0 or hard_floor > 1.0:
         raise ValueError("infra.loss_classifier.hard_p_loss_floor deve estar em (0, 1]")
+    young_shrink = require_float(block, "flip_young_shrink")
+    if young_shrink <= 0.0 or young_shrink > 1.0:
+        raise ValueError("infra.loss_classifier.flip_young_shrink deve estar em (0, 1]")
+    young_p_eff_floor = require_float(block, "flip_young_p_eff_floor")
+    if young_p_eff_floor <= 0.0 or young_p_eff_floor > 1.0:
+        raise ValueError("infra.loss_classifier.flip_young_p_eff_floor deve estar em (0, 1]")
+    flip_trust_n = require_int(block, "flip_trust_n")
+    if flip_trust_n < 1:
+        raise ValueError("infra.loss_classifier.flip_trust_n deve ser >= 1")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -56,6 +68,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "veto_mode": "hard",
         "hard_p_loss_floor": hard_floor,
         "veto_p_loss_floor": hard_floor,
+        "flip_trust_n": flip_trust_n,
+        "flip_young_shrink": young_shrink,
+        "flip_young_p_eff_floor": young_p_eff_floor,
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),

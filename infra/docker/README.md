@@ -24,7 +24,7 @@ Portas em `127.0.0.1`: Redis 6379, Timescale 5432, MinIO 9000/9001, Meta 8005, L
 ## Loss-classifier (profile `ml`)
 
 - Env: `LOSS_BOOTSTRAP_EXIT_N` **8**, `LOSS_VETO_P_LOSS_FLOOR` **0.65** (soft Kelly)
-- HARD SKIP por `P_LOSS` (`hard_p_loss_floor` **0.90**, `veto_mode=hard`) vive no motor (`config/settings.json`); sem FLIP/Soft Kelly
+- **FLIP** por `p_eff` (so apos auto_learn; pe>=**0.55**; shrink N; tape telemetria; `LOSS_YOUNG_TEMP_N` **32** → T=2) vive no motor (`config/settings.json`); sem HARD SKIP/Soft Kelly
 - Apos mudar env: `docker compose ... up -d --force-recreate aether-loss-classifier`
 
 Profile `ml`: `.pkl` em `meta-models/` (`train_meta_*`); loss sobe sem pkl (telemetria; veto apos `/learn`+ready_n) ou bootstrap `train_loss_classifier.py`.

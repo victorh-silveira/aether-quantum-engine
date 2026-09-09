@@ -12,18 +12,18 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 
 | Princípio | No motor atual |
 |-----------|----------------|
-| Sinais, não histórias | Direção CALL/PUT estritamente pela TCN + fusão EV (`fusion_p_eff`) |
+| Sinais, não histórias | Direção CALL/PUT pela TCN; **unica inversao** = loss-clf FLIP se `p_loss >= 0.20` |
 | Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / 500 barras); contrato RISE_FALL **5 m** (ops fixo); label `quantum_multi_barrier` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
-| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (**300 s**) com ciclo em **120 s** |
-| Esteira contínua | `mandatory_trade_each_cycle: false` (sem vetos arbitrários; fusão EV + signal_skip 1.1 + anti-loss microestrutura M5) |
+| Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (**300 s**) com ciclo em **300 s** |
+| Esteira contínua | `mandatory_trade_each_cycle: false`; TCN → LOSS_CLF FLIP (so P_LOSS) → Kelly |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Fail-closed seletivo | Meta **opcional** nos settings atuais; TCN eager/CUDA local no host |
 | Feedback real | Win rate live integrado; loss-classifier e meta-classifier treinados online pós-settle via `/v1/learn` |
-| Defesa contra ruído | Anti-loss com microestrutura balanceada M5: EMA slope 9/21, RSI momentum e trava de pânico bilateral Z-Score |
-| Persistência financeira | Recovery atrelado a `pending_loss`, amortização suave em 2 a 3 ciclos (`cover_multiple` **1.10**) |
+| Defesa contra ruído | Anti-loss vivo = FLIP por `P_LOSS` no piso **0.20** (sem Soft Kelly / sem outros flips) |
+| Persistência financeira | Recovery atrelado a `pending_loss`; `cover_enabled` **false** |
 | Sizing Single-Strike | Kelly Single-Strike projetado para atingir **4,31% da banca em tacada única M5** com cap de **5,0%** |
-| Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: runtime aplica soft Kelly sem flip forçado de direção |
+| Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: soft Kelly **sem** flip de direção |
 | Meta por sessão ativa | Stop win de **4,31%** composto — encerra a sessão com sucesso (`EXEC_PAUSE`) |
 | Sem disjuntor de perda | Stop loss interno desativado por política do operador |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência atômica |
@@ -115,9 +115,9 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 |--------|-----------|-------|
 | Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 14]`; proporção 1:288 |
 | Meta-regressor GBDT | Micro **300 s** | Regressão tabular **23D**; edge contínuo via `/v2/predict_meta` |
-| Orquestrador / contrato | Ciclo **120 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
-| Resolução direcional | TCN + fusão EV + anti-loss | Ponderação e filtros de momentum em barras de 5m |
-| Execução contínua | Ciclo **120 s** (boundary **300 s**) | Boleta CALL/PUT na cadência M5 quando há sinal válido |
+| Orquestrador / contrato | Ciclo **300 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
+| Resolução direcional | TCN + FLIP so por P_LOSS (>=0.20) | Unica inversao de ordem; sem fusao/persistence/candle |
+| Execução contínua | Ciclo **300 s** (boundary **300 s**) | Boleta CALL/PUT na cadência M5 quando há sinal válido |
 
 Com `lookback: 30`, `micro_granularity: 300` e `training_history_bars: 365` (1 ano de histórico diário):
 
@@ -467,7 +467,7 @@ Telemetria: `SIDE_EQ | SYMBOL SIDE | call=W/N put=W/N | bias=… wr=… | action
 
 | Flag | Efeito |
 |------|--------|
-| `mandatory_trade_each_cycle: false` | Esteira continua TCN→fusao EV→Kelly; signal_skip 1.1 soft; quality gate amplo fora |
+| `mandatory_trade_each_cycle: false` | Esteira TCN→LOSS_CLF FLIP (so P_LOSS)→Kelly; quality gate amplo fora |
 | `require_meta_for_execution: false` | Meta opcional |
 | `include_anchor_trades` | Inclui âncora nas ordens do cluster |
 | `diversify_after_loss_margin` | Prefere símbolo alternativo quando scores são próximos |

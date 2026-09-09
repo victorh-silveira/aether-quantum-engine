@@ -16,7 +16,7 @@ description: >-
 3. Health: binds `127.0.0.1`; Redis/TS/MinIO/Meta(:8005)/Loss(:8006); `minio-init` cria `dl-models` e sai Exit 0 (oneshot; `Exited (0)` = OK)
 4. `make docker-logs`: default = servicos running (sem `minio-init`); `DOCKER_SERVICE=minio-init` para oneshot; tail default 200
 5. Meta: exige `.pkl` em `meta-models/` (`ready`+`model_loaded` no `/health`; hot-reload)
-6. Loss: `aether-loss-classifier` — motor HARD SKIP se `p_loss >= hard_p_loss_floor` (**0.90**, `veto_mode=hard`; **sem FLIP/Soft**); seed `loss_bootstrap_live64`; `LOSS_READY_N`/`ready_n` **8**; `LOSS_BOOTSTRAP_EXIT_N` **8**; telemetria `[GATES] || LOSS_CLF` / `LOSS_CLF || LEARN`
+6. Loss: `aether-loss-classifier` — motor **FLIP** so apos auto_learn; pe>=0.55 (`veto_mode=hard`; shrink N; tape telemetria; T=2 se `n_train < LOSS_YOUNG_TEMP_N` **32**); seed `loss_bootstrap_live64`; telemetria `[GATES] || LOSS_CLF`
 7. Meta: `aether-meta-classifier` — `META_RETRAIN_MIN_N` **32**; preferir `meta_lgbm` vs `meta_online_*` tiny; clamp edge frio **[-1,+0.85]**; apos mudar env: **restart** meta/loss
 8. Meta/loss: so exigir no motor se settings `enabled`/`require_*` true
 9. Recarregar ML apos treino: `make docker-rebuild` (rebuild meta/loss, **nao** sanitiza `data/dl`)

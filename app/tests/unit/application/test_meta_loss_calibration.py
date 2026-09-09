@@ -1,4 +1,4 @@
-"""Calibracao meta/loss: piso retrain, clamp edge, temperatura, HARD SKIP."""
+"""Calibracao meta/loss: piso retrain, clamp edge, temperatura, FLIP no piso."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ def _repo_root() -> Path:
     return Path.cwd()
 
 
-def test_hard_skip_above_floor_blocks_execution():
+def test_flip_above_floor_inverts_and_keeps_candidate():
     orch = MagicMock()
     orch.config = {"infra": {"loss_classifier": {"enabled": True}}}
     orch.risk_manager = MagicMock()
@@ -52,11 +52,11 @@ def test_hard_skip_above_floor_blocks_execution():
             return_value=[0.0] * 24,
         ),
     ):
-        assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="1HZ75V") is True
-    assert metrics.get("gate_reason") == "loss_clf"
-    assert metrics.get("loss_clf_hard") is True
-    assert metrics.get("execution_candidate_ready") is False
-    assert metrics.get("gate_verdict") == "HARD_SKIP"
+        assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="1HZ75V") is False
+    assert metrics.get("exec_direction") == "PUT"
+    assert metrics.get("loss_clf_flip") is True
+    assert metrics.get("gate_reason") != "loss_clf"
+    assert metrics.get("execution_candidate_ready") is True
 
 
 def test_predict_p_loss_temperature_softens():

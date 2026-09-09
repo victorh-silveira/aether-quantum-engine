@@ -1,18 +1,18 @@
 ---
-description: Doutrina LLM Aether — TCN + HARD SKIP P_LOSS
+description: Doutrina LLM Aether — TCN + FLIP P_LOSS
 alwaysApply: true
 ---
 
 # Doutrina LLM Aether
 
-LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + loss-clf HARD + Kelly). Doutrina: `docs/llm-trading-doctrine.md`. Arquitetura: `docs/engineering-architecture-senior.md`.
+LLM/Cursor e copiloto de engenharia. Nao decide CALL/PUT em runtime (TCN + loss-clf FLIP no piso + Kelly). Doutrina: `docs/llm-trading-doctrine.md`. Arquitetura: `docs/engineering-architecture-senior.md`.
 
 Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback **30**; ciclo **300 s**; contrato **5 m**; payout **0.85**; `online_training` **false**; stop-win **4.31%** Single-Strike. Motor host Python 3.13 + asyncio; Docker `core,ml`.
 
 ## Nunca propor
 
 - `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
-- Reabrir bloco `signal_skip` / fusao EV / FLIP loss-clf / Soft Kelly do loss-clf / quality gate amplo
+- Reabrir bloco `signal_skip` / fusao EV / Soft Kelly do loss-clf / quality gate amplo / HARD SKIP no piso
 - Inflar stake apos LOSS (revenge) ou “operar mais para aprender” com N baixo
 - Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
 - Afrouxar `hard_p_loss_floor` / `veto_mode=hard` sem mandato e evidencia
@@ -20,9 +20,9 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso Kelly **1%**; Single-Strike so ALLOW
-- Anti-loss vivo = HARD SKIP se `p_loss >= 0.90` (`gate_reason=loss_clf`)
-- Tratar EXEC_EMPTY tecnico ou `loss_clf` como sucesso de processo quando coerente
-- Exigir evidencia: `live_n`, Cal/Edge, `val_accuracy`, linha LOSS_CLF
+- Anti-loss vivo = **FLIP** se `p_eff` >= **0.55** (young/mature); so apos auto_learn; shrink N; tape so telemetria
+- Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente
+- Exigir evidencia: `live_n`, Cal/Edge, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=`)
 
 ## Diagnostico de log
 

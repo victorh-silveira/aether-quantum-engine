@@ -22,7 +22,10 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
     assert inv["loss_clf_veto_mode"] == "hard"
-    assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.9)
+    assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.55)
+    assert int(inv["loss_clf_flip_trust_n"]) == 32
+    assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
+    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.55)
     assert inv["loss_clf_enabled"] is True
 
 
@@ -57,20 +60,26 @@ def test_production_logging_ssot():
     assert cfg["level"] == 20
 
 
-def test_production_loss_classifier_hard_veto_ssot():
+def test_production_loss_classifier_flip_floor_ssot():
     from src.domain.config_knobs import load_settings_json
     from src.infrastructure.inference.loss_classifier_client import resolve_loss_classifier_config
 
     settings = load_settings_json()
     block = settings["infra"]["loss_classifier"]
     assert str(block["veto_mode"]).strip().lower() == "hard"
-    assert float(block["hard_p_loss_floor"]) == pytest.approx(0.90)
+    assert float(block["hard_p_loss_floor"]) == pytest.approx(0.55)
+    assert int(block["flip_trust_n"]) == 32
+    assert float(block["flip_young_shrink"]) == pytest.approx(0.35)
+    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.55)
     assert "flip_require_auto_learn" not in block
     assert "soft_kelly_mult" not in block
     assert "veto_p_loss_floor" not in block
     resolved = resolve_loss_classifier_config(None)
     assert resolved["veto_mode"] == "hard"
-    assert resolved["hard_p_loss_floor"] == pytest.approx(0.90)
+    assert resolved["hard_p_loss_floor"] == pytest.approx(0.55)
+    assert resolved["flip_trust_n"] == 32
+    assert resolved["flip_young_shrink"] == pytest.approx(0.35)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert bool(soft_rec["cover_enabled"]) is False
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)

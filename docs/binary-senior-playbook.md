@@ -1,10 +1,10 @@
 # Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
 
-Postura: TCN **14D** decide CALL/PUT; unico filtro vivo de risco de sinal = **HARD SKIP por P_LOSS** do `aether-loss-classifier` (`p_loss >= 0.90` → `gate_reason=loss_clf`). SKIP tecnico = treino/dados/deploy/broker/stop-win. Sem fusao EV, sem micro/regime/vol/exhaust/neg_edge, sem anti-loss EMA/RSI, sem FLIP.
+Postura: TCN **14D** decide CALL/PUT; **unica inversao de ordem** = **FLIP por p_eff** do `aether-loss-classifier` **so apos auto_learn** (nao bootstrap). Young (`n_train < 32`): shrink + piso **0.55**. Mature: piso **0.55**. Tape so telemetria. SKIP tecnico = treino/dados/deploy/broker/stop-win. Proibido SKIP/gate novo, Soft Kelly do loss-clf, HARD SKIP no piso, qualquer outro flip.
 
 Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).
 
-Hierarquia: TCN → LOSS_CLF HARD (P_LOSS) → Kelly / SIDE_EQ sizing → EXEC.
+Hierarquia: TCN → LOSS_CLF FLIP (se elegivel e p_eff >= piso) → Kelly / SIDE_EQ sizing → EXEC.
 
 Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
 
@@ -12,15 +12,14 @@ Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
 
 | Lado | Condicoes |
 |------|-----------|
-| CALL / PUT | TCN resolve lado; `p_loss` abaixo do piso HARD; sem SKIP tecnico |
+| CALL / PUT | TCN resolve lado; sem FLIP elegivel; sem SKIP tecnico |
+| FLIP | auto_learn; `p_eff >= 0.55` → oposto do TCN |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / stop-win |
-| HARD `loss_clf` | `p_loss >= hard_p_loss_floor` (**0.90**) |
 
 ## Catalogo SKIP
 
 | Razao | Significado |
 |-------|-------------|
 | tecnico | treino/dados/deploy/predict/stop-win |
-| `loss_clf` | P_LOSS alto no sidecar loss-classifier |
 
 Ver doutrina [`llm-trading-doctrine.md`](llm-trading-doctrine.md) e [`engineering-settings-ssot.md`](engineering-settings-ssot.md).

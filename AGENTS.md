@@ -19,12 +19,12 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
 - Treino DL em velas diarias (D1 com 365 barras de historico), elegendo modelo assertivo com **settle_wr** ≥ be+0.03 ou acc ≥ 0.53; deploy reformulado priorizando Edge real vs Breakeven.
 - Runtime: `online_training` **false** — DEMO usa checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = HARD SKIP por `P_LOSS` do loss-classifier (`hard_p_loss_floor` **0.90**).
+- Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; pe>=**0.55**; shrink N; tape telemetria; inverte CALL↔PUT e executa).
 
 ## O que o LLM e / nao e
 
 - **E:** copiloto de engenharia e auditoria
-- **Nao e:** decisor de CALL/PUT em runtime (TCN + loss-clf HARD + Kelly)
+- **Nao e:** decisor de CALL/PUT em runtime (TCN + loss-clf FLIP no piso + Kelly)
 
 Doutrina: [`docs/llm-trading-doctrine.md`](docs/llm-trading-doctrine.md)  
 Matriz 100% cobertura: [`docs/agent-coverage.md`](docs/agent-coverage.md)  
@@ -39,7 +39,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M5**): micro/mini em 300s; ciclo **300 s** (`require_signature_boundary` **true**, abertura M5); pipeline: SCALE vision (telemetria) → **loss-clf HARD** se `p_loss >= 0.90` (`gate_reason=loss_clf`; sem FLIP/Soft) → Kelly + SIDE_EQ sizing → EXEC. SKIP tecnico: treino/dados/deploy/predict/stop-win. **Removido:** fusao EV, signal_skip multi-gate, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, invert. Sizing: piso Kelly **1%** banca; Single-Strike 4.31% ≈ cap 5.0%. Soft recovery: `cover_enabled` **false**; caps max_safe 3.5%. Sem revenge sizing. EMPTY tecnico ou `loss_clf` = processo ok quando coerente.
+Nota operacional (**Volatility 75 (1s) M5**): micro/mini em 300s; ciclo **300 s** (`require_signature_boundary` **true**, abertura M5); pipeline: SCALE vision (telemetria) → **unica FLIP** se auto_learn e pe>=0.55 (loss-clf; sem HARD SKIP/Soft / sem outros flips) → Kelly + SIDE_EQ sizing → EXEC. SKIP tecnico: treino/dados/deploy/predict/stop-win. **Removido:** fusao EV, signal_skip multi-gate, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, invert, persistence flip. Sizing: piso Kelly **1%** banca; Single-Strike 4.31% ≈ cap 5.0%. Soft recovery: `cover_enabled` **false**; caps max_safe 3.5%. Sem revenge sizing. EMPTY tecnico = processo ok quando coerente.
 
 ## Escopos commitlint
 

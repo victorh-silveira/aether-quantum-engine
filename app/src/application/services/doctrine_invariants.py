@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.config_knobs import load_settings_json, require_bool, require_float, require_keys
+from src.domain.config_knobs import load_settings_json, require_bool, require_float, require_int, require_keys
 
 
 _PRODUCTION_MIN_ACC = 0.53
@@ -51,18 +51,32 @@ def _safe_stake(risk: dict[str, Any]) -> tuple[float, float]:
 
 
 def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
-    """Le knobs HARD SKIP do loss_classifier."""
+    """Le knobs do loss_classifier (FLIP por p_eff no piso hard_p_loss_floor)."""
     infra = settings.get("infra")
     if not isinstance(infra, dict):
         raise ValueError("infra obrigatorio")
     block = infra.get("loss_classifier")
     if not isinstance(block, dict):
         raise ValueError("infra.loss_classifier obrigatorio")
-    require_keys(block, ("veto_mode", "hard_p_loss_floor", "enabled"), "infra.loss_classifier")
+    require_keys(
+        block,
+        (
+            "veto_mode",
+            "hard_p_loss_floor",
+            "enabled",
+            "flip_trust_n",
+            "flip_young_shrink",
+            "flip_young_p_eff_floor",
+        ),
+        "infra.loss_classifier",
+    )
     return {
         "loss_clf_enabled": require_bool(block, "enabled"),
         "loss_clf_veto_mode": str(block["veto_mode"]).strip().lower(),
         "loss_clf_hard_p_loss_floor": require_float(block, "hard_p_loss_floor"),
+        "loss_clf_flip_trust_n": require_int(block, "flip_trust_n"),
+        "loss_clf_flip_young_shrink": require_float(block, "flip_young_shrink"),
+        "loss_clf_flip_young_p_eff_floor": require_float(block, "flip_young_p_eff_floor"),
     }
 
 
@@ -161,8 +175,14 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("online_training deve ser false na doutrina de producao")
     if inv["loss_clf_veto_mode"] != "hard":
         raise ValueError("loss_classifier.veto_mode deve ser hard")
-    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.9) > 1e-9:
-        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.9")
+    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.55) > 1e-9:
+        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.55")
+    if int(inv["loss_clf_flip_trust_n"]) != 32:
+        raise ValueError("loss_classifier.flip_trust_n deve ser 32")
+    if abs(float(inv["loss_clf_flip_young_shrink"]) - 0.35) > 1e-9:
+        raise ValueError("loss_classifier.flip_young_shrink deve ser 0.35")
+    if abs(float(inv["loss_clf_flip_young_p_eff_floor"]) - 0.55) > 1e-9:
+        raise ValueError("loss_classifier.flip_young_p_eff_floor deve ser 0.55")
     if not inv["loss_clf_enabled"]:
         raise ValueError("loss_classifier.enabled deve ser true")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:

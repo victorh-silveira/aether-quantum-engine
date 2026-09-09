@@ -28,8 +28,8 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 
 ## Pre-trade (PlayBook)
 
-1. Setup: TCN resolve lado + HARD SKIP por P_LOSS + Kelly
-2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win) ou `loss_clf`?
+1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; pe>=0.55) + Kelly
+2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win)
 3. Explore ou recover? Com `cover_enabled` **false**, PEND nao infla stake
 4. Hipotese falsificavel se mudar knob; gate novo so via catalogo
 5. Alvo: stop-win **4,31%** — processo, nao “mao quente”
@@ -38,7 +38,7 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 
 1. CLUSTER — Prob / Cal / Margin / Edge; `live_n`
 2. SCALE — vision telemetria (sem adapt de lado)
-3. GATES — `[GATES] || LOSS_CLF` HARD|OK|off; EMPTY tecnico ou `loss_clf` = processo ok quando coerente
+3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; FLIP = processo esperado no piso; EMPTY tecnico = processo ok quando coerente
 4. KELLY / EXEC
 5. RESOLVED / RISK — pending, linear, pnl vs 4.31%
 
@@ -50,13 +50,13 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 4. Duke: processo ou so P&L curto?
 5. Bernstein: caps / cover off / piso 1%?
 6. Douglas: revenge sizing?
-7. PlayBook: setup e bloqueio escritos? HARD `loss_clf` vs tecnico?
+7. PlayBook: setup e bloqueio escritos? FLIP vs tecnico?
 8. Murphy: TA substituiu TCN ou so telemetria?
 9. LTCM: fail-safe (deploy/ACC/caps/`hard_p_loss_floor`) removido?
 
 ## Saida esperada
 
 - Veredito do processo
-- Ciclos com `gate_reason` / Cal / Edge / LOSS_CLF
+- Ciclos com Cal / Edge / LOSS_CLF FLIP|OK
 - Acoes: manter | ajuste minimo nomeado | retreino se ACC estruturalmente baixo
-- Nunca `force_trade_every_cycle`; nunca rearmar quality gate amplo; nunca reabrir FLIP/signal_skip
+- Nunca `force_trade_every_cycle`; nunca rearmar quality gate amplo; nunca Soft do loss-clf

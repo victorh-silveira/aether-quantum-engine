@@ -201,7 +201,7 @@ def test_execution_blockers_deploy_and_signal_suspended():
     )
 
 
-def test_execution_blockers_loss_clf_emits_gates():
+def test_execution_blockers_loss_clf_flip_emits_gates():
     executor = MagicMock()
     executor.orch = SimpleNamespace(
         _active_cycle_id=7,
@@ -215,17 +215,15 @@ def test_execution_blockers_loss_clf_emits_gates():
         {
             "R_10": {
                 "metrics": {
-                    "gate_reason": "loss_clf",
-                    "signal_status": "SKIP:LOSS_CLF",
-                    "gate_verdict": "HARD_SKIP",
+                    "gate_verdict": "ALLOW",
                     "execution_candidate_ready": False,
                     "tcn_direction": "CALL",
                     "calibrated_prob": 0.533,
                     "raw_prob": 0.99,
-                    "exec_direction": "CALL",
+                    "exec_direction": "PUT",
                     "loss_clf_p_loss": 0.91,
-                    "loss_clf_hard": True,
-                    "loss_clf_hard_p_loss_floor": 0.90,
+                    "loss_clf_flip": True,
+                    "loss_clf_hard_p_loss_floor": 0.20,
                     "loss_clf_n_train": 32,
                     "loss_clf_auto_learn": True,
                 }
@@ -233,5 +231,6 @@ def test_execution_blockers_loss_clf_emits_gates():
         },
     )
     info_msgs = [" ".join(str(a) for a in c.args) for c in executor.logger.info.call_args_list]
-    assert any("LOSS_CLF" in m and "HARD" in m and "p=0.91000" in m for m in info_msgs)
+    assert any("LOSS_CLF" in m and "FLIP" in m and "p=0.91000" in m for m in info_msgs)
     assert any("EXEC_EMPTY" in m and "no_candidate" in m for m in info_msgs)
+    assert not any("EXEC_EMPTY" in m and "loss_clf" in m for m in info_msgs)

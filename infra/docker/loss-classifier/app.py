@@ -33,6 +33,7 @@ BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "16"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
 MIN_WIN_FOR_LOSS_RETRAIN = int(os.getenv("LOSS_MIN_WIN_FOR_LOSS_RETRAIN", "1"))
 VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.65"))
+YOUNG_TEMP_N = int(os.getenv("LOSS_YOUNG_TEMP_N", "32"))
 FEATURE_NAMES = tuple(f"f_{index}" for index in range(FEATURE_DIM))
 
 
@@ -297,7 +298,15 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
         if _model is None:
             raise HTTPException(status_code=503, detail="loss-classifier sem modelo carregado")
         try:
-            temp = 2.0 if bool(_bootstrap) or str(_model_version).startswith("loss_bootstrap_live") else 1.0
+            temp = (
+                2.0
+                if (
+                    bool(_bootstrap)
+                    or str(_model_version).startswith("loss_bootstrap_live")
+                    or int(_n_train) < int(YOUNG_TEMP_N)
+                )
+                else 1.0
+            )
             p_loss = predict_p_loss(_model, vector, temperature=temp)
         except Exception as exc:
             logger.warning("predict falhou: %s", exc)
