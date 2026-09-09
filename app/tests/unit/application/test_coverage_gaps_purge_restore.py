@@ -30,6 +30,7 @@ from src.application.services.execution_scale_tape import (
 from src.application.services.execution_scale_vision import compute_scale_directions
 from src.application.services.loss_classifier_features import (
     LOSS_FEATURE_DIM,
+    LOSS_FEATURE_NAMES,
     _f,
     _tick_accel,
     build_loss_feature_vector,
@@ -38,10 +39,14 @@ from src.application.services.loss_classifier_gate import apply_loss_classifier_
 from src.application.services.loss_classifier_gate_support import (
     clear_stale_loss_clf_metrics,
     resolve_tcn_ref,
+    stamp_loss_clf_flip_ctx,
 )
 from src.application.services.loss_classifier_vectors import (
     bind_loss_feature_vector_to_contract,
+    bind_loss_flip_ctx_to_contract,
     pop_loss_feature_vector,
+    pop_loss_flip_ctx,
+    store_loss_flip_ctx,
 )
 from src.application.services.market_audit_ops_window import (
     closed_micro_candles,
@@ -287,14 +292,42 @@ def test_compute_scale_directions_invalid_tcn_and_missing_getter():
 
 
 def test_loss_classifier_feature_helpers():
+    assert len(LOSS_FEATURE_NAMES) == LOSS_FEATURE_DIM
     assert _f({"x": "bad"}, "x", 0.5) == pytest.approx(0.5)
     assert _tick_accel({"flow_features": {"micro_tick_acceleration": "bad"}}) == 0.0
+    assert _tick_accel({}) == 0.0
     metrics = {"edge_zscore": 0.2, "tcn_direction": "CALL"}
     vec = build_loss_feature_vector(metrics, TradeDirection.CALL)
     assert len(vec) == LOSS_FEATURE_DIM
-    metrics2 = {"predicted_payoff_edge": "bad", "edge_zscore": 0.3, "tcn_direction": "PUT"}
+    assert vec[10] == pytest.approx(0.0)
+    bad_edge = build_loss_feature_vector({"predicted_payoff_edge": "bad"}, TradeDirection.CALL)
+    assert bad_edge[10] == pytest.approx(0.0)
+    flow_vec = build_loss_feature_vector(
+        {
+            "flow_features": {"keltner_deviation_ratio": 0.4, "micro_tick_acceleration": 1.5},
+            "tcn_direction": "CALL",
+        },
+        TradeDirection.CALL,
+    )
+    assert flow_vec[19] == pytest.approx(1.5)
+    assert flow_vec[21] == pytest.approx(0.4)
+    fallback_kelt = build_loss_feature_vector(
+        {"flow_features": {"keltner_deviation_ratio": "bad"}, "indicators": {"keltner": 0.8}},
+        TradeDirection.CALL,
+    )
+    assert fallback_kelt[21] == pytest.approx(0.3)
+    metrics2 = {"predicted_payoff_edge": 0.3, "tcn_direction": "PUT"}
     vec2 = build_loss_feature_vector(metrics2, TradeDirection.PUT)
     assert vec2[10] == pytest.approx(0.3)
+    metrics3 = {
+        "calibrated_prob": 0.70,
+        "raw_prob": 0.55,
+        "indicators": {"hurst": 0.62, "adx": 0.4, "variance_ratio": 1.2, "keltner": 0.7},
+    }
+    vec3 = build_loss_feature_vector(metrics3, TradeDirection.CALL)
+    assert vec3[2] == pytest.approx(0.15)
+    assert vec3[13] == pytest.approx(0.62)
+    assert vec3[16] == pytest.approx(0.4)
     with (
         patch(
             "src.application.services.loss_classifier_features.LOSS_FEATURE_DIM",
@@ -318,6 +351,37 @@ def test_loss_classifier_gate_support_and_vectors():
     assert pop_loss_feature_vector(orch, "R_10", 0) == [0.1] * 24
     empty = SimpleNamespace(_loss_clf_vectors={})
     assert pop_loss_feature_vector(empty, "X", 1) is None
+    stamp_loss_clf_flip_ctx(None, "1HZ75V", {"loss_clf_flip": True})
+    stamp_loss_clf_flip_ctx(SimpleNamespace(), None, {"loss_clf_flip": True})
+    stamp_loss_clf_flip_ctx(SimpleNamespace(), "", {"loss_clf_flip": True})
+    ctx_orch = SimpleNamespace()
+    stamp_loss_clf_flip_ctx(
+        ctx_orch,
+        "1HZ75V",
+        {
+            "loss_clf_flip": True,
+            "loss_clf_young_shrink": True,
+            "loss_clf_p_loss": 0.71,
+            "loss_clf_p_eff": 0.5735,
+            "loss_clf_n_train": 12,
+            "loss_clf_flip_blocked": "",
+        },
+    )
+    bind_loss_flip_ctx_to_contract(ctx_orch, "1HZ75V", 11)
+    popped = pop_loss_flip_ctx(ctx_orch, "1HZ75V", 11)
+    assert popped is not None
+    assert popped["flip"] is True
+    assert popped["young"] is True
+    store_loss_flip_ctx(ctx_orch, "1HZ75V", {"flip": False, "young": False})
+    assert pop_loss_flip_ctx(ctx_orch, "1HZ75V", 99) == {"flip": False, "young": False}
+    assert pop_loss_flip_ctx(SimpleNamespace(), "X", 1) is None
+    bind_loss_flip_ctx_to_contract(SimpleNamespace(), "X", 1)
+    store_loss_flip_ctx(SimpleNamespace(), "", {"flip": True})
+    store_loss_flip_ctx(SimpleNamespace(), "Z", "bad")
+    garbage = SimpleNamespace(_loss_clf_flip_ctx={"1HZ75V": "x"})
+    bind_loss_flip_ctx_to_contract(garbage, "1HZ75V", 2)
+    mixed = SimpleNamespace(_loss_clf_flip_ctx={"cid:7": "n", "S": "n"})
+    assert pop_loss_flip_ctx(mixed, "S", 7) is None
 
 
 def test_doctrine_invariants_infra_and_risk_gate():
@@ -503,13 +567,18 @@ def test_post_settlement_cooldown_and_learn_success(caplog):
     assert post_loss_cooldown_blocks_trading_cycle(orch) is True
     orch2 = MagicMock()
     orch2._loss_clf_vectors = {"cid:3": [0.1] * 24}
+    orch2._loss_clf_flip_ctx = {"cid:3": {"flip": True, "young": True, "p_loss": 0.71, "p_eff": 0.5735, "n_train": 12}}
     orch2.config = {"infra": {"loss_classifier": {"enabled": True}}}
-    with patch(
-        "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
-        return_value={"ok": True, "buffer_n": 4, "retrained": True, "n_train": 5},
+    with (
+        caplog.at_level(logging.INFO, logger="AETH"),
+        patch(
+            "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
+            return_value={"ok": True, "buffer_n": 4, "retrained": True, "n_train": 5},
+        ),
     ):
         _feed_loss_classifier_learn(orch2, "R_10", won=True, contract_id=3)
     assert "label=WIN" in orch2._last_loss_clf_learn
+    assert "LOSS_CLF || QUALITY flip=1 young=1 hit=1" in caplog.text
     orch3 = MagicMock()
     orch3._loss_clf_vectors = {"cid:4": [0.1] * 24}
     orch3.config = None

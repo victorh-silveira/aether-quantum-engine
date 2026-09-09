@@ -6,6 +6,8 @@ Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).
 
 Hierarquia: TCN → LOSS_CLF FLIP (se elegivel e p_eff >= piso) → Kelly / SIDE_EQ sizing → EXEC.
 
+Telemetria: uma linha `[GATES] || LOSS_CLF: FLIP|OK|off …`. Pos-settle de FLIP: `LOSS_CLF || QUALITY flip=1 young= hit= p= pe= n=`.
+
 Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
 
 ## Quando operar

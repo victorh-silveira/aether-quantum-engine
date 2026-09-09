@@ -9,22 +9,19 @@ from src.application.services.meta_classifier_features import META_FEATURE_DIM, 
 from src.domain.models.trade import TradeDirection
 
 
-def _metrics(*, prob: float, rsi: float, vol_ratio: float) -> dict:
+def _metrics(*, vel: float, ticks: float, implied: float) -> dict:
     return {
-        "calibrated_prob": prob,
-        "micro_indicators": {"rsi": rsi, "vol_ratio": vol_ratio},
+        "flow_features": {"price_velocity": vel, "tick_count": ticks},
+        "indicators": {"implied_vol_ratio": implied},
         "feature_vector": [0.1] * 14,
     }
 
 
 def test_compute_cross_symbol_triplet_values():
-    triplet = compute_cross_symbol_triplet(
-        _metrics(prob=0.62, rsi=58.0, vol_ratio=1.05),
-        _metrics(prob=0.41, rsi=44.0, vol_ratio=0.92),
-    )
-    assert triplet["cross_symbol_prob_delta"] == pytest.approx(abs(0.62 - (1.0 - 0.41)))
-    assert triplet["cross_symbol_vol_ratio_diff"] == pytest.approx(0.13)
-    assert triplet["cross_symbol_rsi_spread"] == pytest.approx(14.0)
+    triplet = compute_cross_symbol_triplet(_metrics(vel=0.4, ticks=150.0, implied=1.2))
+    assert triplet["micro_price_velocity"] == pytest.approx(0.4)
+    assert triplet["micro_tick_count_norm"] == pytest.approx(0.5)
+    assert triplet["implied_vol_centered"] == pytest.approx(0.2)
 
 
 def test_compute_cross_symbol_triplet_defaults_when_missing():
@@ -34,33 +31,46 @@ def test_compute_cross_symbol_triplet_defaults_when_missing():
 
 
 def test_compute_cross_symbol_triplet_defaults_prob_when_absent():
-    triplet = compute_cross_symbol_triplet(
-        {"micro_indicators": {"rsi": 50.0, "vol_ratio": 1.0}},
-        {"micro_indicators": {"rsi": 50.0, "vol_ratio": 1.0}},
-    )
-    assert triplet["cross_symbol_prob_delta"] == pytest.approx(0.0)
+    triplet = compute_cross_symbol_triplet({"micro_indicators": {"rsi": 50.0, "vol_ratio": 1.0}})
+    assert triplet["micro_price_velocity"] == pytest.approx(0.0)
+    assert triplet["micro_tick_count_norm"] == pytest.approx(0.0)
+    assert triplet["implied_vol_centered"] == pytest.approx(0.0)
 
 
 def test_compute_cross_symbol_triplet_falls_back_to_indicators_bucket():
     triplet = compute_cross_symbol_triplet(
-        {"micro_indicators": "invalid", "indicators": {"rsi": 70.0, "vol_ratio": 1.2}},
-        {"micro_indicators": "invalid", "indicators": {"rsi": 30.0, "vol_ratio": 0.8}},
+        {"micro_indicators": "invalid", "indicators": {"implied_vol_ratio": 1.4}},
     )
-    assert triplet["cross_symbol_rsi_spread"] == pytest.approx(40.0)
-    assert triplet["cross_symbol_vol_ratio_diff"] == pytest.approx(0.4)
+    assert triplet["implied_vol_centered"] == pytest.approx(0.4)
+
+
+def test_compute_cross_symbol_triplet_coerces_invalid_flow_and_indicators():
+    triplet = compute_cross_symbol_triplet(
+        {
+            "flow_features": {"price_velocity": object(), "tick_count": object()},
+            "indicators": {"implied_vol_ratio": object()},
+            "micro_indicators": {"price_velocity": object(), "tick_count": object()},
+        },
+    )
+    assert triplet["micro_price_velocity"] == pytest.approx(0.0)
+    assert triplet["micro_tick_count_norm"] == pytest.approx(0.0)
+    assert triplet["implied_vol_centered"] == pytest.approx(0.0)
 
 
 def test_attach_cross_symbol_features_to_decisions():
     decisions = {
-        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
+        "1HZ75V": {
+            "direction": TradeDirection.CALL,
+            "metrics": _metrics(vel=0.2, ticks=90.0, implied=1.0),
+        },
     }
     attach_cross_symbol_features_to_decisions(decisions)
-    metrics = decisions["R_10"]["metrics"]
-    assert metrics["cross_symbol_features"]["cross_symbol_rsi_spread"] == pytest.approx(0.0)
-    assert metrics["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
+    metrics = decisions["1HZ75V"]["metrics"]
+    assert metrics["cross_symbol_features"]["micro_tick_count_norm"] == pytest.approx(0.3)
+    assert metrics["cross_symbol_features"]["micro_price_velocity"] == pytest.approx(0.2)
     vector = extract_meta_feature_vector(metrics)
     assert len(vector) == META_FEATURE_DIM
-    assert vector[-3] == pytest.approx(0.0)
+    assert vector[-5] == pytest.approx(0.2)
 
 
 def test_extract_meta_feature_vector_uses_meta_feature_vector_cache():

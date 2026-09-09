@@ -10,7 +10,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
 - LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; hard FLIP floor SSOT **0.20** + `flip_require_auto_learn` **true**
 - MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
-- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / 500 barras de histórico)
+- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / **2000** barras de histórico)
 - Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`quantum_multi_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
 - Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
 - MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5

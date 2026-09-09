@@ -34,9 +34,9 @@ DEFAULT_FEATURE_NAMES: tuple[str, ...] = (
     "micro_bid_ask_spread_momentum_zscore",
     "volatility_shadow_ratio",
     "volatility_shadow_ratio_zscore",
-    "cross_symbol_prob_delta",
-    "cross_symbol_vol_ratio_diff",
-    "cross_symbol_rsi_spread",
+    "micro_price_velocity",
+    "micro_tick_count_norm",
+    "implied_vol_centered",
     "micro_tick_acceleration",
     "keltner_deviation_ratio",
 )

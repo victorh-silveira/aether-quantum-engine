@@ -20,7 +20,7 @@ Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**; payout **
 
 1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso **1%**
 2. SKIP tecnico = processo ok quando coerente; FLIP `pe>=0.55` (apos auto_learn) e processo esperado
-3. Evidencia: `live_n`, Cal/Edge, `val_accuracy`, telemetria `LOSS_CLF` (`p=` / `pe=` / `floor=`)
+3. Evidencia: `live_n`, Cal/Edge, `val_accuracy`, telemetria `LOSS_CLF` (`p=` / `pe=` / `floor=`) e `QUALITY` pos-settle se houve FLIP
 4. Pos-LOSS → container loss-clf `/learn`
 
 ## Diagnostico de log

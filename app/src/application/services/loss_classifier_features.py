@@ -8,6 +8,32 @@ from src.domain.models.trade import TradeDirection
 
 
 LOSS_FEATURE_DIM = 24
+LOSS_FEATURE_NAMES: tuple[str, ...] = (
+    "direction_margin",
+    "calibrated_prob",
+    "cal_raw_discord",
+    "scale_discordance",
+    "regime_explosion",
+    "regime_retraction",
+    "regime_chop",
+    "tape_vs_tcn",
+    "linear_norm",
+    "pending_norm",
+    "predicted_payoff_edge",
+    "conviction",
+    "live_n_norm",
+    "hurst",
+    "scale_tape_strong",
+    "scale_mili_oppose_tcn",
+    "adx",
+    "variance_ratio",
+    "raw_prob",
+    "tick_accel",
+    "val_accuracy",
+    "keltner_deviation",
+    "bb_width_z",
+    "mini_oppose",
+)
 
 
 def _f(metrics: dict[str, Any], key: str, default: float = 0.0) -> float:
@@ -31,6 +57,14 @@ def _clip3(value: float) -> float:
     return max(-3.0, min(3.0, float(value)))
 
 
+def _ind(metrics: dict[str, Any], key: str, default: float = 0.0) -> float:
+    """Le indicador do bucket indicators ou da raiz de metrics."""
+    chunk = metrics.get("indicators")
+    if isinstance(chunk, dict) and chunk.get(key) is not None:
+        return _f(chunk, key, default)
+    return _f(metrics, key, default)
+
+
 def _tick_accel(metrics: dict[str, Any]) -> float:
     """Le aceleracao de ticks do bloco flow_features, clipada."""
     flow = metrics.get("flow_features")
@@ -42,6 +76,28 @@ def _tick_accel(metrics: dict[str, Any]) -> float:
     return 0.0
 
 
+def _keltner_dev(metrics: dict[str, Any]) -> float:
+    """Desvio Keltner do flow ou keltner_pct_b centrado."""
+    flow = metrics.get("flow_features")
+    if isinstance(flow, dict) and flow.get("keltner_deviation_ratio") is not None:
+        try:
+            return _clip3(float(flow["keltner_deviation_ratio"]))
+        except (TypeError, ValueError):
+            pass
+    return _clip3(_ind(metrics, "keltner", 0.5) - 0.5)
+
+
+def _payoff_edge(metrics: dict[str, Any]) -> float:
+    """Edge continuo do meta; 0 se ausente (nao duplica edge_zscore)."""
+    raw_edge = metrics.get("predicted_payoff_edge")
+    if raw_edge is None:
+        return 0.0
+    try:
+        return _clip3(float(raw_edge))
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def build_loss_feature_vector(
     metrics: dict[str, Any],
     exec_dir: TradeDirection,
@@ -50,7 +106,7 @@ def build_loss_feature_vector(
     linear: int = 0,
     bankroll: float = 0.0,
 ) -> list[float]:
-    """Monta vetor 24D a partir de telemetria SCALE/Kelly/Cal."""
+    """Monta vetor 24D causal (Cal/raw, regime, meta edge, Hurst/ADX/VR/Keltner)."""
     regime = str(metrics.get("scale_micro_regime") or "chop").lower()
     explos = 1.0 if regime == "explosion" else 0.0
     retract = 1.0 if regime == "retraction" else 0.0
@@ -68,18 +124,12 @@ def build_loss_feature_vector(
         else 0.0
     )
     pending_norm = _clip01(float(pending) / float(bankroll)) if bankroll > 1e-9 else _clip01(float(pending) / 1000.0)
-    raw_edge = metrics.get("predicted_payoff_edge")
-    if raw_edge is None:
-        edge = _f(metrics, "edge_zscore")
-    else:
-        try:
-            edge = float(raw_edge)
-        except (TypeError, ValueError):
-            edge = _f(metrics, "edge_zscore")
+    cal = _clip01(_f(metrics, "calibrated_prob", _f(metrics, "raw_prob", 0.5)))
+    raw = _clip01(_f(metrics, "raw_prob", 0.5))
     vector = [
         _clip01(_f(metrics, "direction_margin")),
-        _clip01(_f(metrics, "calibrated_prob", _f(metrics, "raw_prob", 0.5))),
-        1.0 if bool(metrics.get("scale_adapted")) else 0.0,
+        cal,
+        _clip01(abs(cal - raw)),
         1.0 if bool(metrics.get("scale_discordance")) else 0.0,
         explos,
         retract,
@@ -87,21 +137,21 @@ def build_loss_feature_vector(
         tape_vs,
         _clip01(float(linear) / 5.0),
         pending_norm,
-        _clip3(edge),
+        _payoff_edge(metrics),
         _clip01(_f(metrics, "conviction", _f(metrics, "trade_score", 0.55))),
         _clip01(_f(metrics, "live_n") / 40.0),
-        _clip01(_f(metrics, "live_wr")),
+        _clip01(_ind(metrics, "hurst", 0.5)),
         1.0 if bool(metrics.get("scale_tape_strong")) else 0.0,
         1.0 if bool(metrics.get("scale_mili_oppose_tcn")) else 0.0,
-        1.0 if exec_dir.name == TradeDirection.PUT.name else 0.0,
-        1.0 if tcn == TradeDirection.CALL.name else 0.0,
-        _clip01(_f(metrics, "raw_prob", 0.5)),
+        _clip01(_ind(metrics, "adx", 0.0)),
+        _clip3(_ind(metrics, "variance_ratio", 1.0)),
+        raw,
         _tick_accel(metrics),
         _clip01(_f(metrics, "val_accuracy", _f(metrics, "acc", 0.55))),
-        _clip3(_f(metrics, "edge_zscore")),
-        _clip3(_f(metrics, "bb_width_z", _f(metrics, "bbw", 0.0))),
+        _keltner_dev(metrics),
+        _clip3(_f(metrics, "bb_width_z", _f(metrics, "bbw", _ind(metrics, "bb_width", 0.0)))),
         mini_oppose,
     ]
     if len(vector) != LOSS_FEATURE_DIM:
-        raise ValueError(f"loss feature dim {len(vector)} != {LOSS_FEATURE_DIM}")
+        raise ValueError(f"loss feature dim {len(vector)} != {LOSS_FEATURE_DIM} names={len(LOSS_FEATURE_NAMES)}")
     return vector

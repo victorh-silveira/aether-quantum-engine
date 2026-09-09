@@ -10,7 +10,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Arch | TCN |
 | Lookback | **30** → tensor `[1, 30, 14]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
-| MICRO OHLC | **300 s** (M5, 500 velas, `data_handler.micro_granularity`) |
+| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **2000**) |
 | Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
@@ -18,7 +18,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Features | **14D** (`FEATURE_DIM`) |
 | Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false` |
+| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false`; `max_label_call_frac_bias` **0.20**; `allow_undeployed_inference` **false** |
 | Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **25** |
 | Meta | LightGBM **23D** `predicted_payoff_edge` |
@@ -39,7 +39,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Sweep de horizonte N (launch-train)
 
-O TCN estima deslocamento em **N velas M5**. O `launch-train` treina a grade **H1–H4** (`n_bars` = 1/2/3/4 em M5; `duration_minutes` = 5/10/15/20 alinhados ao label), loga **uma** linha `[HORIZON] cell i/N …` por celula (com `why=` se deploy=0) e pos-sweep denso (`board candidatos/elegiveis/skip`, winner, promote com paths relativos; Timescale `--check-only` e `[META] ok` em 1 linha cada; sem dump JSON/params), e promove o mais assertivo (`settle_wr` ≥ be+0.03, n≥16, history≥800). Artefactos em `data/dl/sweep/1HZ75V/H{N}/`. **SSOT atual**: `label_horizon_bars` **1** (H1); contrato ops **5 m** (fixo; promote **nao** exporta duration).
+O TCN estima deslocamento em **N velas M5**. O `horizon_sweep` e **diagnostico offline** (`enabled` / `run_in_launch_train` **false** no SSOT). Grade **H1–H4** (`n_bars` = 1/2/3/4 em M5) nao promove duracao ops ≠ **5 m** sem mandato. Contrato live permanece `duration=5`.
 
 Pipeline **offline** (nao troca N por ciclo ao vivo):
 
@@ -66,7 +66,7 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 ## Deploy gate (senior)
 
-`resolve_deploy_ok` (treino) exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false` no treino, mas o sweep ainda persiste settle_* para ranking. Pos-promote, `check_dl_deploy_gate` **e** o load DEMO (`_effective_deploy_ok`) aceitam o ckpt se **settle_wr** passar a elegibilidade do sweep; senao caem no path ACC/Brier/collapse. Sem isso, promote M5 com ACC&lt;0.53 gera `SKIP:DEPLOY` eterno na DEMO. Treino rejeitado **sempre sobrescreve** o `.pth` anterior (sem preservar deploy antigo). Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
+`resolve_deploy_ok` (treino) exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false` no treino. Pos-promote, `check_dl_deploy_gate` **e** o load DEMO (`_effective_deploy_ok`) aceitam o ckpt se **settle_wr** passar a elegibilidade do sweep; senao caem no path ACC/Brier/collapse. Com `allow_undeployed_inference=false`, ckpt `deploy_ok=false` **nao** opera em DEMO “como se fosse deploy_ok”. Treino rejeitado **sempre sobrescreve** o `.pth` anterior (sem preservar deploy antigo). Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
 
 Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se a fracao predita colapsa (`|pred_call_frac-0.5|` ou `|pred_call_frac-label_call_frac|` &gt; `max_label_call_frac_bias` **0.20**) — mesmo com `minority_recall` acima do piso (ex.: labels ~0.5 e `pred_call=0.24`). Alternativa: label viesado (`|label_call_frac-0.5|` &gt; bias) **e** `minority_recall < min_minority_recall` (**0.25**). Checkpoint de treino nao promove pico com `collapse_hit`.
 
@@ -75,7 +75,7 @@ Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** ap
 ## Meta — alvo e dados
 
 
-- Alvo preferencial: z-score do forward return; se closes/fwd flat → payoff assinado (`_continuous_payoff_target`).
+- Alvo preferencial: payoff assinado `profit/stake` do settle (`_continuous_payoff_target`); z-score de forward so se payoff indisponivel.
 - Hydrate Docker = smoke (500/365). `launch-train` chama `ensure_timescale` (seed Deriv) antes do meta: piso micro **5000** / macro D1 **365**. Timescale smoke/curto/flat → INFO e Deriv (nao WARNING "rejeitado"); apos Deriv, seed no Timescale.
 - Fit do calibrador: se std calibrado colapsa vs raw no holdout/val → persiste `identity`. Teacher meta: raw+expand em INFO se cal ainda esmagar.
 - `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`.

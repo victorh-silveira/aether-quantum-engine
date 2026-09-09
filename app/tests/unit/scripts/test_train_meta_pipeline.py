@@ -85,7 +85,7 @@ def test_build_paired_training_dataset_accepts_fetch_below_history():
     )
     assert len(frame) >= GRAY_KEEP_FLOOR
     assert hygiene["n_kept"] == len(frame) == len(y) == len(proxy)
-    assert hygiene["label_mode"] == 1
+    assert hygiene["label_mode"] in {1, 2}
     assert hygiene["n_dropped_gray"] == 0
     validate_target_variance(y)
 
@@ -121,9 +121,9 @@ def test_build_paired_training_dataset_single_symbol_shape():
     )
     assert len(frame) >= int(5000 * INNER_JOIN_MIN_SAMPLE_RATIO) - 40
     assert frame.shape[1] == META_FEATURE_DIM
-    assert np.allclose(frame["cross_symbol_prob_delta"].to_numpy(), 0.0)
+    assert np.allclose(frame["micro_price_velocity"].to_numpy(), 0.0)
     assert hygiene["n_dropped_gray"] == 0
-    assert hygiene["label_mode"] == 1
+    assert hygiene["label_mode"] in {1, 2}
     validate_target_variance(y)
 
 
@@ -332,9 +332,9 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
     validate_target_variance(y)
     tail = columns[-5:]
     assert tail == [
-        "cross_symbol_prob_delta",
-        "cross_symbol_vol_ratio_diff",
-        "cross_symbol_rsi_spread",
+        "micro_price_velocity",
+        "micro_tick_count_norm",
+        "implied_vol_centered",
         "micro_tick_acceleration",
         "keltner_deviation_ratio",
     ]

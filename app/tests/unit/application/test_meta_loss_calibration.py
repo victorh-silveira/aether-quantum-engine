@@ -108,3 +108,41 @@ def test_meta_clamp_and_tiny_online_rank():
     r_on = mod.rank_meta_bundle(online, {"auto_learn_applied": True, "n_train": 5})
     r_off = mod.rank_meta_bundle(offline, {"auto_learn_applied": False, "n_train": 200})
     assert r_off > r_on
+
+
+def test_loss_sidecar_calib_nll_ece_and_young_temp():
+    import sys
+
+    sidecar = str(_repo_root() / "infra" / "docker" / "loss-classifier")
+    if sidecar not in sys.path:
+        sys.path.insert(0, sidecar)
+    import calib as loss_calib
+
+    assert loss_calib.binary_nll([], []) == float("inf")
+    assert loss_calib.binary_nll([0.2], [0, 1]) == float("inf")
+    assert loss_calib.binary_ece([0.2], [1]) == 1.0
+    nll = loss_calib.binary_nll([0.2, 0.8], [0, 1])
+    assert nll < 1.0
+    ece = loss_calib.binary_ece([0.1, 0.1, 0.9, 0.9], [0, 0, 1, 1])
+    assert ece < 0.2
+    dummy = type("M", (), {})()
+    assert loss_calib.fit_temperature(dummy, [[0.0] * 24] * 8, [0, 1] * 4) == 1.0
+
+
+def test_loss_sidecar_fit_temperature_picks_grid(monkeypatch):
+    import sys
+
+    sidecar = str(_repo_root() / "infra" / "docker" / "loss-classifier")
+    if sidecar not in sys.path:
+        sys.path.insert(0, sidecar)
+    import calib as loss_calib
+
+    rows = [[0.0] * 24 for _ in range(32)]
+    labels = [0] * 16 + [1] * 16
+
+    def _fake_predict(_model, _row, temperature=1.0):
+        return 0.9 if float(temperature) >= 1.5 else 0.51
+
+    monkeypatch.setattr(loss_calib, "predict_p_loss", _fake_predict)
+    chosen = loss_calib.fit_temperature(object(), rows, labels)
+    assert chosen == 0.70

@@ -24,9 +24,10 @@ def _loss_cfg(**overrides: object) -> dict:
         "flip_trust_n": 32,
         "flip_young_shrink": 0.35,
         "flip_young_p_eff_floor": 0.55,
-        "ready_n": 8,
-        "retrain_min_n": 1,
-        "retrain_on_loss_min_n": 1,
+        "ready_n": 32,
+        "retrain_min_n": 12,
+        "retrain_on_loss_min_n": 4,
+        "min_win_for_loss_retrain": 4,
         "max_buffer": 2000,
     }
     base.update(overrides)
@@ -41,7 +42,10 @@ def test_resolve_loss_classifier_config_from_ssot():
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
-    assert resolved["http_url"] == "http://localhost:8006"
+    assert resolved["ready_n"] == 32
+    assert resolved["retrain_min_n"] == 12
+    assert resolved["retrain_on_loss_min_n"] == 4
+    assert resolved["min_win_for_loss_retrain"] == 4
 
 
 def test_resolve_loss_classifier_config_merges_overrides():

@@ -47,9 +47,9 @@ def test_extract_meta_feature_vector_rigid_dim_and_micro_zscore_clip() -> None:
             "volatility_shadow_ratio_zscore": -3.7,
         },
         "cross_symbol_features": {
-            "cross_symbol_prob_delta": 0.1,
-            "cross_symbol_vol_ratio_diff": 0.0,
-            "cross_symbol_rsi_spread": -0.2,
+            "micro_price_velocity": 0.1,
+            "micro_tick_count_norm": 0.0,
+            "implied_vol_centered": -0.2,
         },
     }
     vector = extract_meta_feature_vector(metrics)

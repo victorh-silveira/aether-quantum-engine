@@ -6,7 +6,10 @@ import asyncio
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch, resolve_force_min_stake
-from src.application.services.loss_classifier_vectors import bind_loss_feature_vector_to_contract
+from src.application.services.loss_classifier_vectors import (
+    bind_loss_feature_vector_to_contract,
+    bind_loss_flip_ctx_to_contract,
+)
 from src.application.services.market_audit_log import (
     resolve_meta_payoff_zscore,
     resolve_predicted_edge,
@@ -89,6 +92,7 @@ async def execute_cluster_orders(
                 await executor.orch.state.add_contract(res)
                 executor.orch._contract_cycle[int(res.contract_id)] = int(executor.orch._active_cycle_id)
                 bind_loss_feature_vector_to_contract(executor.orch, str(symbol), int(res.contract_id))
+                bind_loss_flip_ctx_to_contract(executor.orch, str(symbol), int(res.contract_id))
                 meta_vec = order_metrics.get("meta_feature_vector")
                 if isinstance(meta_vec, list) and meta_vec:
                     store_meta_feature_vector(executor.orch, str(symbol), list(meta_vec))

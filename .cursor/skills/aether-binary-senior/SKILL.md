@@ -9,7 +9,7 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D → LOSS_CLF FLIP se auto_learn e pe>=0.55 → Kelly. Sem HARD SKIP/fusao/micro/regime/vol/exhaust/neg_edge.
+Pipeline: TCN 14D → LOSS_CLF FLIP se auto_learn e pe>=0.55 → Kelly. Sem HARD SKIP/fusao/micro/regime/vol/exhaust/neg_edge. Indicadores = feature (catalogo de gates fechado). Pos-settle: `QUALITY` se houve FLIP. Indicadores = feature (catalogo de gates fechado). Pos-settle: `LOSS_CLF || QUALITY`.
 
 ## Checklist
 

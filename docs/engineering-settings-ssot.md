@@ -7,7 +7,7 @@ Leitura: `app/settings_io.py` + parsers em `domain/config_knobs.py`. Knob novo =
 | Bloco | Papel |
 |-------|--------|
 | `orchestrator.execution` | mandatory/force off; settlement; SIDE_EQ soft sizing; `scale_vision` telemetria; sample_size_policy |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **hard**; `hard_p_loss_floor` **0.55**; `flip_young_p_eff_floor` **0.55**; FLIP so apos auto_learn; `flip_trust_n` **32**; tape so telemetria; **sem** Soft Kelly / HARD SKIP / SKIP novo |
+| `infra.loss_classifier` | HTTP :8006; `veto_mode` **hard**; `hard_p_loss_floor` **0.55**; `flip_young_p_eff_floor` **0.55**; FLIP so apos auto_learn; `flip_trust_n` **32**; `ready_n` **32**; `retrain_min_n` **12**; `retrain_on_loss_min_n` / `min_win_for_loss_retrain` **4**; tape so telemetria; **sem** Soft Kelly / HARD SKIP / SKIP novo |
 | `infra.meta_classifier` | HTTP :8005; `retrain_min_n` **32** |
 | `risk_management` | Kelly Single-Strike 4.31%; `cover_enabled` **false**; piso **1%**; caps L0/L1 |
 

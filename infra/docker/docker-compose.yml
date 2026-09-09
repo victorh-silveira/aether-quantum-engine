@@ -225,13 +225,13 @@ services:
     environment:
       <<: *aether-omp
       LOSS_FEATURE_DIM: "24"
-      LOSS_READY_N: "8"
-      LOSS_RETRAIN_MIN_N: "1"
-      LOSS_BOOTSTRAP_EXIT_N: "8"
-      LOSS_RETRAIN_ON_LOSS_MIN_N: "1"
-      LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "1"
+      LOSS_READY_N: "32"
+      LOSS_RETRAIN_MIN_N: "12"
+      LOSS_BOOTSTRAP_EXIT_N: "12"
+      LOSS_RETRAIN_ON_LOSS_MIN_N: "4"
+      LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"
       LOSS_MAX_BUFFER: "2000"
-      LOSS_VETO_P_LOSS_FLOOR: "0.65"
+      LOSS_VETO_P_LOSS_FLOOR: "0.55"
       LOSS_YOUNG_TEMP_N: "32"
     mem_limit: 512m
     mem_swappiness: 0

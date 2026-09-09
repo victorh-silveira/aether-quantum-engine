@@ -24,10 +24,6 @@ def _metrics(*, prob: float, rsi: float, vol_ratio: float) -> dict:
     }
 
 
-def _peer_for_primary(symbol: str) -> str | None:
-    return "PEER_B" if symbol == "R_10" else None
-
-
 def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
     orch = MagicMock()
     orch.symbols = ["R_10", "PEER_B"]
@@ -107,24 +103,26 @@ def test_entropy_fallback_uses_anchor_direction_when_dl_missing(_mock_infer):
     assert bear is not None and bear[1] == TradeDirection.PUT
 
 
-def test_compute_cross_symbol_triplet_zeros_when_same_metrics_object():
+def test_compute_cross_symbol_triplet_zeros_when_metrics_empty():
     metrics = _metrics(prob=0.62, rsi=58.0, vol_ratio=1.05)
     triplet = compute_cross_symbol_triplet(metrics, metrics)
     assert all(value == 0.0 for value in triplet.values())
 
 
-def test_attach_cross_symbol_features_with_configured_peer():
+def test_attach_cross_symbol_features_uses_own_microstructure():
     decisions = {
-        "R_10": {"metrics": _metrics(prob=0.66, rsi=60.0, vol_ratio=1.1)},
+        "R_10": {
+            "metrics": {
+                **_metrics(prob=0.66, rsi=60.0, vol_ratio=1.1),
+                "flow_features": {"price_velocity": 0.3, "tick_count": 60.0},
+                "indicators": {"implied_vol_ratio": 1.1},
+            }
+        },
         "PEER_B": {"metrics": _metrics(prob=0.41, rsi=44.0, vol_ratio=0.92)},
     }
-    with patch(
-        "src.application.services.meta_classifier_cross_symbol.hedge_peer",
-        side_effect=_peer_for_primary,
-    ):
-        attach_cross_symbol_features_to_decisions(decisions)
-    spread = decisions["R_10"]["metrics"]["cross_symbol_features"]["cross_symbol_rsi_spread"]
-    assert spread == pytest.approx(16.0)
+    attach_cross_symbol_features_to_decisions(decisions)
+    vel = decisions["R_10"]["metrics"]["cross_symbol_features"]["micro_price_velocity"]
+    assert vel == pytest.approx(0.3)
 
 
 @pytest.mark.asyncio

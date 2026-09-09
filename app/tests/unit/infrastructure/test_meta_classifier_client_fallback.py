@@ -15,9 +15,9 @@ def _meta_metrics() -> dict:
     return {
         "feature_vector": base,
         "cross_symbol_features": {
-            "cross_symbol_prob_delta": 0.1,
-            "cross_symbol_vol_ratio_diff": 0.0,
-            "cross_symbol_rsi_spread": 0.0,
+            "micro_price_velocity": 0.1,
+            "micro_tick_count_norm": 0.0,
+            "implied_vol_centered": 0.0,
         },
     }
 

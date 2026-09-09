@@ -11,7 +11,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Símbolos | `1HZ75V` (âncora `1HZ75V`) |
 | Granularidade OHLC (DL) | **86400 s** (`data_handler.granularity`; macro D1) |
 | Relógio operacional | **300 s** (`data_handler.micro_granularity`; M5) |
-| Histórico para treino | 365 barras diárias (`training_history_bars: 365` / `history_bars: 500`) |
+| Histórico para treino | M5 **2000** barras (`training_history_bars` / `micro_history_bars`); D1 **365** (`history_bars`) |
 | Lookback | **`deep_learning.lookback`** (settings atuais **30**) → tensor **`[1, 30, 14]`** |
 | Features TCN | **14** (`FEATURE_DIM` ortogonal em `dl_features.py`) |
 | Features meta GBDT | **23** (`META_FEATURE_DIM` = 14 + 9) |
@@ -230,19 +230,19 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 | Container | `aether-loss-classifier`, host **8006→8000** |
 | Endpoint | `POST /v1/predict_loss`, `POST /v1/learn`, `POST /v1/retrain` |
 | Cliente | `LossClassifierClient` + `loss_classifier_pool` |
-| Veto | Motor **FLIP** se `p_loss >= hard_p_loss_floor` (**0.20**); sem HARD SKIP/Soft; seed `loss_bootstrap_live64` |
+| Veto | Motor **FLIP** se `p_eff >= 0.55` apos auto_learn; sem HARD SKIP/Soft; seed `loss_bootstrap_live64` ou `loss_seed_real{n}` |
 | Artefatos | `infra/docker/loss-models/*.pkl`; `make docker-reset` limpa + seed predictivo (`veto_ready` se n>=ready_n); `docker-rebuild` recarrega sem apagar TCN |
 
 ### 5.2 Vetor 23D
 
 ```
-META_FEATURE_DIM = 14 (TCN) + 4 (micro-vol zscores) + 3 (cross-symbol) + 2 (flow) = 43
+META_FEATURE_DIM = 14 (TCN) + 4 (micro-vol zscores) + 3 (microestrutura 1HZ75V) + 2 (flow) = 23
 ```
 
 | Bloco | Features |
 |-------|----------|
 | Micro-vol | `micro_bid_ask_spread_momentum[_zscore]`, `volatility_shadow_ratio[_zscore]` |
-| Cross | `cross_symbol_prob_delta`, `cross_symbol_vol_ratio_diff`, `cross_symbol_rsi_spread` |
+| Micro 1HZ75V | `micro_price_velocity`, `micro_tick_count_norm`, `implied_vol_centered` |
 | Flow | `micro_tick_acceleration`, `keltner_deviation_ratio` |
 
 Montagem: `dl_predict_telemetry.prepare_meta_classifier_cross_symbol_bundle` → `extract_meta_feature_vector` → `prefetch_meta_payoff_for_decisions`.

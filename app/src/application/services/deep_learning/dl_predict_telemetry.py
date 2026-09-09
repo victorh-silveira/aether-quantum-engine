@@ -84,6 +84,8 @@ def stamp_micro_frame_telemetry(
     flow["micro_bid_ask_spread_momentum_zscore"] = _series_last(series, "micro_bid_ask_spread_momentum_zscore")
     flow["volatility_shadow_ratio"] = _series_last(series, "volatility_shadow_ratio")
     flow["volatility_shadow_ratio_zscore"] = _series_last(series, "volatility_shadow_ratio_zscore")
+    flow["price_velocity"] = _series_last(series, "price_velocity")
+    flow["tick_count"] = _series_last(series, "tick_count")
     tick_buffer = getattr(stream, "tick_buffer", None)
     if tick_buffer is not None and hasattr(tick_buffer, "live_tick_acceleration"):
         flow["micro_tick_acceleration"] = float(tick_buffer.live_tick_acceleration(str(symbol)))

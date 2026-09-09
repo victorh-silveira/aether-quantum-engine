@@ -39,6 +39,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "ready_n",
             "retrain_min_n",
             "retrain_on_loss_min_n",
+            "min_win_for_loss_retrain",
             "max_buffer",
         ),
         "infra.loss_classifier",
@@ -74,6 +75,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
+        "min_win_for_loss_retrain": require_int(block, "min_win_for_loss_retrain"),
         "max_buffer": require_int(block, "max_buffer"),
     }
 

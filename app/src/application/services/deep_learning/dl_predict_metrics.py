@@ -15,6 +15,7 @@ def indicators_from_series(series: dict) -> dict[str, float]:
         "hurst": _series_last(series, "hurst"),
         "adx": _series_last(series, "adx"),
         "vol_ratio": _series_last(series, "vol_ratio_short_long"),
+        "variance_ratio": _series_last(series, "variance_ratio", 1.0),
         "implied_vol_ratio": _series_last(series, "implied_vol_ratio", 1.0),
         "bb_width": _series_last(series, "bb_width"),
         "bb_width_raw": _series_last(series, "bb_width_raw"),

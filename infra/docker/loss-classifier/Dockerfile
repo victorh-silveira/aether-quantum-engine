@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY runtime.py learn_policy.py buffer_io.py app.py ./
+COPY runtime.py learn_policy.py buffer_io.py calib.py app.py ./
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -39,13 +39,14 @@ ENV PYTHONUNBUFFERED=1 \
     NUMEXPR_NUM_THREADS=2 \
     MODELS_DIR=/models \
     LOSS_FEATURE_DIM=24 \
-    LOSS_READY_N=8 \
-    LOSS_RETRAIN_MIN_N=1 \
-    LOSS_RETRAIN_ON_LOSS_MIN_N=1 \
-    LOSS_BOOTSTRAP_EXIT_N=8 \
-    LOSS_MIN_WIN_FOR_LOSS_RETRAIN=1 \
+    LOSS_READY_N=32 \
+    LOSS_RETRAIN_MIN_N=12 \
+    LOSS_RETRAIN_ON_LOSS_MIN_N=4 \
+    LOSS_BOOTSTRAP_EXIT_N=12 \
+    LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4 \
     LOSS_MAX_BUFFER=2000 \
-    LOSS_VETO_P_LOSS_FLOOR=0.65
+    LOSS_VETO_P_LOSS_FLOOR=0.55 \
+    LOSS_YOUNG_TEMP_N=32
 EXPOSE 8000
 
 USER aether

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.loss_classifier_vectors import store_loss_flip_ctx
 from src.domain.models.trade import TradeDirection
 
 
@@ -79,3 +80,21 @@ def compute_loss_clf_p_eff(
     tape_discord = bool(tape) and tape != tcn_ref.name
     flip_floor = float(flip_young_p_eff_floor) if young else float(hard_floor)
     return p_eff, young, tape_discord, flip_floor
+
+
+def stamp_loss_clf_flip_ctx(orch: Any, symbol: str | None, metrics: dict[str, Any]) -> None:
+    """Persiste telemetria de FLIP para QUALITY no settle."""
+    if orch is None or not symbol:
+        return
+    store_loss_flip_ctx(
+        orch,
+        str(symbol),
+        {
+            "flip": bool(metrics.get("loss_clf_flip")),
+            "young": bool(metrics.get("loss_clf_young_shrink")),
+            "p_loss": float(metrics.get("loss_clf_p_loss") or 0.5),
+            "p_eff": float(metrics.get("loss_clf_p_eff") or 0.5),
+            "n_train": int(metrics.get("loss_clf_n_train") or 0),
+            "blocked": str(metrics.get("loss_clf_flip_blocked") or ""),
+        },
+    )

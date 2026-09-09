@@ -1,4 +1,4 @@
-"""Features cross-symbol de arbitragem para o meta-classificador tabular."""
+"""Features de microestrutura live para o meta-classificador tabular (1HZ75V)."""
 
 from __future__ import annotations
 
@@ -6,27 +6,39 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.meta_classifier_flow_features import FLOW_FEATURE_COUNT
-from src.domain.symbols.drift_symbols import DEFAULT_ANCHOR, hedge_peer
 
 
 CROSS_SYMBOL_FEATURE_COUNT = 3
 META_FEATURE_DIM = FEATURE_DIM + CROSS_SYMBOL_FEATURE_COUNT + FLOW_FEATURE_COUNT + 4
-ANCHOR_BULL = DEFAULT_ANCHOR
-ANCHOR_BEAR = DEFAULT_ANCHOR
+ANCHOR_BULL = "1HZ75V"
+ANCHOR_BEAR = "1HZ75V"
 
 CROSS_SYMBOL_KEYS = (
-    "cross_symbol_prob_delta",
-    "cross_symbol_vol_ratio_diff",
-    "cross_symbol_rsi_spread",
+    "micro_price_velocity",
+    "micro_tick_count_norm",
+    "implied_vol_centered",
 )
 
 
-def _metric_prob(metrics: dict[str, Any]) -> float:
-    """Retorna probabilidade calibrada limitada ao intervalo unitario."""
-    raw = metrics.get("calibrated_prob", metrics.get("raw_prob"))
-    if raw is None:
-        return 0.5
-    return max(0.0, min(1.0, float(raw)))
+def _clip3(value: float) -> float:
+    """Projeta valor no intervalo [-3, 3]."""
+    return max(-3.0, min(3.0, float(value)))
+
+
+def _clip01(value: float) -> float:
+    """Projeta valor no intervalo [0, 1]."""
+    return max(0.0, min(1.0, float(value)))
+
+
+def _flow_float(metrics: dict[str, Any], key: str, default: float = 0.0) -> float:
+    """Le float do bloco flow_features."""
+    chunk = metrics.get("flow_features")
+    if isinstance(chunk, dict) and chunk.get(key) is not None:
+        try:
+            return float(chunk[key])
+        except (TypeError, ValueError):
+            return float(default)
+    return float(default)
 
 
 def _indicator_value(metrics: dict[str, Any], key: str, *, micro: bool = False) -> float:
@@ -35,58 +47,51 @@ def _indicator_value(metrics: dict[str, Any], key: str, *, micro: bool = False) 
     chunk = metrics.get(bucket)
     if not isinstance(chunk, dict):
         chunk = metrics["indicators"] if micro and isinstance(metrics.get("indicators"), dict) else {}
-    return float(chunk.get(key, 0.0))
+    try:
+        return float(chunk.get(key, 0.0))
+    except (TypeError, ValueError):
+        return 0.0
 
 
 def compute_cross_symbol_triplet(
     bull_metrics: dict[str, Any] | None,
-    bear_metrics: dict[str, Any] | None,
+    bear_metrics: dict[str, Any] | None = None,
 ) -> dict[str, float]:
-    """Calcula deltas de arbitragem entre pares; zeros quando nao ha peer."""
-    if not isinstance(bull_metrics, dict) or not isinstance(bear_metrics, dict):
+    """Monta triplet de microestrutura do simbolo (dims ex-cross zeradas no 1HZ75V)."""
+    metrics = bull_metrics if isinstance(bull_metrics, dict) else bear_metrics
+    if not isinstance(metrics, dict):
         return dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
-    if bull_metrics is bear_metrics:
-        return dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
-    bull_call = _metric_prob(bull_metrics)
-    bear_put = 1.0 - _metric_prob(bear_metrics)
-    bull_vol = _indicator_value(bull_metrics, "vol_ratio", micro=True)
-    bear_vol = _indicator_value(bear_metrics, "vol_ratio", micro=True)
-    bull_rsi = _indicator_value(bull_metrics, "rsi", micro=True)
-    bear_rsi = _indicator_value(bear_metrics, "rsi", micro=True)
+    vel = _flow_float(metrics, "price_velocity", 0.0)
+    if abs(vel) <= 1e-12:
+        vel = _indicator_value(metrics, "price_velocity", micro=True)
+    ticks = _flow_float(metrics, "tick_count", 0.0)
+    if ticks <= 1e-12:
+        ticks = _indicator_value(metrics, "tick_count", micro=True)
+    implied = _indicator_value(metrics, "implied_vol_ratio")
+    if abs(implied) <= 1e-12:
+        implied = _indicator_value(metrics, "implied_vol_ratio", micro=True)
+    if abs(implied) <= 1e-12:
+        implied = 1.0
     return {
-        "cross_symbol_prob_delta": abs(bull_call - bear_put),
-        "cross_symbol_vol_ratio_diff": bull_vol - bear_vol,
-        "cross_symbol_rsi_spread": bull_rsi - bear_rsi,
+        "micro_price_velocity": _clip3(vel),
+        "micro_tick_count_norm": _clip01(ticks / 300.0),
+        "implied_vol_centered": _clip3(implied - 1.0),
     }
 
 
 def attach_cross_symbol_features_to_decisions(decisions: dict[str, dict]) -> None:
-    """Propaga triplet cross-symbol para cada decisao antes do prefetch meta."""
-    symbols = [str(symbol) for symbol in decisions]
-    primary = next((symbol for symbol in symbols if hedge_peer(symbol) is not None), None)
-    if primary is None:
-        triplet = dict.fromkeys(CROSS_SYMBOL_KEYS, 0.0)
-    else:
-        peer = hedge_peer(primary)
-        primary_entry = decisions.get(primary) if isinstance(decisions.get(primary), dict) else None
-        peer_entry = decisions.get(peer) if peer and isinstance(decisions.get(peer), dict) else None
-        primary_metrics = primary_entry.get("metrics") if isinstance(primary_entry, dict) else None
-        peer_metrics = peer_entry.get("metrics") if isinstance(peer_entry, dict) else None
-        triplet = compute_cross_symbol_triplet(
-            primary_metrics if isinstance(primary_metrics, dict) else None,
-            peer_metrics if isinstance(peer_metrics, dict) else None,
-        )
+    """Anexa triplet de microestrutura live em cada decisao antes do prefetch meta."""
     for entry in decisions.values():
         if not isinstance(entry, dict):
             continue
         metrics = entry.get("metrics")
         if not isinstance(metrics, dict):
             continue
-        metrics["cross_symbol_features"] = dict(triplet)
+        metrics["cross_symbol_features"] = compute_cross_symbol_triplet(metrics)
 
 
 def cross_symbol_triplet_from_metrics(metrics: dict[str, Any]) -> list[float]:
-    """Extrai triplet cross-symbol previamente anexado em metrics."""
+    """Extrai triplet de microestrutura previamente anexado em metrics."""
     chunk = metrics.get("cross_symbol_features")
     if isinstance(chunk, dict):
         return [float(chunk.get(key, 0.0)) for key in CROSS_SYMBOL_KEYS]

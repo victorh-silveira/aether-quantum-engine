@@ -26,7 +26,10 @@ def test_production_settings_pass_doctrine_invariants():
     assert int(inv["loss_clf_flip_trust_n"]) == 32
     assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
     assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.55)
-    assert inv["loss_clf_enabled"] is True
+    assert int(inv["loss_clf_ready_n"]) == 32
+    assert int(inv["loss_clf_retrain_min_n"]) == 12
+    assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 4
+    assert int(inv["loss_clf_min_win_for_loss_retrain"]) == 4
 
 
 def test_production_deploy_gate_armed():
@@ -38,6 +41,9 @@ def test_production_deploy_gate_armed():
     assert gate["enabled"] is True
     assert gate["force_ok"] is False
     assert float(gate["soft_min_val_accuracy"]) >= 0.53
+    assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.20)
+    assert bool(dl.get("allow_undeployed_inference")) is False
+    assert int(dl.get("training_history_bars", 0)) == 2000
     assert int(dl.get("lookback", 0)) == 30
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5
@@ -80,6 +86,10 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert int(block["ready_n"]) == 32
+    assert int(block["retrain_min_n"]) == 12
+    assert int(block["min_win_for_loss_retrain"]) == 4
+    assert bool(settings["orchestrator"]["execution"]["allow_undeployed"]) is False
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert bool(soft_rec["cover_enabled"]) is False
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
@@ -92,6 +102,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.31)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 300
+    assert int(data["micro_history_bars"]) == 2000
+    assert int(data["micro_fetch_count"]) == 2000
     assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False

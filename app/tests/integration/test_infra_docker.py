@@ -118,7 +118,7 @@ def test_loss_dockerfile_multi_stage():
     text = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
     assert text.count("FROM python:3.13-slim") >= 2
     assert "/opt/venv" in text
-    assert "LOSS_BOOTSTRAP_EXIT_N=8" in text
+    assert "LOSS_BOOTSTRAP_EXIT_N=12" in text
 
 
 def test_compose_lib_and_env_example_document_ml_knobs():
@@ -134,13 +134,16 @@ def test_compose_lib_and_env_example_document_ml_knobs():
 
 def test_compose_loss_classifier_env_ssot():
     text = _compose_text()
-    assert 'LOSS_READY_N: "8"' in text
-    assert 'LOSS_BOOTSTRAP_EXIT_N: "8"' in text
-    assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "1"' in text
+    assert 'LOSS_READY_N: "32"' in text
+    assert 'LOSS_BOOTSTRAP_EXIT_N: "12"' in text
+    assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"' in text
+    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.55"' in text
     dockerfile = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
-    assert "LOSS_READY_N=8" in dockerfile
-    assert "LOSS_BOOTSTRAP_EXIT_N=8" in dockerfile
-    assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=1" in dockerfile
+    assert "LOSS_READY_N=32" in dockerfile
+    assert "LOSS_BOOTSTRAP_EXIT_N=12" in dockerfile
+    assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4" in dockerfile
+    assert "LOSS_VETO_P_LOSS_FLOOR=0.55" in dockerfile
+    assert "calib.py" in dockerfile
 
 
 def _tcp_open(host: str, port: int, timeout: float = 0.4) -> bool:

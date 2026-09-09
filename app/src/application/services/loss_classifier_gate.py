@@ -13,6 +13,7 @@ from src.application.services.loss_classifier_gate_support import (
     compute_loss_clf_p_eff,
     resolve_scale_tape,
     resolve_tcn_ref,
+    stamp_loss_clf_flip_ctx,
 )
 from src.application.services.loss_classifier_vectors import store_loss_feature_vector
 from src.domain.models.trade import TradeDirection
@@ -132,6 +133,7 @@ def apply_loss_classifier_gate(
             p_eff,
             blocked,
         )
+        stamp_loss_clf_flip_ctx(orch, symbol, metrics)
         return False
     metrics.pop("loss_clf_flip_blocked", None)
     if p_eff + 1e-12 >= flip_floor:
@@ -155,6 +157,7 @@ def apply_loss_classifier_gate(
             p_eff,
             flip_floor,
         )
+        stamp_loss_clf_flip_ctx(orch, symbol, metrics)
         return False
     metrics.pop("loss_clf_flip", None)
     log_debug_if_changed(
@@ -170,4 +173,5 @@ def apply_loss_classifier_gate(
         p_eff,
         1 if response["veto_ready"] else 0,
     )
+    stamp_loss_clf_flip_ctx(orch, symbol, metrics)
     return False

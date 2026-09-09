@@ -31,6 +31,10 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_flip_trust_n"] == 32
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
     assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert inv["loss_clf_ready_n"] == 32
+    assert inv["loss_clf_retrain_min_n"] == 12
+    assert inv["loss_clf_retrain_on_loss_min_n"] == 4
+    assert inv["loss_clf_min_win_for_loss_retrain"] == 4
     assert inv["loss_clf_enabled"] is True
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600
@@ -81,4 +85,20 @@ def test_assert_production_doctrine_rejects_signal_skip_block():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["signal_skip"] = {"enabled": True}
     with pytest.raises(ValueError, match="signal_skip"):
+        assert_production_doctrine(settings)
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "match"),
+    [
+        ("ready_n", 8, "ready_n"),
+        ("retrain_min_n", 1, "retrain_min_n"),
+        ("retrain_on_loss_min_n", 1, "retrain_on_loss_min_n"),
+        ("min_win_for_loss_retrain", 1, "min_win_for_loss_retrain"),
+    ],
+)
+def test_assert_production_doctrine_rejects_loss_sample_floors(key, value, match):
+    settings = copy.deepcopy(load_settings_json())
+    settings["infra"]["loss_classifier"][key] = value
+    with pytest.raises(ValueError, match=match):
         assert_production_doctrine(settings)

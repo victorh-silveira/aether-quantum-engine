@@ -67,6 +67,10 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
             "flip_trust_n",
             "flip_young_shrink",
             "flip_young_p_eff_floor",
+            "ready_n",
+            "retrain_min_n",
+            "retrain_on_loss_min_n",
+            "min_win_for_loss_retrain",
         ),
         "infra.loss_classifier",
     )
@@ -77,6 +81,10 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
         "loss_clf_flip_trust_n": require_int(block, "flip_trust_n"),
         "loss_clf_flip_young_shrink": require_float(block, "flip_young_shrink"),
         "loss_clf_flip_young_p_eff_floor": require_float(block, "flip_young_p_eff_floor"),
+        "loss_clf_ready_n": require_int(block, "ready_n"),
+        "loss_clf_retrain_min_n": require_int(block, "retrain_min_n"),
+        "loss_clf_retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
+        "loss_clf_min_win_for_loss_retrain": require_int(block, "min_win_for_loss_retrain"),
     }
 
 
@@ -183,6 +191,14 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("loss_classifier.flip_young_shrink deve ser 0.35")
     if abs(float(inv["loss_clf_flip_young_p_eff_floor"]) - 0.55) > 1e-9:
         raise ValueError("loss_classifier.flip_young_p_eff_floor deve ser 0.55")
+    if int(inv["loss_clf_ready_n"]) != 32:
+        raise ValueError("loss_classifier.ready_n deve ser 32")
+    if int(inv["loss_clf_retrain_min_n"]) != 12:
+        raise ValueError("loss_classifier.retrain_min_n deve ser 12")
+    if int(inv["loss_clf_retrain_on_loss_min_n"]) != 4:
+        raise ValueError("loss_classifier.retrain_on_loss_min_n deve ser 4")
+    if int(inv["loss_clf_min_win_for_loss_retrain"]) != 4:
+        raise ValueError("loss_classifier.min_win_for_loss_retrain deve ser 4")
     if not inv["loss_clf_enabled"]:
         raise ValueError("loss_classifier.enabled deve ser true")
     if int(inv["watchdog_stale_tick_seconds"]) != 300:

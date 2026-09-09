@@ -68,6 +68,11 @@ def _resolve_training_labels(
         "label_mode": int(LABEL_MODE_FORWARD_Z),
     }
     if fwd_var > FWD_TARGET_VAR_FLOOR and close_nunique >= 8:
+        payoff = _winsorize_target(_continuous_payoff_target(proxy, fwd.astype(np.float32), bear, stake=float(stake)))
+        if float(np.var(payoff)) > FWD_TARGET_VAR_FLOOR:
+            labels = payoff
+            meta["label_mode"] = int(LABEL_MODE_PAYOFF)
+            return labels, meta
         z_raw = _rolling_zscore_strict(fwd, window=FORWARD_TARGET_ZSCORE_WINDOW)
         collapse = float(np.mean(~np.isfinite(z_raw))) if z_raw.size else 1.0
         meta["z_collapse_pct"] = int(round(100.0 * collapse))
@@ -245,6 +250,21 @@ def _symbol_frame(
     )
     tick_accel, keltner_dev = _flow_arrays(closes, series)
     mom, mom_z, shadow, shadow_z = _micro_vol_arrays(closes, bundle.high, bundle.low, series)
+    tick_count = (
+        np.asarray(series["tick_count"], dtype=np.float64)
+        if len(series.get("tick_count", [])) > 0
+        else np.zeros(len(closes), dtype=np.float64)
+    )
+    price_vel = (
+        np.asarray(series["price_velocity"], dtype=np.float64)
+        if len(series.get("price_velocity", [])) > 0
+        else np.zeros(len(closes), dtype=np.float64)
+    )
+    implied = (
+        np.asarray(series["implied_vol_ratio"], dtype=np.float64)
+        if len(series.get("implied_vol_ratio", [])) > 0
+        else np.ones(len(closes), dtype=np.float64)
+    )
     frame = pl.DataFrame(
         {
             "epoch": bundle.epochs.astype(np.int64),
@@ -258,6 +278,9 @@ def _symbol_frame(
             "micro_bid_ask_spread_momentum_zscore": mom_z,
             "volatility_shadow_ratio": shadow,
             "volatility_shadow_ratio_zscore": shadow_z,
+            "micro_price_velocity": np.clip(price_vel, -3.0, 3.0),
+            "micro_tick_count_norm": np.clip(tick_count / 300.0, 0.0, 1.0),
+            "implied_vol_centered": np.clip(implied - 1.0, -3.0, 3.0),
         }
     )
     return frame, features
@@ -313,7 +336,6 @@ def build_paired_training_dataset(
     epoch_slice = primary_slice["epoch"].to_numpy()
     row_idx = np.asarray([epoch_to_row[int(epoch)] for epoch in epoch_slice], dtype=np.int64)
     base_features = primary_features[row_idx]
-    zeros = np.zeros(len(epoch_slice), dtype=np.float64)
     flow_tick = primary_slice["tick_accel"].to_numpy().astype(np.float64)
     flow_keltner = primary_slice["keltner_dev"].to_numpy().astype(np.float64)
     matrix = np.column_stack(
@@ -323,9 +345,9 @@ def build_paired_training_dataset(
             primary_slice["micro_bid_ask_spread_momentum_zscore"].to_numpy().astype(np.float32),
             primary_slice["volatility_shadow_ratio"].to_numpy().astype(np.float32),
             primary_slice["volatility_shadow_ratio_zscore"].to_numpy().astype(np.float32),
-            zeros,
-            zeros,
-            zeros,
+            primary_slice["micro_price_velocity"].to_numpy().astype(np.float32),
+            primary_slice["micro_tick_count_norm"].to_numpy().astype(np.float32),
+            primary_slice["implied_vol_centered"].to_numpy().astype(np.float32),
             flow_tick,
             flow_keltner,
         ]

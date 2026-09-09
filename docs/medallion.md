@@ -13,7 +13,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT pela TCN; **unica inversao** = loss-clf FLIP se `p_loss >= 0.20` |
-| Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / 500 barras); contrato RISE_FALL **5 m** (ops fixo); label `quantum_multi_barrier` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
+| Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / **2000** barras de treino); contrato RISE_FALL **5 m** (ops fixo); label `quantum_multi_barrier` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (**300 s**) com ciclo em **300 s** |
 | Esteira contínua | `mandatory_trade_each_cycle: false`; TCN → LOSS_CLF FLIP (so P_LOSS) → Kelly |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
@@ -66,13 +66,13 @@ Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contr
 
 Indicadores micro de **300 s** (M5) (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **23D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
 
-**Spread de convicção cross-symbol** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; zeros no modo single-symbol):
+**Spread de convicção de microestrutura** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; universo `1HZ75V`, sem peer):
 
 | Feature | Descrição |
 |---------|-----------|
-| `cross_symbol_prob_delta` | Divergencia de conviccao entre pares (0.0 sem peer) |
-| `cross_symbol_vol_ratio_diff` | Spread linear micro de `vol_ratio` (0.0 sem peer) |
-| `cross_symbol_rsi_spread` | Spread linear micro de RSI (0.0 sem peer) |
+| `micro_price_velocity` | Velocidade de preço do fluxo de ticks (clip ±3) |
+| `micro_tick_count_norm` | Contagem de ticks no bloco M5, normalizada por 300 |
+| `implied_vol_centered` | `implied_vol_ratio - 1` |
 
 Em regimes de drift paralelo (ambos símbolos com scores altos na mesma direção), spreads baixos sinalizam saturação espelhada — o GBDT usa isso para evitar entradas sem viés relativo.
 

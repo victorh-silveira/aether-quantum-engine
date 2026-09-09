@@ -52,3 +52,53 @@ def test_seed_model_p_loss_not_saturated_on_typical_live_vector():
     typical[0, 20] = 0.59
     p_loss = float(model.predict_proba(typical)[0, loss_idx])
     assert p_loss < 0.85
+
+
+def test_load_real_settle_xy_rejects_short_or_collapsed(tmp_path):
+    import joblib
+
+    from scripts.operations.train_loss_classifier import load_real_settle_xy
+
+    assert load_real_settle_xy(tmp_path) is None
+    joblib.dump({"x": [[0.0] * FEATURE_DIM] * 4, "y": [0, 1, 0, 1]}, tmp_path / "learn_buffer.pkl")
+    assert load_real_settle_xy(tmp_path) is None
+    joblib.dump(
+        {"x": [[0.0] * FEATURE_DIM] * 12, "y": [0] * 12},
+        tmp_path / "learn_buffer.pkl",
+    )
+    assert load_real_settle_xy(tmp_path) is None
+    joblib.dump("bad", tmp_path / "learn_buffer.pkl")
+    assert load_real_settle_xy(tmp_path) is None
+
+
+def test_load_real_settle_xy_accepts_mixed_classes(tmp_path):
+    import joblib
+
+    from scripts.operations.train_loss_classifier import load_real_settle_xy
+
+    rows = [[float(i % 3) * 0.01] + [0.0] * (FEATURE_DIM - 1) for i in range(12)]
+    labels = [0] * 6 + [1] * 6
+    joblib.dump({"x": rows, "y": labels}, tmp_path / "learn_buffer.pkl")
+    loaded = load_real_settle_xy(tmp_path)
+    assert loaded is not None
+    x_arr, y_arr = loaded
+    assert x_arr.shape == (12, FEATURE_DIM)
+    assert set(y_arr.tolist()) == {0, 1}
+
+
+def test_main_writes_real_seed_when_buffer_ready(tmp_path, monkeypatch):
+    import joblib
+
+    from scripts.operations.train_loss_classifier import main
+
+    rows = [[0.02] + [0.0] * (FEATURE_DIM - 1) for _ in range(12)]
+    labels = [0] * 6 + [1] * 6
+    joblib.dump({"x": rows, "y": labels}, tmp_path / "learn_buffer.pkl")
+    monkeypatch.setattr("sys.argv", ["train_loss_classifier.py", "--out-dir", str(tmp_path)])
+    assert main() == 0
+    seed = tmp_path / "loss_seed_real12.pkl"
+    assert seed.is_file()
+    payload = joblib.load(seed)
+    assert payload["bootstrap"] is False
+    assert payload["auto_learn_applied"] is True
+    assert payload["n_train"] == 12

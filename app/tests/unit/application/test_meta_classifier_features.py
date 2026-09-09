@@ -13,9 +13,9 @@ def test_meta_classifier_column_names_include_cross_symbol_keys():
     names = meta_classifier_column_names()
     assert len(names) == META_FEATURE_DIM
     assert names[-5:] == [
-        "cross_symbol_prob_delta",
-        "cross_symbol_vol_ratio_diff",
-        "cross_symbol_rsi_spread",
+        "micro_price_velocity",
+        "micro_tick_count_norm",
+        "implied_vol_centered",
         "micro_tick_acceleration",
         "keltner_deviation_ratio",
     ]
@@ -46,9 +46,9 @@ def test_extract_meta_feature_vector_truncates_when_vector_exceeds_meta_dim(monk
     metrics = {
         "feature_vector": [1.0, 2.0, 3.0],
         "cross_symbol_features": {
-            "cross_symbol_prob_delta": 0.4,
-            "cross_symbol_vol_ratio_diff": 0.2,
-            "cross_symbol_rsi_spread": 0.1,
+            "micro_price_velocity": 0.4,
+            "micro_tick_count_norm": 0.2,
+            "implied_vol_centered": 0.1,
         },
     }
     vector = extract_meta_feature_vector(metrics)

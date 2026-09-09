@@ -158,14 +158,6 @@ class MetaClassifierClient:
             parsed = parse_meta_predict_response(response.json())
             if parsed["meta_applied"]:
                 reset_meta_classifier_fallback_dedupe()
-            bb_width_z = float(feature_vector[8]) if len(feature_vector) > 8 else 0.0
-            implied_vol = float(feature_vector[30]) if len(feature_vector) > 30 else 1.0
-            if bb_width_z > 2.5 or implied_vol > 2.5:
-                edge = parsed["predicted_payoff_edge"]
-                if edge > 0.0:
-                    parsed["predicted_payoff_edge"] = edge * 0.5
-                else:
-                    parsed["predicted_payoff_edge"] = edge * 1.5
             return parsed
         except (httpx.TimeoutException, httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
             _ = fallback_score

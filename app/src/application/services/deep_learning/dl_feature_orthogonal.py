@@ -25,9 +25,9 @@ ORTHOGONAL_FEATURE_NAMES: tuple[str, ...] = (
     "stoch_k_centered",
     "adx_scaled",
     "realized_vol_ratio",
-    "macro_trend_ctx",
+    "hurst_centered",
 )
-UNBOUNDED_COLS: tuple[int, ...] = (0, 1, 3, 5, 6, 7, 8, 9, 12)
+UNBOUNDED_COLS: tuple[int, ...] = (0, 1, 3, 5, 6, 7, 8, 9, 12, 13)
 
 
 def _log_ret_n(log_return: np.ndarray, n: int) -> np.ndarray:
@@ -39,27 +39,15 @@ def _log_ret_n(log_return: np.ndarray, n: int) -> np.ndarray:
     return out
 
 
-def _macro_trend_ctx(n: int, macro_closes: np.ndarray | None) -> np.ndarray:
-    """Contexto de tendencia D1 alinhado ao comprimento micro (ultimo valor)."""
-    out = np.zeros(n, dtype=np.float64)
-    if macro_closes is None or len(macro_closes) < 2:
+def _hurst_centered(series: dict[str, np.ndarray], n: int) -> np.ndarray:
+    """Hurst centrado em 0.5 (persistencia vs mean-reversion)."""
+    hurst = np.asarray(series.get("hurst", np.full(n, 0.5)), dtype=np.float64)
+    if len(hurst) != n:
+        out = np.full(n, 0.0, dtype=np.float64)
+        take = min(len(hurst), n)
+        out[:take] = hurst[:take] - 0.5
         return out
-    closes = np.asarray(macro_closes, dtype=np.float64)
-    ema_fast = _ema(closes, 9)
-    ema_slow = _ema(closes, 21)
-    ctx = (ema_fast[-1] - ema_slow[-1]) / (abs(ema_slow[-1]) + 1e-10)
-    out[:] = float(np.clip(ctx, -3.0, 3.0))
-    return out
-
-
-def _ema(prices: np.ndarray, span: int) -> np.ndarray:
-    """EMA simples causal via ewma numpy."""
-    alpha = 2.0 / (float(span) + 1.0)
-    out = np.empty(len(prices), dtype=np.float64)
-    out[0] = prices[0]
-    for i in range(1, len(prices)):
-        out[i] = alpha * prices[i] + (1.0 - alpha) * out[i - 1]
-    return out
+    return hurst - 0.5
 
 
 def build_orthogonal_raw_matrix(
@@ -68,6 +56,7 @@ def build_orthogonal_raw_matrix(
     macro_closes: np.ndarray | None = None,
 ) -> np.ndarray:
     """Monta matriz (N, 14) bruta antes da escala causal unbounded."""
+    del macro_closes
     n = len(series["log_return"])
     log_return = np.asarray(series["log_return"], dtype=np.float64)
     rsi = np.asarray(series["rsi"], dtype=np.float64)
@@ -92,7 +81,7 @@ def build_orthogonal_raw_matrix(
         center_unit_interval(stoch),
         np.clip(adx, 0.0, 1.0),
         np.asarray(series["vol_ratio_short_long"], dtype=np.float64),
-        _macro_trend_ctx(n, macro_closes),
+        _hurst_centered(series, n),
     ]
     return np.stack(cols, axis=1).astype(np.float32)
 

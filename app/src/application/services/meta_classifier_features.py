@@ -55,7 +55,7 @@ def cross_symbol_conviction_spread(metrics: dict[str, Any]) -> float:
     """Retorna spread de conviccao cruzada anexado em metrics."""
     chunk = metrics.get("cross_symbol_features")
     if isinstance(chunk, dict):
-        return float(chunk.get("cross_symbol_prob_delta", 0.0))
+        return float(chunk.get("micro_price_velocity", chunk.get("cross_symbol_prob_delta", 0.0)))
     return 0.0
 
 

@@ -10,18 +10,18 @@ description: >-
 
 ## Ordem de diagnostico
 
-1. Settings: lookback **30**, macro **86400s** (D1 / 365 barras), micro **300s** (M5), label $N=1$ vela M5 (`label_horizon_bars=1`), contrato ops **5 m** (`params.duration=5`), `label_mode=quantum_multi_barrier`, `deploy_gate.enabled` / `force_ok`
+1. Settings: lookback **30**, macro **86400s** (D1 / 365 barras), micro **300s** (M5, `training_history_bars` **2000**), label $N=1$ vela M5 (`label_horizon_bars=1`), contrato ops **5 m** (`params.duration=5`), `label_mode=quantum_multi_barrier`, `deploy_gate.enabled` / `force_ok` / `allow_undeployed_inference` **false**
 2. Telemetria de lado: `label_call_frac` / `pred_call_frac` / `minority_recall` no treino
 3. Balance: `deep_learning.sample_weighting.class_balance_*` via `compose_train_weights`
 4. Recency: `recency_enabled` / `recency_half_life_n` (default **500**)
-5. Deploy collapse: `reject_majority_collapse` — pred skew (`|pred-0.5|` / `|pred-label|` > **0.25**) rejeita sozinho; label skew + `min_minority_recall` (**0.25**)
-6. Checkpoint: feat_dim=**14**, lookback **30**, granularity micro **300** (treino lean M5; macro D1 **86400** no buffer), `val_accuracy`, `deploy_ok`; ckpt 34D / meta 43D = invalidos
+5. Deploy collapse: `reject_majority_collapse` — pred skew (`|pred-0.5|` / `|pred-label|` > **0.20**) rejeita sozinho; label skew + `min_minority_recall` (**0.25**)
+6. Checkpoint: feat_dim=**14** (ultima dim `hurst_centered`), lookback **30**, granularity micro **300** (treino lean M5; macro D1 **86400** no buffer), `val_accuracy`, `deploy_ok`; ckpt 34D / meta 43D = invalidos
 7. Early stop: `min_epochs` **15** / patience **17**; restore pico de validação; sharp sem colapso
 8. ACC: soft_min **0.55** no path label; deploy_gate fail-closed
 9. Brier: `max_brier` **0.28** (= `soft_max_brier`); sharpness `min_oos_sharpness` **0.01**
 10. Fail-closed: export falhou → `train.py` exit!=0; gate rejeita ckpt com lookback/granularity != settings; meta nao roda
 11. `launch-train.bat`: apos DL roda `check_dl_deploy_gate.py`; depois `ensure_timescale` seed Deriv (**M5×5000 + D1×365**, timeout **900s**, persist lote) antes do meta
-12. Meta: LightGBM **23D**; `--bars` **5000** (micro M5; nao confundir com 365 D1); Timescale smoke → Deriv INFO; teacher raw+expand se cal esmagar std; alvo payoff fallback
+12. Meta: LightGBM **23D** (microestrutura `1HZ75V`, sem peer); `--bars` **5000** (micro M5; nao confundir com 365 D1); Timescale smoke → Deriv INFO; teacher = payoff `profit/stake` do settle
 13. Meta HTTP opcional — confirmar flags; TCN = eager/CUDA local no host (`inference_mode`; nao bloquear o event loop)
 14. Universo runtime = **1HZ75V**; contrato ops fixo **5 m**
 15. Run fresca: `sanitize_fresh_run` no inicio de `launch-train`; `make docker-reset` sanitiza + volumes

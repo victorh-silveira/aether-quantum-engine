@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 
 from buffer_io import buffer_class_counts, load_learn_buffer, save_learn_buffer
 from learn_policy import retrain_min_for_label, retrain_skipped_reason, should_retrain_after_learn
+from calib import binary_ece, buffer_p_loss, fit_temperature
 from runtime import (
     fit_classifier,
     is_bootstrap_bundle,
@@ -26,13 +27,13 @@ from runtime import (
 logger = logging.getLogger("LOSS_CLF")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
 FEATURE_DIM = int(os.getenv("LOSS_FEATURE_DIM", "24"))
-READY_N = int(os.getenv("LOSS_READY_N", "24"))
-RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "1"))
-RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "1"))
-BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "16"))
+READY_N = int(os.getenv("LOSS_READY_N", "32"))
+RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "12"))
+RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "4"))
+BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "12"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
-MIN_WIN_FOR_LOSS_RETRAIN = int(os.getenv("LOSS_MIN_WIN_FOR_LOSS_RETRAIN", "1"))
-VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.65"))
+MIN_WIN_FOR_LOSS_RETRAIN = int(os.getenv("LOSS_MIN_WIN_FOR_LOSS_RETRAIN", "4"))
+VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.55"))
 YOUNG_TEMP_N = int(os.getenv("LOSS_YOUNG_TEMP_N", "32"))
 FEATURE_NAMES = tuple(f"f_{index}" for index in range(FEATURE_DIM))
 
@@ -97,6 +98,8 @@ _collapsed: bool = False
 _buffer_x: list[list[float]] = []
 _buffer_y: list[int] = []
 _load_error: str = ""
+_cal_temperature: float = 1.0
+_cal_ece: float = 1.0
 
 
 def _validate_vector(vector: list[float]) -> list[float]:
@@ -131,6 +134,7 @@ def _load_buffer_unlocked() -> None:
 def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool) -> None:
     global _model, _model_path, _model_mtime, _model_version, _n_train
     global _auto_learn_applied, _bootstrap, _degenerate, _collapsed, _load_error
+    global _cal_temperature, _cal_ece
     _model = bundle["model"]
     _model_path = path
     _model_mtime = float(path.stat().st_mtime) if path is not None and path.is_file() else 0.0
@@ -140,6 +144,8 @@ def _apply_bundle(bundle: dict[str, Any], path: Path | None, *, auto_learn: bool
     _bootstrap = False if _auto_learn_applied else is_bootstrap_bundle(bundle, version=_model_version)
     _degenerate = bool(bundle.get("degenerate"))
     _collapsed = bool(bundle.get("collapsed", False))
+    _cal_temperature = float(bundle.get("cal_temperature") or 1.0)
+    _cal_ece = float(bundle.get("cal_ece") or 1.0)
     _load_error = ""
 
 
@@ -209,8 +215,17 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 model_version=_model_version,
                 detail="collapsed_reject",
             )
+        cal_t = fit_temperature(model, _buffer_x, _buffer_y)
+        cal_ece = binary_ece(buffer_p_loss(model, _buffer_x, temperature=cal_t), _buffer_y)
         path = persist_bundle(
-            MODELS_DIR, model, len(_buffer_y), FEATURE_NAMES, FEATURE_DIM, auto_learn=True
+            MODELS_DIR,
+            model,
+            len(_buffer_y),
+            FEATURE_NAMES,
+            FEATURE_DIM,
+            auto_learn=True,
+            cal_temperature=cal_t,
+            cal_ece=cal_ece,
         )
         _apply_bundle(
             {
@@ -221,6 +236,8 @@ def _fit_from_buffer(*, min_n: int | None = None) -> RetrainResult:
                 "bootstrap": False,
                 "degenerate": False,
                 "collapsed": False,
+                "cal_temperature": cal_t,
+                "cal_ece": cal_ece,
             },
             path,
             auto_learn=True,
@@ -268,6 +285,8 @@ async def health() -> dict[str, Any]:
             "bootstrap": bool(_bootstrap),
             "degenerate": bool(_degenerate),
             "collapsed": bool(_collapsed),
+            "cal_temperature": float(_cal_temperature),
+            "cal_ece": float(_cal_ece),
             "buffer_n": len(_buffer_y),
             "buffer_win": int(counts["win"]),
             "buffer_loss": int(counts["loss"]),
@@ -298,15 +317,12 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
         if _model is None:
             raise HTTPException(status_code=503, detail="loss-classifier sem modelo carregado")
         try:
-            temp = (
-                2.0
-                if (
-                    bool(_bootstrap)
-                    or str(_model_version).startswith("loss_bootstrap_live")
-                    or int(_n_train) < int(YOUNG_TEMP_N)
-                )
-                else 1.0
+            young = (
+                bool(_bootstrap)
+                or str(_model_version).startswith("loss_bootstrap_live")
+                or int(_n_train) < int(YOUNG_TEMP_N)
             )
+            temp = 2.0 if young else float(_cal_temperature)
             p_loss = predict_p_loss(_model, vector, temperature=temp)
         except Exception as exc:
             logger.warning("predict falhou: %s", exc)

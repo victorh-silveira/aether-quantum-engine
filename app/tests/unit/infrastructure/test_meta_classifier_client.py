@@ -21,9 +21,9 @@ def _meta_metrics() -> dict:
     return {
         "feature_vector": base,
         "cross_symbol_features": {
-            "cross_symbol_prob_delta": 0.1,
-            "cross_symbol_vol_ratio_diff": 0.0,
-            "cross_symbol_rsi_spread": 0.0,
+            "micro_price_velocity": 0.1,
+            "micro_tick_count_norm": 0.0,
+            "implied_vol_centered": 0.0,
         },
     }
 
@@ -77,20 +77,20 @@ async def test_predict_meta_success():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("edge,expected", [(0.10, 0.05), (-0.10, -0.15)])
-async def test_predict_meta_high_vol_scales_edge(edge, expected):
+@pytest.mark.parametrize("edge", [0.10, -0.10])
+async def test_predict_meta_high_vol_keeps_sidecar_edge(edge):
     client = MetaClassifierClient(base_url="http://meta:8005", timeout=1.0, enabled=True)
     response = MagicMock()
     response.raise_for_status = MagicMock()
     response.json = MagicMock(return_value={"predicted_payoff_edge": edge, "meta_applied": True})
     client._client.post = AsyncMock(return_value=response)
     metrics = _meta_metrics()
-    metrics["feature_vector"] = [3.0] * 34
+    metrics["feature_vector"] = [3.0] * 14
     result = await client.predict_meta(
         build_meta_predict_request(symbol="R_10", metrics=metrics, tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(expected)
+    assert result["predicted_payoff_edge"] == pytest.approx(edge)
     await client.aclose()
 
 

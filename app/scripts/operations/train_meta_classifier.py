@@ -126,7 +126,7 @@ def build_training_summary(
         "feature_dim": int(bundle_meta["feature_dim"]),
         "model_type": str(bundle_meta.get("model_type", "regressor")),
         "bars_loaded": {b.symbol: int(len(b.closes)) for b in bundles},
-        "cross_symbol_prob_delta_mean": float(frame["cross_symbol_prob_delta"].mean()),
+        "cross_symbol_prob_delta_mean": float(frame["micro_price_velocity"].mean()),
         "oos_payoff_zscore_mean": float(bundle_meta.get("oos_payoff_zscore_mean", 0.0)),
         "oos_information_ratio": float(bundle_meta.get("oos_information_ratio", 0.0)),
         "oos_information_ratio_unit": float(bundle_meta.get("oos_information_ratio_unit", 0.0)),

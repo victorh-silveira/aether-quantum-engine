@@ -8,7 +8,7 @@ from typing import Any
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
-from src.application.services.loss_classifier_vectors import pop_loss_feature_vector
+from src.application.services.loss_classifier_vectors import pop_loss_feature_vector, pop_loss_flip_ctx
 from src.application.services.meta_classifier_vectors import pop_meta_feature_vector
 from src.application.services.orchestrator.post_settlement_loss_cooldown import schedule_post_loss_cooldown
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
@@ -60,6 +60,18 @@ def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_i
     )
     orch._last_loss_clf_learn = detail
     logger.info("LOSS_CLF || LEARN %s", detail)
+    ctx = pop_loss_flip_ctx(orch, str(symbol), int(contract_id))
+    if isinstance(ctx, dict) and bool(ctx.get("flip")):
+        hit = 1 if won else 0
+        young = 1 if ctx.get("young") else 0
+        logger.info(
+            "LOSS_CLF || QUALITY flip=1 young=%d hit=%d p=%.5f pe=%.5f n=%s",
+            young,
+            hit,
+            float(ctx.get("p_loss") or 0.0),
+            float(ctx.get("p_eff") or 0.0),
+            ctx.get("n_train", "-"),
+        )
 
 
 def _feed_meta_classifier_learn(

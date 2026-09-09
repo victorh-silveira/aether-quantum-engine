@@ -18,6 +18,7 @@ from src.application.services.deep_learning.model import create_direction_model,
 
 def test_effective_deploy_ok_soft_fallback():
     dl = {
+        "allow_undeployed_inference": True,
         "deploy_gate": {
             "enabled": True,
             "force_ok": False,
@@ -33,7 +34,7 @@ def test_effective_deploy_ok_soft_fallback():
             "eval_put_threshold_floor": 0.01,
             "eval_call_threshold_default": 0.75,
             "eval_put_threshold_default": 0.25,
-        }
+        },
     }
     assert _effective_deploy_ok(stored_ok=False, val_accuracy=0.566, val_brier=0.250, dl_config=dl) is True
     assert _effective_deploy_ok(stored_ok=False, val_accuracy=0.566, val_brier=0.270, dl_config=dl) is False
@@ -124,6 +125,7 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
         "data_handler": {"micro_granularity": 180},
         "deep_learning": {
             "online_training": False,
+            "allow_undeployed_inference": True,
             "deploy_gate": {
                 "enabled": True,
                 "force_ok": False,
@@ -161,3 +163,29 @@ def test_get_symbol_runtime_promotes_soft_deploy(tmp_path: Path):
         runtime = get_symbol_runtime(orch, "R_10", orch.config["deep_learning"], {"lookback": 32, "arch": "tcn"})
     assert runtime["deploy_ok"] is True
     persist.assert_called_once()
+
+
+def test_effective_deploy_ok_blocks_undeployed_without_flag():
+    dl = {
+        "allow_undeployed_inference": False,
+        "deploy_gate": {
+            "enabled": True,
+            "force_ok": False,
+            "max_brier": 0.22,
+            "min_win_rate": 0.55,
+            "mini_bars": 120,
+            "max_eval_steps": 24,
+            "min_trades": 2,
+            "soft_min_val_accuracy": 0.53,
+            "soft_max_brier": 0.26,
+            "eval_relaxed_gating": True,
+            "eval_call_threshold_cap": 0.65,
+            "eval_put_threshold_floor": 0.01,
+            "eval_call_threshold_default": 0.75,
+            "eval_put_threshold_default": 0.25,
+            "reject_majority_collapse": True,
+            "max_label_call_frac_bias": 0.20,
+            "min_minority_recall": 0.25,
+        },
+    }
+    assert _effective_deploy_ok(stored_ok=False, val_accuracy=0.566, val_brier=0.250, dl_config=dl) is False

@@ -28,6 +28,8 @@ def persist_bundle(
     feature_dim: int,
     *,
     auto_learn: bool,
+    cal_temperature: float = 1.0,
+    cal_ece: float = 1.0,
 ) -> Path:
     models_dir.mkdir(parents=True, exist_ok=True)
     version = f"loss_{int(time.time())}_n{n_train}"
@@ -42,6 +44,8 @@ def persist_bundle(
             "bootstrap": False,
             "model_version": version,
             "feature_dim": int(feature_dim),
+            "cal_temperature": float(cal_temperature),
+            "cal_ece": float(cal_ece),
         },
         path,
     )
@@ -68,11 +72,12 @@ def load_latest_classifier(models_dir: Path) -> tuple[dict[str, Any], Path] | No
 
 def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any:
     n_samples = len(buffer_y)
-    min_child = max(2, min(8, n_samples // 4))
+    mature = n_samples >= 32
+    min_child = max(8, min(20, n_samples // 8)) if mature else max(2, min(8, n_samples // 4))
     model = lgb.LGBMClassifier(
-        n_estimators=50,
+        n_estimators=80 if mature else 50,
         learning_rate=0.05,
-        num_leaves=10,
+        num_leaves=12 if mature else 10,
         max_bin=63,
         min_child_samples=min_child,
         class_weight="balanced",
@@ -158,7 +163,9 @@ def live_like_synthetic_xy(
     x_arr[:, 0] = rng.uniform(0.0, 0.15, size=rows)
     if dim > 1:
         x_arr[:, 1] = rng.uniform(0.42, 0.58, size=rows)
-    for idx in (2, 3, 14, 15):
+    if dim > 2:
+        x_arr[:, 2] = rng.uniform(0.0, 0.12, size=rows)
+    for idx in (3, 14, 15, 23):
         if idx < dim:
             x_arr[:, idx] = rng.integers(0, 2, size=rows).astype(np.float64)
     if dim > 6:
@@ -179,11 +186,11 @@ def live_like_synthetic_xy(
     if dim > 12:
         x_arr[:, 12] = rng.uniform(0.0, 0.5, size=rows)
     if dim > 13:
-        x_arr[:, 13] = rng.uniform(0.35, 0.65, size=rows)
+        x_arr[:, 13] = rng.uniform(0.35, 0.70, size=rows)
     if dim > 16:
-        x_arr[:, 16] = rng.integers(0, 2, size=rows).astype(np.float64)
+        x_arr[:, 16] = rng.uniform(0.05, 0.55, size=rows)
     if dim > 17:
-        x_arr[:, 17] = rng.integers(0, 2, size=rows).astype(np.float64)
+        x_arr[:, 17] = np.clip(rng.normal(1.0, 0.35, size=rows), -3.0, 3.0)
     if dim > 18:
         x_arr[:, 18] = rng.uniform(0.42, 0.58, size=rows)
     if dim > 19:
@@ -191,11 +198,9 @@ def live_like_synthetic_xy(
     if dim > 20:
         x_arr[:, 20] = rng.uniform(0.50, 0.65, size=rows)
     if dim > 21:
-        x_arr[:, 21] = np.clip(rng.normal(0.0, 0.8, size=rows), -3.0, 3.0)
+        x_arr[:, 21] = np.clip(rng.normal(0.0, 0.35, size=rows), -3.0, 3.0)
     if dim > 22:
         x_arr[:, 22] = np.clip(rng.normal(0.0, 0.8, size=rows), -3.0, 3.0)
-    if dim > 23:
-        x_arr[:, 23] = rng.integers(0, 2, size=rows).astype(np.float64)
     risk = (
         0.6 * (x_arr[:, 3] if dim > 3 else 0.0)
         + 0.5 * (x_arr[:, 7] if dim > 7 else 0.0)

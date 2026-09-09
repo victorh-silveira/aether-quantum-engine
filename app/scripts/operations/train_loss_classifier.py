@@ -6,17 +6,20 @@ import argparse
 import os
 from pathlib import Path
 
+import numpy as np
+
 
 os.environ.setdefault("LOKY_MAX_CPU_COUNT", "4")
 
 import joblib
 import lightgbm as lgb
-import numpy as np
 
 from aether_paths import repo_path
 
 
 FEATURE_DIM = 24
+REAL_SEED_MIN_N = 12
+BUFFER_FILENAME = "learn_buffer.pkl"
 
 
 def live_like_synthetic_xy(
@@ -33,7 +36,9 @@ def live_like_synthetic_xy(
     x_arr[:, 0] = rng.uniform(0.0, 0.15, size=rows)
     if dim > 1:
         x_arr[:, 1] = rng.uniform(0.42, 0.58, size=rows)
-    for idx in (2, 3, 14, 15):
+    if dim > 2:
+        x_arr[:, 2] = rng.uniform(0.0, 0.12, size=rows)
+    for idx in (3, 14, 15, 23):
         if idx < dim:
             x_arr[:, idx] = rng.integers(0, 2, size=rows).astype(np.float64)
     if dim > 6:
@@ -54,11 +59,11 @@ def live_like_synthetic_xy(
     if dim > 12:
         x_arr[:, 12] = rng.uniform(0.0, 0.5, size=rows)
     if dim > 13:
-        x_arr[:, 13] = rng.uniform(0.35, 0.65, size=rows)
+        x_arr[:, 13] = rng.uniform(0.35, 0.70, size=rows)
     if dim > 16:
-        x_arr[:, 16] = rng.integers(0, 2, size=rows).astype(np.float64)
+        x_arr[:, 16] = rng.uniform(0.05, 0.55, size=rows)
     if dim > 17:
-        x_arr[:, 17] = rng.integers(0, 2, size=rows).astype(np.float64)
+        x_arr[:, 17] = np.clip(rng.normal(1.0, 0.35, size=rows), -3.0, 3.0)
     if dim > 18:
         x_arr[:, 18] = rng.uniform(0.42, 0.58, size=rows)
     if dim > 19:
@@ -66,11 +71,9 @@ def live_like_synthetic_xy(
     if dim > 20:
         x_arr[:, 20] = rng.uniform(0.50, 0.65, size=rows)
     if dim > 21:
-        x_arr[:, 21] = np.clip(rng.normal(0.0, 0.8, size=rows), -3.0, 3.0)
+        x_arr[:, 21] = np.clip(rng.normal(0.0, 0.35, size=rows), -3.0, 3.0)
     if dim > 22:
         x_arr[:, 22] = np.clip(rng.normal(0.0, 0.8, size=rows), -3.0, 3.0)
-    if dim > 23:
-        x_arr[:, 23] = rng.integers(0, 2, size=rows).astype(np.float64)
     risk = (
         0.6 * (x_arr[:, 3] if dim > 3 else 0.0)
         + 0.5 * (x_arr[:, 7] if dim > 7 else 0.0)
@@ -93,19 +96,40 @@ def _synthetic_xy(n: int = 64) -> tuple[np.ndarray, np.ndarray]:
     return live_like_synthetic_xy(FEATURE_DIM, n=int(n), seed=42)
 
 
-def main() -> int:
-    """Treina LGBMClassifier live-like e grava .pkl bootstrap."""
-    parser = argparse.ArgumentParser(description="Bootstrap loss-classifier pkl")
-    parser.add_argument(
-        "--out-dir",
-        type=Path,
-        default=repo_path("infra", "docker", "loss-models"),
-        help="Diretorio de saida dos artefatos",
-    )
-    args = parser.parse_args()
-    out_dir: Path = args.out_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    x_arr, y_arr = _synthetic_xy()
+def load_real_settle_xy(models_dir: Path, *, feature_dim: int = FEATURE_DIM) -> tuple[np.ndarray, np.ndarray] | None:
+    """Carrega learn_buffer.pkl de settles reais se houver classes e N minimo."""
+    path = Path(models_dir) / BUFFER_FILENAME
+    if not path.is_file():
+        return None
+    try:
+        payload = joblib.load(path)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    raw_x = payload.get("x")
+    raw_y = payload.get("y")
+    if not isinstance(raw_x, list) or not isinstance(raw_y, list) or len(raw_x) != len(raw_y):
+        return None
+    if len(raw_y) < int(REAL_SEED_MIN_N):
+        return None
+    rows: list[list[float]] = []
+    labels: list[int] = []
+    for row, label in zip(raw_x, raw_y, strict=True):
+        if not isinstance(row, (list, tuple)) or len(row) != int(feature_dim):
+            return None
+        try:
+            rows.append([float(v) for v in row])
+            labels.append(int(label))
+        except (TypeError, ValueError):
+            return None
+    y_arr = np.asarray(labels, dtype=np.int32)
+    if len(np.unique(y_arr)) < 2:
+        return None
+    return np.asarray(rows, dtype=np.float64), y_arr
+
+
+def _fit_seed(x_arr: np.ndarray, y_arr: np.ndarray) -> lgb.LGBMClassifier:
     model = lgb.LGBMClassifier(
         n_estimators=40,
         learning_rate=0.05,
@@ -121,7 +145,33 @@ def main() -> int:
         n_jobs=1,
     )
     model.fit(x_arr, y_arr)
-    version = "loss_bootstrap_live64"
+    return model
+
+
+def main() -> int:
+    """Treina LGBMClassifier (settles reais se houver, senao live-like) e grava .pkl."""
+    parser = argparse.ArgumentParser(description="Bootstrap loss-classifier pkl")
+    parser.add_argument(
+        "--out-dir",
+        type=Path,
+        default=repo_path("infra", "docker", "loss-models"),
+        help="Diretorio de saida dos artefatos",
+    )
+    args = parser.parse_args()
+    out_dir: Path = args.out_dir
+    out_dir.mkdir(parents=True, exist_ok=True)
+    real = load_real_settle_xy(out_dir, feature_dim=FEATURE_DIM)
+    if real is not None:
+        x_arr, y_arr = real
+        version = f"loss_seed_real{int(len(y_arr))}"
+        bootstrap = False
+        auto_learn = True
+    else:
+        x_arr, y_arr = _synthetic_xy()
+        version = "loss_bootstrap_live64"
+        bootstrap = True
+        auto_learn = False
+    model = _fit_seed(x_arr, y_arr)
     path = out_dir / f"{version}.pkl"
     joblib.dump(
         {
@@ -129,8 +179,8 @@ def main() -> int:
             "model_type": "classifier",
             "feature_names": [f"f_{i}" for i in range(FEATURE_DIM)],
             "n_train": int(len(y_arr)),
-            "auto_learn_applied": False,
-            "bootstrap": True,
+            "auto_learn_applied": bool(auto_learn),
+            "bootstrap": bool(bootstrap),
             "model_version": version,
             "feature_dim": FEATURE_DIM,
         },

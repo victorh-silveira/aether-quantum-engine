@@ -61,6 +61,9 @@ def _effective_deploy_ok(
         return True
     if checkpoint_settle_eligible(checkpoint_payload, settings):
         return True
+    allow_undeployed = bool(dl_config.get("allow_undeployed_inference", False))
+    if not allow_undeployed and not stored_ok:
+        return False
     return resolve_deploy_ok(
         mini_ok=bool(stored_ok),
         val_accuracy=float(val_accuracy),

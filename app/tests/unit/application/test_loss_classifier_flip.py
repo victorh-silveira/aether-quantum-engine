@@ -1,5 +1,8 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
+
+import pytest
 
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
 from src.application.services.loss_classifier_gate_support import compute_loss_clf_p_eff
@@ -216,3 +219,22 @@ def test_only_loss_classifier_gate_assigns_loss_clf_flip():
         if 'loss_clf_flip"] = True' in text or "loss_clf_flip'] = True" in text:
             offenders.append(str(path.relative_to(app_src)))
     assert offenders == []
+
+
+def test_stamp_flip_ctx_persists_on_gate(monkeypatch):
+    orch = SimpleNamespace(
+        config={"infra": {"loss_classifier": {"enabled": True}}},
+        _active_cycle_id=1,
+        risk_manager=SimpleNamespace(pending_loss_total=lambda: 0.0, bankroll=1000.0),
+        state=SimpleNamespace(balance=1000.0),
+    )
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "execution_candidate_ready": True,
+    }
+    _patch_predict(monkeypatch, p_loss=0.56, n_train=32)
+    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="1HZ75V") is False
+    ctx = orch._loss_clf_flip_ctx["1HZ75V"]
+    assert ctx["flip"] is True
+    assert ctx["p_eff"] == pytest.approx(0.56)

@@ -26,21 +26,21 @@ def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
 
 def _metrics_with_cross() -> dict:
     base = [0.1] * 14
-    cross = {"cross_symbol_prob_delta": 0.21, "cross_symbol_vol_ratio_diff": 0.08, "cross_symbol_rsi_spread": 12.0}
+    cross = {"micro_price_velocity": 0.21, "micro_tick_count_norm": 0.08, "implied_vol_centered": 0.12}
     flow = {"micro_tick_acceleration": 0.04, "keltner_deviation_ratio": -0.11}
     return {
         "calibrated_prob": 0.62,
         "feature_vector": base,
         "cross_symbol_features": cross,
         "flow_features": flow,
-        "meta_feature_vector": base + [0.21, 0.08, 12.0, 0.04, -0.11],
+        "meta_feature_vector": base + [0.21, 0.08, 0.12, 0.04, -0.11],
     }
 
 
 def test_extract_meta_feature_vector_expanded_with_cross_symbol():
     vector = extract_meta_feature_vector(_metrics_with_cross())
     assert len(vector) == META_FEATURE_DIM
-    assert vector[-5:] == pytest.approx([0.21, 0.08, 12.0, 0.04, -0.11])
+    assert vector[-5:] == pytest.approx([0.21, 0.08, 0.12, 0.04, -0.11])
 
 
 def test_cross_symbol_conviction_spread_reads_attached_triplet():
@@ -126,7 +126,7 @@ async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
         prepare_meta_classifier_cross_symbol_bundle(MagicMock(), decisions, {"micro_granularity": 300})
         await prefetch_meta_payoff_for_decisions(decisions, cfg)
     assert "cross_symbol_features" in decisions["R_10"]["metrics"]
-    assert decisions["R_10"]["metrics"]["cross_symbol_features"]["cross_symbol_prob_delta"] == pytest.approx(0.0)
+    assert decisions["R_10"]["metrics"]["cross_symbol_features"]["micro_price_velocity"] == pytest.approx(0.0)
 
 
 def test_prepare_meta_classifier_bundle_skips_invalid_entries():
@@ -236,9 +236,9 @@ def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
             "indicators": {"bb_width": 0.03},
             "flow_features": {"micro_tick_acceleration": -0.02, "keltner_deviation_ratio": -0.05},
             "cross_symbol_features": {
-                "cross_symbol_prob_delta": 0.12,
-                "cross_symbol_vol_ratio_diff": -0.04,
-                "cross_symbol_rsi_spread": 3.0,
+                "micro_price_velocity": 0.12,
+                "micro_tick_count_norm": 0.04,
+                "implied_vol_centered": 0.0,
             },
         },
     }
