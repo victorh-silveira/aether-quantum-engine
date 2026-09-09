@@ -1,3 +1,9 @@
+## [2.58.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.57.0...v2.58.0) (2026-09-09)
+
+### Funcionalidades
+
+* **engine:** qualidade CALL/PUT por vetores e calibracao ([7e89b63](https://github.com/victorh-silveira/aether-quantum-engine/commit/7e89b6359ddb47e8f69d918ffd1765fcc6988c4e))
+
 ## [2.57.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.56.0...v2.57.0) (2026-09-09)
 
 ### Funcionalidades
