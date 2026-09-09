@@ -1,3 +1,13 @@
+## [2.57.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.56.0...v2.57.0) (2026-09-09)
+
+### Funcionalidades
+
+* **engine:** FLIP por p_eff do loss-clf no piso 0.55 ([93edd84](https://github.com/victorh-silveira/aether-quantum-engine/commit/93edd843e77b65da10cdfb385c2bcf92d6295518))
+
+### Refatoracoes Tecnicas
+
+* **engine:** hot path minimo com HARD SKIP por P_LOSS ([232a133](https://github.com/victorh-silveira/aether-quantum-engine/commit/232a13371de95b5d5a17fcf1e737e99fb86dd1fd))
+
 ## [2.56.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.55.0...v2.56.0) (2026-09-06)
 
 ### Funcionalidades
