@@ -1,3 +1,10 @@
+## [2.59.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.58.0...v2.59.0) (2026-09-10)
+
+### Funcionalidades
+
+* **engine:** estabiliza sync D1 e liquidacao no CI ([772ac87](https://github.com/victorh-silveira/aether-quantum-engine/commit/772ac87caa8592ba014deea683a58aaa036ee5f6))
+* **infra:** endurece sidecars meta/loss e defesa apos perda ([3f6a6aa](https://github.com/victorh-silveira/aether-quantum-engine/commit/3f6a6aa63e7c846968efa1337938b114514e049a))
+
 ## [2.58.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.57.0...v2.58.0) (2026-09-09)
 
 ### Funcionalidades
