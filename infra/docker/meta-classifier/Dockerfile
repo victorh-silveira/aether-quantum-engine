@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.13-slim AS builder
 
 WORKDIR /build
@@ -28,7 +29,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+COPY --from=ml_common . /opt/ml_common
 COPY app.py learn_runtime.py ./
+ENV PYTHONPATH="/opt:${PYTHONPATH}"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \

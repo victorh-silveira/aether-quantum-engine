@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -9,8 +10,41 @@ import joblib
 import lightgbm as lgb
 import numpy as np
 
+_ML_ROOT = Path(__file__).resolve().parent.parent
+if (_ML_ROOT / "ml_common" / "__init__.py").is_file() and str(_ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ML_ROOT))
+
+from ml_common.persist import atomic_joblib_dump
+from ml_common.schema import bundle_schema_hash_ok
+
 
 logger = logging.getLogger("LOSS_CLF")
+
+
+def drop_sklearn_feature_names(model: Any) -> Any:
+    """Remove feature_names_in_ do __dict__ apos fit numpy (sklearn 1.6 + LGBM)."""
+    stored = getattr(model, "__dict__", None)
+    if isinstance(stored, dict):
+        stored.pop("feature_names_in_", None)
+    return model
+
+
+def predict_proba_numpy(model: Any, rows: Any) -> np.ndarray:
+    """Probabilidades via booster LightGBM, sem validacao sklearn de nomes."""
+    x_arr = np.asarray(rows, dtype=np.float64)
+    if x_arr.ndim == 1:
+        x_arr = np.expand_dims(x_arr, axis=0)
+    booster = getattr(model, "booster_", None)
+    if booster is None:
+        return np.asarray(model.predict_proba(x_arr), dtype=np.float64)
+    raw = np.asarray(booster.predict(x_arr), dtype=np.float64)
+    if raw.ndim != 1:
+        return raw
+    stacked = np.column_stack((1.0 - raw, raw))
+    classes = [int(c) for c in list(getattr(model, "classes_", [0, 1]))]
+    if len(classes) >= 2 and int(classes[0]) == 1:
+        return stacked[:, ::-1]
+    return stacked
 
 
 def is_bootstrap_bundle(bundle: dict[str, Any], *, version: str = "") -> bool:
@@ -30,11 +64,14 @@ def persist_bundle(
     auto_learn: bool,
     cal_temperature: float = 1.0,
     cal_ece: float = 1.0,
+    schema_hash: str = "",
+    degenerate: bool = False,
+    collapsed: bool = False,
 ) -> Path:
     models_dir.mkdir(parents=True, exist_ok=True)
     version = f"loss_{int(time.time())}_n{n_train}"
     path = models_dir / f"{version}.pkl"
-    joblib.dump(
+    atomic_joblib_dump(
         {
             "model": model,
             "model_type": "classifier",
@@ -46,13 +83,20 @@ def persist_bundle(
             "feature_dim": int(feature_dim),
             "cal_temperature": float(cal_temperature),
             "cal_ece": float(cal_ece),
+            "schema_hash": str(schema_hash),
+            "degenerate": bool(degenerate),
+            "collapsed": bool(collapsed),
         },
         path,
     )
     return path
 
 
-def load_latest_classifier(models_dir: Path) -> tuple[dict[str, Any], Path] | None:
+def load_latest_classifier(
+    models_dir: Path,
+    *,
+    expected_schema_hash: str = "",
+) -> tuple[dict[str, Any], Path] | None:
     if not models_dir.is_dir():
         return None
     candidates = sorted(models_dir.glob("*.pkl"), key=lambda path: path.stat().st_mtime, reverse=True)
@@ -66,11 +110,41 @@ def load_latest_classifier(models_dir: Path) -> tuple[dict[str, Any], Path] | No
             continue
         if not callable(getattr(bundle["model"], "predict_proba", None)):
             continue
+        if expected_schema_hash and not bundle_schema_hash_ok(bundle, expected_schema_hash):
+            logger.warning("schema_hash mismatch %s", path.name)
+            continue
         return bundle, path
     return None
 
 
-def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any:
+def recency_sample_weights(n_samples: int, *, half_life: int = 32, mature: bool = False) -> np.ndarray | None:
+    rows = int(n_samples)
+    if rows < 1 or not mature:
+        return None
+    life = max(1, int(half_life))
+    ages = np.arange(rows, dtype=np.float64)[::-1]
+    return np.exp(-np.log(2.0) * ages / float(life))
+
+
+def is_degenerate_quality(
+    *,
+    collapsed: bool,
+    cal_ece: float,
+    n_train: int,
+    ece_max: float = 0.35,
+    mature_n: int = 32,
+    bootstrap: bool = False,
+) -> bool:
+    if bool(collapsed):
+        return True
+    if bool(bootstrap):
+        return False
+    if int(n_train) < int(mature_n):
+        return False
+    return float(cal_ece) >= float(ece_max)
+
+
+def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int], *, half_life: int = 32) -> Any:
     n_samples = len(buffer_y)
     mature = n_samples >= 32
     min_child = max(8, min(20, n_samples // 8)) if mature else max(2, min(8, n_samples // 4))
@@ -90,8 +164,13 @@ def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any:
         verbosity=-1,
         random_state=42,
     )
-    model.fit(np.asarray(buffer_x, dtype=np.float64), np.asarray(buffer_y, dtype=np.int32))
-    return model
+    weights = recency_sample_weights(n_samples, half_life=int(half_life), mature=mature)
+    model.fit(
+        np.asarray(buffer_x, dtype=np.float64),
+        np.asarray(buffer_y, dtype=np.int32),
+        sample_weight=weights,
+    )
+    return drop_sklearn_feature_names(model)
 
 
 def fit_seed_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any:
@@ -115,11 +194,11 @@ def fit_seed_classifier(buffer_x: list[list[float]], buffer_y: list[int]) -> Any
         random_state=42,
     )
     model.fit(np.asarray(buffer_x, dtype=np.float64), np.asarray(buffer_y, dtype=np.int32))
-    return model
+    return drop_sklearn_feature_names(model)
 
 
 def predict_p_loss(model: Any, vector: list[float], *, temperature: float = 1.0) -> float:
-    proba = np.asarray(model.predict_proba(np.asarray([vector], dtype=np.float64))[0], dtype=np.float64)
+    proba = np.asarray(predict_proba_numpy(model, [vector])[0], dtype=np.float64)
     classes = list(getattr(model, "classes_", [0, 1]))
     loss_idx = list(classes).index(1) if 1 in classes else len(proba) - 1
     temp = float(temperature)
@@ -231,6 +310,7 @@ def seed_bootstrap_classifier(
     *,
     n: int = 64,
     seed: int = 42,
+    schema_hash: str = "",
 ) -> tuple[dict[str, Any], Path] | None:
     """Treina LGBM live-like e persiste seed pronto (veto_ready se n>=READY_N)."""
     try:
@@ -248,8 +328,11 @@ def seed_bootstrap_classifier(
             "bootstrap": True,
             "model_version": version,
             "feature_dim": int(feature_dim),
+            "schema_hash": str(schema_hash),
+            "degenerate": False,
+            "collapsed": False,
         }
-        joblib.dump(bundle, path)
+        atomic_joblib_dump(bundle, path)
         return bundle, path
     except Exception as exc:
         logger.warning("seed bootstrap falhou: %s", exc)

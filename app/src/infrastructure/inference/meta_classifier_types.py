@@ -17,7 +17,7 @@ class MetaPredictRequest(TypedDict):
 class MetaPredictResponse(TypedDict):
     """Resposta tipada do meta-regressor com edge continuo de payoff."""
 
-    predicted_payoff_edge: float
+    predicted_payoff_edge: float | None
     meta_applied: bool
     edge_expectancy: str
 
@@ -36,10 +36,16 @@ def parse_meta_predict_response(payload: object) -> MetaPredictResponse:
     """Extrai edge continuo da resposta HTTP do meta-regressor."""
     if not isinstance(payload, dict):
         raise TypeError("meta response must be object")
-    if "predicted_payoff_edge" not in payload:
-        raise KeyError("predicted_payoff_edge")
-    edge = float(payload["predicted_payoff_edge"])
     applied = bool(payload.get("meta_applied", False))
+    if "predicted_payoff_edge" not in payload or payload.get("predicted_payoff_edge") is None:
+        if applied:
+            raise KeyError("predicted_payoff_edge")
+        return {
+            "predicted_payoff_edge": None,
+            "meta_applied": False,
+            "edge_expectancy": "LOSS_EXPECTED",
+        }
+    edge = float(payload["predicted_payoff_edge"])
     raw_expectancy = payload.get("edge_expectancy")
     if isinstance(raw_expectancy, str) and raw_expectancy.strip():
         expectancy = raw_expectancy.strip().upper()

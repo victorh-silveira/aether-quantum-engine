@@ -49,7 +49,7 @@ def test_resolve_startup_fetch_bars_inference_mode(tmp_path, monkeypatch):
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"
-    assert bars == 188
+    assert bars == 416
 
 
 def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monkeypatch):
@@ -215,6 +215,45 @@ def test_resolve_startup_fetch_bars_default_training_target():
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "treino"
     assert bars == 500
+
+
+def test_resolve_startup_fetch_bars_train_micro_floors_to_history():
+    config = {
+        "data_handler": {"fetch_count": 500, "micro_fetch_count": 2000},
+        "deep_learning": {
+            "online_training": True,
+            "training_history_bars": 2000,
+            "train_timeframe": "micro",
+        },
+    }
+    bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
+    assert mode == "treino"
+    assert bars == 2000
+
+
+def test_resolve_startup_fetch_bars_settlement_timeframe_uses_micro_floor():
+    config = {
+        "data_handler": {"fetch_count": 500, "micro_fetch_count": 2000},
+        "deep_learning": {
+            "online_training": True,
+            "training_history_bars": 2000,
+            "train_timeframe": "settlement",
+        },
+    }
+    bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
+    assert mode == "treino"
+    assert bars == 2000
+    config = {
+        "data_handler": {"fetch_count": 365, "micro_fetch_count": 2000},
+        "deep_learning": {
+            "online_training": True,
+            "training_history_bars": 2000,
+            "train_timeframe": "macro",
+        },
+    }
+    bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
+    assert mode == "treino"
+    assert bars == 365
 
 
 def test_min_dl_history_len_uses_inference_window_when_online_training_off():

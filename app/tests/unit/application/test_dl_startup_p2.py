@@ -34,7 +34,11 @@ def test_resolve_startup_fetch_bars_honors_startup_fetch_bars(tmp_path, monkeypa
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
     assert mode == "inferencia"
-    assert bars == 300
+    assert bars == 416
+    config["data_handler"]["startup_fetch_bars"] = 500
+    bars_hi, mode_hi = resolve_startup_fetch_bars(config, ["R_10"])
+    assert mode_hi == "inferencia"
+    assert bars_hi == 500
 
 
 def test_resolve_train_ready_bars_invalid_shortfall_ratio_defaults():

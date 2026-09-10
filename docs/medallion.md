@@ -27,7 +27,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Meta por sessão ativa | Stop win de **4,31%** composto — encerra a sessão com sucesso (`EXEC_PAUSE`) |
 | Sem disjuntor de perda | Stop loss interno desativado por política do operador |
 | Isolamento de estado | `asyncio.Lock` serializa inferência, liquidação e persistência atômica |
-| Calibração e Zona Neutra | Zona neutra gera estritamente `SKIP:NEUTRAL_ZONE` com `execute=False` |
+| Calibração e lado TCN | Sempre CALL se Cal ≥0.5 senao PUT; banda `[0.45, 0.55]` so telemetria/`raw_extreme` (sem `SKIP:NEUTRAL_ZONE`) |
 | Settlement resiliente | Fila Redis `settlement:queue:priority`; tolerância **600 s**; reconciliação passiva |
 
 ---
@@ -154,9 +154,9 @@ Perfil em `config/settings.json` (settings atuais):
 | Parâmetro | Valor | Função |
 |-----------|-------|--------|
 | `calibration.method` | auto | auto + piso sharpness; fallback `identity` se cal colapsar |
-| `calibration.neutral_half_width` | 0.0 | Zona neutra **off** |
-| `confidence_call_threshold` | 0.53 | Threshold CALL (alinhado a banda neutra ±3pp) |
-| `confidence_put_threshold` | 0.47 | Threshold PUT |
+| `calibration.neutral_half_width` | 0.05 | Banda **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (nao skipa) |
+| `confidence_call_threshold` | 0.55 | Threshold CALL (piso Kelly / BE + margem) |
+| `confidence_put_threshold` | 0.45 | Threshold PUT |
 | `dynamic_threshold.enabled` | false | Thresholds flutuantes por volatilidade **desligados** |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | — | Sem piso hard nos settings atuais |

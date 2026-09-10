@@ -10,7 +10,7 @@ Mapa SSOT das fontes de log. Contrato normativo: [`engineering-observability.md`
 | Presentation | [`logger.py`](../app/src/presentation/terminal/logger.py) | `setup_logger` / `get_logger` | filtros Blank / Cooldown / Settlement |
 | Contexto | [`log_context.py`](../app/src/presentation/terminal/log_context.py) | `bind_log_context` | prefixo `[cN|SYM]` |
 | SSOT knobs | `config/settings.json` → `logging` | `resolve_logging_config` | level, log_file, quiet_channels |
-| Audit ciclo | `market_audit_log.py`, `dl_cycle_log.py` | tags CLUSTER/IND/EXEC/RESOLVED | dedupe via `log_dedupe.py` |
+| Audit ciclo | `market_audit_log.py`, `dl_cycle_log.py` | tags CLUSTER/IND/EXEC/RESOLVED | CLUSTER SKIP (incl. `NEUTRAL_ZONE`) leva Margin/Edge/raw_edge/be; dedupe via `log_dedupe.py` |
 | SETTLE | `settle_log.py` + orquestrador | `SETTLE.{canal}:` | rate-limit por canal+tick |
 | Scripts treino | `train_meta_*`, `check_dl_deploy_gate` | logger `AETH.meta` / `AETH.train` | sem print no caminho critico |
 | Scripts QA | `clean_workspace.py` | `print` (~22) | fora do escopo de polimento live |

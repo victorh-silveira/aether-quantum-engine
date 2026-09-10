@@ -111,7 +111,12 @@ def test_meta_dockerfile_non_root_and_healthcheck():
     assert "tini" in text
     assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in text
     assert "MKL_NUM_THREADS=2" in text
+    assert "COPY --from=ml_common" in text
+    assert "/opt/ml_common" in text
     assert repo_path("infra", "docker", "meta-classifier", ".dockerignore").is_file()
+    compose = repo_path("infra", "docker", "docker-compose.yml").read_text(encoding="utf-8")
+    assert "ml_common: ./ml_common" in compose
+    assert (repo_path("infra", "docker", "ml_common") / "schema.py").is_file()
 
 
 def test_loss_dockerfile_multi_stage():
@@ -137,13 +142,15 @@ def test_compose_loss_classifier_env_ssot():
     assert 'LOSS_READY_N: "32"' in text
     assert 'LOSS_BOOTSTRAP_EXIT_N: "12"' in text
     assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"' in text
-    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.55"' in text
+    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.58"' in text
     dockerfile = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
     assert "LOSS_READY_N=32" in dockerfile
     assert "LOSS_BOOTSTRAP_EXIT_N=12" in dockerfile
     assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4" in dockerfile
-    assert "LOSS_VETO_P_LOSS_FLOOR=0.55" in dockerfile
+    assert "LOSS_VETO_P_LOSS_FLOOR=0.58" in dockerfile
     assert "calib.py" in dockerfile
+    assert "COPY --from=ml_common" in dockerfile
+    assert "/opt/ml_common" in dockerfile
 
 
 def _tcp_open(host: str, port: int, timeout: float = 0.4) -> bool:

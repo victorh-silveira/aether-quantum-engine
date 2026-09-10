@@ -16,6 +16,7 @@ from src.application.services.meta_classifier_flow_features import (
     FLOW_FEATURE_KEYS,
     flow_feature_pair_from_metrics,
 )
+from src.application.services.ml_schema_hash import canonical_schema_hash
 
 
 _INDICATOR_KEYS = (
@@ -49,6 +50,11 @@ def meta_classifier_column_names() -> list[str]:
         "volatility_shadow_ratio_zscore",
     ]
     return base + micro_vol + list(CROSS_SYMBOL_KEYS) + list(FLOW_FEATURE_KEYS)
+
+
+def meta_feature_schema_hash() -> str:
+    """Hash do schema 23D enviado ao sidecar de meta."""
+    return canonical_schema_hash(tuple(meta_classifier_column_names()))
 
 
 def cross_symbol_conviction_spread(metrics: dict[str, Any]) -> float:

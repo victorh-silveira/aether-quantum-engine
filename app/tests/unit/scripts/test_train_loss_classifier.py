@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from scripts.operations.train_loss_classifier import FEATURE_DIM, live_like_synthetic_xy
+from scripts.operations.train_loss_classifier import FEATURE_DIM, _drop_sklearn_feature_names, live_like_synthetic_xy
 
 
 def test_live_like_synthetic_xy_scales_and_balance():
@@ -37,9 +37,15 @@ def test_seed_model_p_loss_not_saturated_on_typical_live_vector():
         random_state=42,
     )
     model.fit(x_arr, y_arr)
+    _drop_sklearn_feature_names(model)
+    assert "feature_names_in_" not in model.__dict__
+    _drop_sklearn_feature_names(model)
+    assert "feature_names_in_" not in model.__dict__
     classes = list(model.classes_)
     loss_idx = classes.index(1) if 1 in classes else -1
-    train_probs = model.predict_proba(x_arr)[:, loss_idx]
+    train_probs = np.asarray(model.booster_.predict(x_arr), dtype=np.float64)
+    if loss_idx == 0:
+        train_probs = 1.0 - train_probs
     assert float(np.median(train_probs)) <= 0.70
     assert float(np.mean(train_probs > 0.90)) < 0.25
     typical = np.zeros((1, FEATURE_DIM), dtype=np.float64)
@@ -50,8 +56,17 @@ def test_seed_model_p_loss_not_saturated_on_typical_live_vector():
     typical[0, 11] = 0.55
     typical[0, 18] = 0.53
     typical[0, 20] = 0.59
-    p_loss = float(model.predict_proba(typical)[0, loss_idx])
+    p_loss = float(model.booster_.predict(typical)[0])
+    if loss_idx == 0:
+        p_loss = 1.0 - p_loss
     assert p_loss < 0.85
+
+
+def test_drop_sklearn_feature_names_slots_noop():
+    class _Slotted:
+        __slots__ = ()
+
+    assert _drop_sklearn_feature_names(_Slotted()) is not None
 
 
 def test_load_real_settle_xy_rejects_short_or_collapsed(tmp_path):

@@ -17,7 +17,7 @@ Mudanca em `infra/docker/**`, healthchecks, cgroups, AOF/maxmemory, hypertables/
 1. Ler `docs/engineering-devops-cloudops-senior.md` + `docs/infra-docker.md`
 2. Binds só `127.0.0.1`; processo interno em `0.0.0.0`
 3. `mem_limit`/`cpus` + `mem_swappiness: 0`; nao depender de Swarm `deploy.resources`
-4. Meta/loss: multi-stage `/opt/venv`, `tini`, CMD exec-form, OMP/OpenBLAS/MKL/VECLIB/NUMEXPR = 2
+4. Meta/loss: multi-stage `/opt/venv`, `tini`, CMD exec-form, OMP/OpenBLAS/MKL/VECLIB/NUMEXPR = 2; `ml_common` via `additional_contexts` (`schema_hash`, persistencia atomica, dedupe `contract_id`); fit LGBM fora do loop Uvicorn
 5. Redis: AOF everysec, `maxmemory` + `noeviction`, io-threads; settlement = ZSET (nunca Streams sem mandato)
 6. Timescale: chunk 1d, compressao/retencao, CRAG `candle_m5` so analytics
 7. MinIO: bucket `dl-models`, `minio-init` + ILM optuna ~7d

@@ -19,7 +19,7 @@ Mudanca de camadas DDD, ports/adapters, event loop, CUDA/host, Polars, sidecars 
 2. Confirmar dominio puro (sem I/O / sem import de infra)
 3. Application so via ports; adapters em `infrastructure/`
 4. Hot path asyncio: offload de PyTorch/Polars pesado; sem bloqueio do loop WS
-5. TCN no host; meta `:8005` / loss `:8006` com timeout e fallback conforme settings
+5. TCN no host; meta `:8005` / loss `:8006` com timeout e fallback conforme settings; sidecars compartilham `ml_common` (schema_hash, fit fora do loop)
 6. Polars-only; sem pandas
 7. Settlement: preservar ZSET `settlement:queue:priority` salvo mandato explicito
 8. Segredos fora do git; Docker em `127.0.0.1`

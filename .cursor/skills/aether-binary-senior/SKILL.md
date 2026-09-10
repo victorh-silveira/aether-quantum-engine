@@ -9,11 +9,11 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D → LOSS_CLF FLIP se auto_learn e pe>=0.55 → Kelly. Sem HARD SKIP/fusao/micro/regime/vol/exhaust/neg_edge. Indicadores = feature (catalogo de gates fechado). Pos-settle: `QUALITY` se houve FLIP. Indicadores = feature (catalogo de gates fechado). Pos-settle: `LOSS_CLF || QUALITY`.
+Pipeline: TCN 14D (sempre CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn e pe>=0.55 young / 0.58 mature → Kelly. Sem `SKIP:NEUTRAL_ZONE`. Sem HARD SKIP/fusao/micro/regime/vol/exhaust/neg_edge. Indicadores = feature (catalogo de gates fechado). Pos-settle: `QUALITY` se houve FLIP. Indicadores = feature (catalogo de gates fechado). Pos-settle: `LOSS_CLF || QUALITY`.
 
 ## Checklist
 
-1. SKIP tecnico?
+1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao
 2. `LOSS_CLF FLIP` (lado invertido vs TCN)?
 3. Cal/Edge telemetria; Kelly Single-Strike so se ALLOW
 4. EXEC_EMPTY tecnico = processo ok quando coerente

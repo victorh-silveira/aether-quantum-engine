@@ -93,6 +93,27 @@ async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
     metrics = decisions["R_10"]["metrics"]
     assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
     assert metrics["trade_score"] == pytest.approx(0.62)
+
+
+@pytest.mark.asyncio
+async def test_prefetch_meta_payoff_fallback_omits_false_zero_edge():
+    decisions = {
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
+    }
+    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        client = MagicMock()
+        client.predict_meta_batch = AsyncMock(
+            return_value=[{"predicted_payoff_edge": None, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}]
+        )
+        get_client.return_value = client
+        await prefetch_meta_payoff_for_decisions(decisions, cfg)
+    metrics = decisions["R_10"]["metrics"]
+    assert "predicted_payoff_edge" not in metrics
+    assert metrics["meta_classifier_applied"] is False
     assert "cross_symbol_features" in metrics
     assert len(extract_meta_feature_vector(metrics)) == META_FEATURE_DIM
     args = client.predict_meta_batch.await_args[0][0]
@@ -147,6 +168,21 @@ def test_apply_meta_regression_edge_to_metrics_put_side():
     )
     assert score == pytest.approx(0.65)
     assert metrics["direction_put_score"] == pytest.approx(0.65)
+
+
+def test_apply_meta_regression_edge_to_metrics_omits_edge_when_not_applied():
+    metrics = {"predicted_payoff_edge": 0.22}
+    score = apply_meta_regression_edge_to_metrics(
+        metrics,
+        direction=TradeDirection.CALL,
+        tcn_probability=0.62,
+        predicted_edge=None,
+        meta_applied=False,
+        base_score=0.62,
+    )
+    assert score == pytest.approx(0.62)
+    assert "predicted_payoff_edge" not in metrics
+    assert metrics["meta_classifier_applied"] is False
 
 
 def test_resolve_meta_payoff_edge_uses_prefetched_value():

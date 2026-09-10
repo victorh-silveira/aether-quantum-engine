@@ -27,7 +27,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["mandatory_trade_each_cycle"] is False
     assert inv["online_training"] is False
     assert inv["loss_clf_veto_mode"] == "hard"
-    assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.55)
+    assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.58)
     assert inv["loss_clf_flip_trust_n"] == 32
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
     assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.55)
@@ -86,6 +86,17 @@ def test_assert_production_doctrine_rejects_signal_skip_block():
     settings["orchestrator"]["execution"]["signal_skip"] = {"enabled": True}
     with pytest.raises(ValueError, match="signal_skip"):
         assert_production_doctrine(settings)
+
+
+def test_load_doctrine_invariants_requires_loss_streak_knobs():
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["post_loss_cooldown"]
+    with pytest.raises(ValueError, match="post_loss_cooldown"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["deep_learning"]["session_pause_cycles"]
+    with pytest.raises(ValueError, match="session_pause_cycles"):
+        load_doctrine_invariants(settings)
 
 
 @pytest.mark.parametrize(

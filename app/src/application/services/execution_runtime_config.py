@@ -257,3 +257,26 @@ def resolve_side_equilibrium_config(exec_cfg: dict[str, Any] | None = None) -> d
         "margin_boost_soft": require_float(raw, "margin_boost_soft"),
         "break_even_wr": require_float(raw, "break_even_wr"),
     }
+
+
+_POST_LOSS_COOLDOWN_KEYS = (
+    "lin_min",
+    "delay_seconds_lin1",
+    "delay_seconds_lin2",
+    "delay_seconds_lin3",
+    "delay_seconds_lin4",
+)
+
+
+def resolve_post_loss_cooldown_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve ladder de pausa tecnica pos-LOSS (SSOT orchestrator.execution)."""
+    raw = require_mapping(
+        _execution_block(exec_cfg), "post_loss_cooldown", _POST_LOSS_COOLDOWN_KEYS, "orchestrator.execution"
+    )
+    return {
+        "lin_min": require_int(raw, "lin_min"),
+        "delay_seconds_lin1": require_float(raw, "delay_seconds_lin1"),
+        "delay_seconds_lin2": require_float(raw, "delay_seconds_lin2"),
+        "delay_seconds_lin3": require_float(raw, "delay_seconds_lin3"),
+        "delay_seconds_lin4": require_float(raw, "delay_seconds_lin4"),
+    }

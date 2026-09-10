@@ -1,5 +1,16 @@
 """Peso de amostras de treino a partir de resultados reais de trades."""
 
+import time
+
+from src.domain.config_knobs import merge_settings_block, require_int, require_keys
+
+
+_SESSION_PAUSE_KEYS = (
+    "session_max_losses_in_window",
+    "session_window_trades",
+    "session_pause_cycles",
+)
+
 
 def _symbol_history(orch, symbol: str) -> list[bool]:
     """Retorna historico de wins/losses registrados para o simbolo."""
@@ -42,16 +53,64 @@ def blended_val_accuracy(
     return out
 
 
+def resolve_session_pause_config(dl_cfg: dict | None = None) -> dict:
+    """Le knobs de pausa de sessao do SSOT deep_learning."""
+    raw = merge_settings_block(("deep_learning",), dl_cfg if isinstance(dl_cfg, dict) else None)
+    require_keys(raw, _SESSION_PAUSE_KEYS, "deep_learning")
+    return {key: require_int(raw, key) for key in _SESSION_PAUSE_KEYS}
+
+
 def tick_dl_session_pauses(orch) -> None:
-    """Decrementa pausas de sessao por simbolo (desativado)."""
-    pass
+    """Decrementa pausas de sessao por simbolo e limpa expiradas."""
+    pauses = getattr(orch, "_dl_session_pause", None)
+    until_map = getattr(orch, "_dl_session_pause_until", None)
+    now = time.time()
+    if isinstance(until_map, dict):
+        for sym, deadline in list(until_map.items()):
+            if float(deadline or 0.0) <= now:
+                until_map.pop(sym, None)
+                if isinstance(pauses, dict):
+                    pauses.pop(str(sym), None)
+    if not isinstance(pauses, dict):
+        return
+    dead: list[str] = []
+    for sym, remaining in list(pauses.items()):
+        nxt = int(remaining or 0) - 1
+        if nxt <= 0:
+            dead.append(str(sym))
+        else:
+            pauses[str(sym)] = nxt
+    for sym in dead:
+        pauses.pop(sym, None)
+        if isinstance(until_map, dict):
+            until_map.pop(sym, None)
 
 
 def is_symbol_session_paused(orch, symbol: str) -> bool:
-    """Indica pausa longa apos sequencia de losses no simbolo (sempre False)."""
-    _ = orch
-    _ = symbol
-    return False
+    """Indica pausa tecnica apos sequencia de losses no simbolo."""
+    until_map = getattr(orch, "_dl_session_pause_until", None)
+    if isinstance(until_map, dict):
+        until = float(until_map.get(str(symbol), 0.0) or 0.0)
+        if until > time.time():
+            return True
+    pauses = getattr(orch, "_dl_session_pause", None)
+    if not isinstance(pauses, dict):
+        return False
+    return int(pauses.get(str(symbol), 0) or 0) > 0
+
+
+def _session_cycle_seconds(orch) -> float:
+    """Duracao de um ciclo M5 para converter pause_cycles em parede."""
+    cfg = getattr(orch, "config", None)
+    if isinstance(cfg, dict):
+        orch_cfg = cfg.get("orchestrator")
+        if isinstance(orch_cfg, dict):
+            raw = orch_cfg.get("cycle_interval_seconds") or orch_cfg.get("signature_boundary_seconds") or 300
+            try:
+                return max(1.0, float(raw))
+            except (TypeError, ValueError):
+                return 300.0
+    return 300.0
 
 
 def maybe_pause_symbol_session(
@@ -62,12 +121,28 @@ def maybe_pause_symbol_session(
     window_trades: int,
     pause_cycles: int,
 ) -> None:
-    """Ativa pausa quando losses no tail excedem limiar (desativado)."""
-    _ = orch
-    _ = symbol
-    _ = max_losses_in_window
-    _ = window_trades
-    _ = pause_cycles
+    """Ativa pausa tecnica quando losses no tail atingem o limiar SSOT."""
+    if int(pause_cycles) <= 0:
+        return
+    window = max(1, int(window_trades))
+    need = max(1, int(max_losses_in_window))
+    tail = _symbol_history(orch, symbol)[-window:]
+    losses = sum(1 for won in tail if not won)
+    if losses < need:
+        return
+    pauses = getattr(orch, "_dl_session_pause", None)
+    if not isinstance(pauses, dict):
+        pauses = {}
+        orch._dl_session_pause = pauses
+    pauses[str(symbol)] = int(pause_cycles)
+    until_map = getattr(orch, "_dl_session_pause_until", None)
+    if not isinstance(until_map, dict):
+        until_map = {}
+        orch._dl_session_pause_until = until_map
+    deadline = time.time() + float(pause_cycles) * _session_cycle_seconds(orch)
+    until_map[str(symbol)] = deadline
+    prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
+    orch._cooldown_until = max(prev, deadline)
 
 
 def record_symbol_outcome(orch, symbol: str, *, won: bool, candle_epoch: int | None = None) -> None:
@@ -87,13 +162,15 @@ def record_symbol_outcome(orch, symbol: str, *, won: bool, candle_epoch: int | N
         if len(epochs) > 80:
             del epochs[: len(epochs) - 80]
     if not won:
-        dl_cfg = getattr(orch, "config", {}).get("deep_learning", {})
+        cfg = getattr(orch, "config", None)
+        dl_cfg = cfg.get("deep_learning") if isinstance(cfg, dict) else None
+        pause = resolve_session_pause_config(dl_cfg if isinstance(dl_cfg, dict) else None)
         maybe_pause_symbol_session(
             orch,
             sym,
-            max_losses_in_window=int(dl_cfg.get("session_max_losses_in_window", 3)),
-            window_trades=int(dl_cfg.get("session_window_trades", 5)),
-            pause_cycles=int(dl_cfg.get("session_pause_cycles", 8)),
+            max_losses_in_window=int(pause["session_max_losses_in_window"]),
+            window_trades=int(pause["session_window_trades"]),
+            pause_cycles=int(pause["session_pause_cycles"]),
         )
 
 

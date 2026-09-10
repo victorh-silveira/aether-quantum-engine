@@ -158,6 +158,8 @@ services:
     build:
       context: ./meta-classifier
       dockerfile: Dockerfile
+      additional_contexts:
+        ml_common: ./ml_common
     container_name: aether-meta-classifier
     profiles: [ml]
     restart: unless-stopped
@@ -212,6 +214,8 @@ services:
     build:
       context: ./loss-classifier
       dockerfile: Dockerfile
+      additional_contexts:
+        ml_common: ./ml_common
     container_name: aether-loss-classifier
     profiles: [ml]
     restart: unless-stopped
@@ -231,7 +235,7 @@ services:
       LOSS_RETRAIN_ON_LOSS_MIN_N: "4"
       LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"
       LOSS_MAX_BUFFER: "2000"
-      LOSS_VETO_P_LOSS_FLOOR: "0.55"
+      LOSS_VETO_P_LOSS_FLOOR: "0.58"
       LOSS_YOUNG_TEMP_N: "32"
     mem_limit: 512m
     mem_swappiness: 0

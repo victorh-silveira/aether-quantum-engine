@@ -59,7 +59,7 @@ async def test_predict_meta_via_config_sync_uses_singleton():
         ),
         fallback_score=0.62,
     )
-    assert response["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert response["predicted_payoff_edge"] is None
     await close_meta_classifier_client()
 
 
@@ -75,7 +75,7 @@ def test_predict_meta_via_config_sync_outside_loop():
         ),
         fallback_score=0.62,
     )
-    assert response["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert response["predicted_payoff_edge"] is None
 
 
 @pytest.mark.asyncio
@@ -83,7 +83,7 @@ async def test_predict_meta_via_config_sync_inside_running_loop():
     cfg = {"infra": {"meta_classifier": {"enabled": False}}}
     with patch(
         "src.infrastructure.inference.meta_classifier_pool.asyncio.run",
-        return_value={"predicted_payoff_edge": 0.0, "meta_applied": False},
+        return_value={"predicted_payoff_edge": None, "meta_applied": False},
     ):
         response = predict_meta_via_config_sync(
             cfg,
@@ -95,7 +95,7 @@ async def test_predict_meta_via_config_sync_inside_running_loop():
             ),
             fallback_score=0.62,
         )
-    assert response["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert response["predicted_payoff_edge"] is None
 
 
 def test_get_meta_classifier_client_rebinds_across_event_loops():

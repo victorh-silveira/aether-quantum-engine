@@ -180,7 +180,7 @@ def build_prediction_entry(
     pivot = (call_threshold + put_threshold) * 0.5
     raw_prob = float(raw_prob)
     cal_cfg = params.get("calibration") if isinstance(params.get("calibration"), dict) else {}
-    max_gap = float(cal_cfg.get("max_calibrated_raw_gap", 0.08))
+    max_gap = float(cal_cfg.get("max_calibrated_raw_gap", 0.05))
     clamped_prob, cal_capped, cal_raw_gap = clamp_calibrated_call_to_raw_band(raw_prob, float(prob), max_gap)
     neutral_lo, neutral_hi = resolve_calibration_neutral_band(cal_cfg if cal_cfg else None)
     calibrated_prob, resolved_dir, calibration_mode = apply_calibration_neutral_tolerance(
@@ -214,11 +214,10 @@ def build_prediction_entry(
     )
     if squeeze_congestion:
         side_score = 0.51
-    is_neutral_zone = calibration_mode == "neutral_zone" or resolved_dir is None
     entry = build_decision_entry(
         resolved_dir,
         calibrated_prob,
-        execute=not is_neutral_zone,
+        execute=True,
         val_accuracy=val_accuracy,
         edge=calibrated_edge,
         train_loss=train_loss,
@@ -228,11 +227,7 @@ def build_prediction_entry(
         val_ece=float(runtime.get("val_ece", 1.0)),
         contract_duration=int(params.get("contract_duration", 180)),
     )
-    _ = calibration_mode
-    entry["metrics"]["gate_reason"] = "neutral_zone" if is_neutral_zone else None
-    if is_neutral_zone:
-        entry["metrics"]["signal_status"] = "SKIP:NEUTRAL_ZONE"
-        entry["metrics"]["execution_candidate_ready"] = False
+    entry["metrics"]["gate_reason"] = None
     entry["metrics"]["micro_chop_congestion"] = bool(squeeze_congestion)
     entry["metrics"]["edge_expectancy"] = None
     entry["metrics"]["calibrated_prob"] = calibrated_prob

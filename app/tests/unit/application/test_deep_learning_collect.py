@@ -69,7 +69,7 @@ def test_parse_dl_params():
     assert full["confidence_call_threshold"] == 0.75
     assert full["confidence_put_threshold"] == 0.25
     assert full["inference_history_bars"] < full["training_history_bars"]
-    assert full["inference_history_bars"] >= full["lookback"] + 16
+    assert full["inference_history_bars"] >= full["lookback"] + 288 + 16
     explicit = parse_dl_params(
         {"lookback": 30, "training_history_bars": 500, "inference_history_bars": 80},
         {"granularity": 900},

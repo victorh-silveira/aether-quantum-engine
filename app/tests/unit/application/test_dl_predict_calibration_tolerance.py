@@ -7,21 +7,28 @@ from src.application.services.deep_learning.dl_calibration_tolerance import (
 from src.domain.models.trade import TradeDirection
 
 
-def test_calibration_mid_band_resolves_neutral_zone():
+def test_calibration_mid_band_resolves_put_vs_half():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.49, 0.51, None)
     assert prob == pytest.approx(0.49)
-    assert direction is None
-    assert mode == "neutral_zone"
+    assert direction == TradeDirection.PUT
+    assert mode == "calibrated"
 
 
-def test_calibration_keeps_explicit_direction_in_neutral_band():
+def test_calibration_explicit_direction_in_band_keeps_call():
     prob, direction, mode = apply_calibration_neutral_tolerance(0.50, 0.50, TradeDirection.CALL)
     assert prob == pytest.approx(0.50)
     assert direction == TradeDirection.CALL
     assert mode == "calibrated"
 
 
-def test_calibration_custom_band_keeps_call():
+def test_calibration_explicit_put_in_band_keeps_put():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.52, 0.52, TradeDirection.PUT)
+    assert prob == pytest.approx(0.52)
+    assert direction == TradeDirection.PUT
+    assert mode == "calibrated"
+
+
+def test_calibration_custom_band_keeps_call_when_inside():
     prob, direction, mode = apply_calibration_neutral_tolerance(
         0.55,
         0.55,
@@ -31,6 +38,20 @@ def test_calibration_custom_band_keeps_call():
     )
     assert prob == pytest.approx(0.55)
     assert direction == TradeDirection.CALL
+    assert mode == "calibrated"
+
+
+def test_calibration_at_call_floor_allows():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.55, 0.55, None)
+    assert prob == pytest.approx(0.55)
+    assert direction == TradeDirection.CALL
+    assert mode == "calibrated"
+
+
+def test_calibration_at_put_floor_allows():
+    prob, direction, mode = apply_calibration_neutral_tolerance(0.45, 0.45, None)
+    assert prob == pytest.approx(0.45)
+    assert direction == TradeDirection.PUT
     assert mode == "calibrated"
 
 

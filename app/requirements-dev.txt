@@ -21,3 +21,4 @@ pytest-mock==3.15.1            # Wrapper simplificado em cima do unittest.mock p
 pytest-timeout==2.4.0          # Define um tempo limite máximo para a execução de testes, evitando que travem no CI
 pytest-xdist==3.8.0            # Executa testes em paralelo aproveitando múltiplos núcleos da CPU para acelerar a suite
 pytest-cov==6.2.1              # Agrega cobertura entre workers do pytest-xdist (traz coverage como transitivo)
+hypothesis==6.168.0            # Property-based: invariantes de dominio (Kelly / p_eff FLIP); so dev

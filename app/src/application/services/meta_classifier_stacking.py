@@ -20,15 +20,18 @@ def apply_meta_regression_edge_to_metrics(
     *,
     direction: TradeDirection,
     tcn_probability: float,
-    predicted_edge: float,
+    predicted_edge: float | None,
     meta_applied: bool,
     base_score: float,
     edge_expectancy: str | None = None,
 ) -> float:
     """Anexa edge continuo e preserva trade_score organico da TCN no prefetch."""
     _ = (direction, tcn_probability)
-    metrics["predicted_payoff_edge"] = float(predicted_edge)
-    metrics["meta_classifier_applied"] = bool(meta_applied)
+    metrics["meta_classifier_applied"] = bool(meta_applied) and predicted_edge is not None
+    if metrics["meta_classifier_applied"]:
+        metrics["predicted_payoff_edge"] = float(predicted_edge)
+    else:
+        metrics.pop("predicted_payoff_edge", None)
     if edge_expectancy:
         metrics["edge_expectancy"] = str(edge_expectancy)
     score = float(base_score)
@@ -82,11 +85,16 @@ async def prefetch_meta_payoff_for_decisions(decisions: dict[str, dict], config:
             direction=direction,
             tcn_probability=tcn_prob,
             predicted_edge=response["predicted_payoff_edge"],
-            meta_applied=response["meta_applied"],
+            meta_applied=bool(response["meta_applied"] and response["predicted_payoff_edge"] is not None),
             base_score=base_score,
             edge_expectancy=str(response.get("edge_expectancy") or "WIN_EXPECTED"),
         )
-        if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
+        if (
+            metrics.get("meta_classifier_applied")
+            and metrics.get("predicted_payoff_edge") is not None
+            and metrics.get("meta_payoff_edge_zscore") is None
+            and metrics.get("edge_zscore") is None
+        ):
             attach_payoff_edge_zscore_metrics(
                 metrics,
                 float(metrics["predicted_payoff_edge"]),

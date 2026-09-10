@@ -56,7 +56,10 @@ def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_i
         f"retrained={1 if result.get('retrained') else 0} "
         f"n_train={result.get('n_train', '-')} "
         f"reason={result.get('retrain_skipped_reason') or result.get('retrain_detail') or '-'} "
-        f"detail={result.get('retrain_detail') or '-'}"
+        f"detail={result.get('retrain_detail') or '-'} "
+        f"schema={str(result.get('schema_hash') or '-')[:12]} "
+        f"degenerate={1 if result.get('degenerate') else 0} "
+        f"source={result.get('source') or '-'}"
     )
     orch._last_loss_clf_learn = detail
     logger.info("LOSS_CLF || LEARN %s", detail)
@@ -110,7 +113,9 @@ def _feed_meta_classifier_learn(
     detail = (
         f"target={target:+.4f} buffer_n={result.get('buffer_n', '-')} "
         f"retrained={1 if result.get('retrained') else 0} "
-        f"detail={result.get('retrain_detail') or '-'}"
+        f"detail={result.get('retrain_detail') or '-'} "
+        f"schema={str(result.get('schema_hash') or '-')[:12]} "
+        f"source={result.get('source') or '-'}"
     )
     orch._last_meta_clf_learn = detail
     logger.info("META || LEARN %s", detail)

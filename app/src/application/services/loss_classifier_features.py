@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.ml_schema_hash import canonical_schema_hash
 from src.domain.models.trade import TradeDirection
 
 
@@ -34,6 +35,11 @@ LOSS_FEATURE_NAMES: tuple[str, ...] = (
     "bb_width_z",
     "mini_oppose",
 )
+
+
+def loss_feature_schema_hash() -> str:
+    """Hash do schema 24D enviado ao sidecar de loss."""
+    return canonical_schema_hash(LOSS_FEATURE_NAMES)
 
 
 def _f(metrics: dict[str, Any], key: str, default: float = 0.0) -> float:

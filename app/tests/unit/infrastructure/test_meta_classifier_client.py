@@ -73,6 +73,8 @@ async def test_predict_meta_success():
     )
     assert result["predicted_payoff_edge"] == pytest.approx(0.17)
     assert result["meta_applied"] is True
+    payload = client._client.post.await_args.kwargs["json"]
+    assert "schema_hash" in payload
     await client.aclose()
 
 
@@ -102,7 +104,7 @@ async def test_predict_meta_timeout_fallback():
         build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["predicted_payoff_edge"] is None
     assert result["meta_applied"] is False
     await client.aclose()
 
@@ -117,7 +119,7 @@ async def test_predict_meta_http_error_fallback():
         build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["predicted_payoff_edge"] is None
     assert result["meta_applied"] is False
     await client.aclose()
 
@@ -129,7 +131,7 @@ async def test_predict_meta_disabled_returns_zero_edge():
         build_meta_predict_request(symbol="R_10", metrics=_meta_metrics(), tcn_probability=0.62, direction="CALL"),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["predicted_payoff_edge"] is None
     assert result["meta_applied"] is False
     await client.aclose()
 
@@ -237,7 +239,7 @@ def test_predict_meta_sync_outside_running_loop():
         ),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["predicted_payoff_edge"] is None
 
 
 @pytest.mark.asyncio
@@ -282,4 +284,4 @@ async def test_predict_meta_sync_inside_running_loop():
         ),
         fallback_score=0.62,
     )
-    assert result["predicted_payoff_edge"] == pytest.approx(0.0)
+    assert result["predicted_payoff_edge"] is None

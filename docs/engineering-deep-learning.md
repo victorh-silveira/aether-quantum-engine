@@ -10,15 +10,17 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Arch | TCN |
 | Lookback | **30** → tensor `[1, 30, 14]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
-| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **2000**) |
+| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **2000**; inferencia live >= `causal_norm_window` **288** + lookback **30** + 16) |
 | Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **14D** (`FEATURE_DIM`) |
 | Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
+| Lean fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **2000** (nao 500) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
 | ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false`; `max_label_call_frac_bias` **0.20**; `allow_undeployed_inference` **false** |
+| Limiares live | TCN sempre CALL se Cal ≥**0.5** senao PUT; `apply_calibrator_stable` prefere raw se mais nitido; clamp `[raw±0.05]`; `temperature_min` **0.75**; sharpness **0.03**; banda `[0.45, 0.55]` so telemetria/`raw_extreme` |
 | Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **25** |
 | Meta | LightGBM **23D** `predicted_payoff_edge` |
@@ -75,24 +77,25 @@ Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** ap
 ## Meta — alvo e dados
 
 
-- Alvo preferencial: payoff assinado `profit/stake` do settle (`_continuous_payoff_target`); z-score de forward so se payoff indisponivel.
+- Alvo preferencial: payoff assinado **cru** ate o split cronologico; winsorize 1%/99% e unit-scale O(1) usam **so o fold de treino** (`label_scale` = std do treino apos clip; `train_std` / `val_std` no bundle). Pontos brutos 1HZ75V nao entram no booster. Prefixo `|payoff|~0` **ou** `val_std/train_std > 1.5` **ou** mediana L1 `val_mae/train_mae > 2.0` e cortado (`n_dropped_flat_prefix`); se o split continuar degenerado, falha fechado. Z-score de forward so se payoff indisponivel. Teto Optuna `val_mae/train_mae` **2.0** inalterado; o booster escolhe o snapshot com gap legal de menor val L1 (snapshot 0 = mediana L1 do treino; z/IR OOS no mesmo snapshot). Validacao purged usa o fold completo (sem stride 5). Objetivo **regression_l1** (alinhado ao gate MAE); n grande: **80** rounds, early-stop **L1** patience **15**, `max_depth` **1**, `bagging_fraction` ligado.
 - Hydrate Docker = smoke (500/365). `launch-train` chama `ensure_timescale` (seed Deriv) antes do meta: piso micro **5000** / macro D1 **365**. Timescale smoke/curto/flat → INFO e Deriv (nao WARNING "rejeitado"); apos Deriv, seed no Timescale.
 - Fit do calibrador: se std calibrado colapsa vs raw no holdout/val → persiste `identity`. Teacher meta: raw+expand em INFO se cal ainda esmagar.
-- `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`.
+- `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`, `label_scale`. Escala O(1) nao usa o y completo (lookahead no alvo e proibido).
 
 ## Calibracao: `raw_extreme` (anti-override)
 
 Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibration_tolerance.py`:
 
 - Se `raw` > `tcn_macro_call_override` ou `raw` < `tcn_macro_put_override`, o modo vira `raw_extreme`.
-- **Cal nao e substituido por raw**; retorno mantem probabilidade calibrada.
-- Com Cal na banda neutra (`calibration_neutral_drift` **[0.47, 0.53]**; drift degenerado `[0.5,0.5]` rejeitado), o **lado** segue o limiar raw (`raw_dir`), nao Cal≥0.5.
-- Kelly / sizing usam **Cal**, nao raw.
+- No ramo `raw_extreme`, **Cal nao e substituido por raw**; retorno mantem probabilidade calibrada (Kelly usa essa Cal).
+- `apply_calibrator_stable` (antes do ramo) devolve **raw** se `|raw-0.5| > |Cal-0.5|`.
+- Com Cal na banda neutra (`calibration_neutral_drift` **[0.45, 0.55]**; drift degenerado `[0.5,0.5]` rejeitado), o **lado** segue o limiar raw (`raw_dir`), nao Cal≥0.5.
+- Kelly / sizing usam **Cal** (pos-stable), nao o raw cru do TCN.
 - Nomes das chaves SSOT (`tcn_macro_*_override`) sao historicos: limiam extremo de **raw TCN**, nao o timeframe MACRO OHLC.
 
-`calibration.method=auto` + piso `min_calibration_sharpness` / `min_oos_sharpness` (**0.01**): se temperatura/Platt/isotonico colapsar nitidez, o fit cai para `identity` (raw). Export mede sharpness via `apply_calibrator_stable` (mesmo caminho do live).
+`calibration.method=auto` + piso `min_calibration_sharpness` / `min_oos_sharpness` (**0.03**): se temperatura/Platt/isotonico colapsar nitidez, o fit cai para `identity` (raw). Export mede sharpness via `apply_calibrator_stable` (mesmo caminho do live).
 
-Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.08**) **antes** de `apply_calibration_neutral_tolerance`, para o gate `SKIP:NEUTRAL_ZONE` usar o mesmo Cal do CLUSTER. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.03** (= half-width) restaura raw se o calibrador esmagar a margem para dentro da banda **[0.47, 0.53]**. Limiares `confidence_call_threshold` **0.53** / `confidence_put_threshold` **0.47**. Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/FUSION/Kelly (nao so `trade_score`). `temperature_min` **1.0** impede T&lt;1 no fit.
+Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.05**) **antes** de `apply_calibration_neutral_tolerance`, para CLUSTER e Kelly usarem o mesmo Cal. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.05** (= half-width) e fallback; o restore principal e margem relativa raw vs Cal. Lado live: CALL se Cal ≥**0.5**, PUT se Cal <**0.5** (sem `SKIP:NEUTRAL_ZONE`). Limiares `confidence_call_threshold` **0.55** / `confidence_put_threshold` **0.45** nao skipam. Banda `calibration_neutral_drift` **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (lado raw quando Cal mole). Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/Kelly (nao so `trade_score`). `temperature_min` **0.75** permite T&lt;1 no fit.
 
 Fusao: `why=tcn_pos_edge` exige Cal **e** raw_edge ≥ `fusion_min_edge_execute` (**0.04**). Sintoma de regressao: CLUSTER Prob≈BE + `p_put`≫0.70 + `why=tcn_pos_edge` com `raw_edge`~0.
 

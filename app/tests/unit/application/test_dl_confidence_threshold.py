@@ -24,14 +24,15 @@ def test_direction_preserves_explicit():
     assert direction_from_raw_prob(0.50, TradeDirection.CALL) == TradeDirection.CALL
 
 
-def test_neutral_zone_returns_none():
+def test_mid_cal_resolves_call_vs_half():
     cal, resolved, mode = apply_calibration_neutral_tolerance(
-        calibrated_prob=0.52,
-        raw_prob=0.52,
+        calibrated_prob=0.50,
+        raw_prob=0.50,
         direction=None,
         pivot=0.5,
         neutral_lo=0.48,
         neutral_hi=0.52,
     )
-    assert resolved is None
-    assert mode == "neutral_zone"
+    assert cal == 0.50
+    assert resolved == TradeDirection.CALL
+    assert mode == "calibrated"

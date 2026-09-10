@@ -22,6 +22,13 @@ REAL_SEED_MIN_N = 12
 BUFFER_FILENAME = "learn_buffer.pkl"
 
 
+def _drop_sklearn_feature_names(model: lgb.LGBMClassifier) -> lgb.LGBMClassifier:
+    stored = getattr(model, "__dict__", None)
+    if isinstance(stored, dict):
+        stored.pop("feature_names_in_", None)
+    return model
+
+
 def live_like_synthetic_xy(
     feature_dim: int = FEATURE_DIM,
     *,
@@ -145,7 +152,7 @@ def _fit_seed(x_arr: np.ndarray, y_arr: np.ndarray) -> lgb.LGBMClassifier:
         n_jobs=1,
     )
     model.fit(x_arr, y_arr)
-    return model
+    return _drop_sklearn_feature_names(model)
 
 
 def main() -> int:

@@ -159,7 +159,9 @@ def test_predict_next_direction_none_branch():
     model = create_direction_model(arch="tcn")
     prices = np.sin(np.linspace(0, 10, 120)) + 10.0
     dir_res, prob, raw = predict_next_direction(model, prices, lookback=20, call_threshold=0.99, put_threshold=0.01)
-    assert dir_res is None
+    assert raw == pytest.approx(prob)
+    expected = TradeDirection.CALL if prob + 1e-12 >= 0.5 else TradeDirection.PUT
+    assert dir_res == expected
 
 
 def test_purged_splits():

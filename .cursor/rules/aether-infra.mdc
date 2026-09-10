@@ -23,5 +23,5 @@ alwaysApply: true
   - AOF `appendfsync everysec`; `maxmemory 200mb` + **`noeviction`**; `io-threads 2`
   - Settlement SSOT: ZSET `settlement:queue:priority` — **não** trocar por Streams/listas sem mandato
 - **MinIO**: bucket SSOT `dl-models`; `minio-init` (mc) + ILM ~7d em `optuna/`; binds 9000/9001
-- **Sidecars ML**: FastAPI/Uvicorn `:8005`/`:8006`; cliente host httpx timeout/fallback; artefatos versionados
+- **Sidecars ML**: FastAPI/Uvicorn `:8005`/`:8006`; cliente host httpx timeout/fallback; artefatos versionados; loss: saida do seed `LOSS_BOOTSTRAP_EXIT_N` **12** (nao `LOSS_READY_N` **32**); `READY_N` so `veto_ready`/T maduro
 - **Docs/skills**: `engineering-devops-cloudops-senior.md`, `infra-docker.md`, `engineering-architecture-senior.md`; skills `aether-devops-cloudops` + `aether-infra-stack` + `aether-redis-hiredis` + `aether-asyncpg-timescale`

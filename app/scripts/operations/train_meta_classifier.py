@@ -41,6 +41,7 @@ from scripts.operations.train_meta_teacher import infer_teacher_probs_from_check
 from scripts.operations.train_meta_vector import (
     build_paired_training_dataset,
     resolve_contract_duration_seconds,
+    teacher_sample_weights,
 )
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.presentation.terminal.logger import setup_logger
@@ -89,6 +90,7 @@ def validate_target_variance(
             f" n={hygiene.get('n_kept')} source={hygiene.get('data_source')} "
             f"bars={hygiene.get('bars_loaded')} forward_var={hygiene.get('forward_var')} "
             f"close_nunique={hygiene.get('close_nunique')} label_mode={hygiene.get('label_mode')} "
+            f"label_scale={hygiene.get('label_scale')} "
             f"n_unique_y={len(np.unique(np.round(arr, decimals=8)))}."
         )
     raise ValueError(
@@ -215,6 +217,7 @@ async def train_meta_classifier(
         trials=trials,
         granularity=required_gran,
         hygiene=hygiene,
+        sample_weight=teacher_sample_weights(_proxy),
     )
     assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
     assert_export_mae_gap(train_mae, val_mae)

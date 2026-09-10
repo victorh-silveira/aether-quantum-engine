@@ -10,7 +10,7 @@ from src.application.services.deep_learning.model import INPUT_DIM, fit_norm_sta
 from src.domain.models.trade import TradeDirection
 
 
-def test_predict_abstains_on_gray_zone_raw_prob():
+def test_predict_gray_zone_resolves_call():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.75,
@@ -35,24 +35,22 @@ def test_predict_abstains_on_gray_zone_raw_prob():
             params,
             None,
         )
-    assert entry["direction"] is None
-    assert entry["metrics"].get("calibration_mode") == "neutral_zone"
+    assert entry["direction"] == TradeDirection.CALL
+    assert entry["metrics"].get("calibration_mode") == "calibrated"
     assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.50)
-    assert entry["metrics"]["execute"] is False
-    assert entry["metrics"]["gate_reason"] == "neutral_zone"
-    assert entry["metrics"]["signal_status"] == "SKIP:NEUTRAL_ZONE"
-    assert entry["metrics"]["execution_candidate_ready"] is False
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
 
 
-def test_predict_clamped_cal_exits_neutral_zone():
+def test_predict_clamped_cal_resolves_call():
     params = parse_dl_params(
         {
-            "confidence_call_threshold": 0.53,
-            "confidence_put_threshold": 0.47,
+            "confidence_call_threshold": 0.55,
+            "confidence_put_threshold": 0.45,
             "min_val_accuracy": 0.53,
             "calibration": {
-                "neutral_half_width": 0.03,
-                "calibration_neutral_drift": [0.47, 0.53],
+                "neutral_half_width": 0.05,
+                "calibration_neutral_drift": [0.45, 0.55],
                 "max_calibrated_raw_gap": 0.08,
             },
         }
@@ -79,6 +77,77 @@ def test_predict_clamped_cal_exits_neutral_zone():
     assert entry["metrics"]["calibration_mode"] == "calibrated"
     assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.535, abs=1e-9)
     assert entry["metrics"]["cal_raw_gap_capped"] is True
+
+
+def test_predict_cal_at_be_allows_call():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.55,
+            "confidence_put_threshold": 0.45,
+            "min_val_accuracy": 0.53,
+            "calibration": {
+                "neutral_half_width": 0.05,
+                "calibration_neutral_drift": [0.45, 0.55],
+                "max_calibrated_raw_gap": 0.08,
+            },
+        }
+    )
+    orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
+    with patch(
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
+        return_value=(TradeDirection.CALL, 0.55, 0.55),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_10",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            np.zeros(80),
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+        )
+    assert entry["direction"] == TradeDirection.CALL
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
+    assert entry["metrics"]["calibration_mode"] == "calibrated"
+    assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.55)
+
+
+def test_predict_preset_put_in_band_executes():
+    params = parse_dl_params(
+        {
+            "confidence_call_threshold": 0.55,
+            "confidence_put_threshold": 0.45,
+            "min_val_accuracy": 0.53,
+            "calibration": {
+                "neutral_half_width": 0.05,
+                "calibration_neutral_drift": [0.45, 0.55],
+                "max_calibrated_raw_gap": 0.08,
+            },
+        }
+    )
+    orch = type("O", (), {"config": {"deep_learning": {}, "orchestrator": {"execution": {}}}})()
+    runtime = {"val_accuracy": 0.55, "val_brier": 0.2, "val_ece": 0.1, "lookback": 15, "deploy_ok": True}
+    with patch(
+        "src.application.services.deep_learning.dl_predict_build.predict_next_direction",
+        return_value=(TradeDirection.PUT, 0.52, 0.52),
+    ):
+        entry = predict_symbol_decision(
+            orch,
+            "R_10",
+            TemporalDirectionClassifier(input_dim=INPUT_DIM),
+            np.zeros(80),
+            fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32)),
+            runtime,
+            params,
+            None,
+        )
+    assert entry["direction"] == TradeDirection.PUT
+    assert entry["metrics"]["execute"] is True
+    assert entry["metrics"]["gate_reason"] is None
+    assert entry["metrics"]["calibration_mode"] == "calibrated"
 
 
 def test_predict_executes_on_strong_call():
@@ -143,8 +212,8 @@ def test_predict_weak_direction_still_executes():
 def test_predict_includes_dynamic_threshold_metrics():
     params = parse_dl_params(
         {
-            "confidence_call_threshold": 0.53,
-            "confidence_put_threshold": 0.47,
+            "confidence_call_threshold": 0.55,
+            "confidence_put_threshold": 0.45,
             "min_edge_execute": 0.04,
             "min_val_accuracy": 0.53,
         }

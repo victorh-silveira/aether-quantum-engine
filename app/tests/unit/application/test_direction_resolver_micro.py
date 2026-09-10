@@ -117,5 +117,5 @@ def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled_with_str
     direction, metrics = result
     assert direction == TradeDirection.CALL
     assert metrics["trade_score"] == pytest.approx(0.70)
-    assert metrics["predicted_payoff_edge"] == pytest.approx(0.08)
+    assert "predicted_payoff_edge" not in metrics
     assert metrics["meta_classifier_applied"] is False

@@ -49,6 +49,7 @@ Bloqueia explore com Cal fraco e edge negativo.
 - Espelhar a camada do codigo sob teste
 - Cobertura fail-under **100%** em `src`
 - Novos ramos: teste unitario no mesmo PR
+- Hypothesis so em invariantes de dominio (Kelly / `p_eff` FLIP), `max_examples` baixo, pin em `requirements-dev`; **proibido** mutmut, Pact, Testcontainers, E2E visual ou carga no pre-commit
 
 ## Fluxo de contribuicao
 

@@ -3,6 +3,26 @@
 from src.application.services.market_audit_log import format_cluster_audit_line
 
 
+def test_format_cluster_neutral_zone_shows_edge_and_be():
+    decisions = {
+        "1HZ75V": {
+            "direction": "PUT",
+            "metrics": {
+                "raw_prob": 0.46814,
+                "calibrated_prob": 0.46814,
+                "exec_direction": "PUT",
+                "gate_reason": "neutral_zone",
+                "signal_status": "SKIP:NEUTRAL_ZONE",
+            },
+        }
+    }
+    line = format_cluster_audit_line(decisions, timeframe="M5")
+    assert "SKIP:NEUTRAL_ZONE" in line
+    assert "Edge:" in line and "raw_edge:" in line and "be=0.541" in line
+    assert "Margin:" in line
+    assert "p_call: 0.46814" in line and "p_put: 0.53186" in line
+
+
 def test_format_cluster_neg_edge_shows_raw_edge_and_be():
     decisions = {
         "R_10": {

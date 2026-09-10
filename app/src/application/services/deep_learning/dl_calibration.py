@@ -129,7 +129,7 @@ def _margin_floor_from_settings() -> float:
     with path.open(encoding="utf-8") as handle:
         full = json.load(handle)
     raw = (full.get("deep_learning") or {}).get("calibration") or {}
-    return float(raw.get("min_calibration_margin_floor", 0.03))
+    return float(raw.get("min_calibration_margin_floor", 0.05))
 
 
 def apply_calibrator_stable(
@@ -138,7 +138,7 @@ def apply_calibrator_stable(
     *,
     margin_floor: float | None = None,
 ) -> float:
-    """Aplica calibrador evitando extrapolacao, flip de lado e colapso de margem."""
+    """Aplica calibrador; se raw for mais nitido que Cal, devolve raw."""
     raw = float(prob)
     if calibrator is None:
         return raw
@@ -154,11 +154,11 @@ def apply_calibrator_stable(
         if side_flip and abs(calibrated - raw) > 0.02:
             return raw
     floor = float(margin_floor) if margin_floor is not None else _margin_floor_from_settings()
-    if floor > 0.0:
-        raw_margin = abs(raw - 0.5)
-        cal_margin = abs(calibrated - 0.5)
-        if raw_margin + 1e-12 >= floor and cal_margin + 1e-12 < floor:
-            return raw
+    _ = floor
+    raw_margin = abs(raw - 0.5)
+    cal_margin = abs(calibrated - 0.5)
+    if raw_margin > cal_margin + 1e-12:
+        return raw
     return calibrated
 
 

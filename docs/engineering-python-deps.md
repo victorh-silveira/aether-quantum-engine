@@ -25,7 +25,7 @@ Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps` (+ `aether-polars-ar
 
 Sidecars ML: FastAPI + uvicorn[standard] (uvloop/httptools) em `python:3.13-slim`.
 
-Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9.4, pip-audit 2.10.0, pytest 9.0.3 + asyncio/mock/timeout/xdist/cov.
+Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9.4, pip-audit 2.10.0, pytest 9.0.3 + asyncio/mock/timeout/xdist/cov, hypothesis 6.168.0 (Kelly / p_eff).
 
 ---
 
@@ -127,6 +127,7 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 | pytest-xdist | isolar Redis/TS por worker |
 | pytest-timeout | hangs asyncio |
 | pytest-cov | **CI / validacao**; nao no TDD local iterativo |
+| hypothesis | Property-based so em invariantes Kelly / `p_eff` FLIP; nao no runtime |
 
 Nao pinar `coverage` se `pytest-cov` ja esta no requirements-dev.
 
@@ -145,7 +146,7 @@ Nao pinar `coverage` se `pytest-cov` ja esta no requirements-dev.
 | Vetores | numpy, polars | zero-copy/views; Lazy; offload do loop |
 | Estado | redis, asyncpg, minio | pipelines; COPY/batch; MinIO em thread |
 | ML | torch, lightgbm, joblib | inference_mode; threads limitadas; hash artefato |
-| QA | ruff, pytest-* | loop scope; xdist isolado; cov no CI |
+| QA | ruff, pytest-*, hypothesis | loop scope; xdist isolado; cov no CI; Hypothesis so dominio |
 
 ## Anti-padroes
 

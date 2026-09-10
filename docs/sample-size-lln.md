@@ -18,7 +18,7 @@ Politica operacional contra o vies dos pequenos numeros (Mlodinow / Tversky-Kahn
 
 ## Fluxo
 
-1. Cold start (`live_n` baixo): stake EXPLORE reduzida; prior de conviccao domina Kelly.
+1. Cold start (`live_n` baixo): stake EXPLORE reduzida; prior de conviccao domina Kelly; Single-Strike **off** ate `live_n >= 12`.
 2. SIDE_EQ: nao trata 2 losses como prova; exige janela e, para WR puro, z significativo.
 3. Calib drift: ECE alto com N=1 e ignorado ate `calib_soft_min_n`.
 4. Large-N: soft penalty Kelly/margem, sem flip automatico por “mao quente”.

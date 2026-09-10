@@ -75,8 +75,8 @@ Sidecars (Redis, TimescaleDB, MinIO, meta `:8005`, loss `:8006`) ficam em Docker
 | Papel | Onde | Contrato |
 |-------|------|----------|
 | Latência crítica TCN/LSTM/GRU | Host PyTorch CUDA | Batch 1, eager/`to_thread`, checkpoint local `data/dl/` |
-| Meta LightGBM 23D | Sidecar FastAPI `:8005` | HTTP opcional conforme settings |
-| Loss-classifier | Sidecar FastAPI `:8006` | Soft/FLIP conforme doutrina de gates |
+| Meta LightGBM 23D | Sidecar FastAPI `:8005` | schema_hash; clamp; nao decide lado; HTTP opcional |
+| Loss-classifier | Sidecar FastAPI `:8006` | schema_hash 24D; FLIP apos auto_learn; sem HARD SKIP |
 | Optuna / tuning | Offline / background | Não disputar VRAM com inferência live |
 
 - Cliente `httpx.AsyncClient` com pool keep-alive, timeout agressivo e fallback no motor se sidecar atrasar.
@@ -112,7 +112,7 @@ Ver [`infra-docker.md`](infra-docker.md) e SSOT CloudOps [`engineering-devops-cl
 | Redis 7.4 | Settlement SSOT **ZSET** `settlement:queue:priority`; AOF `everysec`; `maxmemory` + `noeviction`; `io-threads` |
 | TimescaleDB / PG 16 | Hypertables chunk **1 day**, compressão, retenção; CRAG `candle_m5` analytics; `asyncpg` em lote |
 | MinIO | Bucket `dl-models`; `minio-init` + ILM `optuna/` ~7d |
-| Meta / Loss | Multi-stage `/opt/venv`, OMP*=2, binds `127.0.0.1:8005/8006` |
+| Meta / Loss | Multi-stage `/opt/venv`, `ml_common`, OMP*=2, binds `127.0.0.1:8005/8006` |
 
 Compose: `mem_limit`/`cpus` + `mem_swappiness: 0`; healthchecks; `depends_on: service_healthy`; Make wait-healthy. Host: `vm.overcommit_memory=1`.
 

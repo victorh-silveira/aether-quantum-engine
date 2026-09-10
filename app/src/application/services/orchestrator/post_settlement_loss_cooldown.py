@@ -4,6 +4,7 @@ import asyncio
 import time
 from typing import Any
 
+from src.application.services.execution_runtime_config import resolve_post_loss_cooldown_config
 from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 
@@ -11,16 +12,44 @@ from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 COOLDOWN_CYCLE_SUSPENDED = SIGNAL_SUSPENDED
 
 
-def post_loss_cooldown_delay_seconds(linear_losses: int) -> float:
-    """Pausa de 1 ciclo M5 (300s) quando linear_losses >= 2."""
-    if int(linear_losses or 0) >= 2:
-        return 300.0
-    return 0.0
+def _exec_cfg_from_orch(orch: Any | None) -> dict[str, Any] | None:
+    """Extrai orchestrator.execution do orquestrador quando disponivel."""
+    if orch is None:
+        return None
+    cfg = getattr(orch, "config", None)
+    if not isinstance(cfg, dict):
+        return None
+    orch_cfg = cfg.get("orchestrator")
+    if not isinstance(orch_cfg, dict):
+        return None
+    execution = orch_cfg.get("execution")
+    return execution if isinstance(execution, dict) else None
 
 
-def post_loss_cooldown_active(last_outcome: str, linear_losses: int) -> bool:
-    """True se ultimo trade foi LOSS e linear >= 2."""
-    return str(last_outcome or "").upper() == "LOSS" and int(linear_losses or 0) >= 2
+def _cooldown_cfg(orch: Any | None = None) -> dict[str, Any]:
+    """Resolve ladder pos-LOSS (SSOT + override do orch)."""
+    return resolve_post_loss_cooldown_config(_exec_cfg_from_orch(orch))
+
+
+def post_loss_cooldown_delay_seconds(linear_losses: int, orch: Any | None = None) -> float:
+    """Pausa tecnica por LIN: L1/L2=300s, L3=600s, L4+=900s (SSOT)."""
+    cfg = _cooldown_cfg(orch)
+    lin = int(linear_losses or 0)
+    if lin < int(cfg["lin_min"]):
+        return 0.0
+    if lin <= 1:
+        return float(cfg["delay_seconds_lin1"])
+    if lin == 2:
+        return float(cfg["delay_seconds_lin2"])
+    if lin == 3:
+        return float(cfg["delay_seconds_lin3"])
+    return float(cfg["delay_seconds_lin4"])
+
+
+def post_loss_cooldown_active(last_outcome: str, linear_losses: int, orch: Any | None = None) -> bool:
+    """True se ultimo trade foi LOSS e linear >= lin_min do SSOT."""
+    cfg = _cooldown_cfg(orch)
+    return str(last_outcome or "").upper() == "LOSS" and int(linear_losses or 0) >= int(cfg["lin_min"])
 
 
 def orchestrator_cooldown_until(orch: Any) -> float:
@@ -47,14 +76,15 @@ def orchestrator_cooldown_remaining(orch: Any, *, now: float | None = None) -> f
 
 
 def schedule_post_loss_cooldown(orch: Any) -> float:
-    """Agenda pausa tecnica de 1 ciclo M5 (300s) se linear >= 2."""
+    """Agenda pausa tecnica pos-LOSS conforme ladder SSOT."""
     rm = getattr(orch, "risk_manager", None)
     linear = int(getattr(rm, "consecutive_losses_linear", 0) or 0)
     outcome = getattr(orch, "_last_settlement_outcome", "")
-    if not post_loss_cooldown_active(outcome, linear):
+    if not post_loss_cooldown_active(outcome, linear, orch):
         return 0.0
-    delay = post_loss_cooldown_delay_seconds(linear)
-    orch._cooldown_until = time.time() + delay
+    delay = post_loss_cooldown_delay_seconds(linear, orch)
+    prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
+    orch._cooldown_until = max(prev, time.time() + delay)
     return delay
 
 
@@ -65,13 +95,15 @@ def log_trading_cycle_cooldown_skip(orch: Any) -> None:
         return
     rem = orchestrator_cooldown_remaining(orch)
     cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
+    lin_min = int(_cooldown_cfg(orch)["lin_min"])
     log_info_if_changed(
         orch,
         logger,
         "loss_cooldown_skip",
         f"{rem:.0f}",
-        "[%s] COOLDOWN || pausa tecnica pos-loss (LIN>=2) | restante=%.0fs",
+        "[%s] COOLDOWN || pausa tecnica pos-loss (LIN>=%d) | restante=%.0fs",
         cid,
+        lin_min,
         rem,
     )
 

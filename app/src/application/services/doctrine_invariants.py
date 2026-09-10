@@ -155,6 +155,22 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     dl = full.get("deep_learning")
     if not isinstance(dl, dict) or "online_training" not in dl:
         raise ValueError("deep_learning.online_training obrigatorio")
+    require_keys(
+        dl,
+        ("session_max_losses_in_window", "session_window_trades", "session_pause_cycles"),
+        "deep_learning",
+    )
+    require_keys(
+        execution.get("post_loss_cooldown") if isinstance(execution.get("post_loss_cooldown"), dict) else None,
+        (
+            "lin_min",
+            "delay_seconds_lin1",
+            "delay_seconds_lin2",
+            "delay_seconds_lin3",
+            "delay_seconds_lin4",
+        ),
+        "orchestrator.execution.post_loss_cooldown",
+    )
     cap, pct = _safe_stake(risk)
     resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
@@ -183,8 +199,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("online_training deve ser false na doutrina de producao")
     if inv["loss_clf_veto_mode"] != "hard":
         raise ValueError("loss_classifier.veto_mode deve ser hard")
-    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.55) > 1e-9:
-        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.55")
+    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.58) > 1e-9:
+        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.58")
     if int(inv["loss_clf_flip_trust_n"]) != 32:
         raise ValueError("loss_classifier.flip_trust_n deve ser 32")
     if abs(float(inv["loss_clf_flip_young_shrink"]) - 0.35) > 1e-9:

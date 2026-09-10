@@ -6,6 +6,8 @@ import importlib.util
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
 from src.domain.models.trade import TradeDirection
 
@@ -60,6 +62,7 @@ def test_flip_above_floor_inverts_and_keeps_candidate():
 
 
 def test_predict_p_loss_temperature_softens():
+    import numpy as np
     from lightgbm import LGBMClassifier
 
     from scripts.operations.train_loss_classifier import live_like_synthetic_xy
@@ -83,10 +86,48 @@ def test_predict_p_loss_temperature_softens():
     assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
+    mod.drop_sklearn_feature_names(model)
+    assert "feature_names_in_" not in model.__dict__
+    dummy = type("M", (), {})()
+    assert mod.drop_sklearn_feature_names(dummy) is dummy
     p1 = mod.predict_p_loss(model, row, temperature=1.0)
     p2 = mod.predict_p_loss(model, row, temperature=2.0)
     assert abs(p2 - 0.5) <= abs(p1 - 0.5) + 1e-9
     assert 0.0 <= p2 <= 1.0
+    one = mod.predict_proba_numpy(model, row)
+    assert one.shape[0] == 1
+
+    class _FakeProba:
+        def predict_proba(self, _x):
+            return np.asarray([[0.25, 0.75]])
+
+    assert float(mod.predict_proba_numpy(_FakeProba(), [[0.0] * 24])[0, 1]) == 0.75
+
+    class _FlipBooster:
+        def predict(self, _x):
+            return np.asarray([0.8])
+
+    class _FlipModel:
+        booster_ = _FlipBooster()
+        classes_ = [1, 0]
+
+    flipped = mod.predict_proba_numpy(_FlipModel(), [0.0])
+    assert abs(float(flipped[0, 0]) - 0.8) < 1e-12
+
+    class _MultiBooster:
+        def predict(self, _x):
+            return np.asarray([[0.1, 0.9]])
+
+    class _MultiModel:
+        booster_ = _MultiBooster()
+
+    multi = mod.predict_proba_numpy(_MultiModel(), [[0.0]])
+    assert abs(float(multi[0, 1]) - 0.9) < 1e-12
+
+    class _Slotted:
+        __slots__ = ()
+
+    assert mod.drop_sklearn_feature_names(_Slotted()) is not None
 
 
 def test_meta_clamp_and_tiny_online_rank():
@@ -100,7 +141,13 @@ def test_meta_clamp_and_tiny_online_rank():
     assert mod.should_retrain_meta(buffer_n=32, retrain_min_n=32) is True
     assert mod.clamp_meta_edge(2.5, auto_learn=True, n_train=5, floor=32) == 0.85
     assert mod.clamp_meta_edge(-3.0, auto_learn=True, n_train=5, floor=32) == -1.0
-    assert mod.clamp_meta_edge(2.5, auto_learn=True, n_train=40, floor=32) == 2.5
+    assert mod.clamp_meta_edge(2.5, auto_learn=True, n_train=40, floor=32) == 0.85
+    assert mod.apply_label_scale(0.4, {"label_scale": 2.0}) == pytest.approx(0.8)
+    assert mod.apply_label_scale(0.4, {}) == pytest.approx(0.4)
+    assert mod.apply_label_scale(0.4, {"label_scale": 0.0}) == pytest.approx(0.4)
+    assert mod.apply_label_scale(0.4, {"label_scale": "x"}) == pytest.approx(0.4)
+    assert mod.bundle_val_mae({"val_mae": "x"}) is None
+    assert mod.buffer_abs_mae(None, [], []) is None
     online = Path("meta_online_1_n5.pkl")
     offline = Path("meta_lgbm.pkl")
     assert mod.is_tiny_online_bundle(online, {"auto_learn_applied": True, "n_train": 5}, floor=32)
@@ -108,6 +155,26 @@ def test_meta_clamp_and_tiny_online_rank():
     r_on = mod.rank_meta_bundle(online, {"auto_learn_applied": True, "n_train": 5})
     r_off = mod.rank_meta_bundle(offline, {"auto_learn_applied": False, "n_train": 200})
     assert r_off > r_on
+    kept = mod.select_meta_bundle(
+        [(online, {"auto_learn_applied": True, "n_train": 40}), (offline, {"n_train": 200, "val_mae": 0.1})],
+        floor=32,
+        buffer_mae=0.5,
+    )
+    assert kept is not None
+    assert kept[0] == offline
+    promoted = mod.select_meta_bundle(
+        [(online, {"auto_learn_applied": True, "n_train": 40}), (offline, {"n_train": 200, "val_mae": 0.1})],
+        floor=32,
+        buffer_mae=0.15,
+    )
+    assert promoted is not None
+    assert promoted[0] == online
+    assert mod.online_may_replace_offline(
+        {"n_train": 40},
+        {"val_mae": 0.1},
+        buffer_mae=0.15,
+        floor=32,
+    )
 
 
 def test_loss_sidecar_calib_nll_ece_and_young_temp():
@@ -146,3 +213,46 @@ def test_loss_sidecar_fit_temperature_picks_grid(monkeypatch):
     monkeypatch.setattr(loss_calib, "predict_p_loss", _fake_predict)
     chosen = loss_calib.fit_temperature(object(), rows, labels)
     assert chosen == 0.70
+
+
+def test_loss_bootstrap_exit_is_twelve_not_ready_n():
+    import sys
+
+    sidecar = str(_repo_root() / "infra" / "docker" / "loss-classifier")
+    if sidecar not in sys.path:
+        sys.path.insert(0, sidecar)
+    import learn_policy as policy
+
+    assert policy.bootstrap_retrain_floor(retrain_on_loss_min_n=4, bootstrap_exit_n=12) == 12
+    kw = {
+        "label": "LOSS",
+        "retrain_min_n": 12,
+        "retrain_on_loss_min_n": 4,
+        "buffer_win": 8,
+        "buffer_loss": 3,
+        "bootstrap_active": True,
+        "bootstrap_exit_n": 12,
+    }
+    assert policy.should_retrain_after_learn(buffer_n=11, **kw) is False
+    assert policy.should_retrain_after_learn(buffer_n=12, **kw) is True
+    assert policy.retrain_skipped_reason(buffer_n=11, **kw) == "bootstrap_wait:11/12"
+    keep_11 = policy.bootstrap_seed_keep_detail(
+        bootstrap=True,
+        buffer_n=11,
+        n_classes=2,
+        exit_n=12,
+        floor=12,
+    )
+    keep_12 = policy.bootstrap_seed_keep_detail(
+        bootstrap=True,
+        buffer_n=12,
+        n_classes=2,
+        exit_n=12,
+        floor=12,
+    )
+    assert keep_11 == "seed_keep n<12"
+    assert keep_12 is None
+    assert keep_12 != "seed_keep n<32"
+    src = (_repo_root() / "infra" / "docker" / "loss-classifier" / "app.py").read_text(encoding="utf-8")
+    assert "seed_keep n<{int(READY_N)}" not in src
+    assert "bootstrap_seed_keep_detail" in src

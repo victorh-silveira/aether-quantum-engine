@@ -121,6 +121,7 @@ def test_apply_meta_regression_edge_not_applied_uses_base_score():
     )
     assert score == pytest.approx(0.66)
     assert metrics.get("meta_squeeze_downgrade") is not True
+    assert "predicted_payoff_edge" not in metrics
 
 
 def test_apply_meta_regression_edge_ignores_calibration_neutral_drift():

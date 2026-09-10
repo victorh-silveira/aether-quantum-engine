@@ -6,10 +6,11 @@ alwaysApply: true
 
 # Execution gates
 
-- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS / pausa de sessao (sem `SKIP:NEUTRAL_ZONE`)
+- TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**; tape = telemetria (nao segundo flip)
 - Anti-loss unico vivo: loss-classifier **FLIP** CALL↔PUT se `p_eff` >= piso de decisao — **unica inversao de ordem**; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf; **proibido** qualquer outro flip
 - `p_eff`: shrink de `p_loss` para 0.5 se `n_train < flip_trust_n` (**32**, `flip_young_shrink` **0.35**); tape so telemetria (nao auto-floor)
-- Piso: young **`flip_young_p_eff_floor` 0.55**; mature **`hard_p_loss_floor` 0.55**; FLIP so apos `auto_learn` (nao bootstrap); ainda so P_LOSS flipa
+- Piso: young **`flip_young_p_eff_floor` 0.55**; mature **`hard_p_loss_floor` 0.58**; FLIP so apos `auto_learn` (nao bootstrap); ainda so P_LOSS flipa
 - TCN escolhe CALL/PUT; apos FLIP o lado invertido segue para Kelly + SIDE_EQ; SCALE vision so telemetria
 - **Proibido** reabrir quality gate amplo, signal_skip multi-gate, fusao EV, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI
 - Catalogo: `docs/engineering-indicator-gates.md` + playbook

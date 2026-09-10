@@ -20,8 +20,8 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso Kelly **1%**; Single-Strike so ALLOW
-- Anti-loss vivo = **FLIP** se `p_eff` >= **0.55** (young/mature); so apos auto_learn; shrink N; tape so telemetria
-- Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente
+- Anti-loss vivo = **FLIP** se `p_eff` >= **0.55** young / **0.58** mature; so apos auto_learn; shrink N; tape so telemetria
+- Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (inclui cooldown pos-LOSS e pausa de sessao)
 - Exigir evidencia: `live_n`, Cal/Edge, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=`)
 
 ## Diagnostico de log

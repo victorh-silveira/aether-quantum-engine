@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 
+from src.application.services.loss_classifier_features import loss_feature_schema_hash
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.infrastructure.inference.loss_classifier_types import (
     LossPredictRequest,
@@ -143,6 +144,7 @@ class LossClassifierClient:
             "symbol": str(request.get("symbol") or ""),
             "direction": str(request.get("direction") or ""),
             "veto_p_loss_floor": float(request.get("veto_p_loss_floor") or self._veto_floor),
+            "schema_hash": loss_feature_schema_hash(),
         }
         try:
             response = await self._client.post("/v1/predict_loss", json=payload)
@@ -168,6 +170,7 @@ class LossClassifierClient:
             "label": str(label).upper(),
             "contract_id": str(contract_id),
             "symbol": str(symbol),
+            "schema_hash": loss_feature_schema_hash(),
         }
         try:
             response = await self._client.post("/v1/learn", json=payload)

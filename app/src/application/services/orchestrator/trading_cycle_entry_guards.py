@@ -5,6 +5,8 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from src.application.services.deep_learning.dl_outcomes import is_symbol_session_paused
+from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_data_signature import (
@@ -109,11 +111,36 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
     return pnl >= target
 
 
+def _session_pause_blocks_cycle(orch: Any) -> bool:
+    """True quando pausa de sessao pos-streak bloqueia o ciclo (SKIP tecnico)."""
+    symbols = getattr(orch, "symbols", None) or []
+    if symbols:
+        paused = any(is_symbol_session_paused(orch, str(sym)) for sym in symbols)
+    else:
+        pauses = getattr(orch, "_dl_session_pause", None)
+        paused = isinstance(pauses, dict) and any(int(v or 0) > 0 for v in pauses.values())
+    if not paused:
+        return False
+    logger = getattr(orch, "logger", None)
+    if logger is not None:
+        cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
+        log_info_if_changed(
+            orch,
+            logger,
+            "session_pause_skip",
+            cid,
+            "[%s] COOLDOWN || pausa tecnica de sessao pos-loss | skip",
+            cid,
+        )
+    return True
+
+
 def _orchestrator_preconditions_block(orch: Any) -> bool:
     """True quando reconciliacao, cooldown, manutencao ou persistencia bloqueiam o ciclo."""
     return (
         getattr(orch, "_reconciliation_pending", False)
         or post_loss_cooldown_blocks_trading_cycle(orch)
+        or _session_pause_blocks_cycle(orch)
         or api_maintenance_blocks_trading_cycle(orch)
         or session_persistence_blocks_trading_cycle(orch)
     )

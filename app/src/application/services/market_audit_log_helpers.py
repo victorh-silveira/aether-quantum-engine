@@ -96,19 +96,14 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
     raw_edge = resolve_raw_predicted_edge(metrics, direction=direction)
     be = resolve_edge_breakeven_p()
     skip = _resolve_skip_reason(entry, metrics)
-    if skip:
-        gate = str(metrics.get("gate_reason") or "").strip().lower()
-        if gate == "neg_edge" or "NEG_EDGE" in str(skip).upper():
-            return (
-                f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} "
-                f"Edge: {display_edge:+.3f} raw_edge: {raw_edge:+.3f} be={be:.3f} | {skip})"
-            )
-        return f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} | {skip})"
-    return (
+    payload = (
         f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} "
         f"Margin: {margin:.3f} Edge: {display_edge:+.3f} "
-        f"raw_edge: {raw_edge:+.3f} be={be:.3f})"
+        f"raw_edge: {raw_edge:+.3f} be={be:.3f}"
     )
+    if skip:
+        return f"{payload} | {skip})"
+    return f"{payload})"
 
 
 def _safe_float(value: Any, default: float) -> float:

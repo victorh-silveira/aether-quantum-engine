@@ -163,7 +163,13 @@ def resolve_inference_history_bars(
         int(win["rsi_period"]),
         int(win.get("zscore_micro_window", 0) or 0),
     )
-    return max(1, indicator_warmup) + lookback + 16
+    causal_norm = 288
+    norm = indicators.get("normalization") if isinstance(indicators, dict) else None
+    if not (isinstance(norm, dict) and "causal_norm_window" in norm):
+        norm = load_indicator_config_from_settings().get("normalization") or {}
+    if isinstance(norm, dict) and "causal_norm_window" in norm:
+        causal_norm = max(1, int(norm["causal_norm_window"]))
+    return max(1, indicator_warmup, causal_norm) + lookback + 16
 
 
 def parse_dl_params(
@@ -209,7 +215,10 @@ def parse_dl_params(
                 "lookback": lookback,
                 "granularity": gran,
                 "implied_vol_bars": implied_vol_bars,
-                "indicators": {"windows": indicators["windows"]},
+                "indicators": {
+                    "windows": indicators["windows"],
+                    "normalization": indicators.get("normalization") or {},
+                },
             },
             granularity=gran,
         )

@@ -50,7 +50,7 @@ aether-quantum-engine/
 │   └── structure.md
 ├── AGENTS.md                           # Entrada Cursor/LLM
 ├── .cursor/                            # rules + skills do agente
-├── infra/docker/                       # Redis, TimescaleDB, MinIO, meta-classifier, loss-classifier
+├── infra/docker/                       # Redis, TimescaleDB, MinIO, ml_common, meta-classifier, loss-classifier
 ├── linters/
 ├── Makefile
 ├── README.md
@@ -216,7 +216,7 @@ presentation  →  application  →  domain
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
 | `dl_calibration_variance.py` | Guarda std calibrado vs raw → identity |
 | `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
-| `dl_calibration_tolerance.py` | Override TCN macro quando raw&gt;0.65 ou &lt;0.35; zona neutra config-driven (settings: OFF) |
+| `dl_calibration_tolerance.py` | Ramo `raw_extreme` quando raw extremo; lado live vs 0.5; banda so telemetria |
 | `dl_congestion.py` | Metricas de congestao de mercado |
 | `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
 | `dl_cycle_log.py` | Logs compactos do ciclo DL |
@@ -480,7 +480,7 @@ flowchart TD
   PRED --> META[meta_classifier_client 23D]
   META --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
-  CHK --> LOSS[loss_classifier_gate FLIP se p_loss>=0.20]
+  CHK --> LOSS[loss_classifier_gate FLIP se p_eff no piso]
   LOSS --> COL[execution_collect]
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]

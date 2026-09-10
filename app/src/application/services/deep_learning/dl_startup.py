@@ -49,6 +49,31 @@ def all_symbols_have_checkpoints(
     return bool(symbols)
 
 
+def _is_micro_train_timeframe(dl_config: dict[str, Any]) -> bool:
+    """Indica se o treino DL usa timeframe micro (M5) ou settlement."""
+    tf = str(dl_config.get("train_timeframe") or "micro").strip().lower()
+    return tf in {"micro", "settlement"}
+
+
+def _training_startup_fetch_bars(data_config: dict[str, Any], dl_config: dict[str, Any], warmup: int) -> int:
+    """Resolve barras do lean fetch em modo treino, com piso M5 de historico."""
+    values: list[int] = []
+    if "fetch_count" in data_config:
+        values.append(max(1, int(data_config["fetch_count"])))
+    if _is_micro_train_timeframe(dl_config):
+        if "micro_fetch_count" in data_config:
+            values.append(max(1, int(data_config["micro_fetch_count"])))
+        history_train = int(dl_config.get("training_history_bars", 0) or 0)
+        if history_train > 0:
+            values.append(history_train)
+    if values:
+        return max(values)
+    history_bars = int(data_config.get("history_bars", 0))
+    if history_bars > 0:
+        return max(1, history_bars + warmup)
+    return 500
+
+
 def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tuple[int, str]:
     """Retorna barras a buscar no startup e rotulo do modo (inferencia ou treino)."""
     data_config = config.get("data_handler") or {}
@@ -60,12 +85,7 @@ def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tu
         or not inference_startup_enabled(dl_config)
         or not all_symbols_have_checkpoints(symbols, dl_config, data_config)
     ):
-        if "fetch_count" in data_config:
-            return max(1, int(data_config["fetch_count"])), "treino"
-        history_bars = int(data_config.get("history_bars", 0))
-        if history_bars > 0:
-            return max(1, history_bars + warmup), "treino"
-        return 500, "treino"
+        return _training_startup_fetch_bars(data_config, dl_config, warmup), "treino"
     risk_params = (config.get("risk_management") or {}).get("params") or {}
     params = parse_dl_params(dl_config, data_config, risk_params)
     floor = min_dl_inference_len(params) + max(0, warmup)

@@ -145,9 +145,19 @@ def test_live_win_rate_insufficient_samples():
 
 
 def test_tick_dl_session_pauses_clears_zero():
-    orch = SimpleNamespace(_dl_session_pause={"R_10": 1})
+    orch = SimpleNamespace(_dl_session_pause={"R_10": 1}, _dl_session_pause_until={"R_10": 9_999_999_999.0})
     tick_dl_session_pauses(orch)
-    assert "R_10" in orch._dl_session_pause
+    assert "R_10" not in orch._dl_session_pause
+    assert "R_10" not in orch._dl_session_pause_until
+    tick_dl_session_pauses(SimpleNamespace())
+    reused = SimpleNamespace(
+        _dl_outcome_flags={"R_10": [False, False, False]},
+        _dl_session_pause={"R_10": 1},
+        config={"orchestrator": {"cycle_interval_seconds": 60}},
+    )
+    maybe_pause_symbol_session(reused, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=2)
+    assert reused._dl_session_pause["R_10"] == 2
+    assert reused._cooldown_until > 0.0
 
 
 def test_maybe_pause_noop_when_disabled():

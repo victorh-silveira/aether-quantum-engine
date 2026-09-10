@@ -66,8 +66,8 @@ def test_resolve_inference_history_bars_uses_indicator_windows():
         granularity=900,
     )
     assert n_m15 < 2 * lookback
-    assert n_m15 >= lookback + 16
-    assert n_m15 <= lookback + 128 + 16
+    assert n_m15 >= lookback + 288 + 16
+    assert n >= 30 + 288 + 16
 
 
 def test_indicators_from_config_uses_embedded_block():

@@ -16,7 +16,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
     auto_learn = 1 if metrics.get("loss_clf_auto_learn") else 0
     floor = metric_float(metrics, "loss_clf_flip_floor", default=-1.0)
     if floor < 0.0:
-        floor = metric_float(metrics, "loss_clf_hard_p_loss_floor", default=0.55)
+        floor = metric_float(metrics, "loss_clf_hard_p_loss_floor", default=0.58)
     verdict = str(metrics.get("gate_verdict") or "").strip().upper()
     verdict_tok = f" | verdict={verdict}" if verdict else ""
     pe_tok = ""

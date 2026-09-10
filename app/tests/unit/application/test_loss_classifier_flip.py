@@ -111,13 +111,13 @@ def test_loss_clf_flip_above_floor_mature(monkeypatch):
         "calibrated_prob": 0.6,
         "execution_candidate_ready": True,
     }
-    _patch_predict(monkeypatch, p_loss=0.56, n_train=32)
+    _patch_predict(monkeypatch, p_loss=0.59, n_train=32)
     assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=_orch()) is False
     assert metrics["exec_direction"] == "PUT"
     assert metrics["resolved_direction"] == "PUT"
     assert metrics["loss_clf_flip"] is True
-    assert metrics["loss_clf_p_eff"] == 0.56
-    assert metrics["loss_clf_flip_floor"] == 0.55
+    assert metrics["loss_clf_p_eff"] == 0.59
+    assert metrics["loss_clf_flip_floor"] == 0.58
     assert metrics.get("loss_clf_flip_blocked") is None
     assert metrics["execution_candidate_ready"] is True
 
@@ -130,12 +130,12 @@ def test_loss_clf_ok_below_floor_mature(monkeypatch):
         "execution_candidate_ready": True,
         "scale_tape_consensus": "PUT",
     }
-    _patch_predict(monkeypatch, p_loss=0.21, n_train=32)
+    _patch_predict(monkeypatch, p_loss=0.56, n_train=32)
     assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
     assert metrics["exec_direction"] == "PUT"
     assert metrics.get("loss_clf_flip") is not True
-    assert metrics["loss_clf_p_eff"] == 0.21
-    assert metrics["loss_clf_flip_floor"] == 0.55
+    assert metrics["loss_clf_p_eff"] == 0.56
+    assert metrics["loss_clf_flip_floor"] == 0.58
 
 
 def test_loss_clf_young_low_p_no_flip(monkeypatch):
@@ -233,8 +233,8 @@ def test_stamp_flip_ctx_persists_on_gate(monkeypatch):
         "exec_direction": "CALL",
         "execution_candidate_ready": True,
     }
-    _patch_predict(monkeypatch, p_loss=0.56, n_train=32)
+    _patch_predict(monkeypatch, p_loss=0.59, n_train=32)
     assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="1HZ75V") is False
     ctx = orch._loss_clf_flip_ctx["1HZ75V"]
     assert ctx["flip"] is True
-    assert ctx["p_eff"] == pytest.approx(0.56)
+    assert ctx["p_eff"] == pytest.approx(0.59)

@@ -260,7 +260,7 @@ def _settings_from_invariants(inv: dict) -> dict:
 
 
 def test_infer_dl_direction_neutral_zone():
-    assert infer_dl_direction({"metrics": {"calibration_mode": "neutral_zone", "raw_prob": 0.6}}) is None
+    assert infer_dl_direction({"metrics": {"calibration_mode": "neutral_zone", "raw_prob": 0.6}}) == TradeDirection.CALL
 
 
 def test_mili_direction_from_flow_bad_types():

@@ -15,6 +15,7 @@ from src.application.services.log_dedupe import clear_log_channel, log_warning_i
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import (
     extract_meta_feature_vector,
+    meta_feature_schema_hash,
     side_payoff_from_probability,
 )
 from src.infrastructure.inference.meta_classifier_types import (
@@ -143,7 +144,7 @@ class MetaClassifierClient:
     ) -> MetaPredictResponse:
         """Consulta /v2/predict_meta retornando edge continuo de payoff."""
         if not self._enabled:
-            return {"predicted_payoff_edge": 0.0, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
+            return {"predicted_payoff_edge": None, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}
         feature_vector = [float(v) for v in request["feature_vector"]]
         assert_meta_feature_vector_dim(feature_vector)
         payload = {
@@ -151,6 +152,7 @@ class MetaClassifierClient:
             "tcn_probability": float(request["tcn_probability"]),
             "direction": str(request["direction"]),
             "feature_vector": feature_vector,
+            "schema_hash": meta_feature_schema_hash(),
         }
         try:
             response = await self._client.post("/v2/predict_meta", json=payload)
@@ -168,7 +170,7 @@ class MetaClassifierClient:
             else:
                 _emit_meta_classifier_fallback(message)
             return {
-                "predicted_payoff_edge": 0.0,
+                "predicted_payoff_edge": None,
                 "meta_applied": False,
                 "edge_expectancy": "LOSS_EXPECTED",
             }
@@ -190,6 +192,7 @@ class MetaClassifierClient:
             "target": float(target),
             "contract_id": str(contract_id),
             "symbol": str(symbol),
+            "schema_hash": meta_feature_schema_hash(),
         }
         try:
             response = await self._client.post("/v1/learn", json=payload)

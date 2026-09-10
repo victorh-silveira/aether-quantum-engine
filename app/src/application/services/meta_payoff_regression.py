@@ -57,8 +57,11 @@ def apply_meta_regression_edge(
     symbol: str | None = None,
 ) -> tuple[TradeDirection, float]:
     """Aplica edge continuo do meta-regressor com downgrade D-SQUEEZE quando necessario."""
-    metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["meta_classifier_applied"] = bool(meta_applied)
+    if meta_applied:
+        metrics["predicted_payoff_edge"] = float(predicted_edge)
+    else:
+        metrics.pop("predicted_payoff_edge", None)
     squeeze_active = micro_volatility_squeeze_active(metrics)
     metrics["meta_squeeze_active"] = bool(squeeze_active)
     if not meta_applied:

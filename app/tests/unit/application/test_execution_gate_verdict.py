@@ -62,7 +62,7 @@ def test_apply_stop_win_kelly_boost_skips_under_soft_size():
         "stop_win_kelly_max_fraction": 1.0,
         "stop_win_kelly_conviction_strong": 0.52,
         "stop_win_kelly_cycles_target": 1.0,
-        "stop_win_kelly_live_n_min": 0,
+        "stop_win_kelly_live_n_min": 12,
         "soft_size_min_stake_pct": 0.025,
         "soft_size_max_stake_pct": 0.025,
         "soft_size_min_edge": 0.015,

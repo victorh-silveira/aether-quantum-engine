@@ -24,12 +24,12 @@ Ler `docs/llm-trading-doctrine.md`, `docs/binary-senior-playbook.md` e `docs/eng
 $$\text{Lucro Alvo} = \text{Banca} \times 0.0431$$
 $$\text{Stake} = \frac{\text{Banca} \times 0.0431}{0.85} \approx 0.0507 \times \text{Banca} \implies \text{cap } 5.0\%$$
 
-Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **false**; piso Kelly **1%**; `max_safe_stake_pct` **0.035**. Sem revenge sizing.
+Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_live_n_min` **12**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **false**; piso Kelly **1%**; `max_safe_stake_pct` **0.035**. Sem revenge sizing. Cold start (`live_n < 12`): Kelly × `explore_stake_scale` (piso **0.40**), sem boost Single-Strike.
 
 ## Pre-trade (PlayBook)
 
-1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; pe>=0.55) + Kelly
-2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win)
+1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; young pe>=0.55 / mature pe>=0.58) + Kelly
+2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao)
 3. Explore ou recover? Com `cover_enabled` **false**, PEND nao infla stake
 4. Hipotese falsificavel se mudar knob; gate novo so via catalogo
 5. Alvo: stop-win **4,31%** — processo, nao “mao quente”

@@ -17,18 +17,18 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **23** (`META_FEATURE_DIM` = 14 + 9) |
 | Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **300 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
-| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf FLIP (`p_loss>=0.20`) + Kelly |
+| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf FLIP (`p_eff` 0.55/0.58 apos auto_learn) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.53/0.47**; o meta-regressor LightGBM estima `predicted_payoff_edge` (telemetria); o ranking usa `tcn × max(0.1, 1+z)`. **Unica inversao de ordem:** loss-classifier FLIP se `p_loss >= 0.20`. Proibido qualquer outro flip (fusao, persistence, candle, invert_exec_side).
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.55/0.45**; o meta-regressor LightGBM estima `predicted_payoff_edge` (telemetria); o ranking usa `tcn × max(0.1, 1+z)`. **Unica inversao de ordem:** loss-classifier FLIP se auto_learn e `p_eff >= 0.55` young / `0.58` mature. Proibido qualquer outro flip (fusao, persistence, candle, invert_exec_side).
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (**300 s**) via `get_data_state_signature()` — alinhado a **300 s** (micro M5) e **86400 s** (macro D1); ratio macro:micro **1:288**.
 
 **Válvula de starvation:** após **6** ciclos consecutivos bloqueados por qualidade, pisos de margem/edge/Z são atenuados. O piso de edge meta relaxa a partir de **8** skips até floor 0.0.
 
-**Calibração e Zona Neutra:** Modo `neutral_zone` gera estritamente `SKIP:NEUTRAL_ZONE` com execução desativada. Se `raw_prob` estiver em extremos calibrados, preserva Edge genuíno.
+**Calibração e lado TCN:** sempre CALL se Cal ≥0.5 senao PUT. Banda `[0.45, 0.55]` nao skipa; no ramo `raw_extreme`, se Cal estiver mole o lado segue o raw. Kelly usa Cal.
 
 **Settlement:** janela de tolerância **600 s** com fila de prioridade Redis (`settlement:queue:priority`) e reconciliação passiva (`portfolio`). Pós-trade, `/v1/learn` alimenta meta-classifier e loss-classifier.
 
@@ -111,7 +111,7 @@ flowchart TD
   BUNDLE --> META[prefetch_meta_payoff_for_decisions]
   META --> RES[resolve_execution_direction]
   RES --> CHK[execution_direction_checks tecnico]
-  CHK --> LOSS[loss_classifier_gate FLIP se p_loss>=0.20]
+  CHK --> LOSS[loss_classifier_gate FLIP se p_eff no piso]
   LOSS --> COL[collect_cluster_orders / execute_cluster]
   COL --> RM[RiskManager.calculate_stake]
   RM --> TH[TradeHandler.buy_with_parameters]
@@ -206,7 +206,7 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 - Inferência eager/CUDA local no host
 - Path sync (`dl_predict.py`) usado pelo mini-deploy de treino: `force_local=True` evita conflito de event loop em thread de treino
 - Cache por fingerprint do tensor (`dl_predict_cache`)
-- Calibração: `dl_calibration_tolerance` — override TCN macro quando raw &gt;0.65 ou &lt;0.35; zona neutra **off** (`neutral_half_width: 0.0`)
+- Calibração: `dl_calibration_tolerance` — ramo `raw_extreme` quando raw &gt;0.82 ou &lt;0.18; lado live vs 0.5 (banda so telemetria)
 
 ---
 
@@ -219,7 +219,7 @@ Config atual: `arch: tcn`, `lookback: 30`, `label_mode: quantum_multi_barrier`, 
 | Container | `aether-meta-classifier` (FastAPI), host **8005→8000** |
 | Endpoint | `POST /v2/predict_meta` |
 | Cliente | `MetaClassifierClient` + `meta_classifier_pool` (rebind por loop) |
-| Timeout | 1,0 s; fallback `predicted_payoff_edge=0.0` |
+| Timeout | 1,0 s; fallback `meta_applied=false` e edge omitido (nao `0.0` falso) |
 | Artefatos | `infra/docker/meta-models/*.pkl` |
 | Execução | Meta **opcional** (`require_meta_for_execution: false`) |
 
@@ -287,7 +287,7 @@ Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP*
 
 | Etapa | Comportamento |
 |-------|---------------|
-| `infer_dl_direction` | TCN: limiares call/put **0.53/0.47** |
+| `infer_dl_direction` | TCN: limiares call/put **0.55/0.45** |
 | LOSS_CLF | Abaixo do piso: mantém TCN; no piso: inverte e executa |
 | Bloqueio absoluto | `deploy_ok=false`, `gate_reason ∈ {data, predict_error, training}` / stop-win |
 

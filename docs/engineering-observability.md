@@ -43,7 +43,7 @@ Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do moni
 | `SESSAO INICIADA` | banca, stop-win |
 | `DATA` / `CFG` | buffer e knobs efetivos |
 | `DL` | device / inferencia |
-| `CLUSTER` | Prob / Cal / Margin / Edge |
+| `CLUSTER` | Prob / Cal / Margin / Edge / raw_edge / be (ALLOW e SKIP, incl. `NEUTRAL_ZONE`) |
 | `SIDE_EQ` / `META_VETO` | equilibrio lateral / veto meta |
 | `IND` | indicadores de contexto |
 | `KELLY` | p, live_wr, f*, mode |

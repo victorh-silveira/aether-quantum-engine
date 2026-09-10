@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import numpy as np
 import pytest
 
@@ -92,6 +94,20 @@ def test_calibration_helpers():
     payload = calibrator_to_dict(cal)
     restored = calibrator_from_dict(payload)
     assert restored.method == cal.method
+
+
+def test_apply_calibrator_stable_prefers_sharper_raw():
+    cal = CalibratorState(method="identity")
+    with patch(
+        "src.application.services.deep_learning.dl_calibration.apply_calibrator",
+        return_value=0.52,
+    ):
+        assert apply_calibrator_stable(0.60, cal) == pytest.approx(0.60)
+    with patch(
+        "src.application.services.deep_learning.dl_calibration.apply_calibrator",
+        return_value=0.70,
+    ):
+        assert apply_calibrator_stable(0.60, cal) == pytest.approx(0.70)
 
 
 def test_outcome_weights():

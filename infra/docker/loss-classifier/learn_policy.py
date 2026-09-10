@@ -6,7 +6,25 @@ def bootstrap_retrain_floor(
     retrain_on_loss_min_n: int = 2,
     bootstrap_exit_n: int = 16,
 ) -> int:
-    return int(min(int(bootstrap_exit_n), max(4, int(retrain_on_loss_min_n))))
+    return int(max(int(bootstrap_exit_n), max(4, int(retrain_on_loss_min_n))))
+
+
+def bootstrap_seed_keep_detail(
+    *,
+    bootstrap: bool,
+    buffer_n: int,
+    n_classes: int,
+    exit_n: int,
+    floor: int,
+) -> str | None:
+    if not bootstrap:
+        return None
+    n = int(buffer_n)
+    if n < int(exit_n) and int(n_classes) < 2:
+        return f"seed_keep n<{int(exit_n)}"
+    if n < int(floor):
+        return f"seed_keep n<{int(floor)}"
+    return None
 
 
 def should_retrain_after_learn(

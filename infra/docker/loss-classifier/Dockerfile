@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 FROM python:3.13-slim AS builder
 
 WORKDIR /build
@@ -28,7 +29,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /opt/venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
+COPY --from=ml_common . /opt/ml_common
 COPY runtime.py learn_policy.py buffer_io.py calib.py app.py ./
+ENV PYTHONPATH="/opt:${PYTHONPATH}"
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -45,7 +48,7 @@ ENV PYTHONUNBUFFERED=1 \
     LOSS_BOOTSTRAP_EXIT_N=12 \
     LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4 \
     LOSS_MAX_BUFFER=2000 \
-    LOSS_VETO_P_LOSS_FLOOR=0.55 \
+    LOSS_VETO_P_LOSS_FLOOR=0.58 \
     LOSS_YOUNG_TEMP_N=32
 EXPOSE 8000
 

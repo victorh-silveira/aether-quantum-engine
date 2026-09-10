@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -11,35 +12,37 @@ import polars as pl
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field, model_validator
 
+_ML_ROOT = Path(__file__).resolve().parent.parent
+if (_ML_ROOT / "ml_common" / "__init__.py").is_file() and str(_ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ML_ROOT))
+
+from ml_common.async_fit import run_in_thread
+from ml_common.learn_ids import ContractIdDedupe
+from ml_common.names import META_FEATURE_NAMES
+from ml_common.schema import canonical_schema_hash, request_schema_hash_ok, validate_feature_vector
+
 from learn_runtime import (
+    apply_label_scale,
+    buffer_abs_mae,
     bundle_n_train,
+    bundle_schema_ok,
     clamp_meta_edge,
     fit_regressor,
     is_tiny_online_bundle,
     load_learn_buffer,
     meta_retrain_floor,
     persist_regressor_bundle,
-    rank_meta_bundle,
     save_learn_buffer,
+    select_meta_bundle,
     should_retrain_meta,
 )
 
 
 logger = logging.getLogger("META")
 MODELS_DIR = Path(os.getenv("MODELS_DIR", "/models"))
-META_FEATURE_DIM = 23
-DEFAULT_FEATURE_NAMES: tuple[str, ...] = (
-    *(f"feature_{index}" for index in range(14)),
-    "micro_bid_ask_spread_momentum",
-    "micro_bid_ask_spread_momentum_zscore",
-    "volatility_shadow_ratio",
-    "volatility_shadow_ratio_zscore",
-    "micro_price_velocity",
-    "micro_tick_count_norm",
-    "implied_vol_centered",
-    "micro_tick_acceleration",
-    "keltner_deviation_ratio",
-)
+META_FEATURE_DIM = len(META_FEATURE_NAMES)
+DEFAULT_FEATURE_NAMES: tuple[str, ...] = META_FEATURE_NAMES
+SCHEMA_HASH = canonical_schema_hash(DEFAULT_FEATURE_NAMES)
 
 
 class _HealthcheckAccessFilter(logging.Filter):
@@ -63,6 +66,7 @@ class PredictMetaRequest(BaseModel):
     direction: str
     feature_vector: list[float]
     symbol: str = ""
+    schema_hash: str = ""
 
     @model_validator(mode="before")
     @classmethod
@@ -76,10 +80,11 @@ class PredictMetaRequest(BaseModel):
 
 
 class MetaPredictResult(BaseModel):
-    predicted_payoff_edge: float
+    predicted_payoff_edge: float | None = None
     meta_applied: bool
     edge_expectancy: str
     model_version: str = ""
+    source: str = ""
 
 
 class LearnMetaRequest(BaseModel):
@@ -87,6 +92,7 @@ class LearnMetaRequest(BaseModel):
     target: float
     contract_id: str = ""
     symbol: str = ""
+    schema_hash: str = ""
 
 
 def _classify_edge_expectancy(edge: float) -> str:
@@ -106,6 +112,7 @@ _n_loaded: int = 0
 _buffer_x: list[list[float]] = []
 _buffer_y: list[float] = []
 _lock = threading.Lock()
+_learn_ids = ContractIdDedupe()
 RETRAIN_MIN_N = int(os.getenv("META_RETRAIN_MIN_N", "32"))
 MAX_BUFFER = int(os.getenv("META_MAX_BUFFER", "2000"))
 BUFFER_PATH = MODELS_DIR / "meta_learn_buffer.pkl"
@@ -125,11 +132,20 @@ def _resolve_feature_names(bundle: dict[str, Any]) -> list[str]:
 
 def _build_feature_dataframe(bundle: dict[str, Any], feature_vector: list[float]) -> pl.DataFrame:
     names = _resolve_feature_names(bundle)
-    expected = len(names)
-    if len(feature_vector) != expected:
-        raise ValueError(f"feature_vector deve ter {expected} elementos, recebeu {len(feature_vector)}")
-    row = [float(value) for value in feature_vector]
+    row = validate_feature_vector(feature_vector, len(names))
     return pl.DataFrame({name: [row[idx]] for idx, name in enumerate(names)}).select(names)
+
+
+def _model_source() -> str:
+    name = str(_model_path.name) if _model_path is not None else ""
+    if name.startswith("meta_online_") or bool((_model_bundle or {}).get("auto_learn_applied")):
+        return "online"
+    return "offline"
+
+
+def _require_schema_hash(payload_hash: str) -> None:
+    if not request_schema_hash_ok(payload_hash, SCHEMA_HASH):
+        raise HTTPException(status_code=400, detail="schema_hash divergente")
 
 
 def _model_version() -> str:
@@ -154,6 +170,9 @@ def _try_load_bundle(path: Path) -> tuple[dict[str, Any] | None, str | None]:
     if not callable(getattr(model, "predict", None)):
         logger.warning("Artefato %s sem metodo predict", path.name)
         return None, f"{path.name}: metodo predict ausente"
+    if not bundle_schema_ok(bundle, SCHEMA_HASH):
+        logger.warning("schema_hash mismatch %s", path.name)
+        return None, f"{path.name}: schema_hash mismatch"
     return bundle, None
 
 
@@ -181,8 +200,23 @@ def _load_model_bundle() -> dict[str, Any] | None:
     if not valid:
         _model_load_error = "; ".join(failures) if failures else f"nenhum regressor valido em {MODELS_DIR}"
         return None
-    valid.sort(key=lambda item: rank_meta_bundle(item[0], item[1]), reverse=True)
-    path, bundle = valid[0]
+    mae = None
+    online_items = [
+        item
+        for item in valid
+        if str(item[0].name).startswith("meta_online_") or bool(item[1].get("auto_learn_applied"))
+    ]
+    online_items.sort(key=lambda item: bundle_n_train(item[1]), reverse=True)
+    if online_items and _buffer_x:
+        try:
+            mae = buffer_abs_mae(online_items[0][1]["model"], _buffer_x, _buffer_y)
+        except Exception:
+            mae = None
+    chosen = select_meta_bundle(valid, floor=floor, buffer_mae=mae)
+    if chosen is None:
+        _model_load_error = f"nenhum regressor valido em {MODELS_DIR}"
+        return None
+    path, bundle = chosen
     if is_tiny_online_bundle(path, bundle, floor=floor):
         offline = [item for item in valid if not is_tiny_online_bundle(item[0], item[1], floor=floor)]
         if offline:
@@ -198,6 +232,13 @@ def _load_model_bundle() -> dict[str, Any] | None:
     _model_mtime = float(path.stat().st_mtime)
     _n_loaded += 1
     feature_count = len(_resolve_feature_names(bundle))
+    logger.info(
+        "HEALTH schema=%s source=%s n=%d version=%s",
+        SCHEMA_HASH[:12],
+        "online" if str(path.name).startswith("meta_online_") else "offline",
+        bundle_n_train(bundle),
+        path.name,
+    )
     logger.info("Modelo meta-regressor carregado: %s | feature_dim=%d", path.name, feature_count)
     return bundle
 
@@ -227,12 +268,12 @@ def _regressor_unavailable_detail() -> str:
 @app.on_event("startup")
 async def startup_load_model() -> None:
     global _model_bundle, _buffer_x, _buffer_y
-    _model_bundle = _load_model_bundle()
-    if _model_bundle is None:
-        logger.error(_regressor_unavailable_detail())
     xs, ys = load_learn_buffer(BUFFER_PATH)
     _buffer_x = xs
     _buffer_y = ys
+    _model_bundle = _load_model_bundle()
+    if _model_bundle is None:
+        logger.error(_regressor_unavailable_detail())
 
 
 @app.get("/health")
@@ -249,6 +290,9 @@ async def health() -> dict[str, Any]:
         "n_loaded": int(_n_loaded),
         "buffer_n": len(_buffer_y),
         "load_error": _model_load_error or "",
+        "schema_hash": SCHEMA_HASH,
+        "source": _model_source() if _model_bundle is not None else "",
+        "degenerate": False,
     }
 
 
@@ -265,6 +309,7 @@ async def version() -> dict[str, Any]:
 
 @app.post("/v2/predict_meta", response_model=MetaPredictResult)
 async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
+    _require_schema_hash(payload.schema_hash)
     _maybe_hot_reload()
     bundle = _model_bundle
     if bundle is None:
@@ -273,77 +318,89 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
     try:
         input_features_dataframe = _build_feature_dataframe(bundle, payload.feature_vector)
         raw_edge = model.predict(input_features_dataframe.to_numpy())[0]
-        edge = clamp_meta_edge(
-            float(raw_edge),
-            auto_learn=bool(bundle.get("auto_learn_applied")),
-            n_train=bundle_n_train(bundle),
-            floor=meta_retrain_floor(int(RETRAIN_MIN_N)),
-        )
+        scaled = apply_label_scale(float(raw_edge), bundle)
+        edge = clamp_meta_edge(scaled)
     except Exception as exc:
         logger.warning("Inferencia meta-regressor falhou: %s", exc)
         return MetaPredictResult(
-            predicted_payoff_edge=0.0,
+            predicted_payoff_edge=None,
             meta_applied=False,
             edge_expectancy="LOSS_EXPECTED",
             model_version=_model_version(),
+            source=_model_source(),
         )
     return MetaPredictResult(
         predicted_payoff_edge=edge,
         meta_applied=True,
         edge_expectancy=_classify_edge_expectancy(edge),
         model_version=_model_version(),
+        source=_model_source(),
     )
 
 
 @app.post("/v1/learn")
 async def learn(payload: LearnMetaRequest) -> dict[str, Any]:
     global _model_bundle, _model_path, _model_mtime
-    vector = [float(v) for v in payload.feature_vector]
-    if len(vector) != META_FEATURE_DIM:
-        raise HTTPException(status_code=400, detail=f"feature_vector deve ter {META_FEATURE_DIM}")
+    _require_schema_hash(payload.schema_hash)
+    try:
+        vector = validate_feature_vector(payload.feature_vector, META_FEATURE_DIM)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     retrained = False
+    duplicate = False
     floor = meta_retrain_floor(int(RETRAIN_MIN_N))
     detail = "buffered"
     with _lock:
-        _buffer_x.append(vector)
-        _buffer_y.append(float(payload.target))
-        if len(_buffer_y) > int(MAX_BUFFER):
-            overflow = len(_buffer_y) - int(MAX_BUFFER)
-            del _buffer_x[:overflow]
-            del _buffer_y[:overflow]
-        save_learn_buffer(BUFFER_PATH, _buffer_x, _buffer_y)
-        n = len(_buffer_y)
-        do_fit = should_retrain_meta(buffer_n=n, retrain_min_n=int(RETRAIN_MIN_N))
-        xs = list(_buffer_x)
-        ys = list(_buffer_y)
-        names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
-    if not do_fit:
+        if _learn_ids.seen_or_add(payload.contract_id):
+            duplicate = True
+            n = len(_buffer_y)
+            do_fit = False
+            xs = list(_buffer_x)
+            ys = list(_buffer_y)
+            names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
+            detail = "duplicate_contract"
+        else:
+            _buffer_x.append(vector)
+            _buffer_y.append(float(payload.target))
+            if len(_buffer_y) > int(MAX_BUFFER):
+                overflow = len(_buffer_y) - int(MAX_BUFFER)
+                del _buffer_x[:overflow]
+                del _buffer_y[:overflow]
+            save_learn_buffer(BUFFER_PATH, _buffer_x, _buffer_y)
+            n = len(_buffer_y)
+            do_fit = should_retrain_meta(buffer_n=n, retrain_min_n=int(RETRAIN_MIN_N))
+            xs = list(_buffer_x)
+            ys = list(_buffer_y)
+            names = _resolve_feature_names(_model_bundle) if _model_bundle is not None else list(DEFAULT_FEATURE_NAMES)
+    if duplicate:
+        pass
+    elif not do_fit:
         detail = f"wait:{n}/{floor}"
     else:
         try:
-            model = fit_regressor(xs, ys)
+            model = await run_in_thread(fit_regressor, xs, ys)
             path = persist_regressor_bundle(
                 MODELS_DIR,
                 model,
                 n_train=len(ys),
                 feature_names=names,
                 feature_dim=META_FEATURE_DIM,
+                schema_hash=SCHEMA_HASH,
             )
             with _lock:
-                _model_bundle = {
-                    "model": model,
-                    "model_type": "regressor",
-                    "feature_names": names,
-                    "n_train": len(ys),
-                    "auto_learn_applied": True,
-                    "model_version": path.name,
-                    "feature_dim": META_FEATURE_DIM,
-                }
-                _model_path = path
-                _model_mtime = float(path.stat().st_mtime)
+                loaded = _load_model_bundle()
+                if loaded is not None:
+                    _model_bundle = loaded
             retrained = True
-            detail = "ok"
-            logger.info("META learn fit n=%d path=%s", len(ys), path.name)
+            detail = "ok" if _model_source() == "online" else "fit_kept_offline"
+            logger.info(
+                "LEARN schema=%s source=%s n=%d path=%s detail=%s",
+                SCHEMA_HASH[:12],
+                _model_source(),
+                len(ys),
+                path.name,
+                detail,
+            )
         except Exception as exc:
             detail = str(exc)
             logger.warning("META learn fit falhou: %s", exc)
@@ -354,4 +411,8 @@ async def learn(payload: LearnMetaRequest) -> dict[str, Any]:
         "n_train": n,
         "retrain_detail": detail,
         "model_version": _model_version(),
+        "schema_hash": SCHEMA_HASH,
+        "source": _model_source(),
+        "degenerate": False,
+        "duplicate": duplicate,
     }

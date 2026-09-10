@@ -9,9 +9,9 @@ alwaysApply: true
 - Soft recovery: `cover_enabled` **false** — PEND material **nao** usa cover `pending/payout/amort`; stake = Kelly/EXPLORE + piso **1%** + caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**; ledger WIN abate lucro real; nao `max(exponencial, cover)` revenge; amort/cover_multiple legado inerte enquanto cover off.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
 - EXPLORE usa Kelly × `explore_stake_scale(N)`; piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**).
-- Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$).
-- Cooldown linear apos loss; anti revenge sizing.
+- Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$) **so se** `live_n >= 12` (`stop_win_kelly_live_n_min`) **e** conviction ≥ **0.58** (`stop_win_kelly_min_conviction`). Cold start usa Kelly × `explore_stake_scale` (piso **0.40**) + cap 3.5%.
+- Cooldown linear apos loss (LIN>=1: 300/300/600/900s); pausa de sessao apos 3 LOSS em 5 trades (2 ciclos); anti revenge sizing.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.
-- Loss-clf: **FLIP** por `p_eff` >= **0.55** (so apos auto_learn); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf.
+- Loss-clf: **FLIP** por `p_eff` >= **0.55** young / **0.58** mature (so apos auto_learn); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf.

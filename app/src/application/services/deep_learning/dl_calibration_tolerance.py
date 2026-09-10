@@ -49,7 +49,7 @@ def _in_neutral_zone(cal: float, neutral_lo: float | None, neutral_hi: float | N
     if neutral_lo is not None and neutral_hi is not None:
         lo = min(float(neutral_lo), float(neutral_hi))
         hi = max(float(neutral_lo), float(neutral_hi))
-        return lo <= float(cal) <= hi
+        return lo < float(cal) < hi
     return False
 
 
@@ -61,8 +61,8 @@ def apply_calibration_neutral_tolerance(
     pivot: float = 0.5,
     neutral_lo: float | None = None,
     neutral_hi: float | None = None,
-) -> tuple[float, TradeDirection | None, str]:
-    """Marca raw extremo sem substituir Cal; Kelly usa probabilidade calibrada."""
+) -> tuple[float, TradeDirection, str]:
+    """Resolve CALL/PUT apos raw_extreme; nunca devolve zona neutra. Kelly usa Cal."""
     raw = float(raw_prob)
     cal = float(calibrated_prob)
     tol = _tol()
@@ -77,6 +77,4 @@ def apply_calibration_neutral_tolerance(
         return cal, cal_dir, "raw_extreme"
     if direction is not None:
         return cal, direction, "calibrated"
-    if _in_neutral_zone(cal, effective_neutral_lo, effective_neutral_hi):
-        return cal, None, "neutral_zone"
     return cal, infer_direction_from_prob(cal, None, pivot=pivot), "calibrated"

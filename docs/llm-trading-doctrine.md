@@ -2,7 +2,7 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime.
 
-Decisao live: TCN (Cal) → **unica FLIP** do `aether-loss-classifier` se auto_learn e `p_eff` >= **0.55** (shrink se N baixo; tape so telemetria) → Kelly + SIDE_EQ sizing. SKIP tecnico: treino/dados/deploy/predict/stop-win. Nenhum outro modulo pode inverter ordem.
+Decisao live: TCN (Cal vs 0.5, sempre CALL/PUT) → **unica FLIP** do `aether-loss-classifier` se auto_learn e `p_eff` >= **0.55** young / **0.58** mature (shrink se N baixo; tape so telemetria) → Kelly + SIDE_EQ sizing. SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown pos-LOSS / pausa de sessao pos-streak. Sem `SKIP:NEUTRAL_ZONE`. Nenhum outro modulo pode inverter ordem.
 
 **Removido:** HARD SKIP por loss-clf, Soft Kelly do loss-clf, fusao EV, signal_skip soft, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, `invert_exec_side`.
 
@@ -19,7 +19,7 @@ Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**; payout **
 ## Sempre fazer
 
 1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso **1%**
-2. SKIP tecnico = processo ok quando coerente; FLIP `pe>=0.55` (apos auto_learn) e processo esperado
+2. SKIP tecnico = processo ok quando coerente; FLIP young `pe>=0.55` / mature `pe>=0.58` (apos auto_learn) e processo esperado
 3. Evidencia: `live_n`, Cal/Edge, `val_accuracy`, telemetria `LOSS_CLF` (`p=` / `pe=` / `floor=`) e `QUALITY` pos-settle se houve FLIP
 4. Pos-LOSS → container loss-clf `/learn`
 

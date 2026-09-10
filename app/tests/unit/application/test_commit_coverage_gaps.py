@@ -30,7 +30,7 @@ def test_guard_inference_partial_history_warnings(caplog):
 
 
 def test_resolve_inference_history_bars_without_windows():
-    assert resolve_inference_history_bars({"lookback": 10, "implied_vol_bars": 20, "granularity": 900}) >= 30
+    assert resolve_inference_history_bars({"lookback": 10, "implied_vol_bars": 20, "granularity": 900}) >= 288 + 10 + 16
 
 
 def test_candle_epoch_micro_and_missing_stream():

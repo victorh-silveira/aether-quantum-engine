@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from typing import Any
 
 import joblib
 
+_ML_ROOT = Path(__file__).resolve().parent.parent
+if (_ML_ROOT / "ml_common" / "__init__.py").is_file() and str(_ML_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ML_ROOT))
+
+from ml_common.persist import atomic_joblib_dump
 
 BUFFER_FILENAME = "learn_buffer.pkl"
 
@@ -16,7 +22,7 @@ def buffer_path(models_dir: Path) -> Path:
 def save_learn_buffer(models_dir: Path, buffer_x: list[list[float]], buffer_y: list[int]) -> Path:
     path = buffer_path(models_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    joblib.dump({"x": list(buffer_x), "y": list(buffer_y)}, path)
+    atomic_joblib_dump({"x": list(buffer_x), "y": list(buffer_y)}, path)
     return path
 
 

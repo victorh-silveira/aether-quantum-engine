@@ -15,6 +15,7 @@ from src.application.services.deep_learning.dl_outcomes import (
     is_symbol_session_paused,
     live_win_rate,
     maybe_pause_symbol_session,
+    resolve_session_pause_config,
     tick_dl_session_pauses,
 )
 from src.application.services.deep_learning.dl_params import (
@@ -189,8 +190,9 @@ def test_live_win_rate_and_blended():
 def test_session_pause_helpers():
     orch = SimpleNamespace(_dl_session_pause={"R_10": 2})
 
-    assert is_symbol_session_paused(orch, "R_10") is False
+    assert is_symbol_session_paused(orch, "R_10") is True
     tick_dl_session_pauses(orch)
+    assert orch._dl_session_pause["R_10"] == 1
 
 
 def test_maybe_pause_symbol_session():
@@ -202,4 +204,34 @@ def test_maybe_pause_symbol_session():
     )
 
     maybe_pause_symbol_session(orch, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=4)
-    assert not hasattr(orch, "_dl_session_pause")
+    assert orch._dl_session_pause["R_10"] == 4
+    assert is_symbol_session_paused(orch, "R_10") is True
+    quiet = SimpleNamespace(_dl_outcome_flags={"R_10": [True, True, False]})
+    maybe_pause_symbol_session(quiet, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=4)
+    assert not hasattr(quiet, "_dl_session_pause")
+    pause = resolve_session_pause_config(None)
+    assert pause["session_pause_cycles"] == 2
+    until_orch = SimpleNamespace(_dl_session_pause_until={"R_10": 9_999_999_999.0})
+    assert is_symbol_session_paused(until_orch, "R_10") is True
+    stale_until = SimpleNamespace(_dl_session_pause_until={"R_10": 1.0}, _dl_session_pause={"R_10": 2})
+    assert is_symbol_session_paused(stale_until, "R_10") is True
+    expired = SimpleNamespace(
+        _dl_session_pause={"R_10": 3},
+        _dl_session_pause_until={"R_10": 1.0},
+    )
+    tick_dl_session_pauses(expired)
+    assert "R_10" not in expired._dl_session_pause
+    assert is_symbol_session_paused(SimpleNamespace(), "R_10") is False
+    cfg_orch = SimpleNamespace(
+        _dl_outcome_flags={"R_10": [False, False, False]},
+        config={"orchestrator": {"cycle_interval_seconds": "bad"}},
+    )
+    maybe_pause_symbol_session(cfg_orch, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=2)
+    assert cfg_orch._dl_session_pause["R_10"] == 2
+    typed = SimpleNamespace(
+        _dl_outcome_flags={"R_10": [False, False, False]},
+        config={"orchestrator": {"cycle_interval_seconds": {}}},
+    )
+    maybe_pause_symbol_session(typed, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=2)
+    assert typed._dl_session_pause["R_10"] == 2
+    tick_dl_session_pauses(SimpleNamespace(_dl_session_pause="x", _dl_session_pause_until={"X": None}))
