@@ -15,22 +15,31 @@ from src.infrastructure.handlers.stream_timeframe import (
 )
 
 
+def _resolve_macro_d1_cap(handler: Any) -> int:
+    """Teto de velas D1 (API/sinteticos ~1 ano); nao herda piso de inferencia micro."""
+    history = handler.config.get("history_bars")
+    macro_cap = int(history) if history is not None else 365
+    return max(1, min(365, macro_cap))
+
+
 def _resolve_sync_targets(handler: Any) -> tuple[int, int, int]:
     """Define quantas velas buscar; treino lean foca no micro (TCN)."""
     lean = bool(handler.config.get("_startup_train_lean"))
     startup = handler.config.get("_startup_fetch_count")
     micro_default = resolve_micro_fetch_count(handler.config)
     micro_count = max(1, int(startup)) if startup is not None else micro_default
+    macro_g = int(getattr(handler, "macro_granularity", 0) or 0)
     if lean:
-        macro_g = int(getattr(handler, "macro_granularity", 0) or 0)
-        if macro_g >= 86400:
-            history = handler.config.get("history_bars")
-            macro_cap = int(history) if history is not None else 365
-            macro_count = max(1, min(365, macro_cap))
-        else:
-            macro_count = min(128, micro_count)
+        macro_count = _resolve_macro_d1_cap(handler) if macro_g >= 86400 else min(128, micro_count)
         return macro_count, micro_count, 0
-    macro_count = handler._resolve_fetch_count()
+    if macro_g >= 86400:
+        macro_cap = _resolve_macro_d1_cap(handler)
+        if "fetch_count" in handler.config:
+            macro_count = max(1, min(macro_cap, int(handler.config["fetch_count"])))
+        else:
+            macro_count = macro_cap
+    else:
+        macro_count = handler._resolve_fetch_count()
     mini_count = resolve_mini_fetch_count(handler.config)
     return macro_count, micro_count, mini_count
 

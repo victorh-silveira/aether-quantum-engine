@@ -30,6 +30,13 @@ def test_merge_candle_pages_deduplicates():
     assert [c.epoch for c in merged] == [100, 200]
 
 
+def test_merge_candle_pages_sorts_descending_batch():
+    existing = [Candle("R_10", 1, 1, 1, 1, None, 300)]
+    descending = [Candle("R_10", 1, 1, 1, 1, None, 200), Candle("R_10", 1, 1, 1, 1, None, 100)]
+    merged = merge_candle_pages(existing, descending)
+    assert [c.epoch for c in merged] == [100, 200, 300]
+
+
 @pytest.mark.asyncio
 async def test_fetch_paginated_retries_rate_limit():
     page = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 2000}]
@@ -152,4 +159,25 @@ async def test_fetch_paginated_continues_after_partial_first_page():
         logger=logging.getLogger("test"),
     )
     assert len(out) == 1001
+    assert ws.send.await_count == 2
+    second_req = ws.send.await_args_list[1].args[0]
+    assert second_req["end"] == 4001
+
+
+@pytest.mark.asyncio
+async def test_fetch_paginated_stops_when_overlap_does_not_grow():
+    first = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 1000 + i} for i in range(5)]
+    overlap = list(reversed(first[:3]))
+    ws = AsyncMock()
+    ws.send = AsyncMock(side_effect=[{"candles": first}, {"candles": overlap}, {"candles": overlap}])
+    cfg = parse_history_fetch_config({"history_fetch_chunk": 10, "history_fetch_delay_seconds": 0})
+    out = await fetch_paginated_candle_history(
+        ws,
+        symbol="1HZ75V",
+        granularity=86400,
+        target=20,
+        fetch_cfg=cfg,
+        logger=logging.getLogger("test"),
+    )
+    assert len(out) == 5
     assert ws.send.await_count == 2

@@ -116,6 +116,50 @@ def test_resolve_sync_targets_live_keeps_triple(mock_ws):
     assert mini == 256
 
 
+def test_resolve_sync_targets_live_d1_ignores_micro_startup(mock_ws):
+    from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
+
+    sh = StreamHandler(
+        mock_ws,
+        ["1HZ75V"],
+        {
+            "fetch_count": 500,
+            "history_bars": 500,
+            "micro_fetch_count": 2000,
+            "mini_fetch_count": 500,
+            "_startup_fetch_count": 398,
+            "granularity": 86400,
+            "micro_granularity": 300,
+            "mini_granularity": 300,
+        },
+    )
+    macro, micro, mini = _resolve_sync_targets(sh)
+    assert macro == 365
+    assert micro == 398
+    assert mini == 500
+
+
+def test_resolve_sync_targets_live_d1_without_fetch_count(mock_ws):
+    from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
+
+    sh = StreamHandler(
+        mock_ws,
+        ["1HZ75V"],
+        {
+            "history_bars": 200,
+            "mini_fetch_count": 100,
+            "_startup_fetch_count": 398,
+            "granularity": 86400,
+            "micro_granularity": 300,
+            "mini_granularity": 300,
+        },
+    )
+    macro, micro, mini = _resolve_sync_targets(sh)
+    assert macro == 200
+    assert micro == 398
+    assert mini == 100
+
+
 def test_stream_handler_normalizes_unsupported_granularity(mock_ws):
     sh = StreamHandler(mock_ws, ["R_10"], {"granularity": 10})
     assert sh.macro_granularity == 60

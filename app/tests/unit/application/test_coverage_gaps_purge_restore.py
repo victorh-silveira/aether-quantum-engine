@@ -438,12 +438,19 @@ async def test_await_post_loss_cooldown_sleeps():
     from src.application.services.orchestrator.post_settlement_loss_cooldown import await_post_loss_cooldown
 
     orch = SimpleNamespace(_cooldown_until=9999999999.0)
+    calls = {"n": 0}
+
+    async def _sleep(_seconds: float) -> None:
+        calls["n"] += 1
+        orch._cooldown_until = 0.0
+
     with patch(
         "src.application.services.orchestrator.post_settlement_loss_cooldown.asyncio.sleep",
-        new=AsyncMock(),
+        side_effect=_sleep,
     ) as sleep_mock:
         rem = await await_post_loss_cooldown(orch)
     assert rem > 0.0
+    assert calls["n"] == 1
     sleep_mock.assert_awaited_once()
 
 

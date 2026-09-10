@@ -47,7 +47,7 @@ def is_rate_limit_error(payload: dict) -> bool:
 
 
 def candles_from_payload(symbol: str, history: list[dict]) -> list[Candle]:
-    """Converte candles da API em objetos Candle."""
+    """Converte candles da API em objetos Candle ordenados por epoch."""
     batch: list[Candle] = []
     for row in history:
         batch.append(
@@ -61,18 +61,20 @@ def candles_from_payload(symbol: str, history: list[dict]) -> list[Candle]:
                 epoch=row["epoch"],
             )
         )
+    batch.sort(key=lambda candle: int(candle.epoch))
     return batch
 
 
 def merge_candle_pages(existing: list[Candle], batch: list[Candle]) -> list[Candle]:
-    """Anexa pagina mais antiga evitando duplicatas de epoch."""
+    """Une paginas por epoch unico em ordem ascendente."""
     if not batch:
         return existing
     if not existing:
-        return batch
-    oldest_new = batch[0].epoch
-    trimmed = [c for c in existing if c.epoch > oldest_new]
-    return batch + trimmed
+        return list(batch)
+    by_epoch: dict[int, Candle] = {int(c.epoch): c for c in existing}
+    for candle in batch:
+        by_epoch[int(candle.epoch)] = candle
+    return [by_epoch[epoch] for epoch in sorted(by_epoch)]
 
 
 async def fetch_paginated_candle_history(
@@ -140,7 +142,7 @@ async def fetch_paginated_candle_history(
         batch = candles_from_payload(symbol, history)
         before_merge = len(merged)
         merged = merge_candle_pages(merged, batch)
-        if len(merged) == before_merge:
+        if len(merged) <= before_merge:
             break
         if chunk_index == 1 or chunk_index % 10 == 0 or len(merged) >= goal:
             progress_log(
@@ -150,7 +152,7 @@ async def fetch_paginated_candle_history(
                 len(merged),
                 goal,
             )
-        end = int(history[0]["epoch"]) - 1
+        end = int(batch[0].epoch) - 1
         if chunk_delay > 0:
             await asyncio.sleep(chunk_delay)
 

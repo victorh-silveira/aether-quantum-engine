@@ -110,6 +110,13 @@ async def orch_ready(orch_config):
     orch.risk_manager.set_initial_bankroll(1000.0)
     orch._stream_ready_at = 0.0
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["post_loss_cooldown"] = {
+        "lin_min": 1,
+        "delay_seconds_lin1": 0.0,
+        "delay_seconds_lin2": 0.0,
+        "delay_seconds_lin3": 0.0,
+        "delay_seconds_lin4": 0.0,
+    }
     yield orch
     deferred = getattr(orch, "_dl_deferred_tasks", None)
     if isinstance(deferred, dict):
@@ -147,6 +154,13 @@ async def orch_ready_train(orch_config_train):
     orch.risk_manager.set_initial_bankroll(1000.0)
     orch._stream_ready_at = 0.0
     orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config.setdefault("orchestrator", {}).setdefault("execution", {})["post_loss_cooldown"] = {
+        "lin_min": 1,
+        "delay_seconds_lin1": 0.0,
+        "delay_seconds_lin2": 0.0,
+        "delay_seconds_lin3": 0.0,
+        "delay_seconds_lin4": 0.0,
+    }
     yield orch
     deferred = getattr(orch, "_dl_deferred_tasks", None)
     if isinstance(deferred, dict):

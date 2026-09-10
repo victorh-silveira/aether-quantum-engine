@@ -31,6 +31,13 @@ async def test_await_post_loss_cooldown_is_noop(orch_ready):
 
 def test_orchestrator_cooldown_helpers_active(orch_ready):
     orch = orch_ready
+    orch.config["orchestrator"]["execution"]["post_loss_cooldown"] = {
+        "lin_min": 1,
+        "delay_seconds_lin1": 300,
+        "delay_seconds_lin2": 300,
+        "delay_seconds_lin3": 600,
+        "delay_seconds_lin4": 900,
+    }
     orch.risk_manager.consecutive_losses_linear = 3
     orch._last_settlement_outcome = "LOSS"
     assert schedule_post_loss_cooldown(orch) == 600.0

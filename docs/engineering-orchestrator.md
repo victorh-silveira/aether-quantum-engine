@@ -15,7 +15,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
 - MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5
 - MILI: tick flow (velocity/acceleration), nao barra OHLC
-- Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks)
+- Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks). Em inferencia live, MACRO D1 **nao** herda `_startup_fetch_count` do piso micro (`inference_history_bars`); teto D1 = `min(365, history_bars)`. Paginacao `history_fetch` ordena por epoch e para quando a pagina nao cresce o buffer (evita loop 366↔63 em `ticks_history` descending).
 - Proporcao MACRO:MICRO **288:1** (86400:300)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
 - SKIP tecnico pos-LOSS: `orchestrator.execution.post_loss_cooldown` LIN>=**1** (L1/L2 **300s**, L3 **600s**, L4+ **900s**); pausa de sessao `session_max_losses_in_window` **3** / `session_window_trades` **5** / `session_pause_cycles` **2**

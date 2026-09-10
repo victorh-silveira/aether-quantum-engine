@@ -1,4 +1,5 @@
 import asyncio
+import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -98,20 +99,63 @@ async def test_breath_completes_after_timeout_slices(orch_ready):
 async def test_breath_interrupts_on_wake(orch_ready):
     orch = orch_ready
     orch._post_settlement_wake.clear()
-    task = asyncio.create_task(_await_post_settlement_breath(orch, 5.0, 0.25))
-    await asyncio.sleep(0)
-    orch._post_settlement_wake.set()
-    await task
+    poll_entered = asyncio.Event()
+
+    async def _block_poll(_seconds: float) -> None:
+        poll_entered.set()
+        await asyncio.Event().wait()
+
+    with patch(
+        "src.application.services.orchestrator.post_settlement_cycle._poll_delay",
+        side_effect=_block_poll,
+    ):
+        task = asyncio.create_task(_await_post_settlement_breath(orch, 5.0, 0.25))
+        await asyncio.wait_for(poll_entered.wait(), timeout=2.0)
+        orch._post_settlement_wake.set()
+        await asyncio.wait_for(task, timeout=2.0)
 
 
 @pytest.mark.asyncio
 async def test_breath_returns_when_wake_completes_before_timeout(orch_ready):
     orch = orch_ready
+    orch._post_settlement_wake.set()
+
+    async def _instant(_seconds: float) -> None:
+        await asyncio.sleep(0)
+
     with patch(
-        "src.application.services.orchestrator.post_settlement_cycle.asyncio.wait_for",
-        new_callable=AsyncMock,
+        "src.application.services.orchestrator.post_settlement_cycle._poll_delay",
+        side_effect=_instant,
     ):
         await _await_post_settlement_breath(orch, 1.0, 0.5)
+
+
+@pytest.mark.asyncio
+async def test_run_post_settlement_awaits_active_cooldown(orch_ready):
+    orch = orch_ready
+    orch._cooldown_until = time.time() + 60.0
+    breaths: list[float] = []
+
+    async def _capture_breath(_orch, breath: float, _poll: float) -> None:
+        breaths.append(float(breath))
+
+    with (
+        patch(
+            "src.application.services.orchestrator.post_settlement_cycle._try_stop_win_fast_path",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        patch(
+            "src.application.services.orchestrator.post_settlement_cycle._await_post_settlement_breath",
+            side_effect=_capture_breath,
+        ),
+        patch(
+            "src.application.services.orchestrator.post_settlement_cycle._run_post_settlement_retry_loop",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await run_post_settlement_breath_and_cycle(orch)
+    assert any(b > 1.0 for b in breaths)
 
 
 def test_schedule_skips_when_not_running(orch_ready):

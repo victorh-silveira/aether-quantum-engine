@@ -118,7 +118,9 @@ def post_loss_cooldown_blocks_trading_cycle(orch: Any) -> bool:
 
 async def await_post_loss_cooldown(orch: Any) -> float:
     """Aguarda resfriamento antes do proximo ciclo."""
-    rem = orchestrator_cooldown_remaining(orch)
-    if rem > 0.0:
+    total = orchestrator_cooldown_remaining(orch)
+    rem = total
+    while rem > 0.0:
         await asyncio.sleep(min(rem, 5.0))
-    return rem
+        rem = orchestrator_cooldown_remaining(orch)
+    return total

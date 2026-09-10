@@ -34,7 +34,7 @@ def run_docker(stage: str, root: Path) -> None:
             return
         for path in files:
             run_cmd(
-                [hadolint, "--ignore", "DL3008", str(path)],
+                [hadolint, "--ignore", "DL3008", "--ignore", "DL3022", str(path)],
                 cwd=root,
                 description=f"Hadolint {path.relative_to(root)}",
             )
@@ -86,10 +86,16 @@ def run_docker(stage: str, root: Path) -> None:
         docker = require_tool("docker", area="docker")
         if docker is None:
             return
+        docker_root = root / "infra" / "docker"
+        ml_common = docker_root / "ml_common"
         for path in files:
             tag = f"aether-ci-{path.parent.name}:local".lower()
+            cmd = [docker, "build", "-f", str(path), "-t", tag]
+            if path.parent.name in {"meta-classifier", "loss-classifier"} and ml_common.is_dir():
+                cmd.extend(["--build-context", f"ml_common={ml_common}"])
+            cmd.append(str(path.parent))
             run_cmd(
-                [docker, "build", "-f", str(path), "-t", tag, str(path.parent)],
+                cmd,
                 cwd=root,
                 description=f"Docker build {path.relative_to(root)}",
             )

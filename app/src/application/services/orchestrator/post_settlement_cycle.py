@@ -16,7 +16,7 @@ from src.application.services.orchestrator.orchestrator_settlement_queue import 
     next_settlement_backoff_seconds,
     resolve_settlement_tolerance_window,
 )
-from src.application.services.orchestrator.post_settlement_loss_cooldown import await_post_loss_cooldown
+from src.application.services.orchestrator.post_settlement_loss_cooldown import orchestrator_cooldown_remaining
 from src.application.services.orchestrator.post_settlement_resilience import clear_post_settlement_polling_state
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
@@ -75,11 +75,16 @@ async def _await_post_settlement_breath(orch: Any, breath: float, poll: float) -
     while remaining > 0 and orch.running:
         wake.clear()
         wait = min(poll, remaining)
-        try:
-            await asyncio.wait_for(wake.wait(), timeout=wait)
+        sleeper = asyncio.ensure_future(_poll_delay(wait))
+        waiter = asyncio.ensure_future(wake.wait())
+        done, pending = await asyncio.wait({sleeper, waiter}, return_when=asyncio.FIRST_COMPLETED)
+        for task in pending:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        if waiter in done:
             return
-        except TimeoutError:
-            remaining -= wait
+        remaining -= wait
 
 
 def _prune_stale_risk_contract_ids(orch: Any) -> None:
@@ -283,7 +288,9 @@ async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
         poll = 0.25
         breath = float(orch_cfg.get("post_settlement_breath_seconds", 8.0))
         await _await_post_settlement_breath(orch, breath, poll)
-        await await_post_loss_cooldown(orch)
+        cooldown_rem = orchestrator_cooldown_remaining(orch)
+        if cooldown_rem > 0.0:
+            await _await_post_settlement_breath(orch, cooldown_rem, poll)
         await _run_post_settlement_retry_loop(orch, orch_cfg, poll)
     finally:
         current = asyncio.current_task()
