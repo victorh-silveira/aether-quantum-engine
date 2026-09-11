@@ -24,6 +24,7 @@ def _loss_cfg(**overrides: object) -> dict:
         "flip_trust_n": 32,
         "flip_young_shrink": 0.35,
         "flip_young_p_eff_floor": 0.55,
+        "bootstrap_exit_n": 4,
         "ready_n": 32,
         "retrain_min_n": 12,
         "retrain_on_loss_min_n": 4,
@@ -74,6 +75,11 @@ def test_resolve_loss_classifier_config_rejects_invalid_young_shrink(shrink):
 def test_resolve_loss_classifier_config_rejects_invalid_trust_n():
     with pytest.raises(ValueError, match="flip_trust_n"):
         resolve_loss_classifier_config({"flip_trust_n": 0})
+
+
+def test_resolve_loss_classifier_config_rejects_bootstrap_exit_below_four():
+    with pytest.raises(ValueError, match="bootstrap_exit_n"):
+        resolve_loss_classifier_config({"bootstrap_exit_n": 3})
 
 
 @pytest.mark.parametrize("floor", [0.0, 1.5])
@@ -145,6 +151,8 @@ async def test_loss_classifier_client_predict_success():
             "veto_ready": True,
             "bootstrap": False,
             "collapsed": False,
+            "buffer_n": 3,
+            "bootstrap_exit_n": 4,
         }
     )
     client._client.post = AsyncMock(return_value=response)
@@ -153,7 +161,72 @@ async def test_loss_classifier_client_predict_success():
     )
     assert result["p_loss"] == pytest.approx(0.92)
     assert result["veto"] is True
+    assert result["buffer_n"] == 3
     client._client.post.assert_awaited_once()
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_loss_classifier_client_predict_fills_buffer_from_health():
+    client = LossClassifierClient(base_url="http://loss:8006", timeout=1.0, enabled=True, veto_p_loss_floor=0.9)
+    predict_resp = MagicMock()
+    predict_resp.raise_for_status = MagicMock()
+    predict_resp.json = MagicMock(
+        return_value={
+            "p_loss": 0.61,
+            "veto": False,
+            "auto_learn_applied": False,
+            "model_version": "v1",
+            "n_train": 64,
+            "veto_ready": True,
+            "bootstrap": True,
+            "collapsed": False,
+        }
+    )
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
+    health_resp.json = MagicMock(return_value={"buffer_n": 9, "bootstrap_exit_n": 4})
+    client._client.post = AsyncMock(return_value=predict_resp)
+    client._client.get = AsyncMock(return_value=health_resp)
+    result = await client.predict_loss(
+        {"feature_vector": [0.1], "symbol": "1HZ75V", "direction": "CALL", "veto_p_loss_floor": 0.9}
+    )
+    assert result["buffer_n"] == 9
+    assert result["bootstrap_exit_n"] == 4
+    client._client.get.assert_awaited_once_with("/health")
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_loss_classifier_client_predict_health_fail_keeps_zero_buffer():
+    client = LossClassifierClient(base_url="http://loss:8006", timeout=1.0, enabled=True, veto_p_loss_floor=0.9)
+    predict_resp = MagicMock()
+    predict_resp.raise_for_status = MagicMock()
+    predict_resp.json = MagicMock(return_value={"p_loss": 0.5, "veto": False, "n_train": 1})
+    client._client.post = AsyncMock(return_value=predict_resp)
+    client._client.get = AsyncMock(side_effect=httpx.ConnectError("refused"))
+    result = await client.predict_loss(
+        {"feature_vector": [0.1], "symbol": "1HZ75V", "direction": "CALL", "veto_p_loss_floor": 0.9}
+    )
+    assert result["buffer_n"] == 0
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_loss_classifier_client_predict_health_non_dict_body():
+    client = LossClassifierClient(base_url="http://loss:8006", timeout=1.0, enabled=True, veto_p_loss_floor=0.9)
+    predict_resp = MagicMock()
+    predict_resp.raise_for_status = MagicMock()
+    predict_resp.json = MagicMock(return_value={"p_loss": 0.5, "veto": False})
+    health_resp = MagicMock()
+    health_resp.raise_for_status = MagicMock()
+    health_resp.json = MagicMock(return_value=["not", "dict"])
+    client._client.post = AsyncMock(return_value=predict_resp)
+    client._client.get = AsyncMock(return_value=health_resp)
+    result = await client.predict_loss(
+        {"feature_vector": [0.1], "symbol": "1HZ75V", "direction": "CALL", "veto_p_loss_floor": 0.9}
+    )
+    assert result["buffer_n"] == 0
     await client.aclose()
 
 
@@ -162,7 +235,7 @@ async def test_loss_classifier_client_predict_uses_default_veto_floor():
     client = LossClassifierClient(base_url="http://loss:8006", timeout=1.0, enabled=True, veto_p_loss_floor=0.88)
     response = MagicMock()
     response.raise_for_status = MagicMock()
-    response.json = MagicMock(return_value={"p_loss": 0.5, "veto": False})
+    response.json = MagicMock(return_value={"p_loss": 0.5, "veto": False, "buffer_n": 0})
     client._client.post = AsyncMock(return_value=response)
     await client.predict_loss({"feature_vector": [0.1], "symbol": "", "direction": "", "veto_p_loss_floor": 0.0})
     payload = client._client.post.await_args.kwargs["json"]

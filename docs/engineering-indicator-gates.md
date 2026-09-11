@@ -4,10 +4,11 @@ Hot path vivo:
 
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS (ladder LIN) / pausa de sessao (3 LOSS em janela 5, 2 ciclos M5)
 2. TCN decide CALL/PUT
-3. Anti-loss = **unica inversao** CALL↔PUT so por `p_eff` do `aether-loss-classifier` **apos auto_learn**: young (`n < 32`) `p_eff >= 0.55` apos shrink; mature `p_eff >= 0.58`; tape so telemetria; executa o lado invertido
-4. Kelly + SIDE_EQ sizing (nao e gate de direcao; **nao flipa**)
+3. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn (young 0.55 / mature 0.58; ancora TCN)
+4. SCALE **retract/explos/tape adapt** (nao SKIP; ultima palavra): retract/explos com mi+mili alinhados; ou fita **forte** (`tape_strong`) → fixa EXEC (pode desfazer FLIP); discordance so telemetria
+5. Kelly + SIDE_EQ sizing (META edge ≤ 0 → soft Kelly via `soft_veto_score_factor`; sem SKIP)
 
-**Proibido:** qualquer flip que nao seja p_eff no piso; HARD SKIP por loss-clf; Soft Kelly do loss-clf; signal_skip; fusao EV; SCALE adapt; micro/regime/vol/exhaust/neg_edge; anti-loss EMA/RSI; invert_exec_side.
+**Proibido:** quality gate / signal_skip / Soft Kelly do loss-clf / HARD SKIP / fusao EV / `cal_soft_edge`. IND RSI/ADX/HURST = telemetria.
 
 Telemetria: uma linha `[GATES] || LOSS_CLF: FLIP|OK|off …` (`p=` cru, `pe=` efetivo se diferir, `floor=` piso de decisao). Pos-settle, FLIPs logam `LOSS_CLF || QUALITY flip=1 young= hit= p= pe= n=` (hit-rate do lado invertido; nao muda lado).
 
@@ -35,4 +36,4 @@ Vetor causal in-place: Cal/raw, `cal_raw_discord`, regime SCALE (telemetria), me
 
 `cci`, `williams_r`, `roc`, `roc_rsi`, `price_zscore`, `vol_z`, `stoch_d`, `di_diff`, `cmo`, `ema_dist_20`, `vol_vs_target`, `keltner_pct_b` (loss/meta leem Keltner via flow/`indicators.keltner`). Candidatos a **substituicao** no 14D so com evidencia OOS — nunca gate novo.
 
-SCALE vision permanece telemetria; `scale_adapted` continua false.
+SCALE vision: telemetria + retract/explos adapt last apos FLIP (`adapt_retract_enabled`); IND RSI/ADX… so print.

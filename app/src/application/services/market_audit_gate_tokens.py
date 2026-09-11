@@ -30,9 +30,22 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         ver = str(metrics.get("loss_clf_model_version") or "-")
         blocked = str(metrics.get("loss_clf_flip_blocked") or "").strip()
         blocked_tok = f" blocked={blocked}" if blocked else ""
-        loss_tok = f"OK auto={auto_learn} p={p_loss:.5f}{pe_tok}{blocked_tok} ready={ready} n={n_train} ver={ver}"
+        boot_tok = ""
+        if blocked == "bootstrap":
+            buffer_n = int(metrics.get("loss_clf_buffer_n") or 0)
+            exit_n = max(1, int(metrics.get("loss_clf_bootstrap_exit_n") or 4))
+            boot_tok = f" boot={buffer_n}/{exit_n}"
+            ready_note = " ready_seed=1" if ready else " ready_seed=0"
+            loss_tok = (
+                f"OK auto={auto_learn} p={p_loss:.5f}{pe_tok}{blocked_tok}{boot_tok}{ready_note} n={n_train} ver={ver}"
+            )
+        else:
+            loss_tok = f"OK auto={auto_learn} p={p_loss:.5f}{pe_tok}{blocked_tok} ready={ready} n={n_train} ver={ver}"
         skip = "-"
     else:
         loss_tok = "OFF"
         skip = "-"
+    reason = str(metrics.get("gate_reason") or "").strip()
+    if reason:
+        skip = reason
     return f"[GATES] || LOSS_CLF: {loss_tok} | skip={skip}{verdict_tok}"

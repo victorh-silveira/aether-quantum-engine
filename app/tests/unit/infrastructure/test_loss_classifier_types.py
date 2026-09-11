@@ -1,6 +1,6 @@
 import pytest
 
-from src.infrastructure.inference.loss_classifier_types import parse_loss_predict_response
+from src.infrastructure.inference.loss_classifier_types import BUFFER_N_ABSENT, parse_loss_predict_response
 
 
 def test_parse_loss_predict_response_full_payload():
@@ -14,6 +14,8 @@ def test_parse_loss_predict_response_full_payload():
             "veto_ready": True,
             "bootstrap": True,
             "collapsed": True,
+            "buffer_n": 4,
+            "bootstrap_exit_n": 4,
         }
     )
     assert parsed["p_loss"] == pytest.approx(0.91)
@@ -24,6 +26,8 @@ def test_parse_loss_predict_response_full_payload():
     assert parsed["veto_ready"] is True
     assert parsed["bootstrap"] is True
     assert parsed["collapsed"] is True
+    assert parsed["buffer_n"] == 4
+    assert parsed["bootstrap_exit_n"] == 4
 
 
 def test_parse_loss_predict_response_defaults():
@@ -36,6 +40,14 @@ def test_parse_loss_predict_response_defaults():
     assert parsed["veto_ready"] is False
     assert parsed["bootstrap"] is False
     assert parsed["collapsed"] is False
+    assert parsed["buffer_n"] == BUFFER_N_ABSENT
+    assert parsed["bootstrap_exit_n"] == 4
+
+
+def test_parse_loss_predict_response_explicit_zero_buffer():
+    parsed = parse_loss_predict_response({"buffer_n": 0, "bootstrap_exit_n": 4})
+    assert parsed["buffer_n"] == 0
+    assert parsed["bootstrap_exit_n"] == 4
 
 
 def test_parse_loss_predict_response_rejects_non_object():

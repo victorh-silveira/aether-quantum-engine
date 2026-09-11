@@ -231,3 +231,17 @@ def test_format_kelly_audit_line():
         audit={},
     )
     assert "mode=recover" in custom_mode
+    soft = format_kelly_audit_line(
+        {
+            "conviction": 0.64,
+            "live_n": 0,
+            "f_star": 0.004,
+            "meta_soft_kelly": True,
+            "meta_soft_strong": True,
+            "kelly_fraction_scale": 0.4,
+        },
+        stake=100.0,
+        mode_tag="EXPLORE_KELLY",
+        audit={"mode_tag": "EXPLORE_KELLY"},
+    )
+    assert "meta_soft=1 strong=1 kscale=0.40" in soft

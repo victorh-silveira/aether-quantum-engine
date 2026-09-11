@@ -177,6 +177,7 @@ def test_format_indicators_audit_line():
     assert "CAL_EDGE:" in line
     assert "NEUTRAL: calibrated" in line
     assert "META_VETO: none" in line
+    assert "META: applied=0" in line
     assert "SCALE: tcn=" in line
     assert "adapted=0" in line
     assert line.count("\n") == 3
@@ -201,6 +202,71 @@ def test_format_indicators_audit_line_marks_neutral_clamp():
     line = format_indicators_audit_line(7, "R_10", metrics)
     assert "NEUTRAL: neutral_clamp" in line
     assert "META_VETO: soft" in line
+    assert "META: applied=0" in line
+
+
+def test_format_indicators_audit_line_meta_applied_edge():
+    metrics = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.1,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+        "meta_classifier_applied": True,
+        "predicted_payoff_edge": 0.12,
+    }
+    line = format_indicators_audit_line(8, "1HZ75V", metrics)
+    assert "META: applied=1 edge=+0.120" in line
+
+
+def test_format_indicators_audit_line_meta_sat_at_clip():
+    metrics = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.1,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+        "meta_classifier_applied": True,
+        "predicted_payoff_edge": 0.85,
+        "meta_payoff_edge_zscore": 1.25,
+    }
+    line = format_indicators_audit_line(8, "1HZ75V", metrics)
+    assert "META: applied=1 edge=+0.850 sat=1 z=+1.25" in line
+
+
+def test_format_indicators_audit_line_meta_sat_bad_zscore():
+    metrics = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.1,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+        "meta_classifier_applied": True,
+        "predicted_payoff_edge": 0.85,
+        "meta_payoff_edge_zscore": "bad",
+    }
+    line = format_indicators_audit_line(11, "1HZ75V", metrics)
+    assert "META: applied=1 edge=+0.850 sat=1" in line
+    assert " z=" not in line.split("META:")[1].split("||")[0]
+
+
+def test_format_indicators_audit_line_meta_applied_invalid_and_missing_edge():
+    bad = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.1,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+        "meta_classifier_applied": True,
+        "predicted_payoff_edge": "bad",
+    }
+    line_bad = format_indicators_audit_line(9, "1HZ75V", bad)
+    assert "META: applied=1 edge=n/a" in line_bad
+    bare = {
+        "indicators": {"rsi": 0.5, "adx": 0.2, "hurst": 0.5},
+        "direction_margin": 0.1,
+        "calibration_mode": "calibrated",
+        "meta_veto_mode": "none",
+        "meta_classifier_applied": True,
+    }
+    line_bare = format_indicators_audit_line(10, "1HZ75V", bare)
+    assert "META: applied=1 edge=n/a" in line_bare
 
 
 def test_resolve_stake_audit_context_from_audit():

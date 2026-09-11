@@ -102,6 +102,7 @@ async def _complete_contract_settlement(
     if result_line is None and isinstance(resolved_meta, dict):
         stake_audit = resolve_stake_audit_context(orch.risk_manager)
         linear_before = int(resolved_meta.get("linear_before", 0) or 0)
+        linear_after = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
         result_line = format_settlement_audit_line(
             orch._contract_cycle.get(c_id, 0),
@@ -112,7 +113,7 @@ async def _complete_contract_settlement(
             float(resolved_meta.get("edge") or 0.0),
             settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
             pending=float(stake_audit.get("pending", 0.0)),
-            linear=int(stake_audit.get("linear", linear_before)),
+            linear=linear_after,
             mode_tag=str(stake_audit.get("mode_tag") or ""),
             recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
             learn_detail=learn or None,
@@ -179,6 +180,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
             audit_raw_prob=raw_prob,
         )
         stake_audit = resolve_stake_audit_context(orch.risk_manager)
+        linear_after = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
         orch.logger.info(
             "%s || API: %s (late)",
@@ -191,7 +193,7 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
                 edge,
                 settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
                 pending=float(stake_audit.get("pending", 0.0)),
-                linear=int(stake_audit.get("linear", linear_before)),
+                linear=linear_after,
                 mode_tag=str(stake_audit.get("mode_tag") or ""),
                 recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
                 learn_detail=learn or None,

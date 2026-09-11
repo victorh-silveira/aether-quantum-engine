@@ -26,6 +26,7 @@ def test_production_settings_pass_doctrine_invariants():
     assert int(inv["loss_clf_flip_trust_n"]) == 32
     assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
     assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.55)
+    assert int(inv["loss_clf_bootstrap_exit_n"]) == 4
     assert int(inv["loss_clf_ready_n"]) == 32
     assert int(inv["loss_clf_retrain_min_n"]) == 12
     assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 4
@@ -52,6 +53,8 @@ def test_production_deploy_gate_armed():
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "signal_skip" not in settings["orchestrator"]["execution"]
     assert "invert_exec_side" not in settings["orchestrator"]["execution"]
+    assert "cal_soft_edge_skip_enabled" not in settings["orchestrator"]["execution"]
+    assert "cal_soft_edge_margin_floor" not in settings["orchestrator"]["execution"]
 
 
 def test_production_logging_ssot():
@@ -77,6 +80,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert int(block["flip_trust_n"]) == 32
     assert float(block["flip_young_shrink"]) == pytest.approx(0.35)
     assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.55)
+    assert int(block["bootstrap_exit_n"]) == 4
     assert "flip_require_auto_learn" not in block
     assert "soft_kelly_mult" not in block
     assert "veto_p_loss_floor" not in block
@@ -86,6 +90,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert int(resolved["bootstrap_exit_n"]) == 4
     assert int(block["ready_n"]) == 32
     assert int(block["retrain_min_n"]) == 12
     assert int(block["min_win_for_loss_retrain"]) == 4
@@ -96,6 +101,9 @@ def test_production_loss_classifier_flip_floor_ssot():
     scale = settings["orchestrator"]["execution"]["scale_vision"]
     assert scale["enabled"] is True
     assert int(scale["ops_window_bars"]) == 3
+    assert bool(scale["adapt_retract_enabled"]) is True
+    assert bool(scale["adapt_tape_require_strong"]) is True
+    assert "adapt_soft_margin" not in scale
     assert "fusion_enabled" not in scale
     assert "adapt_direction_enabled" not in scale
     assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False

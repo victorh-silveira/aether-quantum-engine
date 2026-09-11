@@ -61,13 +61,35 @@ def format_indicators_audit_line(cycle_id: int, symbol: str, metrics: dict[str, 
     elif neutral not in {"neutral_clamp", "tcn_macro_override", "raw_extreme", "calibrated", "neutral_zone"}:
         neutral = "na"
     meta_veto = str(metrics.get("meta_veto_mode") or "none")
+    meta_applied = bool(metrics.get("meta_classifier_applied"))
+    meta_edge = metrics.get("predicted_payoff_edge")
+    if meta_edge is None:
+        meta_edge = metrics.get("meta_payoff_edge")
+    if meta_applied and meta_edge is not None:
+        try:
+            edge_f = float(meta_edge)
+            sat_tok = " sat=1" if abs(edge_f - 0.85) < 1e-6 else ""
+            z_raw = metrics.get("meta_payoff_edge_zscore", metrics.get("edge_zscore"))
+            z_tok = ""
+            if z_raw is not None:
+                try:
+                    z_tok = f" z={float(z_raw):+.2f}"
+                except (TypeError, ValueError):
+                    z_tok = ""
+            meta_tok = f"META: applied=1 edge={edge_f:+.3f}{sat_tok}{z_tok}"
+        except (TypeError, ValueError):
+            meta_tok = "META: applied=1 edge=n/a"
+    elif meta_applied:
+        meta_tok = "META: applied=1 edge=n/a"
+    else:
+        meta_tok = "META: applied=0"
     scale_tok = format_scale_ind_token(metrics)
     return (
         f"[IND] || RSI: {rsi:>7.4f} | ADX: {adx:>7.4f} | HURST: {hurst:>7.4f}\n"
         f"[IND] || ATR: {atr:>8.4f} | BBW: {bbw:>8.4f} | VOL_R: {vol_r:>7.4f}\n"
         f"[IND] || Z: {z_edge:>+6.2f} | ACC: {acc:>6.4f} | MARGIN: {margin:>5.3f} | "
         f"CAL_EDGE: {cal_edge:>+.3f}\n"
-        f"[IND] || NEUTRAL: {neutral} | META_VETO: {meta_veto} || {scale_tok}"
+        f"[IND] || NEUTRAL: {neutral} | META_VETO: {meta_veto} | {meta_tok} || {scale_tok}"
     )
 
 
@@ -88,9 +110,14 @@ def format_kelly_audit_line(
         mode = str(metrics.get("stake_regime") or "explore").lower()
     wr_s = f"{float(live_wr):.4f}" if live_wr is not None else "n/a"
     infeas = " | RECOVERY_INFEASIBLE" if (audit or {}).get("recovery_infeasible") else ""
+    soft = ""
+    if bool(metrics.get("meta_soft_kelly")):
+        scale = _f(metrics, "kelly_fraction_scale", default=1.0)
+        strong = 1 if bool(metrics.get("meta_soft_strong")) else 0
+        soft = f" | meta_soft=1 strong={strong} kscale={scale:.2f}"
     return (
         f"[KELLY] || p={p:.4f} | live_wr={wr_s} | live_n={live_n} | f*={f_star:.6f} | "
-        f"mode={mode} | stake={float(stake):.2f} ({mode_tag}){infeas}"
+        f"mode={mode} | stake={float(stake):.2f} ({mode_tag}){soft}{infeas}"
     )
 
 

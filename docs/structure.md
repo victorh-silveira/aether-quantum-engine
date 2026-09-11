@@ -13,7 +13,7 @@ aether-quantum-engine/
 │   ├── requirements.txt
 │   ├── requirements-dev.txt
 │   ├── scripts/
-│   │   ├── batch/                      # launch-all-demo, launch-train, _run_*
+│   │   ├── batch/                      # launch-all-demo, launch-train(.bat/.sh), _run_*
 │   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
@@ -431,6 +431,7 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
 | `batch/launch-train.bat` | Launcher treino Windows: sanitize → sweep H15–H60 + promote → gate → Timescale → meta (logs densos) |
+| `batch/launch-train-wsl.sh` | Mesmo pipeline via WSL (python Conda `deriv-api` no host Windows) |
 | `monitor/live_monitor.py` | Monitor Rich ao vivo |
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |

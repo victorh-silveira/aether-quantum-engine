@@ -280,7 +280,7 @@ Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP*
 | Módulo | Papel |
 |--------|-------|
 | `execution_direction_checks` | SKIP tecnico (treino/dados/deploy/predict) + seed TCN |
-| `execution_scale_vision` | Telemetria multi-escala (sem adapt de lado) |
+| `execution_scale_vision` | Telemetria multi-escala + adapt retract |
 | `execution_side_eq_sizing` | Soft Kelly SIDE_EQ (nao inverte CALL/PUT) |
 | `loss_classifier_gate` | **Unico FLIP:** `p_loss >= hard_p_loss_floor` (**0.20**) |
 | `execution_direction_resolver` | Finalize: relê `exec_direction` pos-FLIP + sync Kelly |
@@ -295,7 +295,7 @@ Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP*
 
 | Portão | Módulo | Critério |
 |--------|--------|----------|
-| SCALE vision | `execution_scale_vision*` | Log MACRO/MICRO/MINI/MILI/tape; sem flip |
+| SCALE vision | `execution_scale_vision*` / `execution_scale_adapt` | Log + adapt retract confirmado; sem SKIP |
 | SIDE_EQ | `execution_side_eq_sizing` | Soft Kelly por equilibrio de lado; sem flip |
 | Loss protection | `execution_loss_protection` | Penalties de sizing; sem flip |
 | Settlement | fila Redis ZSET | Janela **600 s** + orphan cleaner |

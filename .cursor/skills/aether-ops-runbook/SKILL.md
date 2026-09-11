@@ -13,7 +13,8 @@ description: >-
 | Objetivo | Onde |
 |----------|------|
 | Rodar motor | `run.py` / scripts `batch/launch-*` |
-| Treino DL | `train.py` / `batch/launch-train*` (sanitize → sweep H15–H60 + promote → gate → Timescale → meta; logs densos / celula CRITICAL) |
+| Treino DL | `train.py` / `batch/launch-train*` (sanitize → sweep H15–H60 + promote → gate → Timescale → meta; logs densos / celula CRITICAL); WSL: `batch/launch-train-wsl.sh` |
+
 | Meta offline | `scripts/operations/train_meta_*` |
 | Sanitizar run | `scripts/operations/sanitize_fresh_run.py` / `make sanitize-run` |
 | Pre-commit motor | `scripts/operations/clean_workspace.py` |

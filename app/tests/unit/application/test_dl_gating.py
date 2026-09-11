@@ -4,20 +4,26 @@ from src.application.services.deep_learning.dl_calibration_tolerance import (
     infer_direction_from_prob as direction_from_raw_prob,
 )
 from src.application.services.deep_learning.dl_gating import (
+    MARKET_PAYOUT_SSOT,
     resolve_calibrated_edge,
     resolve_confidence_thresholds,
     resolve_edge,
+    resolve_side_edge,
 )
 from src.domain.models.trade import TradeDirection
 
 
+def test_market_payout_ssot():
+    assert pytest.approx(0.85) == MARKET_PAYOUT_SSOT
+
+
 def test_resolve_edge():
     actual = resolve_edge(0.80, horizon_bars=1)
-    assert actual == pytest.approx(0.56, abs=0.01)
+    assert actual == pytest.approx(0.80 * 1.85 - 1.0)
 
 
-def test_resolve_edge_no_edge_at_fifty():
-    assert resolve_edge(0.50) == 0.0
+def test_resolve_edge_signed_at_fifty():
+    assert resolve_edge(0.50) == pytest.approx(0.50 * 1.85 - 1.0)
 
 
 def test_resolve_edge_horizon_adjusts_payout():
@@ -28,15 +34,20 @@ def test_resolve_edge_horizon_adjusts_payout():
 
 def test_resolve_calibrated_edge_prefers_calibrated():
     actual = resolve_calibrated_edge(0.82, raw_prob=0.60, horizon_bars=1)
-    assert actual == pytest.approx(0.60, abs=0.01)
+    assert actual == pytest.approx(0.82 * 1.85 - 1.0)
 
 
 def test_resolve_calibrated_edge_falls_back_to_raw():
-    assert resolve_calibrated_edge(None, raw_prob=0.70, horizon_bars=1) == pytest.approx(0.37, abs=0.01)
+    assert resolve_calibrated_edge(None, raw_prob=0.70, horizon_bars=1) == pytest.approx(0.70 * 1.85 - 1.0)
 
 
-def test_resolve_calibrated_edge_defaults_to_zero():
-    assert resolve_calibrated_edge(None) == 0.0
+def test_resolve_calibrated_edge_defaults_signed_at_half():
+    assert resolve_calibrated_edge(None) == pytest.approx(0.50 * 1.85 - 1.0)
+
+
+def test_resolve_side_edge_call_put():
+    assert resolve_side_edge(0.60, direction=TradeDirection.CALL) == pytest.approx(0.60 * 1.85 - 1.0)
+    assert resolve_side_edge(0.60, direction=TradeDirection.PUT) == pytest.approx(0.40 * 1.85 - 1.0)
 
 
 def test_confidence_thresholds_from_params():

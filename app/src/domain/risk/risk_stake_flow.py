@@ -16,7 +16,13 @@ def _soft_size_cycle_edge(live_metrics: dict[str, Any] | None) -> float | None:
     """Le Edge calibrado do ciclo para gate do piso Soft_SIZE."""
     if not isinstance(live_metrics, dict):
         return None
-    for key in ("neg_edge_tcn_cal_edge", "edge", "cal_edge", "payoff_edge"):
+    for key in (
+        "neg_edge_tcn_cal_edge",
+        "cal_side_edge",
+        "edge",
+        "cal_edge",
+        "payoff_edge",
+    ):
         raw = live_metrics.get(key)
         if raw is None:
             continue
@@ -35,6 +41,9 @@ def apply_soft_size_stake_floor(
 ) -> float:
     """Piso Soft_SIZE so com Edge >= soft_size_min_edge; senao nao eleva stake."""
     if not blocks_single_strike_boost(live_metrics):
+        return float(kelly_base)
+    if isinstance(live_metrics, dict) and bool(live_metrics.get("meta_soft_kelly")):
+        live_metrics["soft_size_stake_floor_waived"] = "meta_soft_kelly"
         return float(kelly_base)
     pct = float(kelly_config.get("soft_size_min_stake_pct", 0.0) or 0.0)
     if pct <= 0.0 or bankroll <= 0.0:

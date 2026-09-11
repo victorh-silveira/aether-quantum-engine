@@ -12,7 +12,7 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 ## Nunca propor
 
 - `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
-- Reabrir bloco `signal_skip` / fusao EV / Soft Kelly do loss-clf / quality gate amplo / HARD SKIP no piso
+- Reabrir bloco `signal_skip` / fusao EV / Soft Kelly do loss-clf / quality gate amplo / HARD SKIP no piso / trava `cal_soft_edge`
 - Inflar stake apos LOSS (revenge) ou “operar mais para aprender” com N baixo
 - Remover caps (`max_safe_stake_*`), settlement Redis ou timeouts “temporariamente”
 - Afrouxar `hard_p_loss_floor` / `veto_mode=hard` sem mandato e evidencia
@@ -20,11 +20,14 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 ## Sempre fazer
 
 - Distinguir EXPLORE vs RECOVER; `cover_enabled` **false**; piso Kelly **1%**; Single-Strike so ALLOW
-- Anti-loss vivo = **FLIP** se `p_eff` >= **0.55** young / **0.58** mature; so apos auto_learn; shrink N; tape so telemetria
+- Anti-loss vivo = **FLIP** se `p_eff` >= **0.55** young / **0.58** mature; so apos auto_learn (`LOSS_BOOTSTRAP_EXIT_N` **4**); shrink N; tape so telemetria
+- SCALE retract/explos/tape adapt (ultima palavra apos FLIP): retract/explos com mi+mili; tape so com `tape_strong` → fixa EXEC (pode desfazer FLIP; nao e SKIP)
+- META edge ≤ 0: soft Kelly (`meta_soft_kelly`; `soft_veto_score_factor` **0.85**); nao SKIP; nao flipa; nao re-eleva stake com piso Soft_SIZE
 - Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (inclui cooldown pos-LOSS e pausa de sessao)
-- Exigir evidencia: `live_n`, Cal/Edge, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=`)
+- Exigir evidencia: `live_n`, Cal/Edge (EV vs BE), `adapted=` / `retract_holds=`, `meta_soft_kelly`, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=` / `boot=N/4`)
 
 ## Diagnostico de log
 
-Ordem: CLUSTER → SCALE (vision) → `[GATES] || LOSS_CLF` → KELLY → EXEC → RESOLVED.
+Ordem: CLUSTER → SCALE (vision) → `[GATES] || LOSS_CLF` → SCALE adapt (last) → KELLY → EXEC → RESOLVED.
+`blocked=bootstrap boot=N/4` = FLIP off (`ready_seed` ≠ auto_learn). `adapted=1` + `retract_vs_tcn`/`explos_vs_tcn`/`tape_vs_tcn` = SCALE virou (retract/explos com mi+mili; tape so `tape_strong`); `tape_not_strong` = discord sem adapt; `*_holds` = desfez FLIP. Edge = EV (nao hit rate); Edge negativo sozinho nao e skip. `[CANDLE]` same-cycle = vela fechada; CANDLE do ciclo seguinte = janela do contrato anterior. `META: applied=` edge ≤ 0 (forte se ≤ -0.5) ou `sat=1` com Cal Edge ≤ 0 = soft Kelly (`meta_soft_kelly`; nao SKIP; Soft_SIZE nao re-eleva stake). KELLY mostra `meta_soft=1 strong=`. `LIN:` no RESOLVED e pos-settle.
 Proibido narrar “mao quente”.

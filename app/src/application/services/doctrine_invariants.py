@@ -67,6 +67,7 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
             "flip_trust_n",
             "flip_young_shrink",
             "flip_young_p_eff_floor",
+            "bootstrap_exit_n",
             "ready_n",
             "retrain_min_n",
             "retrain_on_loss_min_n",
@@ -81,6 +82,7 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
         "loss_clf_flip_trust_n": require_int(block, "flip_trust_n"),
         "loss_clf_flip_young_shrink": require_float(block, "flip_young_shrink"),
         "loss_clf_flip_young_p_eff_floor": require_float(block, "flip_young_p_eff_floor"),
+        "loss_clf_bootstrap_exit_n": require_int(block, "bootstrap_exit_n"),
         "loss_clf_ready_n": require_int(block, "ready_n"),
         "loss_clf_retrain_min_n": require_int(block, "retrain_min_n"),
         "loss_clf_retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
@@ -191,6 +193,29 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
 def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """Valida settings de producao contra pisos da doutrina AGENTS; retorna invariantes."""
     inv = load_doctrine_invariants(settings)
+    full = settings if isinstance(settings, dict) else load_settings_json()
+    execution = _execution_block(full)
+    require_keys(
+        execution,
+        (
+            "force_trade_every_cycle",
+            "mandatory_trade_each_cycle",
+        ),
+        "orchestrator.execution",
+    )
+    if "cal_soft_edge_skip_enabled" in execution or "cal_soft_edge_margin_floor" in execution:
+        raise ValueError("cal_soft_edge_* removido da doutrina (sem trava por Edge)")
+    scale = execution.get("scale_vision")
+    if not isinstance(scale, dict):
+        raise ValueError("scale_vision ausente")
+    if not require_bool(scale, "adapt_retract_enabled"):
+        raise ValueError("scale_vision.adapt_retract_enabled deve ser true")
+    if not require_bool(scale, "adapt_tape_require_strong"):
+        raise ValueError("scale_vision.adapt_tape_require_strong deve ser true")
+    if "adapt_soft_margin" in scale:
+        raise ValueError("scale_vision.adapt_soft_margin removido (retract adapta sem freio de margem)")
+    if int(inv["loss_clf_bootstrap_exit_n"]) != 4:
+        raise ValueError("loss_classifier.bootstrap_exit_n deve ser 4")
     if inv["force_trade_every_cycle"]:
         raise ValueError("force_trade_every_cycle deve ser false na doutrina de producao")
     if inv["mandatory_trade_each_cycle"]:

@@ -11,6 +11,7 @@ import httpx
 from src.application.services.loss_classifier_features import loss_feature_schema_hash
 from src.domain.config_knobs import merge_settings_block, require_bool, require_float, require_int, require_keys
 from src.infrastructure.inference.loss_classifier_types import (
+    BUFFER_N_ABSENT,
     LossPredictRequest,
     LossPredictResponse,
     parse_loss_predict_response,
@@ -37,6 +38,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_trust_n",
             "flip_young_shrink",
             "flip_young_p_eff_floor",
+            "bootstrap_exit_n",
             "ready_n",
             "retrain_min_n",
             "retrain_on_loss_min_n",
@@ -60,6 +62,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     flip_trust_n = require_int(block, "flip_trust_n")
     if flip_trust_n < 1:
         raise ValueError("infra.loss_classifier.flip_trust_n deve ser >= 1")
+    bootstrap_exit_n = require_int(block, "bootstrap_exit_n")
+    if bootstrap_exit_n < 4:
+        raise ValueError("infra.loss_classifier.bootstrap_exit_n deve ser >= 4")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),
@@ -73,6 +78,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_trust_n": flip_trust_n,
         "flip_young_shrink": young_shrink,
         "flip_young_p_eff_floor": young_p_eff_floor,
+        "bootstrap_exit_n": bootstrap_exit_n,
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),
         "retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
@@ -125,6 +131,22 @@ class LossClassifierClient:
         """Fecha o cliente HTTP."""
         await self._client.aclose()
 
+    async def _fill_buffer_n_from_health(self, parsed: LossPredictResponse) -> LossPredictResponse:
+        """Preenche buffer_n via /health quando o predict omite o campo."""
+        try:
+            response = await self._client.get("/health")
+            response.raise_for_status()
+            body = response.json()
+            if not isinstance(body, dict):
+                parsed["buffer_n"] = 0
+                return parsed
+            parsed["buffer_n"] = max(0, int(body.get("buffer_n") or 0))
+            if "bootstrap_exit_n" in body:
+                parsed["bootstrap_exit_n"] = max(1, int(body.get("bootstrap_exit_n") or 4))
+        except (httpx.TimeoutException, httpx.HTTPError, ValueError, TypeError, KeyError):
+            parsed["buffer_n"] = 0
+        return parsed
+
     async def predict_loss(self, request: LossPredictRequest) -> LossPredictResponse:
         """POST /v1/predict_loss; fail-open sem veto."""
         empty: LossPredictResponse = {
@@ -136,6 +158,8 @@ class LossClassifierClient:
             "veto_ready": False,
             "bootstrap": False,
             "collapsed": False,
+            "buffer_n": 0,
+            "bootstrap_exit_n": 4,
         }
         if not self._enabled:
             return empty
@@ -149,7 +173,10 @@ class LossClassifierClient:
         try:
             response = await self._client.post("/v1/predict_loss", json=payload)
             response.raise_for_status()
-            return parse_loss_predict_response(response.json())
+            parsed = parse_loss_predict_response(response.json())
+            if int(parsed["buffer_n"]) == BUFFER_N_ABSENT:
+                parsed = await self._fill_buffer_n_from_health(parsed)
+            return parsed
         except (httpx.TimeoutException, httpx.HTTPError, ValueError, TypeError, KeyError) as exc:
             logger.warning("LOSS_CLF || FALLBACK predict | %s", exc)
             return empty

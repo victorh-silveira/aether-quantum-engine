@@ -34,7 +34,7 @@ warmup/buffer → training_gate → collect decisoes DL
 | Run loop | `orchestrator_run_loop.py`, `engine_session.py` |
 | Assinatura dados | `orchestrator_data_signature.py` |
 | Collect | `execution_collect*.py` |
-| Direcao / escalas | `execution_direction_resolver.py`, `execution_direction_fusion.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_sizing.py`, `execution_signal_skip.py` |
+| Direcao / escalas | `execution_direction_resolver.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_tape.py` |
 | Execucao | `execution_manager.py`, `execution_orders.py` |
 | Settlement | `settlement_*.py`, `orchestrator_settlement_queue.py` |
 | Pos-liquidacao | `post_settlement_*.py` |
@@ -43,19 +43,19 @@ warmup/buffer → training_gate → collect decisoes DL
 
 ## Scale vision (MACRO/MICRO/MINI/MILI)
 
-SSOT: `orchestrator.execution.scale_vision` + `signal_skip` (escopo **1.1**). SCALE adapta lado sem SKIP por escala; apos adapt, catálogo minimo atenua com soft Kelly (`mini_pair_oppose` / `cal_margin`) — **sem** hard SKIP de sinal, **sem** flip pos-LOSS e **sem** zona cinza/`hold_cal_*`. Ordem adapt: **majority_votes** (TCN/tape/mili/mini_pair/RSI) → tape/`raw_extreme` → regimes explosao/retracao/mili+tape. `adapt_allow_strong_tape` **false**.
+SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
+
+Ordem: TCN → loss-clf FLIP (ancora TCN) → `apply_scale_retract_adapt` se `adapt_retract_enabled` e (retract/explos com mi+mili ou tape `tape_strong` vs TCN) (ultima palavra; pode desfazer FLIP) → Kelly.
 
 | Campo | Papel |
 |-------|-------|
-| MICRO | Direcao TCN do ciclo (telemetria `tcn_direction`) |
+| MICRO | Direcao TCN do ciclo (`tcn_direction`) |
 | MACRO | Slope dos closes (janela `slope_bars`) |
-| MINI / MICRO bar | Vela **anterior** + **atual** open→close (`use_last_bar`) |
-| MILI | Direcao do tick flow |
-| `scale_micro_regime` | `explosion` / `retraction` / `chop` |
-| `scale_tape_consensus` | Maioria da fita (`adapt_min_votes`) |
-| `scale_adapted` | Flip so sob `raw_extreme` ou margem fraca + regimes; Kelly sync ao lado exec |
-| Soft sizing | Discord/adapt/retracao/chop+mili_oppose → `kelly_mult_discord` **0.55** + `max_stake_pct_discord` **0.05** + `scale_force_explore` |
-| Soft cover | Pending material + `pending_waives_scale_explore` → cover fino; `adapted_force_explore` bloqueia DAL L2+ |
+| MINI / MILI | Par de velas + tick flow; regime explos/retract/chop |
+| `adapt_retract_enabled` | **true** — fixa EXEC no lado retract/explos/tape confirmado (sem freio de margem; apos FLIP) |
+| `scale_adapted` | `1` quando adaptou; reason `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` ou `*_holds` |
+
+**Proibido:** quality gate / signal_skip / fusao EV / Soft Kelly discord / `cal_soft_edge`. IND RSI/ADX/HURST = telemetria.
 
 Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
 CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M5** (300 s).
@@ -65,7 +65,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 ## Gates de fase
 
 - **FASE TREINO:** sem ordens ate modelos da sessao prontos
-- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `online_training: false`; unica inversao de lado = loss-clf FLIP se `p_loss >= 0.20`
+- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `online_training: false`; inversao de lado = loss-clf FLIP no piso apos auto_learn, depois SCALE retract/explos last se confirmado
 - Lock/barreira serializa inferencia, liquidacao e persistencia
 
 ## Diagnostico rapido
@@ -74,9 +74,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 |---------|-----|
 | Ciclo nao dispara | signature, warmup buffer (MACRO/MICRO/MINI), idle watchdog |
 | So EXEC_EMPTY | bloqueio tecnico / Kelly — processo pode estar correto |
-| Stake baixo com SCALE discord/adapt | Se EXPLORE << Single-Strike (~5%): checar `max_stake_pct_discord` (**0.05**) e `kelly_mult_discord` (**0.55**); teto 1% legado e regressao |
-| RECOVER/EXPLORE_DAL nao arma | `adapted_force_explore` / ACC / live_wr / `scale_force_explore` |
-| Lado ≠ TCN no EXEC | Esperado so com `LOSS_CLF FLIP` (`p_eff` no piso apos auto_learn); qualquer outro flip e bug/regressao |
+| Lado ≠ TCN no EXEC | Esperado com `adapted=1` (retract) ou `LOSS_CLF FLIP`; outros flips = bug |
 | Travado apos trade | settlement queue / post_settlement |
 | Reconnect loop | watchdog stale + cooldown |
 

@@ -12,7 +12,12 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
-from src.application.services.execution_scale_vision import compute_scale_directions, format_scale_audit_line
+from src.application.services.execution_scale_adapt import apply_scale_retract_adapt
+from src.application.services.execution_scale_vision import (
+    compute_scale_directions,
+    format_scale_audit_line,
+    parse_scale_vision_config,
+)
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
@@ -63,8 +68,9 @@ def _finalize_execution_metrics(
     symbol: str | None,
     orch: Any | None = None,
     force: bool = False,
+    exec_cfg: dict | None = None,
 ) -> tuple[TradeDirection, dict]:
-    """Aplica telemetria, SIDE_EQ sizing e FLIP por P_LOSS alto."""
+    """Aplica telemetria, FLIP loss-clf, depois SCALE retract (ultima palavra)."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)
@@ -98,16 +104,11 @@ def _finalize_execution_metrics(
                 metrics["pending_loss_total"] = max(0.0, float(sum(risk_manager.pending_loss.values())))
             except (TypeError, ValueError):
                 metrics.setdefault("pending_loss_total", 0.0)
+    scale_cfg = parse_scale_vision_config((exec_cfg or {}).get("scale_vision") if isinstance(exec_cfg, dict) else None)
     compute_scale_directions(orch, symbol, exec_dir, metrics)
-    metrics["scale_adapted"] = False
-    metrics.setdefault("scale_adapt_reason", "off")
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["execution_candidate_ready"] = True
-    _sync_kelly_side(metrics, exec_dir)
-    sync_direction_margin(metrics, direction=exec_dir.name)
-    apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
-    metrics["scale_audit"] = format_scale_audit_line(metrics)
     metrics.pop("quality_guard_reject", None)
     metrics.pop("regime_skip_cycle", None)
     metrics.pop("gate_reason", None)
@@ -117,8 +118,13 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
-        _sync_kelly_side(metrics, exec_dir)
-        sync_direction_margin(metrics, direction=exec_dir.name)
+    exec_dir = apply_scale_retract_adapt(metrics, dl_dir, cfg=scale_cfg)
+    metrics["exec_direction"] = exec_dir.name
+    metrics["resolved_direction"] = exec_dir.name
+    _sync_kelly_side(metrics, exec_dir)
+    sync_direction_margin(metrics, direction=exec_dir.name)
+    apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
+    metrics["scale_audit"] = format_scale_audit_line(metrics)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 
@@ -184,6 +190,7 @@ def resolve_execution_direction(
         symbol=symbol,
         orch=orch,
         force=force,
+        exec_cfg=exec_cfg_dict,
     )
     _stamp_direction_resolved_cycle(entry, active_cycle)
     return result

@@ -25,15 +25,16 @@ def test_classify_explosion_aligned():
     assert metrics["scale_retraction_vs_tcn"] is False
 
 
-def test_classify_c2_like_mili_oppose_is_chop():
+def test_classify_explosion_even_when_mili_opposes():
     metrics = {
-        "scale_mini_prev_bar_dir": "CALL",
-        "scale_mini_bar_dir": "CALL",
-        "scale_mili_dir": "PUT",
+        "scale_mini_prev_bar_dir": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "CALL",
     }
     classify_micro_regime(metrics, "CALL", cfg={})
-    assert metrics["scale_micro_regime"] == "chop"
-    assert metrics["scale_mili_oppose_tcn"] is True
+    assert metrics["scale_micro_regime"] == "explosion"
+    assert metrics["scale_micro_side"] == "PUT"
+    assert metrics["scale_mili_oppose_tcn"] is False
 
 
 def test_classify_c4_like_retraction_vs_tcn():
@@ -60,6 +61,14 @@ def test_retraction_without_mili_uses_tick_when_allowed():
     classify_micro_regime(metrics, "CALL", cfg=cfg)
     assert metrics["scale_micro_regime"] == "retraction"
     assert metrics["scale_retraction_vs_tcn"] is True
+
+
+def test_classify_defaults_chop_without_mini_pair():
+    metrics = {"scale_mili_dir": "PUT"}
+    classify_micro_regime(metrics, "CALL", cfg={})
+    assert metrics["scale_micro_regime"] == "chop"
+    assert metrics["scale_micro_side"] == "PUT"
+    assert metrics["scale_mili_oppose_tcn"] is True
 
 
 def test_tick_confirms_handles_bad_flow_values():

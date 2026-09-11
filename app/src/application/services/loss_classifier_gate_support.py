@@ -11,6 +11,8 @@ from src.domain.models.trade import TradeDirection
 _STALE_LOSS_CLF_KEYS = (
     "loss_clf_hard",
     "loss_clf_flip",
+    "loss_clf_flip_from",
+    "loss_clf_flip_to",
     "loss_clf_p_loss",
     "loss_clf_p_eff",
     "loss_clf_model_version",
@@ -26,6 +28,8 @@ _STALE_LOSS_CLF_KEYS = (
     "loss_clf_young_shrink",
     "loss_clf_bootstrap",
     "loss_clf_flip_blocked",
+    "loss_clf_buffer_n",
+    "loss_clf_bootstrap_exit_n",
 )
 
 

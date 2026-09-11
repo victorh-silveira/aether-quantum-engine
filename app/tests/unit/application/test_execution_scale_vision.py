@@ -57,7 +57,9 @@ def test_parse_scale_vision_from_ssot():
     cfg = parse_scale_vision_config({})
     assert cfg["enabled"] is True
     assert cfg["kelly_mult_discord"] == pytest.approx(1.0)
-    assert cfg["adapt_direction_enabled"] is False
+    assert cfg["adapt_retract_enabled"] is True
+    assert cfg["adapt_tape_require_strong"] is True
+    assert "adapt_soft_margin" not in cfg
     assert cfg["use_last_bar"] is True
     assert cfg["retraction_require_mili"] is True
     assert cfg["retraction_use_tick_accel"] is True
@@ -146,6 +148,18 @@ def test_compute_scale_without_last_bar():
     assert metrics["scale_mini_bar_dir"] is None
     assert metrics["scale_discordance"] is True
     assert "adapted=1" in format_scale_audit_line({**metrics, "scale_adapted": True})
+    assert "why=retract_vs_tcn" in format_scale_ind_token(
+        {**metrics, "scale_adapted": True, "scale_adapt_reason": "retract_vs_tcn"}
+    )
+    assert "retract_holds=1" in format_scale_ind_token(
+        {
+            **metrics,
+            "scale_adapted": True,
+            "scale_adapt_reason": "retract_holds",
+            "scale_adapt_undid_flip": True,
+        }
+    )
+    assert "retract_holds=" not in format_scale_ind_token({**metrics, "scale_adapted": True})
 
 
 def test_compute_scale_uses_patched_ohlc_snapshot():

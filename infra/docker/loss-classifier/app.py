@@ -46,7 +46,7 @@ FEATURE_DIM = int(os.getenv("LOSS_FEATURE_DIM", "24"))
 READY_N = int(os.getenv("LOSS_READY_N", "32"))
 RETRAIN_MIN_N = int(os.getenv("LOSS_RETRAIN_MIN_N", "12"))
 RETRAIN_ON_LOSS_MIN_N = int(os.getenv("LOSS_RETRAIN_ON_LOSS_MIN_N", "4"))
-BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "12"))
+BOOTSTRAP_EXIT_N = int(os.getenv("LOSS_BOOTSTRAP_EXIT_N", "4"))
 MAX_BUFFER = int(os.getenv("LOSS_MAX_BUFFER", "2000"))
 MIN_WIN_FOR_LOSS_RETRAIN = int(os.getenv("LOSS_MIN_WIN_FOR_LOSS_RETRAIN", "4"))
 VETO_P_LOSS_FLOOR = float(os.getenv("LOSS_VETO_P_LOSS_FLOOR", "0.58"))
@@ -89,6 +89,8 @@ class LossPredictResult(BaseModel):
     veto_ready: bool
     bootstrap: bool = False
     collapsed: bool = False
+    buffer_n: int = 0
+    bootstrap_exit_n: int = 4
 
 
 class LearnRequest(BaseModel):
@@ -415,6 +417,8 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
                 veto_ready=_veto_ready(),
                 bootstrap=bool(_bootstrap),
                 collapsed=bool(_collapsed),
+                buffer_n=len(_buffer_y),
+                bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
             )
         ready = _veto_ready()
         return LossPredictResult(
@@ -426,6 +430,8 @@ async def predict_loss(payload: PredictLossRequest) -> LossPredictResult:
             veto_ready=ready,
             bootstrap=bool(_bootstrap),
             collapsed=bool(_collapsed),
+            buffer_n=len(_buffer_y),
+            bootstrap_exit_n=int(BOOTSTRAP_EXIT_N),
         )
 
 

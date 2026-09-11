@@ -116,6 +116,8 @@ def test_loss_clf_flip_above_floor_mature(monkeypatch):
     assert metrics["exec_direction"] == "PUT"
     assert metrics["resolved_direction"] == "PUT"
     assert metrics["loss_clf_flip"] is True
+    assert metrics["loss_clf_flip_from"] == "CALL"
+    assert metrics["loss_clf_flip_to"] == "PUT"
     assert metrics["loss_clf_p_eff"] == 0.59
     assert metrics["loss_clf_flip_floor"] == 0.58
     assert metrics.get("loss_clf_flip_blocked") is None

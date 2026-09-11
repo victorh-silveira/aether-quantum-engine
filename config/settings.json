@@ -313,6 +313,7 @@
       "flip_trust_n": 32,
       "flip_young_shrink": 0.35,
       "flip_young_p_eff_floor": 0.55,
+      "bootstrap_exit_n": 4,
       "ready_n": 32,
       "retrain_min_n": 12,
       "retrain_on_loss_min_n": 4,
@@ -527,6 +528,8 @@
         "neutral_edge_floor": 0.01,
         "soft_veto_min_score": 0.52,
         "soft_veto_score_factor": 0.85,
+        "soft_veto_strong_edge": -0.5,
+        "soft_veto_strong_factor": 0.4,
         "squeeze_trade_score": 0.52
       },
       "post_settlement_cycle_timeout_seconds": 1200,
@@ -593,7 +596,9 @@
         "block_recover_on_discord": true,
         "use_last_bar": true,
         "retraction_require_mili": true,
-        "retraction_use_tick_accel": true
+        "retraction_use_tick_accel": true,
+        "adapt_retract_enabled": true,
+        "adapt_tape_require_strong": true
       }
     },
     "idle_cycle_watchdog_seconds": 1200,

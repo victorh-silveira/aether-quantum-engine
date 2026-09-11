@@ -14,4 +14,5 @@ alwaysApply: true
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.
-- Loss-clf: **FLIP** por `p_eff` >= **0.55** young / **0.58** mature (so apos auto_learn); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf.
+- Loss-clf: **FLIP** por `p_eff` >= **0.55** young / **0.58** mature (so apos auto_learn; exit live **4**); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge EV negativo sozinho **nao** skipa.
+- META edge ≤ 0: soft Kelly (`soft_veto_score_factor` **0.85**; se edge ≤ **`soft_veto_strong_edge` -0.5** → `soft_veto_strong_factor` **0.40**); bloqueia Single-Strike; **nao** SKIP.

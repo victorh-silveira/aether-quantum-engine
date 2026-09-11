@@ -31,6 +31,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_flip_trust_n"] == 32
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
     assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert inv["loss_clf_bootstrap_exit_n"] == 4
     assert inv["loss_clf_ready_n"] == 32
     assert inv["loss_clf_retrain_min_n"] == 12
     assert inv["loss_clf_retrain_on_loss_min_n"] == 4
@@ -71,6 +72,48 @@ def test_assert_production_doctrine_rejects_force_trade():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["force_trade_every_cycle"] = True
     with pytest.raises(ValueError, match="force_trade"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_adapt_retract_off():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["adapt_retract_enabled"] = False
+    with pytest.raises(ValueError, match="adapt_retract_enabled"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_adapt_tape_require_strong_off():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["adapt_tape_require_strong"] = False
+    with pytest.raises(ValueError, match="adapt_tape_require_strong"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_cal_soft_knobs():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["cal_soft_edge_skip_enabled"] = True
+    with pytest.raises(ValueError, match="cal_soft_edge"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_scale_missing():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"] = None
+    with pytest.raises(ValueError, match="scale_vision ausente"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_adapt_soft_margin_knob():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["adapt_soft_margin"] = 0.05
+    with pytest.raises(ValueError, match="adapt_soft_margin"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_bootstrap_exit_n():
+    settings = copy.deepcopy(load_settings_json())
+    settings["infra"]["loss_classifier"]["bootstrap_exit_n"] = 12
+    with pytest.raises(ValueError, match="bootstrap_exit_n"):
         assert_production_doctrine(settings)
 
 

@@ -42,6 +42,8 @@ _SCALE_VISION_KEYS = (
     "use_last_bar",
     "retraction_require_mili",
     "retraction_use_tick_accel",
+    "adapt_retract_enabled",
+    "adapt_tape_require_strong",
 )
 
 __all__ = (
@@ -61,7 +63,7 @@ __all__ = (
 
 
 def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve orchestrator.execution.scale_vision com merge SSOT (telemetria only)."""
+    """Resolve orchestrator.execution.scale_vision com merge SSOT (telemetria + adapt retract)."""
     block = require_keys(
         merge_settings_block(
             ("orchestrator", "execution", "scale_vision"),
@@ -79,8 +81,9 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "use_last_bar": require_bool(block, "use_last_bar"),
         "retraction_require_mili": require_bool(block, "retraction_require_mili"),
         "retraction_use_tick_accel": require_bool(block, "retraction_use_tick_accel"),
+        "adapt_retract_enabled": require_bool(block, "adapt_retract_enabled"),
+        "adapt_tape_require_strong": require_bool(block, "adapt_tape_require_strong"),
         "adapt_kelly_p_floor": float(load_kelly_runtime_from_settings()["kelly_p_floor"]),
-        "adapt_direction_enabled": False,
         "kelly_mult_discord": 1.0,
         "max_stake_pct_discord": 0.05,
     }

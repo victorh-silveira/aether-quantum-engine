@@ -70,10 +70,15 @@ def test_format_gates_audit_line_ok_shows_blocked_bootstrap():
             "loss_clf_veto_ready": True,
             "loss_clf_model_version": "loss_bootstrap_live64",
             "loss_clf_flip_blocked": "bootstrap",
+            "loss_clf_buffer_n": 2,
+            "loss_clf_bootstrap_exit_n": 4,
         }
     )
     assert "LOSS_CLF: OK" in line
     assert "auto=0" in line
     assert "blocked=bootstrap" in line
+    assert "boot=2/4" in line
+    assert "ready_seed=1" in line
+    assert "ready=1" not in line.replace("ready_seed=1", "")
     assert "ver=loss_bootstrap_live64" in line
     assert "skip=-" in line

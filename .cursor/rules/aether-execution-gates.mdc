@@ -6,11 +6,14 @@ alwaysApply: true
 
 # Execution gates
 
-- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS / pausa de sessao (sem `SKIP:NEUTRAL_ZONE`)
-- TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**; tape = telemetria (nao segundo flip)
-- Anti-loss unico vivo: loss-classifier **FLIP** CALL↔PUT se `p_eff` >= piso de decisao — **unica inversao de ordem**; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf; **proibido** qualquer outro flip
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS / pausa de sessao (sem `SKIP:NEUTRAL_ZONE`; **sem** trava por Edge / `cal_soft_edge`)
+- TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**; tape = telemetria (nao segundo flip generico)
+- Anti-loss loss-clf: **FLIP** CALL↔PUT se `p_eff` >= piso — ancora TCN; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf
+- SCALE **retract/explos/tape adapt** (ultima palavra): retract/explos exigem mi+mili alinhados; tape so com `tape_strong` (`adapt_tape_require_strong`; discordance so telemetria) → fixa EXEC (`adapted=1`, `why=…_vs_tcn` ou `*_holds`); **nao** e SKIP
+- Edge CLUSTER = EV \(p_{\text{lado}}\times(1+0.85)-1\) (telemetria; pode ser negativo com Cal&lt;BE); **nao** e skip
 - `p_eff`: shrink de `p_loss` para 0.5 se `n_train < flip_trust_n` (**32**, `flip_young_shrink` **0.35**); tape so telemetria (nao auto-floor)
-- Piso: young **`flip_young_p_eff_floor` 0.55**; mature **`hard_p_loss_floor` 0.58**; FLIP so apos `auto_learn` (nao bootstrap); ainda so P_LOSS flipa
-- TCN escolhe CALL/PUT; apos FLIP o lado invertido segue para Kelly + SIDE_EQ; SCALE vision so telemetria
-- **Proibido** reabrir quality gate amplo, signal_skip multi-gate, fusao EV, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI
+- Piso: young **`flip_young_p_eff_floor` 0.55**; mature **`hard_p_loss_floor` 0.58**; FLIP so apos `auto_learn` (saida seed live **`LOSS_BOOTSTRAP_EXIT_N` 4**)
+- Ordem: TCN → loss-clf FLIP → SCALE retract/explos/tape adapt (last) → Kelly + SIDE_EQ
+- META soft Kelly (`meta_soft_kelly`): comprime `kelly_fraction_scale`; **nao** re-eleva stake via `soft_size_min_stake_pct` (piso Soft_SIZE waived)
+- **Proibido** reabrir quality gate amplo, signal_skip multi-gate, fusao EV, micro/regime/vol/exhaust/neg_edge generico, anti-loss EMA/RSI, trava `cal_soft_edge`
 - Catalogo: `docs/engineering-indicator-gates.md` + playbook

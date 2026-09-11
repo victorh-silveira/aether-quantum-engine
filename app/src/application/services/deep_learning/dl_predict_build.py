@@ -22,6 +22,7 @@ from src.application.services.deep_learning.dl_feature_matrix import build_featu
 from src.application.services.deep_learning.dl_gating import (
     resolve_calibrated_edge,
     resolve_confidence_thresholds,
+    resolve_side_edge,
 )
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
@@ -193,6 +194,11 @@ def build_prediction_entry(
     )
     horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob, horizon_bars=horizon_bars)
+    cal_side_edge = (
+        resolve_side_edge(calibrated_prob, direction=resolved_dir, horizon_bars=horizon_bars)
+        if resolved_dir is not None
+        else calibrated_edge
+    )
     calibrator = runtime.get("calibrator")
     side_score = calibrate_trade_score(
         raw_prob,
@@ -233,6 +239,7 @@ def build_prediction_entry(
     entry["metrics"]["calibrated_prob"] = calibrated_prob
     entry["metrics"]["calibration_mode"] = calibration_mode
     entry["metrics"]["calibrated_edge"] = calibrated_edge
+    entry["metrics"]["cal_side_edge"] = float(cal_side_edge)
     entry["metrics"]["cal_raw_gap_capped"] = bool(cal_capped)
     entry["metrics"]["cal_raw_gap"] = float(cal_raw_gap)
     entry["metrics"]["raw_margin"] = abs(raw_prob - 0.5)

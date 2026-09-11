@@ -36,6 +36,10 @@ def format_scale_ind_token(metrics: dict[str, Any] | None) -> str:
     tcn = m.get("tcn_direction") or m.get("scale_micro_dir") or "-"
     tape = m.get("scale_tape_consensus") or "-"
     adapted = 1 if bool(m.get("scale_adapted")) else 0
+    reason = str(m.get("scale_adapt_reason") or "").strip()
+    reason_tok = f" why={reason}" if adapted and reason and reason not in {"off", "-"} else ""
+    holds = 1 if bool(m.get("scale_adapt_undid_flip")) else 0
+    holds_tok = f" retract_holds={holds}" if holds else ""
     mi_p = m.get("scale_mini_prev_bar_dir") or "-"
     mi = m.get("scale_mini_bar_dir") or m.get("scale_mini_dir") or "-"
     mili = m.get("scale_mili_dir") or "-"
@@ -43,4 +47,7 @@ def format_scale_ind_token(metrics: dict[str, Any] | None) -> str:
     vc = m.get("scale_vote_call_n")
     vp = m.get("scale_vote_put_n")
     vote = f" votes=C{vc}/P{vp}" if vc is not None and vp is not None else ""
-    return f"SCALE: tcn={tcn} tape={tape} adapted={adapted} micro={micro} mi_p={mi_p} mi={mi} mili={mili}{vote}"
+    return (
+        f"SCALE: tcn={tcn} tape={tape} adapted={adapted}{reason_tok}{holds_tok} "
+        f"micro={micro} mi_p={mi_p} mi={mi} mili={mili}{vote}"
+    )

@@ -184,6 +184,27 @@ def test_soft_size_stake_floor_waives_when_edge_missing():
     assert metrics.get("soft_size_stake_floor_waived") == "edge_subfloor"
 
 
+def test_soft_size_stake_floor_waives_on_meta_soft_kelly():
+    from src.domain.risk.risk_stake_flow import apply_soft_size_stake_floor
+
+    metrics = {
+        "gate_verdict": "SOFT_SIZE",
+        "meta_soft_kelly": True,
+        "meta_soft_strong": True,
+        "neg_edge_tcn_cal_edge": 0.04,
+        "cal_side_edge": 0.04,
+    }
+    out = apply_soft_size_stake_floor(
+        4.0,
+        8776.72,
+        {"soft_size_min_stake_pct": 0.025, "soft_size_max_stake_pct": 0.025, "soft_size_min_edge": 0.015},
+        metrics,
+    )
+    assert out == pytest.approx(4.0)
+    assert metrics.get("soft_size_stake_floor_waived") == "meta_soft_kelly"
+    assert metrics.get("soft_size_stake_floor_applied") is None
+
+
 def test_soft_size_cycle_edge_skips_invalid_and_non_dict():
     from src.domain.risk.risk_stake_flow import _soft_size_cycle_edge, apply_soft_size_stake_floor
 

@@ -110,6 +110,8 @@ def apply_loss_classifier_gate(
     metrics["loss_clf_auto_learn"] = auto_learn
     metrics["loss_clf_veto_ready"] = bool(response["veto_ready"])
     metrics["loss_clf_veto_mode"] = "hard"
+    metrics["loss_clf_buffer_n"] = max(0, int(response.get("buffer_n") or 0))
+    metrics["loss_clf_bootstrap_exit_n"] = max(1, int(response.get("bootstrap_exit_n") or 4))
     auto_flag = 1 if auto_learn else 0
     ver = str(response.get("model_version") or "none")
     blocked = None
@@ -120,6 +122,8 @@ def apply_loss_classifier_gate(
     if blocked is not None:
         metrics["loss_clf_flip_blocked"] = blocked
         metrics.pop("loss_clf_flip", None)
+        metrics.pop("loss_clf_flip_from", None)
+        metrics.pop("loss_clf_flip_to", None)
         log_debug_if_changed(
             orch,
             logger,
@@ -138,6 +142,8 @@ def apply_loss_classifier_gate(
     metrics.pop("loss_clf_flip_blocked", None)
     if p_eff + 1e-12 >= flip_floor:
         flipped = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
+        metrics["loss_clf_flip_from"] = ref_dir.name
+        metrics["loss_clf_flip_to"] = flipped.name
         metrics["exec_direction"] = flipped.name
         metrics["resolved_direction"] = flipped.name
         metrics["loss_clf_flip"] = True
@@ -160,6 +166,8 @@ def apply_loss_classifier_gate(
         stamp_loss_clf_flip_ctx(orch, symbol, metrics)
         return False
     metrics.pop("loss_clf_flip", None)
+    metrics.pop("loss_clf_flip_from", None)
+    metrics.pop("loss_clf_flip_to", None)
     log_debug_if_changed(
         orch,
         logger,

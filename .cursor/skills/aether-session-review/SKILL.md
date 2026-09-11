@@ -38,9 +38,10 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 
 1. CLUSTER — Prob / Cal / Margin / Edge; `live_n`
 2. SCALE — vision telemetria (sem adapt de lado)
-3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; FLIP = processo esperado no piso; EMPTY tecnico = processo ok quando coerente
-4. KELLY / EXEC
-5. RESOLVED / RISK — pending, linear, pnl vs 4.31%
+3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap boot=N/4` = FLIP ainda off; SCALE last `adapted=1` (`retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` / `*_holds`) = SCALE fixa EXEC (pode desfazer FLIP; nao SKIP); Edge = EV; EMPTY tecnico = processo ok quando coerente. ACC no piso (~0.53) = retreino TCN, nao “mais trades”.
+4. IND — `META: applied=` / edge ≤ 0 ou `sat=1`+Cal Edge≤0 → soft Kelly (`meta_soft_kelly`; nao flipa); `edge=+0.850 sat=1` = clip; `[CANDLE]` ≠ lado TCN
+5. KELLY / EXEC
+6. RESOLVED / RISK — `LIN:` pos-settle (alinha com `COOLDOWN_Ln`); pending; pnl vs 4.31%
 
 ## Pos-mortem (9 perguntas)
 

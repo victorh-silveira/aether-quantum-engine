@@ -62,12 +62,8 @@ def classify_micro_regime(
     live = mi_curr if mi_curr is not None else mili
     metrics["scale_micro_side"] = live
     if mi_prev is not None and mi_curr is not None and mi_prev == mi_curr:
-        if mili is None or mili == mi_curr:
-            metrics["scale_micro_regime"] = _REGIME_EXPLOSION
-            metrics["scale_micro_side"] = mi_curr
-            metrics["scale_retraction_vs_tcn"] = False
-            return metrics
-        metrics["scale_micro_regime"] = _REGIME_CHOP
+        metrics["scale_micro_regime"] = _REGIME_EXPLOSION
+        metrics["scale_micro_side"] = mi_curr
         metrics["scale_retraction_vs_tcn"] = False
         return metrics
     if mi_prev is not None and mi_curr is not None and mi_prev != mi_curr:

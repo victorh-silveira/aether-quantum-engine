@@ -10,7 +10,11 @@ alwaysApply: true
 - Nao hardcodar o mesmo default em tres lugares
 - Nao afrouxar: force_trade, ACC gate, max_safe_stake_*, sample_size_policy (`evidence_n_min`/**12**, `large_n_min`/**32**)
 - TCN live: sempre CALL se Cal ≥**0.5** senao PUT; call/put **0.55/0.45** nao skipam; `calibration_neutral_drift` **[0.45, 0.55]** / `min_calibration_margin_floor` **0.05** so telemetria e ramo `raw_extreme`
-- Loss-clf: `veto_mode` **hard**, `hard_p_loss_floor` **0.58**; `flip_young_p_eff_floor` **0.55**; `flip_trust_n` **32**, `flip_young_shrink` **0.35**; `ready_n` **32**; saida do seed live **12** (`LOSS_BOOTSTRAP_EXIT_N`, nao `ready_n`); `retrain_min_n` **12**; `retrain_on_loss_min_n` / `min_win_for_loss_retrain` **4**; FLIP so apos auto_learn (nao bootstrap); tape so telemetria; **proibido** Soft Kelly do loss-clf / HARD SKIP / bloco `signal_skip` / `invert_exec_side` / `fusion_*` de lado
+- Loss-clf: `veto_mode` **hard**, `hard_p_loss_floor` **0.58**; `flip_young_p_eff_floor` **0.55**; `flip_trust_n` **32**, `flip_young_shrink` **0.35**; `ready_n` **32**; saida do seed live **4** (`bootstrap_exit_n` / `LOSS_BOOTSTRAP_EXIT_N`, nao `ready_n`); `retrain_min_n` **12**; `retrain_on_loss_min_n` / `min_win_for_loss_retrain` **4**; FLIP so apos auto_learn (nao bootstrap); tape so telemetria; **proibido** Soft Kelly do loss-clf / HARD SKIP / bloco `signal_skip` / `invert_exec_side` / `fusion_*` de lado / knobs `cal_soft_edge_*`
+- Edge CLUSTER = EV payout **0.85** (telemetria; nao e gate de EXEC)
+- SCALE: `adapt_retract_enabled` **true** (retract/explos exigem mi+mili; tape last so com `tape_strong` / `adapt_tape_require_strong` **true**; pode desfazer FLIP; sem `adapt_soft_margin`; nao SKIP)
+- META soft Kelly: nao re-eleva stake via `soft_size_min_stake_pct` quando `meta_soft_kelly`
+- META: edge ≤ 0 **ou** `sat=1` com `cal_side_edge` ≤ 0 → soft Kelly; edge ≤ **`soft_veto_strong_edge` -0.5** usa `soft_veto_strong_factor` **0.40** (senao `soft_veto_score_factor` **0.85**); SOFT_SIZE; sem SKIP; sem `meta_veto_mode=soft`
 - Proteger sizing: `cover_enabled` **false**, piso Kelly **1%**, Single-Strike so com `stop_win_kelly_live_n_min` **12** e `stop_win_kelly_min_conviction` **0.58**, Soft_SIZE legado inerte, caps recovery, `online_training` **false**, `require_signature_boundary` **true**, ciclo **300 s**; `post_loss_cooldown` LIN>=**1** (300/300/600/900s); pausa de sessao **3/5/2**
 - Auth/PAT: nao commitar segredos
 - Doc: `docs/engineering-settings-ssot.md`; skill: `aether-settings-change`

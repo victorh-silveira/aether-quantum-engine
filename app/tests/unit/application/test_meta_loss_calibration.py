@@ -215,7 +215,7 @@ def test_loss_sidecar_fit_temperature_picks_grid(monkeypatch):
     assert chosen == 0.70
 
 
-def test_loss_bootstrap_exit_is_twelve_not_ready_n():
+def test_loss_bootstrap_exit_is_four_not_ready_n():
     import sys
 
     sidecar = str(_repo_root() / "infra" / "docker" / "loss-classifier")
@@ -223,7 +223,7 @@ def test_loss_bootstrap_exit_is_twelve_not_ready_n():
         sys.path.insert(0, sidecar)
     import learn_policy as policy
 
-    assert policy.bootstrap_retrain_floor(retrain_on_loss_min_n=4, bootstrap_exit_n=12) == 12
+    assert policy.bootstrap_retrain_floor(retrain_on_loss_min_n=4, bootstrap_exit_n=4) == 4
     kw = {
         "label": "LOSS",
         "retrain_min_n": 12,
@@ -231,28 +231,28 @@ def test_loss_bootstrap_exit_is_twelve_not_ready_n():
         "buffer_win": 8,
         "buffer_loss": 3,
         "bootstrap_active": True,
-        "bootstrap_exit_n": 12,
+        "bootstrap_exit_n": 4,
     }
-    assert policy.should_retrain_after_learn(buffer_n=11, **kw) is False
-    assert policy.should_retrain_after_learn(buffer_n=12, **kw) is True
-    assert policy.retrain_skipped_reason(buffer_n=11, **kw) == "bootstrap_wait:11/12"
-    keep_11 = policy.bootstrap_seed_keep_detail(
+    assert policy.should_retrain_after_learn(buffer_n=3, **kw) is False
+    assert policy.should_retrain_after_learn(buffer_n=4, **kw) is True
+    assert policy.retrain_skipped_reason(buffer_n=3, **kw) == "bootstrap_wait:3/4"
+    keep_3 = policy.bootstrap_seed_keep_detail(
         bootstrap=True,
-        buffer_n=11,
+        buffer_n=3,
         n_classes=2,
-        exit_n=12,
-        floor=12,
+        exit_n=4,
+        floor=4,
     )
-    keep_12 = policy.bootstrap_seed_keep_detail(
+    keep_4 = policy.bootstrap_seed_keep_detail(
         bootstrap=True,
-        buffer_n=12,
+        buffer_n=4,
         n_classes=2,
-        exit_n=12,
-        floor=12,
+        exit_n=4,
+        floor=4,
     )
-    assert keep_11 == "seed_keep n<12"
-    assert keep_12 is None
-    assert keep_12 != "seed_keep n<32"
+    assert keep_3 == "seed_keep n<4"
+    assert keep_4 is None
+    assert keep_4 != "seed_keep n<32"
     src = (_repo_root() / "infra" / "docker" / "loss-classifier" / "app.py").read_text(encoding="utf-8")
     assert "seed_keep n<{int(READY_N)}" not in src
     assert "bootstrap_seed_keep_detail" in src

@@ -1,10 +1,13 @@
-"""Regras de gating e cálculo de edge para inferência do Deep Learning."""
+"""Regras de gating e calculo de edge EV para inferencia do Deep Learning."""
 
 from __future__ import annotations
 
 from typing import Any
 
 from src.domain.models.trade import TradeDirection
+
+
+MARKET_PAYOUT_SSOT = 0.85
 
 
 def direction_from_raw_prob(raw_prob: float, call_threshold: float = 0.55, put_threshold: float = 0.45) -> Any:
@@ -24,33 +27,46 @@ def _adjust_payout_for_horizon(payout: float, horizon_bars: int = 4) -> float:
     return max(0.80, payout * decay)
 
 
-def resolve_edge(prob: float, payout: float = 0.95, horizon_bars: int = 1) -> float:
-    """Calcula o edge no movimento de mercado (retorna 0.0 se nao ha edge positivo)."""
+def resolve_edge(prob: float, payout: float = MARKET_PAYOUT_SSOT, horizon_bars: int = 1) -> float:
+    """Edge EV assinado do lado dominante: p_win*(1+b)-1 (pode ser negativo)."""
     if prob is None:
         return 0.0
     p = float(prob)
-    if abs(p - 0.5) < 1e-12:
-        return 0.0
-    p_win = max(p, 1.0 - p) if p < 0.5 else p
+    p_win = max(p, 1.0 - p)
     adj_payout = _adjust_payout_for_horizon(payout, horizon_bars)
-    edge = float((p_win * (1.0 + adj_payout)) - 1.0)
-    return max(0.0, edge)
+    return float((p_win * (1.0 + adj_payout)) - 1.0)
 
 
 def resolve_calibrated_edge(
     calibrated_prob: float | None,
     raw_prob: float | None = 0.5,
-    payout: float = 0.95,
+    payout: float = MARKET_PAYOUT_SSOT,
     horizon_bars: int = 1,
 ) -> float:
-    """Calcula o edge com base na probabilidade calibrada do lado dominante."""
+    """Edge EV assinado a partir da probabilidade calibrada (lado dominante)."""
     if calibrated_prob is None:
         return resolve_edge(raw_prob, payout, horizon_bars=horizon_bars)
 
     p = float(calibrated_prob)
-    p_win = max(p, 1.0 - p) if p < 0.5 else p
+    p_win = max(p, 1.0 - p)
     adj_payout = _adjust_payout_for_horizon(payout, horizon_bars)
     return float((p_win * (1.0 + adj_payout)) - 1.0)
+
+
+def resolve_side_edge(
+    calibrated_prob: float,
+    *,
+    direction: Any,
+    payout: float = MARKET_PAYOUT_SSOT,
+    horizon_bars: int = 1,
+) -> float:
+    """Edge EV do lado TCN (CALL usa p_cal; PUT usa 1-p_cal)."""
+    p = float(calibrated_prob)
+    name = getattr(direction, "name", None) or str(direction or "").upper()
+    if str(name).upper() == "PUT":
+        p = 1.0 - p
+    adj_payout = _adjust_payout_for_horizon(payout, horizon_bars)
+    return float((p * (1.0 + adj_payout)) - 1.0)
 
 
 def resolve_confidence_thresholds(params: dict) -> tuple[float, float]:
@@ -61,6 +77,3 @@ def resolve_confidence_thresholds(params: dict) -> tuple[float, float]:
         float(params.get("confidence_call_threshold", 0.55)),
         float(params.get("confidence_put_threshold", 0.45)),
     )
-
-
-# Backwards compatibility re-export
