@@ -1,3 +1,9 @@
+## [2.60.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.59.0...v2.60.0) (2026-09-11)
+
+### Funcionalidades
+
+* **engine:** endurece SCALE adapt e soft Kelly do META ([b766bff](https://github.com/victorh-silveira/aether-quantum-engine/commit/b766bff3c92a295450a696c66a7073171f3e69cf))
+
 ## [2.59.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.58.0...v2.59.0) (2026-09-10)
 
 ### Funcionalidades
