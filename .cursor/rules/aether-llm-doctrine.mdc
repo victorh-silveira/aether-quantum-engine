@@ -21,13 +21,13 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 
 - Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, stake = `min(PEND/payout/amort, cap)`); piso Kelly **1%**; Single-Strike so ALLOW
 - Anti-loss vivo = **FLIP** se `p_eff` >= **0.58** young / **0.58** mature; so apos auto_learn (`LOSS_BOOTSTRAP_EXIT_N` **4**) e `n_train >= flip_min_n_train` **8**; shrink N; tape so telemetria
-- SCALE retract/explos/tape adapt (last **exceto** FLIP ativo): retract/explos com mi+mili; explos so com Cal Edge TCN ≤ **0.05**; falha de regime cai no tape `tape_strong`; com FLIP → `flip_holds` (nao e SKIP)
+- SCALE retract/explos/tape/candle adapt (last **exceto** FLIP ativo): retract/explos com mi+mili; explos so com Cal Edge TCN ≤ **0.05**; falha de regime cai no tape `tape_strong`; **vela M5 fechada** sobrescreve (`candle_vs_tcn`); com FLIP → `flip_holds` (nao e SKIP)
 - META edge ≤ 0: soft Kelly (`meta_soft_kelly`; `soft_veto_score_factor` **0.85**); nao SKIP; nao flipa; nao re-eleva stake com piso Soft_SIZE
 - Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (inclui cooldown pos-LOSS e pausa de sessao)
-- Exigir evidencia: `live_n`, Cal/Edge (EV vs BE), `adapted=` / `flip_holds` / `explos_edge_firm`, `meta_soft_kelly`, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=` / `boot=N/4` / `n=`)
+- Exigir evidencia: `live_n`, Cal/Edge (EV vs BE), `adapted=` / `flip_holds` / `candle_vs_tcn` / `explos_edge_firm`, `meta_soft_kelly`, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=` / `boot=N/4` / `n=`)
 
 ## Diagnostico de log
 
 Ordem: CLUSTER → SCALE (vision) → `[GATES] || LOSS_CLF` → SCALE adapt (last) → KELLY → EXEC → RESOLVED.
-`blocked=bootstrap boot=N/4` = FLIP off; `blocked=flip_min_n` = `n_train < 8`. `adapted=1` + `retract_vs_tcn`/`explos_vs_tcn`/`tape_vs_tcn` = SCALE virou (sem FLIP); `flip_holds` = manteve FLIP; `explos_edge_firm` = explos bloqueado por Edge firme; `tape_not_strong` = discord sem adapt. Edge = EV (nao hit rate); Edge negativo sozinho nao e skip. `[CANDLE]` same-cycle = vela fechada; CANDLE do ciclo seguinte = janela do contrato anterior. `META: applied=` edge ≤ 0 (forte se ≤ -0.5) ou `sat=1` com Cal Edge ≤ 0.02 = soft Kelly (`meta_soft_kelly`; nao SKIP; Soft_SIZE nao re-eleva stake). KELLY mostra `meta_soft=1 strong=`. `LIN:` no RESOLVED e pos-settle.
+`blocked=bootstrap boot=N/4` = FLIP off; `blocked=flip_min_n` = `n_train < 8`. `adapted=1` + `retract_vs_tcn`/`explos_vs_tcn`/`tape_vs_tcn`/`candle_vs_tcn` = SCALE virou (sem FLIP); `flip_holds` = manteve FLIP; `explos_edge_firm` = explos bloqueado por Edge firme; `tape_not_strong` = discord sem adapt. Edge = EV (nao hit rate); Edge negativo sozinho nao e skip. `[CANDLE]` same-cycle = vela fechada (tambem `candle_vs_tcn`); CANDLE do ciclo seguinte = janela do contrato anterior. `META: applied=` edge ≤ 0 (forte se ≤ -0.5) ou `sat=1` com Cal Edge ≤ 0.02 = soft Kelly (`meta_soft_kelly`; nao SKIP; Soft_SIZE nao re-eleva stake). KELLY mostra `meta_soft=1 strong=`. `LIN:` no RESOLVED e pos-settle.
 Proibido narrar “mao quente”.

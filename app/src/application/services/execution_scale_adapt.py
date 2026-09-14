@@ -1,4 +1,4 @@
-"""Adaptacao de lado por SCALE retract/explos/tape (ultima palavra; FLIP sticky)."""
+"""Adaptacao de lado por SCALE retract/explos/tape/candle (FLIP sticky)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ _REGIME_EXPLOS = "explosion"
 _REASON_RETRACT = "retract_vs_tcn"
 _REASON_EXPLOS = "explos_vs_tcn"
 _REASON_TAPE = "tape_vs_tcn"
+_REASON_CANDLE = "candle_vs_tcn"
 _REASON_FLIP_HOLDS = "flip_holds"
 _REASON_EXPLOS_EDGE_FIRM = "explos_edge_firm"
 
@@ -125,13 +126,37 @@ def _try_regime_adapt(
     )
 
 
+def _apply_closed_candle_last(
+    metrics: dict[str, Any],
+    *,
+    baseline: str,
+    current: str,
+) -> TradeDirection:
+    """Vela M5 fechada sobrescreve regime/tape; FLIP sticky permanece."""
+    if not bool(metrics.get("closed_micro_candle_stamped")):
+        return TradeDirection[current]
+    candle = _side(metrics.get("closed_micro_candle_dir"))
+    if candle is None:
+        return TradeDirection[current]
+    if bool(metrics.get("loss_clf_flip")) and candle != baseline:
+        metrics["scale_adapted"] = False
+        metrics["scale_adapt_undid_flip"] = False
+        metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
+        metrics["exec_direction"] = baseline
+        metrics["resolved_direction"] = baseline
+        return TradeDirection[baseline]
+    if candle != current:
+        return _commit_adapt(metrics, baseline=current, target=candle, reason=_REASON_CANDLE)
+    return TradeDirection[current]
+
+
 def apply_scale_retract_adapt(
     metrics: dict[str, Any],
     tcn_dir: TradeDirection | str,
     *,
     cfg: dict[str, Any] | None = None,
 ) -> TradeDirection:
-    """Fixa EXEC no lado SCALE se retract/explos/tape; nao desfaz FLIP ativo."""
+    """Fixa EXEC: regime → tape → candle fechada; nao desfaz FLIP ativo."""
     tcn = _side(getattr(tcn_dir, "name", None) or tcn_dir)
     if tcn is None:
         tcn = _side(metrics.get("tcn_direction"))
@@ -155,7 +180,9 @@ def apply_scale_retract_adapt(
     if not enabled:
         return TradeDirection[baseline]
 
+    side = baseline
     prior_fail: str | None = None
+    regime_decided = False
     regime = str(metrics.get("scale_micro_regime") or "").strip().lower()
     if regime in {_REGIME_RETRACT, _REGIME_EXPLOS}:
         decided, prior_fail = _try_regime_adapt(
@@ -166,21 +193,30 @@ def apply_scale_retract_adapt(
             explos_max_edge=explos_max_edge,
         )
         if decided is not None:
-            return decided
+            if str(metrics.get("scale_adapt_reason") or "") == _REASON_FLIP_HOLDS:
+                return decided
+            side = decided.name
+            regime_decided = True
 
-    tape_target, tape_fail = _resolve_tape_target(
-        metrics,
-        baseline,
-        require_strong=require_tape_strong,
-    )
-    if tape_target is not None:
-        if bool(metrics.get("loss_clf_flip")) and tape_target != baseline:
-            metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
-            return TradeDirection[baseline]
-        return _commit_adapt(metrics, baseline=baseline, target=tape_target, reason=_REASON_TAPE)
+    if not regime_decided:
+        tape_target, tape_fail = _resolve_tape_target(
+            metrics,
+            baseline,
+            require_strong=require_tape_strong,
+        )
+        if tape_target is not None:
+            if bool(metrics.get("loss_clf_flip")) and tape_target != baseline:
+                metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
+                return TradeDirection[baseline]
+            side = _commit_adapt(
+                metrics,
+                baseline=baseline,
+                target=tape_target,
+                reason=_REASON_TAPE,
+            ).name
+        elif tape_fail is not None:
+            metrics["scale_adapt_reason"] = prior_fail or tape_fail
+        else:
+            metrics["scale_adapt_reason"] = prior_fail or "not_adapt_regime"
 
-    if tape_fail is not None:
-        metrics["scale_adapt_reason"] = prior_fail or tape_fail
-        return TradeDirection[baseline]
-    metrics["scale_adapt_reason"] = prior_fail or "not_adapt_regime"
-    return TradeDirection[baseline]
+    return _apply_closed_candle_last(metrics, baseline=baseline, current=side)

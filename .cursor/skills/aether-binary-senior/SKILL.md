@@ -9,13 +9,13 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **4**, `n_train>=8`) e pe no piso → SCALE retract/explos adapt (last **exceto** FLIP sticky; explos so Edge ≤**0.05**) → Kelly (META edge ≤ 0 = soft Kelly). Sem `SKIP:NEUTRAL_ZONE`. Sem trava `cal_soft_edge`. Sem quality gate. Pos-settle: `LOSS_CLF || QUALITY` se houve FLIP loss-clf.
+Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **4**, `n_train>=8`) e pe no piso → SCALE retract/explos/tape → **vela fechada** `candle_vs_tcn` (FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). Sem `SKIP:NEUTRAL_ZONE`. Sem trava `cal_soft_edge`. Sem quality gate. Pos-settle: `LOSS_CLF || QUALITY` se houve FLIP loss-clf.
 
 ## Checklist
 
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao
 2. `LOSS_CLF FLIP`? Se `blocked=bootstrap boot=N/4` → FLIP ainda off
-3. SCALE last: `adapted=1` + `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` ou `*_holds` (retract/explos precisam mi+mili; tape precisa `tape_strong`) — nao e SKIP; `tape_not_strong` = discord sem adapt
+3. SCALE last: `adapted=1` + `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` / `candle_vs_tcn` ou `flip_holds` — nao e SKIP; `tape_not_strong` = discord sem adapt; candle fechada sobrescreve regime/tape
 4. META `edge≤0` ou `sat=1`+Cal Edge≤0.02.02 → soft Kelly (nao SKIP; nao flipa; nao re-eleva stake via Soft_SIZE 2.5%)
 5. Cal/Edge = EV vs BE (telemetria); Edge negativo sozinho nao e skip
 6. EXEC_EMPTY tecnico = processo ok quando coerente

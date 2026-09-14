@@ -39,7 +39,7 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M5**): pipeline: SCALE vision → TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **4**, `n_train>=8`) e pe no piso → SCALE **retract/explos/tape adapt** last (exceto FLIP sticky; explos so Edge TCN ≤**0.05**) → Kelly (META edge ≤ 0 = soft Kelly) → EXEC. SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate. Edge = EV telemetria. Recovery: `cover_enabled` **true** capped.
+Nota operacional (**Volatility 75 (1s) M5**): pipeline: SCALE vision → TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **4**, `n_train>=8`) e pe no piso → SCALE **retract/explos/tape** → **vela fechada** `candle_vs_tcn` (exceto FLIP sticky; explos so Edge TCN ≤**0.05**) → Kelly (META edge ≤ 0 = soft Kelly) → EXEC. SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate. Edge = EV telemetria. Recovery: `cover_enabled` **true** capped.
 
 ## Escopos commitlint
 

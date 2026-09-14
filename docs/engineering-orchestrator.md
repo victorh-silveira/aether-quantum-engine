@@ -45,7 +45,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
 
-Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **8**) → `apply_scale_retract_adapt` se `adapt_retract_enabled` e (retract/explos com mi+mili ou tape `tape_strong` vs TCN) (last **exceto** FLIP sticky; explos so se Cal Edge TCN ≤ `adapt_explos_max_tcn_edge` **0.05**) → Kelly.
+Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **8**) → `apply_scale_retract_adapt` (retract/explos/tape depois **vela M5 fechada** `candle_vs_tcn`; last **exceto** FLIP sticky; explos so se Cal Edge TCN ≤ `adapt_explos_max_tcn_edge` **0.05**) → Kelly.
 
 | Campo | Papel |
 |-------|-------|

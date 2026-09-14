@@ -5,7 +5,7 @@ Hot path vivo:
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS (ladder LIN) / pausa de sessao (3 LOSS em janela 5, 2 ciclos M5)
 2. TCN decide CALL/PUT
 3. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 8` (young/mature 0.58; ancora TCN)
-4. SCALE **retract/explos/tape adapt** (nao SKIP; last **exceto** FLIP sticky): retract/explos com mi+mili; explos so se Cal Edge TCN ≤ **0.05**; falha de regime (`mili_mismatch` / `explos_edge_firm`) cai no tape **forte**; com FLIP → `flip_holds`; discordance so telemetria
+4. SCALE **retract/explos/tape/candle adapt** (nao SKIP; last **exceto** FLIP sticky): retract/explos com mi+mili; explos so se Cal Edge TCN ≤ **0.05**; falha de regime cai no tape **forte**; **vela M5 fechada** sobrescreve (`candle_vs_tcn`); com FLIP → `flip_holds`; discordance so telemetria
 5. Kelly + SIDE_EQ sizing (META edge ≤ 0 → soft Kelly via `soft_veto_score_factor`; sem SKIP)
 
 **Proibido:** quality gate / signal_skip / Soft Kelly do loss-clf / HARD SKIP / fusao EV / `cal_soft_edge`. IND RSI/ADX/HURST = telemetria.

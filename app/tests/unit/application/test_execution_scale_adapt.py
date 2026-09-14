@@ -395,3 +395,103 @@ def test_adapt_preserves_post_flip_when_not_retract():
     assert out is TradeDirection.PUT
     assert metrics["scale_adapted"] is False
     assert metrics["scale_adapt_reason"] == "not_adapt_regime"
+
+
+def test_candle_overrides_retract_against_closed():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "CALL",
+        "scale_micro_regime": "retraction",
+        "scale_micro_side": "PUT",
+        "scale_mini_prev_bar_dir": "CALL",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "PUT",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.CALL
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "candle_vs_tcn"
+    assert metrics["scale_adapt_from"] == "PUT"
+    assert metrics["exec_direction"] == "CALL"
+
+
+def test_candle_adapts_when_tcn_opposes_closed():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "scale_micro_regime": "retraction",
+        "scale_micro_side": "CALL",
+        "scale_mini_prev_bar_dir": "PUT",
+        "scale_mini_bar_dir": "CALL",
+        "scale_mili_dir": "CALL",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "candle_vs_tcn"
+    assert metrics["exec_direction"] == "PUT"
+
+
+def test_candle_respects_flip_holds():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "PUT",
+        "loss_clf_flip": True,
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "CALL",
+        "scale_micro_regime": "chop",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "flip_holds"
+    assert metrics["exec_direction"] == "PUT"
+
+
+def test_candle_stamped_without_dir_is_noop():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": None,
+        "scale_micro_regime": "chop",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.CALL
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "not_adapt_regime"
+
+
+def test_candle_noop_when_not_stamped():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_stamped": False,
+        "closed_micro_candle_dir": "PUT",
+        "scale_micro_regime": "chop",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.CALL
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "not_adapt_regime"
+
+
+def test_candle_noop_when_aligned_with_exec():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "CALL",
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "CALL",
+        "scale_mini_bar_dir": "CALL",
+        "scale_mili_dir": "CALL",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.CALL
+    assert metrics["scale_adapt_reason"] == "aligned"
+    assert metrics["scale_adapted"] is False
