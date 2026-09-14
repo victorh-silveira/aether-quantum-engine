@@ -28,7 +28,13 @@ from src.application.services.market_audit_candle import (
     last_closed_micro_candle,
 )
 from src.application.services.market_audit_ops_window import stamp_ops_window_metrics
-from src.domain.config_knobs import merge_settings_block, require_bool, require_int, require_keys
+from src.domain.config_knobs import (
+    merge_settings_block,
+    require_bool,
+    require_float,
+    require_int,
+    require_keys,
+)
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
@@ -44,6 +50,7 @@ _SCALE_VISION_KEYS = (
     "retraction_use_tick_accel",
     "adapt_retract_enabled",
     "adapt_tape_require_strong",
+    "adapt_explos_max_tcn_edge",
 )
 
 __all__ = (
@@ -83,6 +90,7 @@ def parse_scale_vision_config(raw: dict[str, Any] | None = None) -> dict[str, An
         "retraction_use_tick_accel": require_bool(block, "retraction_use_tick_accel"),
         "adapt_retract_enabled": require_bool(block, "adapt_retract_enabled"),
         "adapt_tape_require_strong": require_bool(block, "adapt_tape_require_strong"),
+        "adapt_explos_max_tcn_edge": max(0.0, require_float(block, "adapt_explos_max_tcn_edge")),
         "adapt_kelly_p_floor": float(load_kelly_runtime_from_settings()["kelly_p_floor"]),
         "kelly_mult_discord": 1.0,
         "max_stake_pct_discord": 0.05,

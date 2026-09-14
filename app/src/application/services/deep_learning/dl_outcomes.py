@@ -61,7 +61,7 @@ def resolve_session_pause_config(dl_cfg: dict | None = None) -> dict:
 
 
 def tick_dl_session_pauses(orch) -> None:
-    """Decrementa pausas de sessao por simbolo e limpa expiradas."""
+    """Limpa pausas expiradas por parede; contador de ciclos so quando sem until."""
     pauses = getattr(orch, "_dl_session_pause", None)
     until_map = getattr(orch, "_dl_session_pause_until", None)
     now = time.time()
@@ -75,6 +75,8 @@ def tick_dl_session_pauses(orch) -> None:
         return
     dead: list[str] = []
     for sym, remaining in list(pauses.items()):
+        if isinstance(until_map, dict) and sym in until_map:
+            continue
         nxt = int(remaining or 0) - 1
         if nxt <= 0:
             dead.append(str(sym))
@@ -82,21 +84,25 @@ def tick_dl_session_pauses(orch) -> None:
             pauses[str(sym)] = nxt
     for sym in dead:
         pauses.pop(sym, None)
-        if isinstance(until_map, dict):
-            until_map.pop(sym, None)
 
 
 def is_symbol_session_paused(orch, symbol: str) -> bool:
     """Indica pausa tecnica apos sequencia de losses no simbolo."""
+    sym = str(symbol)
     until_map = getattr(orch, "_dl_session_pause_until", None)
-    if isinstance(until_map, dict):
-        until = float(until_map.get(str(symbol), 0.0) or 0.0)
-        if until > time.time():
-            return True
     pauses = getattr(orch, "_dl_session_pause", None)
+    now = time.time()
+    if isinstance(until_map, dict) and sym in until_map:
+        until = float(until_map.get(sym, 0.0) or 0.0)
+        if until > now:
+            return True
+        until_map.pop(sym, None)
+        if isinstance(pauses, dict):
+            pauses.pop(sym, None)
+        return False
     if not isinstance(pauses, dict):
         return False
-    return int(pauses.get(str(symbol), 0) or 0) > 0
+    return int(pauses.get(sym, 0) or 0) > 0
 
 
 def _session_cycle_seconds(orch) -> float:

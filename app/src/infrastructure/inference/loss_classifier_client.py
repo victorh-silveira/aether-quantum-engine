@@ -38,6 +38,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
             "flip_trust_n",
             "flip_young_shrink",
             "flip_young_p_eff_floor",
+            "flip_min_n_train",
             "bootstrap_exit_n",
             "ready_n",
             "retrain_min_n",
@@ -62,6 +63,9 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     flip_trust_n = require_int(block, "flip_trust_n")
     if flip_trust_n < 1:
         raise ValueError("infra.loss_classifier.flip_trust_n deve ser >= 1")
+    flip_min_n_train = require_int(block, "flip_min_n_train")
+    if flip_min_n_train < 1:
+        raise ValueError("infra.loss_classifier.flip_min_n_train deve ser >= 1")
     bootstrap_exit_n = require_int(block, "bootstrap_exit_n")
     if bootstrap_exit_n < 4:
         raise ValueError("infra.loss_classifier.bootstrap_exit_n deve ser >= 4")
@@ -78,6 +82,7 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
         "flip_trust_n": flip_trust_n,
         "flip_young_shrink": young_shrink,
         "flip_young_p_eff_floor": young_p_eff_floor,
+        "flip_min_n_train": flip_min_n_train,
         "bootstrap_exit_n": bootstrap_exit_n,
         "ready_n": require_int(block, "ready_n"),
         "retrain_min_n": require_int(block, "retrain_min_n"),

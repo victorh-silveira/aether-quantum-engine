@@ -8,8 +8,8 @@ Stack local **hibrida**: motor no host (Conda/WSL, Python 3.13, CUDA local) com 
 |---------|-------------------|---------|---------------|-----|
 | Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` (AOF everysec, `maxmemory`/`noeviction`) |
 | TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **86400 s** (D1) / micro **300 s** (M5); chunk 1d; CRAG `candle_m5` analytics |
-| MinIO | `127.0.0.1:9000` / `9001` | `core` | 512m | Checkpoints / TorchScript; bucket `dl-models`; `minio-init` + ILM `optuna/` ~7d |
-| MinIO init (`aether-minio-init`) | — | `core` | oneshot | Cria bucket/ILM e **sai com Exit 0**; `Exited (0)` em `docker ps -a` e **sucesso**, nao falha. Meta/loss esperam `service_completed_successfully`. |
+| MinIO | `127.0.0.1:9000` / `9001` | `core` | 512m | Checkpoints / TorchScript; imagem `pgsty/minio`; bucket `dl-models`; `minio-init` + ILM `optuna/` ~7d |
+| MinIO init (`aether-minio-init`) | — | `core` | oneshot | Imagem `pgsty/mc`; cria bucket/ILM e **sai com Exit 0**; `Exited (0)` em `docker ps -a` e **sucesso**, nao falha. Meta/loss esperam `service_completed_successfully`. |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **23D**; schema_hash; `/v2/predict_meta` aplica `label_scale` e clamp **[-1, +0.85]**; `/v1/learn` idempotente por `contract_id`; nao promove `meta_online_*` sobre `meta_lgbm.pkl` sem gate N>=32 e MAE; fit fora do loop |
 | Loss (`aether-loss-classifier`) | `127.0.0.1:8006` | `ml` | 512m | LGBMClassifier **24D** semantico + schema_hash; `/v1/learn` dedupe `contract_id`; pesos de recencia se N maduro; `degenerate` se colapso/ECE extremo (`veto_ready=false`, sem SKIP); T=2 young; saida do seed = `LOSS_BOOTSTRAP_EXIT_N` **4**; motor **FLIP** so apos auto_learn; young pe>=0.55 / mature pe>=0.58 |
 

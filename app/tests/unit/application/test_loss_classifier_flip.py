@@ -152,8 +152,23 @@ def test_loss_clf_young_low_p_no_flip(monkeypatch):
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["exec_direction"] == "PUT"
     assert metrics["loss_clf_young_shrink"] is True
-    assert metrics["loss_clf_flip_floor"] == 0.55
-    assert metrics["loss_clf_p_eff"] < 0.55
+    assert metrics["loss_clf_flip_floor"] == 0.58
+    assert metrics["loss_clf_p_eff"] < 0.58
+
+
+def test_loss_clf_flip_min_n_train_blocks(monkeypatch):
+    metrics = {
+        "tcn_direction": "PUT",
+        "exec_direction": "PUT",
+        "scale_tape_consensus": "PUT",
+        "execution_candidate_ready": True,
+    }
+    _patch_predict(monkeypatch, p_loss=0.90, n_train=4)
+    assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
+    assert metrics.get("loss_clf_flip") is not True
+    assert metrics["loss_clf_flip_blocked"] == "flip_min_n"
+    assert metrics["loss_clf_flip_min_n_train"] == 8
+    assert metrics["exec_direction"] == "PUT"
 
 
 def test_loss_clf_young_high_p_flips(monkeypatch):
@@ -163,12 +178,12 @@ def test_loss_clf_young_high_p_flips(monkeypatch):
         "scale_tape_consensus": "PUT",
         "execution_candidate_ready": True,
     }
-    _patch_predict(monkeypatch, p_loss=0.71, n_train=12)
+    _patch_predict(monkeypatch, p_loss=0.80, n_train=12)
     assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
     assert metrics["loss_clf_flip"] is True
     assert metrics["exec_direction"] == "CALL"
-    assert metrics["loss_clf_p_eff"] >= 0.55
-    assert metrics["loss_clf_flip_floor"] == 0.55
+    assert metrics["loss_clf_p_eff"] >= 0.58
+    assert metrics["loss_clf_flip_floor"] == 0.58
 
 
 def test_loss_clf_young_mid_p_no_flip(monkeypatch):
@@ -182,7 +197,7 @@ def test_loss_clf_young_mid_p_no_flip(monkeypatch):
     assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["exec_direction"] == "PUT"
-    assert metrics["loss_clf_p_eff"] < 0.55
+    assert metrics["loss_clf_p_eff"] < 0.58
 
 
 def test_loss_clf_tape_discord_does_not_force_flip_mature(monkeypatch):

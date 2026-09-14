@@ -25,8 +25,11 @@ def test_production_settings_pass_doctrine_invariants():
     assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.58)
     assert int(inv["loss_clf_flip_trust_n"]) == 32
     assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
-    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.55)
+    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.58)
+    assert int(inv["loss_clf_flip_min_n_train"]) == 8
     assert int(inv["loss_clf_bootstrap_exit_n"]) == 4
+    assert inv["cover_enabled"] is True
+    assert float(inv["cover_multiple"]) == pytest.approx(1.0)
     assert int(inv["loss_clf_ready_n"]) == 32
     assert int(inv["loss_clf_retrain_min_n"]) == 12
     assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 4
@@ -79,7 +82,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(block["hard_p_loss_floor"]) == pytest.approx(0.58)
     assert int(block["flip_trust_n"]) == 32
     assert float(block["flip_young_shrink"]) == pytest.approx(0.35)
-    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.55)
+    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.58)
+    assert int(block["flip_min_n_train"]) == 8
     assert int(block["bootstrap_exit_n"]) == 4
     assert "flip_require_auto_learn" not in block
     assert "soft_kelly_mult" not in block
@@ -89,20 +93,23 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert resolved["hard_p_loss_floor"] == pytest.approx(0.58)
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
-    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
+    assert int(resolved["flip_min_n_train"]) == 8
     assert int(resolved["bootstrap_exit_n"]) == 4
     assert int(block["ready_n"]) == 32
     assert int(block["retrain_min_n"]) == 12
     assert int(block["min_win_for_loss_retrain"]) == 4
     assert bool(settings["orchestrator"]["execution"]["allow_undeployed"]) is False
     soft_rec = settings["risk_management"]["soft_recovery"]
-    assert bool(soft_rec["cover_enabled"]) is False
+    assert bool(soft_rec["cover_enabled"]) is True
+    assert float(soft_rec["cover_multiple"]) == pytest.approx(1.0)
     assert float(soft_rec["max_safe_stake_pct_linear3"]) == pytest.approx(0.025)
     scale = settings["orchestrator"]["execution"]["scale_vision"]
     assert scale["enabled"] is True
     assert int(scale["ops_window_bars"]) == 3
     assert bool(scale["adapt_retract_enabled"]) is True
     assert bool(scale["adapt_tape_require_strong"]) is True
+    assert float(scale["adapt_explos_max_tcn_edge"]) == pytest.approx(0.05)
     assert "adapt_soft_margin" not in scale
     assert "fusion_enabled" not in scale
     assert "adapt_direction_enabled" not in scale

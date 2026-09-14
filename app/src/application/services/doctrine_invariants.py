@@ -67,6 +67,7 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
             "flip_trust_n",
             "flip_young_shrink",
             "flip_young_p_eff_floor",
+            "flip_min_n_train",
             "bootstrap_exit_n",
             "ready_n",
             "retrain_min_n",
@@ -82,6 +83,7 @@ def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
         "loss_clf_flip_trust_n": require_int(block, "flip_trust_n"),
         "loss_clf_flip_young_shrink": require_float(block, "flip_young_shrink"),
         "loss_clf_flip_young_p_eff_floor": require_float(block, "flip_young_p_eff_floor"),
+        "loss_clf_flip_min_n_train": require_int(block, "flip_min_n_train"),
         "loss_clf_bootstrap_exit_n": require_int(block, "bootstrap_exit_n"),
         "loss_clf_ready_n": require_int(block, "ready_n"),
         "loss_clf_retrain_min_n": require_int(block, "retrain_min_n"),
@@ -212,10 +214,14 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("scale_vision.adapt_retract_enabled deve ser true")
     if not require_bool(scale, "adapt_tape_require_strong"):
         raise ValueError("scale_vision.adapt_tape_require_strong deve ser true")
+    if abs(float(require_float(scale, "adapt_explos_max_tcn_edge")) - 0.05) > 1e-9:
+        raise ValueError("scale_vision.adapt_explos_max_tcn_edge deve ser 0.05")
     if "adapt_soft_margin" in scale:
         raise ValueError("scale_vision.adapt_soft_margin removido (retract adapta sem freio de margem)")
     if int(inv["loss_clf_bootstrap_exit_n"]) != 4:
         raise ValueError("loss_classifier.bootstrap_exit_n deve ser 4")
+    if int(inv["loss_clf_flip_min_n_train"]) != 8:
+        raise ValueError("loss_classifier.flip_min_n_train deve ser 8")
     if inv["force_trade_every_cycle"]:
         raise ValueError("force_trade_every_cycle deve ser false na doutrina de producao")
     if inv["mandatory_trade_each_cycle"]:
@@ -230,8 +236,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("loss_classifier.flip_trust_n deve ser 32")
     if abs(float(inv["loss_clf_flip_young_shrink"]) - 0.35) > 1e-9:
         raise ValueError("loss_classifier.flip_young_shrink deve ser 0.35")
-    if abs(float(inv["loss_clf_flip_young_p_eff_floor"]) - 0.55) > 1e-9:
-        raise ValueError("loss_classifier.flip_young_p_eff_floor deve ser 0.55")
+    if abs(float(inv["loss_clf_flip_young_p_eff_floor"]) - 0.58) > 1e-9:
+        raise ValueError("loss_classifier.flip_young_p_eff_floor deve ser 0.58")
     if int(inv["loss_clf_ready_n"]) != 32:
         raise ValueError("loss_classifier.ready_n deve ser 32")
     if int(inv["loss_clf_retrain_min_n"]) != 12:
@@ -250,10 +256,10 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("post_settlement_is_trading_wait_seconds deve ser 90")
     if int(inv["amort_cycles_min"]) < 1 or int(inv["amort_cycles_max"]) > 4:
         raise ValueError("amort_cycles deve estar entre 1 e 4")
-    if float(inv["cover_multiple"]) < 1.0 or float(inv["cover_multiple"]) > 2.0:
-        raise ValueError("cover_multiple deve estar em [1.0, 2.0]")
-    if inv["cover_enabled"] is not False:
-        raise ValueError("cover_enabled deve ser false (sem amortizacao em massa)")
+    if abs(float(inv["cover_multiple"]) - 1.0) > 1e-9:
+        raise ValueError("cover_multiple deve ser 1.0")
+    if inv["cover_enabled"] is not True:
+        raise ValueError("cover_enabled deve ser true (cover soft capped)")
     if abs(float(inv["neutral_bankroll_pct"]) - 0.01) > 1e-9:
         raise ValueError("neutral_bankroll_pct deve ser 0.01")
     if abs(float(inv["min_stake_pct"]) - 0.01) > 1e-9:

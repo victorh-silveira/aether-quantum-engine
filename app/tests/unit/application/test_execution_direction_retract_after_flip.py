@@ -47,7 +47,7 @@ def _flip_call_to_put(metrics, _tcn_ref, **_kwargs):
     metrics["resolved_direction"] = "PUT"
 
 
-def test_finalize_c10_retract_holds_after_flip_to_put():
+def test_finalize_flip_holds_blocks_retract_after_flip_to_put():
     metrics = _base_metrics()
     entry = {"metrics": metrics}
     orch = SimpleNamespace(risk_manager=None, stream=None, _active_cycle_id=10)
@@ -82,11 +82,12 @@ def test_finalize_c10_retract_holds_after_flip_to_put():
             orch=orch,
             exec_cfg=_EXEC_CFG,
         )
-    assert out is TradeDirection.CALL
-    assert m["exec_direction"] == "CALL"
-    assert m["scale_adapted"] is True
-    assert m["scale_adapt_reason"] == "retract_holds"
-    assert m["scale_adapt_undid_flip"] is True
+    assert out is TradeDirection.PUT
+    assert m["exec_direction"] == "PUT"
+    assert m["scale_adapted"] is False
+    assert m["scale_adapt_reason"] == "flip_holds"
+    assert m["scale_adapt_undid_flip"] is False
+    assert m.get("loss_clf_flip") is True
 
 
 def test_finalize_flip_preserved_without_retract():

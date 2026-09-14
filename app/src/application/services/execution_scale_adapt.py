@@ -1,4 +1,4 @@
-"""Adaptacao de lado por SCALE retract/explos/tape (ultima palavra apos FLIP; sem SKIP)."""
+"""Adaptacao de lado por SCALE retract/explos/tape (ultima palavra; FLIP sticky)."""
 
 from __future__ import annotations
 
@@ -11,11 +11,10 @@ _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
 _REGIME_RETRACT = "retraction"
 _REGIME_EXPLOS = "explosion"
 _REASON_RETRACT = "retract_vs_tcn"
-_REASON_RETRACT_HOLDS = "retract_holds"
 _REASON_EXPLOS = "explos_vs_tcn"
-_REASON_EXPLOS_HOLDS = "explos_holds"
 _REASON_TAPE = "tape_vs_tcn"
-_REASON_TAPE_HOLDS = "tape_holds"
+_REASON_FLIP_HOLDS = "flip_holds"
+_REASON_EXPLOS_EDGE_FIRM = "explos_edge_firm"
 
 
 def _side(value: object) -> str | None:
@@ -31,23 +30,15 @@ def _commit_adapt(
     target: str,
     reason: str,
 ) -> TradeDirection:
-    """Grava adapt SCALE e devolve o lado alvo."""
-    undid_flip = bool(metrics.get("loss_clf_flip")) and target != baseline
+    """Grava adapt SCALE e devolve o lado alvo (nunca desfaz FLIP)."""
     metrics["scale_adapted"] = True
-    metrics["scale_adapt_undid_flip"] = undid_flip
+    metrics["scale_adapt_undid_flip"] = False
     metrics["scale_adapt_reason"] = reason
     metrics["scale_adapt_from"] = baseline
     metrics["scale_adapt_to"] = target
     metrics["exec_direction"] = target
     metrics["resolved_direction"] = target
     return TradeDirection[target]
-
-
-def _reason_regime(regime: str, *, undid_flip: bool) -> str:
-    """Token why= para retract/explos."""
-    if regime == _REGIME_EXPLOS:
-        return _REASON_EXPLOS_HOLDS if undid_flip else _REASON_EXPLOS
-    return _REASON_RETRACT_HOLDS if undid_flip else _REASON_RETRACT
 
 
 def _resolve_regime_target(
@@ -66,6 +57,19 @@ def _resolve_regime_target(
         if mili is None or mili != target:
             return None, "mili_mismatch"
     return target, None
+
+
+def _tcn_cal_edge(metrics: dict[str, Any]) -> float | None:
+    """Le Edge calibrado do ciclo para freio de explos."""
+    for key in ("cal_side_edge", "neg_edge_tcn_cal_edge", "edge", "cal_edge"):
+        raw = metrics.get(key)
+        if raw is None:
+            continue
+        try:
+            return float(raw)
+        except (TypeError, ValueError):
+            continue
+    return None
 
 
 def _resolve_tape_target(
@@ -95,7 +99,7 @@ def apply_scale_retract_adapt(
     *,
     cfg: dict[str, Any] | None = None,
 ) -> TradeDirection:
-    """Fixa EXEC no lado SCALE se retract/explos/tape confirmado; pode desfazer FLIP."""
+    """Fixa EXEC no lado SCALE se retract/explos/tape; nao desfaz FLIP ativo."""
     tcn = _side(getattr(tcn_dir, "name", None) or tcn_dir)
     if tcn is None:
         tcn = _side(metrics.get("tcn_direction"))
@@ -110,6 +114,7 @@ def apply_scale_retract_adapt(
     enabled = bool(vision.get("adapt_retract_enabled", False))
     require_mili = bool(vision.get("retraction_require_mili", True))
     require_tape_strong = bool(vision.get("adapt_tape_require_strong", True))
+    explos_max_edge = float(vision.get("adapt_explos_max_tcn_edge", 0.05) or 0.05)
     baseline = current or tcn
 
     metrics["scale_adapted"] = False
@@ -127,13 +132,16 @@ def apply_scale_retract_adapt(
         if target == baseline:
             metrics["scale_adapt_reason"] = "aligned"
             return TradeDirection[target]
-        undid = bool(metrics.get("loss_clf_flip")) and target != baseline
-        return _commit_adapt(
-            metrics,
-            baseline=baseline,
-            target=target,
-            reason=_reason_regime(regime, undid_flip=undid),
-        )
+        if bool(metrics.get("loss_clf_flip")):
+            metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
+            return TradeDirection[baseline]
+        if regime == _REGIME_EXPLOS:
+            edge = _tcn_cal_edge(metrics)
+            if edge is not None and edge > explos_max_edge + 1e-12:
+                metrics["scale_adapt_reason"] = _REASON_EXPLOS_EDGE_FIRM
+                return TradeDirection[baseline]
+        reason = _REASON_EXPLOS if regime == _REGIME_EXPLOS else _REASON_RETRACT
+        return _commit_adapt(metrics, baseline=baseline, target=target, reason=reason)
 
     tape_target, tape_fail = _resolve_tape_target(
         metrics,
@@ -144,13 +152,10 @@ def apply_scale_retract_adapt(
         metrics["scale_adapt_reason"] = tape_fail
         return TradeDirection[baseline]
     if tape_target is not None:
-        undid = bool(metrics.get("loss_clf_flip")) and tape_target != baseline
-        return _commit_adapt(
-            metrics,
-            baseline=baseline,
-            target=tape_target,
-            reason=_REASON_TAPE_HOLDS if undid else _REASON_TAPE,
-        )
+        if bool(metrics.get("loss_clf_flip")) and tape_target != baseline:
+            metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
+            return TradeDirection[baseline]
+        return _commit_adapt(metrics, baseline=baseline, target=tape_target, reason=_REASON_TAPE)
 
     metrics["scale_adapt_reason"] = "not_adapt_regime"
     return TradeDirection[baseline]

@@ -153,7 +153,7 @@ def test_adapt_chop_without_tape_signal_stays():
     assert metrics["scale_adapt_reason"] == "tape_not_strong"
 
 
-def test_adapt_explos_holds_undoes_flip():
+def test_adapt_flip_holds_blocks_explos_undo():
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "PUT",
@@ -164,10 +164,10 @@ def test_adapt_explos_holds_undoes_flip():
         "scale_mili_dir": "CALL",
     }
     out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
-    assert out is TradeDirection.CALL
-    assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "explos_holds"
-    assert metrics["scale_adapt_undid_flip"] is True
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "flip_holds"
+    assert metrics["scale_adapt_undid_flip"] is False
 
 
 def test_adapt_skips_chop_only():
@@ -260,7 +260,7 @@ def test_adapt_without_require_mili():
     assert out is TradeDirection.CALL
 
 
-def test_adapt_c10_retract_holds_undoes_loss_clf_flip():
+def test_adapt_flip_holds_blocks_retract_undo():
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "PUT",
@@ -272,12 +272,73 @@ def test_adapt_c10_retract_holds_undoes_loss_clf_flip():
         "scale_mili_dir": "CALL",
     }
     out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "flip_holds"
+    assert metrics["scale_adapt_undid_flip"] is False
+    assert metrics["exec_direction"] == "PUT"
+
+
+def test_adapt_explos_edge_firm_blocks_vs_tcn():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "cal_side_edge": 0.08,
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "PUT",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
     assert out is TradeDirection.CALL
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "explos_edge_firm"
+
+
+def test_adapt_explos_weak_edge_still_adapts():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "cal_side_edge": 0.03,
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "PUT",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
     assert metrics["scale_adapted"] is True
-    assert metrics["scale_adapt_reason"] == "retract_holds"
-    assert metrics["scale_adapt_undid_flip"] is True
-    assert metrics["scale_adapt_from"] == "PUT"
-    assert metrics["exec_direction"] == "CALL"
+    assert metrics["scale_adapt_reason"] == "explos_vs_tcn"
+
+
+def test_adapt_flip_holds_blocks_tape_undo():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "PUT",
+        "loss_clf_flip": True,
+        "scale_micro_regime": "chop",
+        "scale_tape_consensus": "CALL",
+        "scale_tape_strong": True,
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is False
+    assert metrics["scale_adapt_reason"] == "flip_holds"
+
+
+def test_adapt_explos_ignores_invalid_edge_value():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "cal_side_edge": "bad",
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "PUT",
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapt_reason"] == "explos_vs_tcn"
 
 
 def test_adapt_preserves_post_flip_when_not_retract():

@@ -58,6 +58,7 @@ _META_VETO_KEYS = (
     "soft_veto_min_score",
     "soft_veto_strong_edge",
     "soft_veto_strong_factor",
+    "soft_veto_sat_cal_edge_max",
     "squeeze_trade_score",
 )
 _REGIME_KEYS = ("chop_congestion_z_edge", "tick_accel_neutral_eps")

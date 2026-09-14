@@ -197,8 +197,9 @@ def _mutate_inv(key: str, *, value: object):
         (_mutate_inv("settlement_tolerance_window_seconds", value=120), "settlement_tolerance"),
         (_mutate_inv("post_settlement_is_trading_wait_seconds", value=30), "post_settlement"),
         (_mutate_inv("amort_cycles_min", value=0), "amort_cycles"),
-        (_mutate_inv("cover_multiple", value=3.0), "cover_multiple"),
-        (_mutate_inv("cover_enabled", value=True), "cover_enabled"),
+        (_mutate_inv("cover_multiple", value=1.5), "cover_multiple"),
+        (_mutate_inv("cover_enabled", value=False), "cover_enabled"),
+        (_mutate_inv("loss_clf_flip_min_n_train", value=4), "flip_min_n_train"),
         (_mutate_inv("neutral_bankroll_pct", value=0.02), "neutral_bankroll_pct"),
         (_mutate_inv("min_stake_pct", value=0.02), "min_stake_pct"),
         (_mutate_inv("max_safe_stake_pct_linear3", value=0.05), "max_safe_stake_pct_linear3"),
@@ -238,6 +239,7 @@ def _settings_from_invariants(inv: dict) -> dict:
     settings["infra"]["loss_classifier"]["flip_trust_n"] = inv["loss_clf_flip_trust_n"]
     settings["infra"]["loss_classifier"]["flip_young_shrink"] = inv["loss_clf_flip_young_shrink"]
     settings["infra"]["loss_classifier"]["flip_young_p_eff_floor"] = inv["loss_clf_flip_young_p_eff_floor"]
+    settings["infra"]["loss_classifier"]["flip_min_n_train"] = inv["loss_clf_flip_min_n_train"]
     settings["infra"]["loss_classifier"]["enabled"] = inv["loss_clf_enabled"]
     settings["orchestrator"]["watchdog_stale_tick_seconds"] = inv["watchdog_stale_tick_seconds"]
     settings["orchestrator"]["settlement_tolerance_window_seconds"] = inv["settlement_tolerance_window_seconds"]

@@ -193,6 +193,8 @@ def test_session_pause_helpers():
     assert is_symbol_session_paused(orch, "R_10") is True
     tick_dl_session_pauses(orch)
     assert orch._dl_session_pause["R_10"] == 1
+    tick_dl_session_pauses(orch)
+    assert "R_10" not in orch._dl_session_pause
 
 
 def test_maybe_pause_symbol_session():
@@ -214,7 +216,9 @@ def test_maybe_pause_symbol_session():
     until_orch = SimpleNamespace(_dl_session_pause_until={"R_10": 9_999_999_999.0})
     assert is_symbol_session_paused(until_orch, "R_10") is True
     stale_until = SimpleNamespace(_dl_session_pause_until={"R_10": 1.0}, _dl_session_pause={"R_10": 2})
-    assert is_symbol_session_paused(stale_until, "R_10") is True
+    assert is_symbol_session_paused(stale_until, "R_10") is False
+    assert "R_10" not in stale_until._dl_session_pause
+    assert "R_10" not in stale_until._dl_session_pause_until
     expired = SimpleNamespace(
         _dl_session_pause={"R_10": 3},
         _dl_session_pause_until={"R_10": 1.0},

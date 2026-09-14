@@ -118,19 +118,36 @@ def _session_pause_blocks_cycle(orch: Any) -> bool:
         paused = any(is_symbol_session_paused(orch, str(sym)) for sym in symbols)
     else:
         pauses = getattr(orch, "_dl_session_pause", None)
-        paused = isinstance(pauses, dict) and any(int(v or 0) > 0 for v in pauses.values())
+        until_map = getattr(orch, "_dl_session_pause_until", None)
+        now = time.time()
+        paused = False
+        if isinstance(until_map, dict):
+            for sym, deadline in list(until_map.items()):
+                if float(deadline or 0.0) <= now:
+                    until_map.pop(sym, None)
+                    if isinstance(pauses, dict):
+                        pauses.pop(str(sym), None)
+                else:
+                    paused = True
+        if not paused and isinstance(pauses, dict):
+            paused = any(int(v or 0) > 0 for v in pauses.values())
     if not paused:
         return False
     logger = getattr(orch, "logger", None)
     if logger is not None:
         cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
+        rem = 0.0
+        until_map = getattr(orch, "_dl_session_pause_until", None)
+        if isinstance(until_map, dict) and until_map:
+            rem = max(0.0, max(float(v or 0.0) for v in until_map.values()) - time.time())
         log_info_if_changed(
             orch,
             logger,
             "session_pause_skip",
+            f"{cid}:{int(rem)}",
+            "[%s] COOLDOWN || pausa tecnica de sessao pos-loss | restante=%.0fs | skip",
             cid,
-            "[%s] COOLDOWN || pausa tecnica de sessao pos-loss | skip",
-            cid,
+            rem,
         )
     return True
 

@@ -59,6 +59,7 @@ def test_parse_scale_vision_from_ssot():
     assert cfg["kelly_mult_discord"] == pytest.approx(1.0)
     assert cfg["adapt_retract_enabled"] is True
     assert cfg["adapt_tape_require_strong"] is True
+    assert cfg["adapt_explos_max_tcn_edge"] == pytest.approx(0.05)
     assert "adapt_soft_margin" not in cfg
     assert cfg["use_last_bar"] is True
     assert cfg["retraction_require_mili"] is True

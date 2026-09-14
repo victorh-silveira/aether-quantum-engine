@@ -88,13 +88,13 @@ def _meta_edge_saturated(predicted_edge: float) -> bool:
     return abs(float(predicted_edge) - _META_SAT_EDGE) < _META_SAT_EPS
 
 
-def _cal_side_edge_nonpositive(metrics: dict[str, Any]) -> bool:
-    """True se cal_side_edge existe e e <= 0 (Edge CLUSTER negativo/zero)."""
+def _cal_side_edge_soft_for_sat(metrics: dict[str, Any], *, max_edge: float) -> bool:
+    """True se cal_side_edge existe e e <= max_edge (sat META vs Cal mole/BE)."""
     raw = metrics.get("cal_side_edge")
     if raw is None:
         return False
     try:
-        return float(raw) <= 0.0
+        return float(raw) <= float(max_edge) + 1e-12
     except (TypeError, ValueError):
         return False
 
@@ -126,16 +126,18 @@ def apply_meta_regression_edge(
         metrics["meta_sat_soft"] = False
         _apply_meta_soft_kelly(metrics, reason="meta_negative_edge", predicted_edge=float(predicted_edge))
         return dl_dir, float(base_score)
-    if _meta_edge_saturated(predicted_edge) and _cal_side_edge_nonpositive(metrics):
+    cfg = resolve_meta_payoff_veto_config()
+    sat_cal_max = float(cfg["soft_veto_sat_cal_edge_max"])
+    if _meta_edge_saturated(predicted_edge) and _cal_side_edge_soft_for_sat(metrics, max_edge=sat_cal_max):
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         metrics.pop("meta_negative_edge", None)
         metrics["meta_sat_soft"] = True
-        _apply_meta_soft_kelly(metrics, reason="meta_sat_vs_neg_cal", predicted_edge=float(predicted_edge))
+        _apply_meta_soft_kelly(metrics, reason="meta_sat_vs_soft_cal", predicted_edge=float(predicted_edge))
         return dl_dir, float(base_score)
     _clear_meta_soft_kelly(metrics)
     squeeze_danger = severe_bb_compression(metrics)
     if squeeze_danger:
-        squeeze_score = float(resolve_meta_payoff_veto_config()["squeeze_trade_score"])
+        squeeze_score = float(cfg["squeeze_trade_score"])
         metrics["meta_squeeze_downgrade"] = True
         _apply_direction_scores(metrics, direction=dl_dir, score=squeeze_score)
         log_d_squeeze_audit(symbol, metrics)

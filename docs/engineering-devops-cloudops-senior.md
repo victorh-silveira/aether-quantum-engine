@@ -39,7 +39,8 @@ NUMEXPR_NUM_THREADS=2
 
 - Single-node single-drive local (portas 9000/9001).
 - Bucket SSOT: **`dl-models`** (`config/settings.json`).
-- Bootstrap: serviço `minio-init` (`minio/mc`) cria bucket e ILM ~**7 dias** no prefixo `optuna/` e **encerra** (`restart: no`); `Exited (0)` em `docker ps -a` e sucesso, nao falha.
+- Bootstrap: serviço `minio-init` (`pgsty/mc`) cria bucket e ILM ~**7 dias** no prefixo `optuna/` e **encerra** (`restart: no`); `Exited (0)` em `docker ps -a` e sucesso, nao falha.
+- Imagens S3: `pgsty/minio` + `pgsty/mc` (fork community; Docker Hub `minio/minio` e `minio/mc` sem pull publico apos archive upstream).
 - Consumidor valida integridade (ETag/MD5) antes de carregar artefato em memória.
 - Segredos só via env (`.env`); least privilege nas keys de app quando aplicável.
 

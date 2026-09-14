@@ -8,7 +8,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
-- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; schema_hash; FLIP apos auto_learn; young pe>=**0.55** / mature **0.58**
+- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; schema_hash; FLIP apos auto_learn; young pe>=**0.58** / mature **0.58**
 - MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
 - MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / **2000** barras de histórico)
 - Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`quantum_multi_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
@@ -18,7 +18,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks). Em inferencia live, MACRO D1 **nao** herda `_startup_fetch_count` do piso micro (`inference_history_bars`); teto D1 = `min(365, history_bars)`. Paginacao `history_fetch` ordena por epoch e para quando a pagina nao cresce o buffer (evita loop 366↔63 em `ticks_history` descending).
 - Proporcao MACRO:MICRO **288:1** (86400:300)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
-- SKIP tecnico pos-LOSS: `orchestrator.execution.post_loss_cooldown` LIN>=**1** (L1/L2 **300s**, L3 **600s**, L4+ **900s**); pausa de sessao `session_max_losses_in_window` **3** / `session_window_trades` **5** / `session_pause_cycles` **2**
+- SKIP tecnico pos-LOSS: `orchestrator.execution.post_loss_cooldown` LIN>=**1** (L1/L2 **300s**, L3 **600s**, L4+ **900s**); pausa de sessao `session_max_losses_in_window` **3** / `session_window_trades` **5** / `session_pause_cycles` **2** (parede = ciclos×300s; `until` expirado libera mesmo se o ciclo ficou em SKIP)
 - Anti-loss EMA: `invalidate_ema_cache(cycle_id)` no inicio de cada ciclo (`trading_cycle_entry.py`); `calc_ema_series` cacheada por ciclo evita recomputacao de EMA9/EMA21; slope EMA21 2-pontos (lag 5 min) + EMA9 slope rapido (`slope_tol * 0.6`); ancora hibrida (`resolve_hybrid_candle_anchor`) combina janela ops N=3 + ultima vela micro fechada
 
 ## Pipeline do ciclo
@@ -45,7 +45,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
 
-Ordem: TCN → loss-clf FLIP (ancora TCN) → `apply_scale_retract_adapt` se `adapt_retract_enabled` e (retract/explos com mi+mili ou tape `tape_strong` vs TCN) (ultima palavra; pode desfazer FLIP) → Kelly.
+Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **8**) → `apply_scale_retract_adapt` se `adapt_retract_enabled` e (retract/explos com mi+mili ou tape `tape_strong` vs TCN) (last **exceto** FLIP sticky; explos so se Cal Edge TCN ≤ `adapt_explos_max_tcn_edge` **0.05**) → Kelly.
 
 | Campo | Papel |
 |-------|-------|

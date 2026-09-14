@@ -30,7 +30,8 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.58)
     assert inv["loss_clf_flip_trust_n"] == 32
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
-    assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.55)
+    assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.58)
+    assert inv["loss_clf_flip_min_n_train"] == 8
     assert inv["loss_clf_bootstrap_exit_n"] == 4
     assert inv["loss_clf_ready_n"] == 32
     assert inv["loss_clf_retrain_min_n"] == 12
@@ -40,7 +41,8 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
-    assert inv["cover_enabled"] is False
+    assert inv["cover_enabled"] is True
+    assert inv["cover_multiple"] == pytest.approx(1.0)
     assert inv["neutral_bankroll_pct"] == pytest.approx(0.01)
     assert inv["min_stake_pct"] == pytest.approx(0.01)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
@@ -86,6 +88,20 @@ def test_assert_production_doctrine_rejects_adapt_tape_require_strong_off():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["scale_vision"]["adapt_tape_require_strong"] = False
     with pytest.raises(ValueError, match="adapt_tape_require_strong"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_adapt_explos_max_tcn_edge():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["scale_vision"]["adapt_explos_max_tcn_edge"] = 0.10
+    with pytest.raises(ValueError, match="adapt_explos_max_tcn_edge"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_flip_min_n_train():
+    settings = copy.deepcopy(load_settings_json())
+    settings["infra"]["loss_classifier"]["flip_min_n_train"] = 4
+    with pytest.raises(ValueError, match="flip_min_n_train"):
         assert_production_doctrine(settings)
 
 

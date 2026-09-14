@@ -114,11 +114,15 @@ def apply_loss_classifier_gate(
     metrics["loss_clf_bootstrap_exit_n"] = max(1, int(response.get("bootstrap_exit_n") or 4))
     auto_flag = 1 if auto_learn else 0
     ver = str(response.get("model_version") or "none")
+    flip_min_n = max(1, int(cfg.get("flip_min_n_train") or 1))
+    metrics["loss_clf_flip_min_n_train"] = flip_min_n
     blocked = None
     if bootstrap:
         blocked = "bootstrap"
     elif not auto_learn:
         blocked = "no_auto_learn"
+    elif n_train < flip_min_n:
+        blocked = "flip_min_n"
     if blocked is not None:
         metrics["loss_clf_flip_blocked"] = blocked
         metrics.pop("loss_clf_flip", None)

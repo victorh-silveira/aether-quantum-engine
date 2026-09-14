@@ -44,6 +44,10 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert 'OMP_NUM_THREADS: "2"' in text
     assert 'MKL_NUM_THREADS: "2"' in text
     assert '["server", "/data", "--console-address", ":9001"]' in text
+    assert "pgsty/minio:RELEASE.2026-08-04T00-00-00Z" in text
+    assert "pgsty/mc:RELEASE.2026-08-04T00-00-00Z" in text
+    assert "minio/minio:" not in text
+    assert "minio/mc:" not in text
 
 
 def test_compose_gpu_overlay_removed():

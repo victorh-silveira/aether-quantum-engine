@@ -21,7 +21,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Fail-closed seletivo | Meta **opcional** nos settings atuais; TCN eager/CUDA local no host |
 | Feedback real | Win rate live integrado; loss-classifier e meta-classifier treinados online pós-settle via `/v1/learn` |
 | Defesa contra ruído | Anti-loss vivo = FLIP por `P_LOSS` no piso **0.20** (sem Soft Kelly / sem outros flips) |
-| Persistência financeira | Recovery atrelado a `pending_loss`; `cover_enabled` **false** |
+| Persistência financeira | Recovery atrelado a `pending_loss`; `cover_enabled` **true** (`cover_multiple` **1.0**, capped) |
 | Sizing Single-Strike | Kelly Single-Strike projetado para atingir **4,31% da banca em tacada única M5** com cap de **5,0%** |
 | Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: soft Kelly **sem** flip de direção |
 | Meta por sessão ativa | Stop win de **4,31%** composto — encerra a sessão com sucesso (`EXEC_PAUSE`) |
