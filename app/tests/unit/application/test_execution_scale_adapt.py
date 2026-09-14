@@ -53,11 +53,32 @@ def test_adapt_c4_explos_requires_mili_alignment():
         "scale_mini_bar_dir": "PUT",
         "scale_mili_dir": "CALL",
         "scale_tape_consensus": "PUT",
+        "scale_tape_strong": False,
     }
     out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
     assert out is TradeDirection.CALL
     assert metrics["scale_adapted"] is False
     assert metrics["scale_adapt_reason"] == "mili_mismatch"
+
+
+def test_adapt_mili_mismatch_falls_through_to_tape_strong():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "cal_side_edge": 0.018,
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "PUT",
+        "scale_mini_prev_bar_dir": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "CALL",
+        "scale_tape_consensus": "PUT",
+        "scale_tape_strong": True,
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
+    assert metrics["exec_direction"] == "PUT"
 
 
 def test_adapt_explos_with_mili_aligned():
@@ -288,11 +309,31 @@ def test_adapt_explos_edge_firm_blocks_vs_tcn():
         "scale_micro_side": "PUT",
         "scale_mini_bar_dir": "PUT",
         "scale_mili_dir": "PUT",
+        "scale_tape_strong": False,
     }
     out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
     assert out is TradeDirection.CALL
     assert metrics["scale_adapted"] is False
     assert metrics["scale_adapt_reason"] == "explos_edge_firm"
+
+
+def test_adapt_explos_edge_firm_falls_through_to_tape_strong():
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "cal_side_edge": 0.164,
+        "scale_micro_regime": "explosion",
+        "scale_micro_side": "PUT",
+        "scale_mini_prev_bar_dir": "PUT",
+        "scale_mini_bar_dir": "PUT",
+        "scale_mili_dir": "PUT",
+        "scale_tape_consensus": "PUT",
+        "scale_tape_strong": True,
+    }
+    out = apply_scale_retract_adapt(metrics, TradeDirection.CALL, cfg=_CFG)
+    assert out is TradeDirection.PUT
+    assert metrics["scale_adapted"] is True
+    assert metrics["scale_adapt_reason"] == "tape_vs_tcn"
 
 
 def test_adapt_explos_weak_edge_still_adapts():

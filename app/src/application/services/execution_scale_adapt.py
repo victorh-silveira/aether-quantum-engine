@@ -93,6 +93,38 @@ def _resolve_tape_target(
     return tape, None
 
 
+def _try_regime_adapt(
+    metrics: dict[str, Any],
+    *,
+    baseline: str,
+    regime: str,
+    require_mili: bool,
+    explos_max_edge: float,
+) -> tuple[TradeDirection | None, str | None]:
+    """Tenta retract/explos; (lado, None) se adaptou/encerrou, (None, fail) para cair no tape."""
+    target, fail = _resolve_regime_target(metrics, require_mili=require_mili)
+    if fail is not None or target is None:
+        return None, fail or "no_target"
+    if target == baseline:
+        metrics["scale_adapt_reason"] = "aligned"
+        return TradeDirection[target], None
+    if bool(metrics.get("loss_clf_flip")):
+        metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
+        return TradeDirection[baseline], None
+    if regime == _REGIME_EXPLOS:
+        edge = _tcn_cal_edge(metrics)
+        if edge is not None and edge > explos_max_edge + 1e-12:
+            return None, _REASON_EXPLOS_EDGE_FIRM
+        return (
+            _commit_adapt(metrics, baseline=baseline, target=target, reason=_REASON_EXPLOS),
+            None,
+        )
+    return (
+        _commit_adapt(metrics, baseline=baseline, target=target, reason=_REASON_RETRACT),
+        None,
+    )
+
+
 def apply_scale_retract_adapt(
     metrics: dict[str, Any],
     tcn_dir: TradeDirection | str,
@@ -123,39 +155,32 @@ def apply_scale_retract_adapt(
     if not enabled:
         return TradeDirection[baseline]
 
+    prior_fail: str | None = None
     regime = str(metrics.get("scale_micro_regime") or "").strip().lower()
     if regime in {_REGIME_RETRACT, _REGIME_EXPLOS}:
-        target, fail = _resolve_regime_target(metrics, require_mili=require_mili)
-        if fail is not None or target is None:
-            metrics["scale_adapt_reason"] = fail or "no_target"
-            return TradeDirection[baseline]
-        if target == baseline:
-            metrics["scale_adapt_reason"] = "aligned"
-            return TradeDirection[target]
-        if bool(metrics.get("loss_clf_flip")):
-            metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
-            return TradeDirection[baseline]
-        if regime == _REGIME_EXPLOS:
-            edge = _tcn_cal_edge(metrics)
-            if edge is not None and edge > explos_max_edge + 1e-12:
-                metrics["scale_adapt_reason"] = _REASON_EXPLOS_EDGE_FIRM
-                return TradeDirection[baseline]
-        reason = _REASON_EXPLOS if regime == _REGIME_EXPLOS else _REASON_RETRACT
-        return _commit_adapt(metrics, baseline=baseline, target=target, reason=reason)
+        decided, prior_fail = _try_regime_adapt(
+            metrics,
+            baseline=baseline,
+            regime=regime,
+            require_mili=require_mili,
+            explos_max_edge=explos_max_edge,
+        )
+        if decided is not None:
+            return decided
 
     tape_target, tape_fail = _resolve_tape_target(
         metrics,
         baseline,
         require_strong=require_tape_strong,
     )
-    if tape_fail is not None:
-        metrics["scale_adapt_reason"] = tape_fail
-        return TradeDirection[baseline]
     if tape_target is not None:
         if bool(metrics.get("loss_clf_flip")) and tape_target != baseline:
             metrics["scale_adapt_reason"] = _REASON_FLIP_HOLDS
             return TradeDirection[baseline]
         return _commit_adapt(metrics, baseline=baseline, target=tape_target, reason=_REASON_TAPE)
 
-    metrics["scale_adapt_reason"] = "not_adapt_regime"
+    if tape_fail is not None:
+        metrics["scale_adapt_reason"] = prior_fail or tape_fail
+        return TradeDirection[baseline]
+    metrics["scale_adapt_reason"] = prior_fail or "not_adapt_regime"
     return TradeDirection[baseline]

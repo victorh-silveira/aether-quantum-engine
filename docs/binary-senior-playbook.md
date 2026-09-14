@@ -16,7 +16,7 @@ Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
 |------|-----------|
 | CALL / PUT | TCN resolve lado; sem FLIP; sem SCALE adapt; sem SKIP tecnico |
 | FLIP | auto_learn; `n_train>=8`; `p_eff` no piso → oposto do TCN (ancora TCN) |
-| SCALE adapt | sem FLIP ativo: retract/explos (mi+mili; explos so Edge ≤**0.05**) ou tape **forte** → lado SCALE; com FLIP → `flip_holds` |
+| SCALE adapt | sem FLIP: retract/explos (mi+mili; explos so Edge ≤**0.05**) ou tape **forte** (tambem apos `mili_mismatch`/`explos_edge_firm`); com FLIP → `flip_holds` |
 | META soft Kelly | META edge ≤ 0 (ou sat vs Cal≤0) → soft Kelly; forte edge≤-0.5 factor **0.40**; **nao** re-eleva stake com piso Soft_SIZE 2.5%; sem SKIP |
 | SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown / pausa |
 

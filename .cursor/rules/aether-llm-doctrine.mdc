@@ -21,7 +21,7 @@ Runtime SSOT: **1HZ75V** M5; micro/MINI **300 s**; macro **86400 s**; lookback *
 
 - Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, stake = `min(PEND/payout/amort, cap)`); piso Kelly **1%**; Single-Strike so ALLOW
 - Anti-loss vivo = **FLIP** se `p_eff` >= **0.58** young / **0.58** mature; so apos auto_learn (`LOSS_BOOTSTRAP_EXIT_N` **4**) e `n_train >= flip_min_n_train` **8**; shrink N; tape so telemetria
-- SCALE retract/explos/tape adapt (last **exceto** FLIP ativo): retract/explos com mi+mili; explos so com Cal Edge TCN ≤ **0.05**; tape so com `tape_strong`; com FLIP → `flip_holds` (nao e SKIP)
+- SCALE retract/explos/tape adapt (last **exceto** FLIP ativo): retract/explos com mi+mili; explos so com Cal Edge TCN ≤ **0.05**; falha de regime cai no tape `tape_strong`; com FLIP → `flip_holds` (nao e SKIP)
 - META edge ≤ 0: soft Kelly (`meta_soft_kelly`; `soft_veto_score_factor` **0.85**); nao SKIP; nao flipa; nao re-eleva stake com piso Soft_SIZE
 - Tratar EXEC_EMPTY tecnico como sucesso de processo quando coerente (inclui cooldown pos-LOSS e pausa de sessao)
 - Exigir evidencia: `live_n`, Cal/Edge (EV vs BE), `adapted=` / `flip_holds` / `explos_edge_firm`, `meta_soft_kelly`, `val_accuracy`, linha LOSS_CLF (`p=` / `pe=` / `floor=` / `boot=N/4` / `n=`)
