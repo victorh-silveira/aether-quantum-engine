@@ -28,20 +28,21 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 
 ## Pre-trade (PlayBook)
 
-1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; young pe>=0.55 / mature pe>=0.58) + Kelly
-2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao)
+1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; young/mature pe>=**0.58**; `n_train>=8`; **nao** se vela==TCN) + SCALE adapt + Kelly
+2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao / WSS down)
 3. Explore ou recover? Com `cover_enabled` **true**, PEND material usa cover capped (`min(PEND/payout/amort, cap_L)`)
 4. Hipotese falsificavel se mudar knob; gate novo so via catalogo
 5. Alvo: stop-win **4,31%** — processo, nao “mao quente”
 
-## During (leitura de log)
+## During (leitura de log) — ordem CLUSTER→CANDLE→GATES→SCALE→META→KELLY
 
-1. CLUSTER — Prob / Cal / Margin / Edge; `live_n`
-2. SCALE — vision telemetria (sem adapt de lado)
-3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap` / `flip_min_n` = FLIP off; SCALE last `adapted=1` (`retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn`) ou `flip_holds` / `explos_edge_firm`; Edge = EV; EMPTY tecnico = processo ok quando coerente. ACC no piso (~0.53) = retreino TCN, nao “mais trades”.
-4. IND — `META: applied=` / edge ≤ 0 ou `sat=1`+Cal Edge≤0.02.02 → soft Kelly (`meta_soft_kelly`; nao flipa); `edge=+0.850 sat=1` = clip; `[CANDLE]` ≠ lado TCN
-5. KELLY / EXEC
-6. RESOLVED / RISK — `LIN:` pos-settle (alinha com `COOLDOWN_Ln`); pending; pnl vs 4.31%
+1. CLUSTER — lado TCN (Cal≥0.5 CALL); Prob / Margin / Edge (EV vs be=0.541); `live_n`; Edge negativo sozinho nao e SKIP
+2. CANDLE — `dir_vela` same-cycle (o→c da M5 fechada); compara com TCN
+3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap` / `flip_min_n` / **`candle_holds`** = FLIP off; se FLIP, lado = !TCN so se vela ≠ TCN
+4. IND SCALE — `adapted=` + `why=retract_vs_tcn|explos_vs_tcn|tape_vs_tcn|candle_vs_tcn|flip_holds|explos_edge_firm`; mi/mili/tape; regime falha → tape_strong; candle last (exceto FLIP sticky)
+5. META — `applied=` / edge ≤ 0 ou `sat=1`+Cal Edge≤0.02 → soft Kelly (`meta_soft_kelly`; **nao flipa**); `edge=+0.850 sat=1` = clip
+6. KELLY / EXEC — lado final deve bater a cascata; stake = explore/recover/cover
+7. RESOLVED / RISK — `LIN:` pos-settle; pending; `QUALITY hit=` so pos-FLIP; pnl vs 4.31%; ACC ~0.53 = retreino TCN, nao “mais trades”
 
 ## Pos-mortem (9 perguntas)
 

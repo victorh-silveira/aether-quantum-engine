@@ -116,6 +116,8 @@ def apply_loss_classifier_gate(
     ver = str(response.get("model_version") or "none")
     flip_min_n = max(1, int(cfg.get("flip_min_n_train") or 1))
     metrics["loss_clf_flip_min_n_train"] = flip_min_n
+    candle_dir = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
+    candle_holds = bool(metrics.get("closed_micro_candle_stamped")) and candle_dir == ref_dir.name
     blocked = None
     if bootstrap:
         blocked = "bootstrap"
@@ -123,6 +125,8 @@ def apply_loss_classifier_gate(
         blocked = "no_auto_learn"
     elif n_train < flip_min_n:
         blocked = "flip_min_n"
+    elif candle_holds:
+        blocked = "candle_holds"
     if blocked is not None:
         metrics["loss_clf_flip_blocked"] = blocked
         metrics.pop("loss_clf_flip", None)

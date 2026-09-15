@@ -27,6 +27,17 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 Leitura operacional (sessao live): checkpoint `data/dl/1HZ75V.pth` com `val_accuracy` colado ao piso implica Cal mole. Nao “operar mais para aprender”; se ACC estruturalmente no piso, retreinar via `launch-train`. Loss-clf FLIP so apos bootstrap live `LOSS_BOOTSTRAP_EXIT_N` **4**; Edge EV (payout **0.85**) e telemetria — negativo sozinho nao skipa; meta nao flipa lado.
 
+### Frente: vies TCN monotono + ACC no piso
+
+Abrir retreino TCN (skill `aether-dl-train` / `launch-train`) quando **todas** as condicoes abaixo persistirem por sessao:
+
+1. `ACC` / `val_accuracy` colado ao piso (~**0.53**) no `[IND]`
+2. TCN ancora o mesmo lado na maioria dos ciclos (ex.: CALL continuo com Cal≥0.5)
+3. Alta taxa de `adapted=1` com `why=tape_vs_tcn` ou `candle_vs_tcn` (SCALE corrigindo a ancora)
+4. Sem confundir com FLIP ilegítimo: apos `candle_holds`, FLIP+vela==TCN deve aparecer como `blocked=candle_holds`, nao como EXEC invertido
+
+Acao: `launch-train` → gate deploy/settle → `make docker-rebuild` + sync MinIO. **Proibido** abrir gate IND (RSI/ADX) ou Soft Kelly do loss-clf para “corrigir” o vies.
+
 ## Entry points
 
 | Comando | Papel |

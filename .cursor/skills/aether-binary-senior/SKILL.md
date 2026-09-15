@@ -9,16 +9,17 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **4**, `n_train>=8`) e pe no piso → SCALE retract/explos/tape → **vela fechada** `candle_vs_tcn` (FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). Sem `SKIP:NEUTRAL_ZONE`. Sem trava `cal_soft_edge`. Sem quality gate. Pos-settle: `LOSS_CLF || QUALITY` se houve FLIP loss-clf.
+Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **4**, `n_train>=8`) e pe no piso (**exceto** `blocked=candle_holds` se vela == TCN) → SCALE retract/explos/tape → **vela fechada** `candle_vs_tcn` (FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). Sem `SKIP:NEUTRAL_ZONE`. Sem trava `cal_soft_edge`. Sem quality gate. Pos-settle: `LOSS_CLF || QUALITY` se houve FLIP loss-clf.
 
-## Checklist
+## Checklist (auditoria por ciclo)
 
-1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao
-2. `LOSS_CLF FLIP`? Se `blocked=bootstrap boot=N/4` → FLIP ainda off
-3. SCALE last: `adapted=1` + `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` / `candle_vs_tcn` ou `flip_holds` — nao e SKIP; `tape_not_strong` = discord sem adapt; candle fechada sobrescreve regime/tape
-4. META `edge≤0` ou `sat=1`+Cal Edge≤0.02.02 → soft Kelly (nao SKIP; nao flipa; nao re-eleva stake via Soft_SIZE 2.5%)
-5. Cal/Edge = EV vs BE (telemetria); Edge negativo sozinho nao e skip
-6. EXEC_EMPTY tecnico = processo ok quando coerente
+1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown / pausa / WSS FAIL
+2. CLUSTER → anotar lado TCN (Cal≥0.5 CALL) + Edge EV
+3. CANDLE → `dir_vela` same-cycle vs TCN
+4. `LOSS_CLF`: FLIP so se pe no piso e vela ≠ TCN; `blocked=bootstrap|flip_min_n|candle_holds` → sem FLIP; padrao c5 (FLIP com vela==TCN) = processo errado
+5. SCALE last: regime (mi==mili; explos so Edge≤0.05) → tape_strong → candle last; `why=…`; com FLIP → `flip_holds`
+6. META so sizing (`meta_soft_kelly`); IND RSI/ADX/HURST so telemetria
+7. KELLY/EXEC lado = cascata; RESOLVED valida mercado, nao so processo
 
 ## Proibido
 

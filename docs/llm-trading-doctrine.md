@@ -2,7 +2,7 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime.
 
-Decisao live: TCN (Cal vs 0.5) → **FLIP** loss-clf se auto_learn, `n_train>=8` e `p_eff` no piso → SCALE retract/explos/tape → **vela M5 fechada last** (`candle_vs_tcn`; FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate.
+Decisao live: TCN (Cal vs 0.5) → **FLIP** loss-clf se auto_learn, `n_train>=8` e `p_eff` no piso (**exceto** se vela fechada confirma TCN) → SCALE retract/explos/tape → **vela M5 fechada last** (`candle_vs_tcn`; FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate.
 
 **Removido:** HARD SKIP por loss-clf, Soft Kelly do loss-clf, fusao EV, signal_skip soft, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, `invert_exec_side`, `cal_soft_edge`.
 
@@ -36,6 +36,7 @@ Leitura critica:
 - `why=flip_holds` = FLIP sticky: SCALE (incl. candle) nao desfaz o FLIP.
 - `why=explos_edge_firm` = explos bloqueado e tape nao forte o bastante para virar.
 - `blocked=flip_min_n` = FLIP off com `n_train < 8`.
+- `blocked=candle_holds` = vela M5 fechada confirma TCN; FLIP nao inverte.
 - Edge CLUSTER = EV vs BE; negativo sozinho nao skipa.
 - `META: applied=1 edge≤0` = soft Kelly (`meta_soft_kelly`; forte se edge ≤ -0.5 → factor **0.40**); Soft_SIZE **nao** re-eleva stake.
 - `META: sat=1` com Cal Edge ≤ 0.02 = soft Kelly (`meta_sat_vs_soft_cal`).
