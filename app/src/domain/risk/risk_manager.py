@@ -38,7 +38,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
             "dlambert_enabled": bool(self.soft_recovery_config.get("enabled", True)),
             "soft_recovery": dict(self.soft_recovery_config),
         }
-        self.risk_params = config.get("params", {"payout_estimate": 0.95, "stake_min": 1.0})
+        self.risk_params = config.get("params", {"payout_estimate": 0.85, "stake_min": 1.0})
         self.limits = config.get("limits", {})
 
         self._rolling_wins: dict[str, list[int]] = {}

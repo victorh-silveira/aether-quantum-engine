@@ -35,6 +35,11 @@ def clear_dust_pending_loss(risk_manager: Any, *, soft_recovery: dict[str, Any] 
     if not isinstance(soft, dict) or "dust_pending_clear_max" not in soft:
         soft = load_soft_recovery_from_settings()
     dust_max = float(soft["dust_pending_clear_max"])
+    bankroll = float(getattr(risk_manager, "initial_bankroll", 0.0) or 0.0)
+    linear = int(getattr(risk_manager, "consecutive_losses_linear", 0))
+    pnl = float(getattr(risk_manager, "total_session_profit", 0.0) or 0.0)
+    if bankroll > 250.0 and linear == 0 and pnl > 0.0:
+        dust_max = max(dust_max, bankroll * 0.001)
     pending = getattr(risk_manager, "pending_loss", None)
     if not isinstance(pending, dict):
         return False
@@ -105,6 +110,23 @@ def apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit: float) 
         return True
     if pending > 0.0:
         apply_dlambert_partial_win_retraction(risk_manager)
+        dust_cfg = getattr(risk_manager, "soft_recovery_config", None)
+        dust_cfg = dust_cfg if isinstance(dust_cfg, dict) else load_soft_recovery_from_settings()
+        bankroll = float(getattr(risk_manager, "initial_bankroll", 0.0) or 0.0)
+        dust_lim = max(
+            float(dust_cfg.get("dust_pending_clear_max", 0.25)), bankroll * 0.0015 if bankroll > 250.0 else 0.0
+        )
+        if pending <= dust_lim:
+            risk_manager.pending_loss.clear()
+            risk_manager.consecutive_losses_linear = 0
+            risk_manager.last_loss_stake = 0.0
+            risk_manager._linear_reset_occurred = True
+            risk_manager.logger.debug(
+                "RISK: WIN amortizado zerou PEND residual (restava $%.2f <= $%.2f) | regime=EXPLORE",
+                pending,
+                dust_lim,
+            )
+            return True
         risk_manager.logger.debug(
             "RISK: WIN operacional (P&L: $%.2f) | pend=$%.2f | pnl_sess=$%+.2f | linear=%d",
             cluster_profit,

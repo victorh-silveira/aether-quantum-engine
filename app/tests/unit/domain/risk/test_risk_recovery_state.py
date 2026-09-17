@@ -181,3 +181,22 @@ def test_log_partial_win_recovery_emits_when_pending_remains():
     rm.total_session_profit = -1.0
     rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
     assert log_partial_win_recovery(rm, 1.0) == pytest.approx(3.0)
+
+
+def test_cluster_win_with_amort_dust_residual_clears_linear_and_pending():
+    rm = type("RM", (), {})()
+    rm.initial_bankroll = 8500.0
+    rm.pending_loss = {"1HZ75V": 7.24}
+    rm.consecutive_losses_linear = 1
+    rm.total_session_profit = 60.0
+    rm.last_loss_stake = 86.0
+    rm.soft_recovery_config = {"dust_pending_clear_max": 0.25}
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
+
+    reset = apply_cluster_profit_to_recovery_state(rm, 80.0)
+
+    assert reset is True
+    assert rm.consecutive_losses_linear == 0
+    assert rm.pending_loss == {}
+    assert rm.last_loss_stake == 0.0
+    assert rm._linear_reset_occurred is True
