@@ -110,6 +110,29 @@ def test_apply_calibrator_stable_prefers_sharper_raw():
         assert apply_calibrator_stable(0.60, cal) == pytest.approx(0.70)
 
 
+def test_apply_calibrator_stable_floor_prefers_raw_when_cal_soft():
+    cal = CalibratorState(method="temperature", temperature=2.0)
+    with patch(
+        "src.application.services.deep_learning.dl_calibration.apply_calibrator",
+        return_value=0.52,
+    ):
+        assert apply_calibrator_stable(0.60, cal, margin_floor=0.05) == pytest.approx(0.60)
+
+
+def test_apply_calibrator_stable_both_soft_keeps_sharper_without_stretch():
+    cal = CalibratorState(method="temperature", temperature=2.0)
+    with patch(
+        "src.application.services.deep_learning.dl_calibration.apply_calibrator",
+        return_value=0.51,
+    ):
+        assert apply_calibrator_stable(0.52, cal, margin_floor=0.05) == pytest.approx(0.52)
+    with patch(
+        "src.application.services.deep_learning.dl_calibration.apply_calibrator",
+        return_value=0.53,
+    ):
+        assert apply_calibrator_stable(0.51, cal, margin_floor=0.05) == pytest.approx(0.53)
+
+
 def test_outcome_weights():
     orch = type("O", (), {})()
     assert sample_weights_for_symbol(orch, "R_10", 5) == [1.0] * 5
@@ -227,3 +250,36 @@ def test_guard_sharpness_keeps_better_of_collapsed_pair(monkeypatch):
     monkeypatch.setattr(fit_mod, "_candidate_score", fake_score)
     out = fit_mod._guard_sharpness(preferred, [0.9, 0.1], [1.0, 0.0], min_sharpness=0.03)
     assert out is preferred
+
+
+def test_maybe_temperature_sharpen_raises_soft_probs():
+    from src.application.services.deep_learning.dl_calibration import CalibratorState
+    from src.application.services.deep_learning.dl_calibration_sharpen import (
+        maybe_temperature_sharpen_for_export,
+    )
+
+    soft = [0.52, 0.48, 0.53, 0.47, 0.51, 0.49]
+    identity = CalibratorState(method="identity", temperature=1.0, platt_a=1.0, platt_b=0.0)
+    # Floor 0.025: nao atingido inicialmente por identity (sharp ~ 0.02), mas atingido pelo loop
+    cal, sharp = maybe_temperature_sharpen_for_export(
+        identity,
+        val_probs=soft,
+        min_oos_sharpness=0.025,
+    )
+    assert cal.method == "temperature"
+    assert float(cal.temperature) <= 1.0
+    assert sharp >= 0.024
+
+    c_empty, s_empty = maybe_temperature_sharpen_for_export(identity, val_probs=[], min_oos_sharpness=0.05)
+    assert c_empty is identity
+    assert s_empty == 0.0
+
+    sharp_probs = [0.99, 0.01, 0.98, 0.02]
+    c_sharp, s_sharp = maybe_temperature_sharpen_for_export(identity, val_probs=sharp_probs, min_oos_sharpness=0.01)
+    assert c_sharp is identity
+
+    c_unreach, s_unreach = maybe_temperature_sharpen_for_export(
+        identity, val_probs=[0.501, 0.499], min_oos_sharpness=0.99
+    )
+    assert c_unreach.method == "temperature"
+    assert s_unreach < 0.99

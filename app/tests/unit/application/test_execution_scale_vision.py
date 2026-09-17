@@ -52,12 +52,18 @@ def test_mili_direction_from_flow():
     assert mili_direction_from_flow({"micro_tick_acceleration": -1.0}, None, "R_10") == "PUT"
     assert mili_direction_from_flow({}, None, "R_10") is None
 
+    class MockTickBuf:
+        def live_tick_acceleration(self, _sym):
+            return 2.0
+
+    assert mili_direction_from_flow({}, MockTickBuf(), "R_10") == "CALL"
+
 
 def test_parse_scale_vision_from_ssot():
     cfg = parse_scale_vision_config({})
     assert cfg["enabled"] is True
     assert cfg["kelly_mult_discord"] == pytest.approx(1.0)
-    assert cfg["adapt_retract_enabled"] is True
+    assert cfg["adapt_retract_enabled"] is False
     assert cfg["adapt_tape_require_strong"] is True
     assert cfg["adapt_explos_max_tcn_edge"] == pytest.approx(0.05)
     assert "adapt_soft_margin" not in cfg
@@ -148,6 +154,26 @@ def test_compute_scale_without_last_bar():
     )
     assert metrics["scale_mini_bar_dir"] is None
     assert metrics["scale_discordance"] is True
+
+    # Concordancia entre peers e micro_name (agree += 1)
+    class AgreeStream:
+        def get_numpy_series(self, _symbol, _field="close"):
+            return np.array([0.6, 0.7, 0.8, 0.9, 1.0])
+
+        def get_mini_numpy_series(self, _symbol, _field="close"):
+            return np.array([0.6, 0.7, 0.8, 0.9, 1.0])
+
+        tick_buffer = None
+
+    metrics_agree = {"flow_features": {"price_velocity": 1.0}}
+    compute_scale_directions(
+        type("O", (), {"stream": AgreeStream()})(),
+        "R_10",
+        TradeDirection.CALL,
+        metrics_agree,
+        cfg={"enabled": True, "slope_bars": 5, "use_last_bar": False},
+    )
+    assert metrics_agree["scale_agree_n"] >= 2
     assert "adapted=1" in format_scale_audit_line({**metrics, "scale_adapted": True})
     assert "why=retract_vs_tcn" in format_scale_ind_token(
         {**metrics, "scale_adapted": True, "scale_adapt_reason": "retract_vs_tcn"}

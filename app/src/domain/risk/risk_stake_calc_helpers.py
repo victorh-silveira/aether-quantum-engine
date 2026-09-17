@@ -9,6 +9,10 @@ from src.domain.risk.kelly_f_star_adjustments import (
     kelly_base_with_consensus_floor,
 )
 from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
+from src.domain.risk.soft_recovery_policy import (
+    apply_small_account_hard_floor,
+    configured_max_safe_stake_pct,
+)
 from src.domain.risk.stake_sizing import clamp_kelly_stake
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
@@ -22,6 +26,24 @@ _SOFT_SIGNAL_FLAGS = (
     "fusion_weak_ev_soft",
     "anti_loss_soft",
 )
+
+
+def apply_mandatory_weak_explore_cap(
+    final_stake: float,
+    bankroll: float,
+    *,
+    stake_regime: str,
+    mandatory_flag: bool,
+    dl_execute: bool,
+    kelly_config: dict[str, Any],
+) -> float:
+    """Aplica teto exploratorio de mandatory fraco apenas em EXPLORE."""
+    if stake_regime != "EXPLORE" or not mandatory_flag or dl_execute:
+        return final_stake
+    weak_pct = float(kelly_config.get("mandatory_weak_max_stake_pct", 0.0) or 0.0)
+    if weak_pct <= 0.0:
+        return final_stake
+    return min(final_stake, max(0.0, float(bankroll) * weak_pct))
 
 
 def resolve_f_star_and_kelly_base(
@@ -68,11 +90,16 @@ def cap_final_stake(
     recovery_stress: bool,
     linear_losses: int,
     rm: Any,
+    metrics: dict[str, Any] | None = None,
 ) -> tuple[float, float]:
     """Aplica safe_cap e max_stake_pct; retorna (stake, safe_cap)."""
     soft_cfg = getattr(rm, "soft_recovery_config", None)
     soft = soft_cfg if isinstance(soft_cfg, dict) else None
-    safe_cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=linear_losses, soft_recovery=soft)
+    if isinstance(metrics, dict) and metrics.get("recovery_cap_mode") == "cover_l0":
+        pct = float(configured_max_safe_stake_pct(soft))
+        safe_cap = apply_small_account_hard_floor(float(bankroll) * pct, float(bankroll), soft_recovery=soft)
+    else:
+        safe_cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=linear_losses, soft_recovery=soft)
     max_pct = float(rm.kelly_config.get("max_stake_pct", 0.035) or 0.035)
     hi_thr = float(rm.kelly_config.get("high_conviction_stake_threshold", 1.01))
     if float(conviction) + 1e-9 >= hi_thr:

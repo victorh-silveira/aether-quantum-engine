@@ -136,8 +136,9 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         kwargs={"dl_metrics": dict(neutral_metrics), "order_direction": "PUT"},
     )
     amort = 1
-    cover = 36.72 / 0.72 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.5))
-    assert stake_neutral == pytest.approx(cover, rel=5e-2)
+    cover = 36.72 / 0.72 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.0))
+    floor = bankroll * 0.01
+    assert stake_neutral == pytest.approx(max(cover, floor), rel=5e-2)
     stake_turbo = calculate_stake_for_manager(
         rm,
         bankroll,
@@ -175,5 +176,5 @@ def test_calculate_stake_d_squeeze_keeps_floor_not_turbo(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "PUT"},
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(110.0)
     assert metrics.get("consensus_turbo_edge_active") is not True

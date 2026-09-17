@@ -63,8 +63,8 @@ def test_resolve_soft_recovery_config_defaults_match_settings() -> None:
     assert soft["max_safe_stake_pct"] == pytest.approx(0.035)
     assert soft["max_safe_stake_pct_linear2"] == pytest.approx(0.03)
     assert soft["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
-    assert soft["amort_cycles_min"] == 2
-    assert soft["amort_cycles_max"] == 3
+    assert soft["amort_cycles_min"] == 1
+    assert soft["amort_cycles_max"] == 1
     assert soft["cover_multiple"] == pytest.approx(1.0)
     assert soft["cover_enabled"] is True
     assert soft["linear_bankroll_pct"] == pytest.approx(0.01)
@@ -131,7 +131,7 @@ def test_soft_recovery_clipping_linear_five_micro_bank_is_exactly_four_twenty() 
             "calibrated_prob": 0.70,
         },
     )
-    assert stake == pytest.approx(4.20)
+    assert stake == pytest.approx(5.0)
     assert stake < classical_two_pow
     assert stake < geometric_adaptive
     assert max_safe_stake_cap(

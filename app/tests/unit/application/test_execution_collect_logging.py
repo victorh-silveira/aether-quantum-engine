@@ -19,7 +19,7 @@ def test_log_execution_decision_direct():
         },
     )
     log_execution_decision(exec_mgr, "C0001", best, [best], 0.55)
-    assert exec_mgr.logger.info.call_count >= 2
+    assert exec_mgr.logger.info.call_count == 1
     payloads = [c.args[1] for c in exec_mgr.logger.info.call_args_list]
     assert payloads[0].startswith("[GATES] || LOSS_CLF:")
-    assert any(str(p).startswith("[IND] ||") for p in payloads)
+    assert not any(str(p).startswith("[IND] ||") for p in payloads)

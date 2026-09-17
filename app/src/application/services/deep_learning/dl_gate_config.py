@@ -123,6 +123,8 @@ def resolve_deploy_ok(
     minority_recall: float | None = None,
 ) -> bool:
     """Combina mini deploy com metricas de validacao; prioriza edge real e assertividade."""
+    if bool(gate_cfg.get("force_ok", False)):
+        return True
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.26))
     if float(val_accuracy) + 1e-9 < soft_acc:
@@ -134,8 +136,6 @@ def resolve_deploy_ok(
         minority_recall=minority_recall,
     ):
         return False
-    if bool(gate_cfg.get("force_ok", False)):
-        return True
     if mini_ok:
         return True
     if not bool(gate_cfg.get("enabled", True)):

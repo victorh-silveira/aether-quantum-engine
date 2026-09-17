@@ -184,6 +184,8 @@ def test_dl_sharpness_gate_and_persist_errors(tmp_path: Path):
     assert mean_sharpness([]) == pytest.approx(0.0)
     with pytest.raises(RuntimeError, match="Export TCN bloqueado"):
         assert_export_sharpness_value(0.01, floor=0.05)
+    assert assert_export_sharpness_value(0.0298, floor=0.03) == pytest.approx(0.0298)
+    assert assert_export_sharpness_value(0.01, floor=0.0) == pytest.approx(0.01)
     with pytest.raises(RuntimeError):
         assert_export_sharpness_floor([0.51], floor=0.05)
     assert describe_deploy_block(

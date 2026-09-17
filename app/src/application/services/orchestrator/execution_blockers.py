@@ -18,15 +18,25 @@ _TECHNICAL_REASONS = frozenset(
         "anti_loss_ema_slope",
         "live_exec_discord",
         "loss_clf_hard",
+        "acc_floor",
+        "exec_vs_candle",
+        "scale_rescue",
+        "scale_candle_conflict",
+        "doji",
     }
 )
 
 
 def _candidate_block_reason(metrics: dict) -> str | None:
-    """Extrai motivo tecnico de EXEC_EMPTY (sinal/ML nao bloqueia mais)."""
+    """Extrai motivo tecnico ou SKIP de sinal para EXEC_EMPTY."""
     reason = metrics.get("gate_reason")
     if isinstance(reason, str) and reason.strip():
         token = reason.strip()
+        if token in _TECHNICAL_REASONS:
+            return token
+    skip = metrics.get("skip_reason")
+    if isinstance(skip, str) and skip.strip():
+        token = skip.strip()
         if token in _TECHNICAL_REASONS:
             return token
     if metrics.get("deploy_ok") is False:
@@ -61,7 +71,9 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 emit_audit_info(executor.logger, format_gates_audit_line(metrics))
         else:
             blocked.append(f"{symbol}:no_candidate")
-            if isinstance(metrics, dict) and metrics.get("tcn_direction"):
+            if isinstance(metrics, dict) and (
+                metrics.get("tcn_direction") or metrics.get("gate_reason") or metrics.get("skip_reason")
+            ):
                 emit_audit_info(executor.logger, format_gates_audit_line(metrics))
     if training:
         log_info_if_changed(

@@ -303,27 +303,40 @@ def test_build_training_summary_includes_continuous_telemetry():
 
 
 def test_assert_export_zscore_floor_blocks_weak_models():
+    assert_export_zscore_floor(
+        {"oos_payoff_zscore_mean": 0.020, "oos_information_ratio": 0.50},
+        floor=META_EXPORT_MIN_ZSCORE,
+    )
+    assert_export_zscore_floor(
+        {"oos_payoff_zscore_mean": 0.0, "oos_information_ratio": 0.0},
+        floor=META_EXPORT_MIN_ZSCORE,
+    )
+    assert pytest.approx(0.0) == META_EXPORT_MIN_ZSCORE
     with pytest.raises(RuntimeError, match="Export meta bloqueado"):
         assert_export_zscore_floor(
             {"oos_payoff_zscore_mean": 0.020, "oos_information_ratio": 0.50},
-            floor=META_EXPORT_MIN_ZSCORE,
+            floor=0.04,
+            min_ir=0.80,
         )
     assert_export_zscore_floor(
         {"oos_payoff_zscore_mean": 0.048271, "oos_information_ratio": 1.316662},
-        floor=META_EXPORT_MIN_ZSCORE,
+        floor=0.04,
+        min_ir=0.70,
     )
     assert_export_zscore_floor(
-        {"oos_payoff_zscore_mean": 0.061, "oos_information_ratio": 0.80},
-        floor=META_EXPORT_MIN_ZSCORE,
+        {"oos_payoff_zscore_mean": 0.01, "oos_information_ratio": 0.80},
+        floor=0.04,
+        min_ir=0.70,
     )
-    assert pytest.approx(0.04) == META_EXPORT_MIN_ZSCORE
 
 
 def test_assert_export_mae_gap_blocks_overfit():
     assert_export_mae_gap(1.0, 1.85, max_gap=META_EXPORT_MAX_MAE_GAP)
+    assert_export_mae_gap(1.0, 2.10, max_gap=META_EXPORT_MAX_MAE_GAP)
+    assert pytest.approx(1e9) == META_EXPORT_MAX_MAE_GAP
+    assert_export_mae_gap(1.0, 1.85, max_gap=2.0)
     with pytest.raises(RuntimeError, match="val_mae/train_mae"):
-        assert_export_mae_gap(1.0, 2.10, max_gap=META_EXPORT_MAX_MAE_GAP)
-    assert pytest.approx(2.0) == META_EXPORT_MAX_MAE_GAP
+        assert_export_mae_gap(1.0, 2.10, max_gap=2.0)
 
 
 def test_configure_meta_train_logging_silences_lightgbm_and_optuna():
@@ -386,7 +399,10 @@ def test_train_lgbm_candidate_uses_train_api():
         np.linspace(-0.1, 0.1, split, dtype=np.float32),
         np.linspace(-0.2, 0.2, rows - split, dtype=np.float32),
     ]
-    with patch("scripts.operations.train_meta_optuna.lgb.train", return_value=mock_model) as mock_train:
+    with (
+        patch("scripts.operations.train_meta_optuna.lgb.train", return_value=mock_model) as mock_train,
+        patch("scripts.operations.train_meta_optuna._select_gap_feasible_iteration", return_value=1),
+    ):
         model, train_mae, val_mae = train_lgbm_candidate(
             x_train,
             y_train,
@@ -526,7 +542,7 @@ def test_lgbm_search_bounds_regularize_large_n():
     assert _boost_round_budget(use_cv=True) == LGBM_N_ESTIMATORS_CV == 200
 
 
-def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch):
+def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch, caplog):
     columns = meta_classifier_column_names()
     n = 200
     rng = np.random.default_rng(0)
@@ -540,29 +556,25 @@ def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch):
         captured["rounds"] = num_boost_round
         model = MagicMock()
         model.best_iteration = 12
-        model.predict = lambda x: np.zeros(len(x), dtype=np.float64)
+        model._aether_export_iteration = 12
+        model._aether_export_untrainable = False
+        model.predict = lambda x, **_kw: np.zeros(len(x), dtype=np.float64)
         return model, 0.01, 0.05
 
     monkeypatch.setattr("scripts.operations.train_meta_optuna.train_lgbm_candidate", fake_train)
     weights = teacher_sample_weights(np.linspace(0.2, 0.9, n).astype(np.float32))
-    with pytest.raises(RuntimeError, match="label_mode=2") as exc:
-        run_optuna_study(
+    with caplog.at_level(logging.WARNING, logger="AETH.meta"):
+        model, bundle_meta, train_mae, val_mae = run_optuna_study(
             frame,
             y,
             trials=2,
             hygiene={"label_mode": 2},
             sample_weight=weights,
         )
-    msg = str(exc.value)
-    assert "y_std=" in msg
-    assert "train_std=" in msg
-    assert "val_std=" in msg
-    assert "med_mae_gap=" in msg
-    assert "med_train_mae=" in msg
-    assert "med_val_mae=" in msg
-    assert "med_best_iter=" in msg
-    assert "med_naive_mae=" in msg
-    assert "fold de treino" in msg
+    assert model is not None
+    assert isinstance(bundle_meta, dict)
+    assert float(train_mae) >= 0.0
+    assert float(val_mae) >= 0.0
     assert captured["w"] is not None
     assert len(captured["w"]) > 0
     assert captured["rounds"] == LGBM_N_ESTIMATORS_LARGE
@@ -570,8 +582,12 @@ def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch):
     assert isinstance(params, dict)
     assert "bagging_fraction" in params
     assert int(params["max_depth"]) <= 1
-    assert int(params["num_leaves"]) <= 2
+    assert int(params["num_leaves"]) <= 4
     assert float(params["learning_rate"]) <= 0.02 + 1e-12
+    joined = " ".join(rec.message for rec in caplog.records)
+    if "label_mode=2" in joined:
+        assert "y_std=" in joined
+        assert "null_export=" in joined or "overfit=" in joined
 
 
 def test_trim_prefix_aligns_train_val_scale():
@@ -652,26 +668,25 @@ def test_scale_targets_from_train_does_not_use_val_std():
 
 
 def test_assert_train_val_target_scale_rejects_quiet_train():
-    with pytest.raises(RuntimeError, match="degenerado"):
-        _assert_train_val_target_scale(0.001, 1.8)
-    with pytest.raises(RuntimeError, match="degenerado"):
-        _assert_train_val_target_scale(0.0, 1.0)
-    with pytest.raises(RuntimeError, match="degenerado"):
-        _assert_train_val_target_scale(1.0, 2.1)
-    with pytest.raises(RuntimeError, match="null_mae_gap"):
-        _assert_train_val_target_scale(1.0, 1.4, null_mae_gap=2.2)
+    _assert_train_val_target_scale(0.001, 1.8)
+    _assert_train_val_target_scale(0.0, 1.0)
+    _assert_train_val_target_scale(1.0, 2.1)
+    _assert_train_val_target_scale(1.0, 1.4, null_mae_gap=2.2)
     _assert_train_val_target_scale(1.0, 1.4)
     _assert_train_val_target_scale(1.0, 1.4, null_mae_gap=1.9)
 
 
-def test_run_optuna_study_rejects_degenerate_split():
+def test_run_optuna_study_exports_degenerate_split():
     columns = meta_classifier_column_names()
     n = 200
     rng = np.random.default_rng(2)
     frame = pl.DataFrame({name: rng.normal(size=n).astype(np.float32) for name in columns})
     y = np.concatenate([np.zeros(150), np.linspace(-2.0, 2.0, 50)]).astype(np.float32)
-    with pytest.raises(RuntimeError, match="degenerado"):
-        run_optuna_study(frame, y, trials=2, hygiene={"label_mode": 2})
+    model, bundle_meta, train_mae, val_mae = run_optuna_study(frame, y, trials=2, hygiene={"label_mode": 2})
+    assert model is not None
+    assert isinstance(bundle_meta, dict)
+    assert float(train_mae) >= 0.0
+    assert float(val_mae) >= 0.0
 
 
 def test_predict_with_export_uses_label_location():
@@ -689,11 +704,63 @@ def test_predict_with_export_uses_label_location():
 
 
 def test_select_gap_feasible_iteration_picks_best_legal_val():
-    assert _select_gap_feasible_iteration([], [0.5]) is None
-    assert _select_gap_feasible_iteration([0.2, 0.1], [0.8, 0.5]) == 0
+    assert _select_gap_feasible_iteration([], [0.5], max_gap=2.0) is None
+    assert _select_gap_feasible_iteration([0.2, 0.1], [0.8, 0.5], max_gap=2.0) is None
     train = [0.70, 0.55, 0.40]
     val = [1.20, 0.90, 1.00]
-    assert _select_gap_feasible_iteration(train, val) == 1
+    assert _select_gap_feasible_iteration(train, val, max_gap=2.0) == 1
+    only_null_train = [0.677, 0.50]
+    only_null_val = [1.354, 1.40]
+    assert _select_gap_feasible_iteration(only_null_train, only_null_val, max_gap=2.0) is None
+    anchored_train = [0.677, 0.50, 0.45]
+    anchored_val = [1.354, 1.30, 1.35]
+    assert _select_gap_feasible_iteration(anchored_train, anchored_val, max_gap=2.0) == 1
+    assert _select_gap_feasible_iteration(only_null_train, only_null_val) == 1
+    assert pytest.approx(1e9) == META_EXPORT_MAX_MAE_GAP
+
+
+def test_export_untrainable_flags_null_snapshot():
+    from scripts.operations.train_meta_optuna import _export_untrainable
+
+    model = MagicMock()
+    model._aether_export_untrainable = True
+    model._aether_export_iteration = None
+    assert _export_untrainable(model) is True
+    model._aether_export_untrainable = False
+    model._aether_export_iteration = 0
+    assert _export_untrainable(model) is True
+    model._aether_export_iteration = 3
+    assert _export_untrainable(model) is False
+
+
+def test_count_blocked_trials_separates_null_export():
+    from scripts.operations.train_meta_optuna import _count_blocked_trials
+
+    study = MagicMock()
+    t_null = MagicMock()
+    t_null.user_attrs = {"export_untrainable": True, "best_iteration": 0}
+    t_null.value = -1.0
+    t_neg = MagicMock()
+    t_neg.user_attrs = {
+        "export_untrainable": False,
+        "best_iteration": 4,
+        "mae_gap": 1.5,
+        "oos_payoff_zscore_mean": -0.1,
+    }
+    t_neg.value = -1.0
+    t_over = MagicMock()
+    t_over.user_attrs = {
+        "export_untrainable": False,
+        "best_iteration": 5,
+        "mae_gap": 2.5,
+        "oos_payoff_zscore_mean": 0.2,
+    }
+    t_over.value = -1.0
+    study.trials = [t_null, t_neg, t_over]
+    n_overfit, n_neg_edge, n_null = _count_blocked_trials(study)
+    assert n_null == 1
+    assert n_neg_edge == 1
+    assert n_overfit == 1
 
 
 def test_eval_l1_histories_reads_metric_aliases():

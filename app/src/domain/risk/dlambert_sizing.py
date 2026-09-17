@@ -169,6 +169,8 @@ def resolve_dlambert_stake(
                 explore = min(explore, float(cap))
             return round_stake(explore, recovery_linear=False), "KELLY"
         rounded = round_stake(raw, recovery_linear=True)
+        if metrics is not None and metrics.get("recovery_cap_mode") == "cover_l0":
+            return rounded, "D'ALEMBERT"
         cap = max_safe_stake_cap(
             bankroll,
             consecutive_losses_linear=consecutive_losses_linear,

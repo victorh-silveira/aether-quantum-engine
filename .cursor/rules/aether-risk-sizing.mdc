@@ -6,13 +6,13 @@ alwaysApply: true
 
 # Risco e sizing
 
-- Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0** — PEND material usa cover `PEND/payout/amort` (amort **2–3**), sempre `min(cover, cap_L)`; caps L0/L1 **3.5%**, L2 **3.0%**, L3+ **2.5%**, `max_safe_stake_cap` **3.0**; ledger WIN abate lucro real; **nao** `max(exponencial, cover)` revenge; Single-Strike bloqueado em SOFT_SIZE/recovery.
+- Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1** — PEND material usa cover `min(max(PEND/payout, 1% banca), cap_L0)`; telemetria `recovery_cap_mode=cover_l0`; **cap de cover = L0** (`max_safe_stake_pct` **3.5%**), ignorando compressao L2/L3; caps L2 **3.0%** / L3+ **2.5%** so EXPLORE; `max_safe_stake_cap` **3.0**; com PEND material **nao** force-explore por `near_stop_win_freeze`; ledger WIN abate lucro real; **nao** `max(exponencial, cover)` revenge; Single-Strike bloqueado em SOFT_SIZE/recovery.
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
-- EXPLORE usa Kelly × `explore_stake_scale(N)`; piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**).
+- EXPLORE e RECOVER: piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) soberano apos cover/caps (`enforce_min_stake_pct`; se CAP &lt; piso, fica no CAP).
 - Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$) **so se** `live_n >= 12` (`stop_win_kelly_live_n_min`) **e** conviction ≥ **0.58** (`stop_win_kelly_min_conviction`). Cold start usa Kelly × `explore_stake_scale` (piso **0.40**) + cap 3.5%.
 - Cooldown linear apos loss (LIN>=1: 300/300/600/900s); pausa de sessao apos 3 LOSS em 5 trades (2 ciclos); anti revenge sizing.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.
-- Loss-clf: **FLIP** por `p_eff` >= **0.58** young / **0.58** mature (so apos auto_learn; exit live **4**; `n_train >= flip_min_n_train` **8**; **nao** se vela fechada confirma TCN); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge EV negativo sozinho **nao** skipa.
+- Loss-clf: **FLIP** por `p_eff` >= **0.58** young / **0.58** mature (so apos auto_learn; exit live **4**; `n_train >= flip_min_n_train` **8**; **nao** se vela fechada confirma TCN); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge TCN ≤ 0 → SKIP `neg_edge` em EXPLORE (`skip_neg_edge` **true**); com PEND material o SKIP e waived.
 - META edge ≤ 0: soft Kelly (`soft_veto_score_factor` **0.85**; se edge ≤ **`soft_veto_strong_edge` -0.5** → `soft_veto_strong_factor` **0.40**); bloqueia Single-Strike; **nao** SKIP.

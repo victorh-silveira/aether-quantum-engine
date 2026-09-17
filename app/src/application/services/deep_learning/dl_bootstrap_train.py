@@ -49,6 +49,7 @@ def _train_deploy_attempts(dl_config: dict | None) -> int:
 def _reseed_for_attempt(attempt: int) -> None:
     """Fixa seed deterministica por tentativa para explorar inits distintos."""
     seed = 17_011 + int(attempt) * 1_009
+    np.random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)

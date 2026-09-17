@@ -45,14 +45,14 @@ warmup/buffer → training_gate → collect decisoes DL
 
 SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
 
-Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **8**) → `apply_scale_retract_adapt` (retract/explos/tape depois **vela M5 fechada** `candle_vs_tcn`; last **exceto** FLIP sticky; explos so se Cal Edge TCN ≤ `adapt_explos_max_tcn_edge` **0.05**) → Kelly.
+Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **4**) → Kelly.
 
 | Campo | Papel |
 |-------|-------|
 | MICRO | Direcao TCN do ciclo (`tcn_direction`) |
 | MACRO | Slope dos closes (janela `slope_bars`) |
 | MINI / MILI | Par de velas + tick flow; regime explos/retract/chop |
-| `adapt_retract_enabled` | **true** — fixa EXEC no lado retract/explos/tape confirmado (sem freio de margem; apos FLIP) |
+| `adapt_retract_enabled` | **false** — scale vision mantido apenas para telemetria/regime (sem virar lado de execucao) |
 | `scale_adapted` | `1` quando adaptou; reason `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` ou `*_holds` |
 
 **Proibido:** quality gate / signal_skip / fusao EV / Soft Kelly discord / `cal_soft_edge`. IND RSI/ADX/HURST = telemetria.

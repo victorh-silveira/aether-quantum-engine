@@ -7,9 +7,7 @@ from src.application.services.deep_learning.dl_cycle_brief import (
 )
 from src.application.services.deep_learning.dl_gating import resolve_edge
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
-from src.application.services.execution_scale_vision import format_scale_audit_line
 from src.application.services.log_dedupe import log_info_if_changed
-from src.application.services.market_audit_candle import log_closed_candle_outcomes
 from src.application.services.market_audit_log import format_cluster_audit_line, resolve_cluster_timeframe
 from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
 
@@ -116,29 +114,9 @@ def log_dl_cycle_summary(
     )
     cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
     log_info_if_changed(orch, logger, f"dl_brief:{cycle_id}", key_brief, "%s", cluster_line)
-    log_closed_candle_outcomes(logger, orch, decisions)
-    _log_scale_lines(logger, decisions, orch=orch, cycle_id=cycle_id)
     _ = brief
 
 
 def _log_scale_lines(logger, decisions: dict[str, dict], *, orch=None, cycle_id: int = 0) -> None:
-    """Emite linha SCALE por simbolo com MACRO/MICRO/MINI/MILI."""
-    for symbol, entry in decisions.items():
-        if not isinstance(entry, dict):
-            continue
-        metrics = entry.get("metrics")
-        if not isinstance(metrics, dict):
-            continue
-        line = metrics.get("scale_audit")
-        if not line:
-            if "scale_micro_dir" not in metrics and "scale_reason" not in metrics:
-                continue
-            line = format_scale_audit_line(metrics)
-        if "MACRO=" not in str(line):
-            continue
-        message = f"[c{int(cycle_id)}|{symbol}] {line}"
-        if orch is None:
-            logger.debug("%s", message)
-            continue
-        logger.debug("%s", message)
-        _ = (cycle_id, symbol, line)
+    """No-op: SCALE fora da narrativa live (TCN + loss-clf)."""
+    _ = (logger, decisions, orch, cycle_id)

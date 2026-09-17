@@ -154,11 +154,14 @@ def apply_calibrator_stable(
         if side_flip and abs(calibrated - raw) > 0.02:
             return raw
     floor = float(margin_floor) if margin_floor is not None else _margin_floor_from_settings()
-    _ = floor
     raw_margin = abs(raw - 0.5)
     cal_margin = abs(calibrated - 0.5)
+    if cal_margin + 1e-12 < floor <= raw_margin:
+        return raw
     if raw_margin > cal_margin + 1e-12:
         return raw
+    if cal_margin + 1e-12 < floor and raw_margin + 1e-12 < floor:
+        return raw if raw_margin + 1e-12 >= cal_margin else calibrated
     return calibrated
 
 

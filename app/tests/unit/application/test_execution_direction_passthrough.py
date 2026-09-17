@@ -82,3 +82,61 @@ def test_resolve_execution_direction_passthrough_call():
 def test_resolve_execution_direction_blocks_technical():
     entry = {"metrics": {"calibrated_prob": 0.70, "deploy_ok": False, "gate_reason": "deploy"}}
     assert resolve_execution_direction(entry, exec_cfg={}) is None
+
+
+def test_resolve_execution_direction_skips_acc_floor():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.70,
+            "raw_prob": 0.70,
+            "val_accuracy": 0.50,
+            "deploy_ok": True,
+            "indicators": {"hurst": 0.60, "adx": 0.40},
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"deep_learning": {"deploy_gate": {"soft_min_val_accuracy": 0.53}}}
+    orch._log_dedupe = {}
+    orch._active_cycle_id = 1
+    result = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_below_soft_min_acc": True},
+        symbol="R_10",
+        orch=orch,
+    )
+    assert result is None
+    assert entry["metrics"]["skip_reason"] == "acc_floor"
+
+
+def test_resolve_execution_direction_inverts_exec_side_call_and_put():
+    entry_call = {
+        "metrics": {
+            "calibrated_prob": 0.70,
+            "raw_prob": 0.70,
+            "deploy_ok": True,
+            "tcn_direction": "CALL",
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    with patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False):
+        res_call = resolve_execution_direction(
+            entry_call, exec_cfg={"invert_exec_side": True}, symbol="R_10", orch=orch
+        )
+    assert res_call is not None
+    assert res_call[0] == TradeDirection.PUT
+    assert res_call[1]["invert_exec_side"] is True
+
+    entry_put = {
+        "metrics": {
+            "calibrated_prob": 0.30,
+            "raw_prob": 0.30,
+            "deploy_ok": True,
+            "tcn_direction": "PUT",
+        }
+    }
+    with patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False):
+        res_put = resolve_execution_direction(entry_put, exec_cfg={"invert_exec_side": True}, symbol="R_10", orch=orch)
+    assert res_put is not None
+    assert res_put[0] == TradeDirection.CALL

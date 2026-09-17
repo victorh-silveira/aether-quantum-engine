@@ -135,7 +135,7 @@ def _build_isotonic(probs: list[float], labels: list[float]) -> CalibratorState:
 def _select_best_calibrator(
     candidates: list[tuple[CalibratorState, float, float, float]],
     *,
-    min_sharpness: float = 0.03,
+    min_sharpness: float = 0.05,
 ) -> CalibratorState:
     """Escolhe calibrador por Brier/ECE respeitando piso de sharpness."""
     if not candidates:

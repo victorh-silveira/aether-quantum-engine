@@ -56,7 +56,10 @@ def should_retrain_after_learn(
     if label_u == "LOSS":
         if n < int(retrain_on_loss_min_n):
             return False
-        if wins < int(min_win_for_loss_retrain):
+        effective_min_wins = int(min_win_for_loss_retrain)
+        if n <= 12 and effective_min_wins > 2:
+            effective_min_wins = 2
+        if wins < effective_min_wins:
             return False
         denom = max(n, 1)
         if float(losses) / float(denom) > float(max_loss_frac):
@@ -131,8 +134,11 @@ def retrain_skipped_reason(
     if label_u == "LOSS":
         if n < int(retrain_on_loss_min_n):
             return f"need_n:{n}/{int(retrain_on_loss_min_n)}"
-        if wins < int(min_win_for_loss_retrain):
-            return f"need_wins:{wins}/{int(min_win_for_loss_retrain)}"
+        effective_min_wins = int(min_win_for_loss_retrain)
+        if n <= 12 and effective_min_wins > 2:
+            effective_min_wins = 2
+        if wins < effective_min_wins:
+            return f"need_wins:{wins}/{effective_min_wins}"
         denom = max(n, 1)
         if float(losses) / float(denom) > float(max_loss_frac):
             return f"loss_frac:{losses}/{n}"

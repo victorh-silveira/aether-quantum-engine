@@ -122,15 +122,19 @@ def test_immaterial_pending_uses_neutral_floor_not_base_unit():
     assert metrics.get("recovery_material_pending") is False
 
 
-def test_resolve_dlambert_stake_near_target_force_explore_floor():
+def test_resolve_dlambert_stake_near_target_keeps_cover_with_pend():
     class RM:
         dlambert_unit = 1.0
         dlambert_config = {"dlambert_enabled": True}
         soft_recovery_config = {
             "enabled": True,
+            "cover_enabled": True,
+            "cover_multiple": 1.0,
             "material_pending_min": 1.0,
             "near_stop_win_freeze_pct": 0.80,
-            "max_safe_stake_cap": 1.05,
+            "max_safe_stake_pct": 0.35,
+            "amort_cycles_min": 1,
+            "amort_cycles_max": 1,
         }
         risk_params = {"payout_estimate": 0.95, "stake_min": 1.0}
         last_loss_stake = 2.0
@@ -150,11 +154,10 @@ def test_resolve_dlambert_stake_near_target_force_explore_floor():
         dl_metrics=metrics,
         f_star=0.01,
     )
-    assert tag == "KELLY"
-    assert stake == pytest.approx(1.0)
-    assert metrics.get("recovery_near_stop_win_freeze") is True
-    assert metrics.get("recovery_force_explore") is True
-    assert metrics.get("recovery_explore_used_cover") is False
+    assert tag == "D'ALEMBERT"
+    assert stake == pytest.approx(12.0 / 0.95, rel=1e-2)
+    assert metrics.get("recovery_force_explore") is not True
+    assert metrics.get("recovery_cap_mode") == "cover_l0"
 
 
 def test_meta_negative_edge_keeps_weak_call_side():

@@ -16,6 +16,7 @@ from src.domain.risk.dlambert_sizing import (
 from src.domain.risk.kelly_p_align import calculate_kelly_fraction
 from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
 from src.domain.risk.risk_stake_calc_helpers import (
+    apply_mandatory_weak_explore_cap,
     apply_post_kelly_stake_caps,
     cap_final_stake,
     resolve_f_star_and_kelly_base,
@@ -28,10 +29,14 @@ from src.domain.risk.risk_stake_flow import (
 )
 from src.domain.risk.soft_recovery_config import pending_waives_scale_explore
 from src.domain.risk.stake_sizing import (
+    enforce_min_stake_pct,
     finalize_stake_with_min,
     resolve_stake_conviction,
     resolve_stake_regime,
 )
+
+
+_apply_mandatory_weak_explore_cap = apply_mandatory_weak_explore_cap
 
 
 def _metrics_for_conviction(dl_metrics: dict | None, conviction: float) -> dict:
@@ -75,24 +80,6 @@ def _resolve_recovery_flags(
     recovery_stress = (recovery_financial or linear_losses > 0) and not squeeze_sovereignty
     recovery_bypass_consensus = float(loss_to_recover) > 0.0 and not squeeze_sovereignty
     return recovery_active, recovery_stress, recovery_bypass_consensus, linear_losses
-
-
-def _apply_mandatory_weak_explore_cap(
-    final_stake: float,
-    bankroll: float,
-    *,
-    stake_regime: str,
-    mandatory_flag: bool,
-    dl_execute: bool,
-    kelly_config: dict[str, Any],
-) -> float:
-    """Aplica teto exploratorio de mandatory fraco apenas em EXPLORE."""
-    if stake_regime != "EXPLORE" or not mandatory_flag or dl_execute:
-        return final_stake
-    weak_pct = float(kelly_config.get("mandatory_weak_max_stake_pct", 0.0) or 0.0)
-    if weak_pct <= 0.0:
-        return final_stake
-    return min(final_stake, max(0.0, float(bankroll) * weak_pct))
 
 
 def calculate_stake_for_manager(
@@ -213,8 +200,9 @@ def calculate_stake_for_manager(
         recovery_stress=recovery_stress,
         linear_losses=linear_losses,
         rm=rm,
+        metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
-    final_stake = _apply_mandatory_weak_explore_cap(
+    final_stake = apply_mandatory_weak_explore_cap(
         final_stake,
         bankroll,
         stake_regime=stake_regime,
@@ -241,6 +229,13 @@ def calculate_stake_for_manager(
         conviction,
         recovery_linear=recovery_stress and not mandatory_blocked and final_stake > 0.0,
         mandatory=mandatory_flag,
+    )
+    final_stake = enforce_min_stake_pct(
+        final_stake,
+        bankroll,
+        rm.kelly_config,
+        safe_cap=float(safe_cap),
+        metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
     log_kelly_base = (
         effective_soft_recovery_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base

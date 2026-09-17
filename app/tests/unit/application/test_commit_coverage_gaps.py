@@ -52,7 +52,6 @@ def test_finalize_execution_metrics_pending_total_errors():
     bad_total = MagicMock(side_effect=ValueError("x"))
     orch = SimpleNamespace(risk_manager=SimpleNamespace(pending_loss_total=bad_total, pending_loss=None), stream=None)
     with (
-        patch("src.application.services.execution_direction_resolver.compute_scale_directions"),
         patch(
             "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
             return_value=(TradeDirection.CALL, 0.6),
@@ -83,7 +82,6 @@ def test_finalize_execution_metrics_pending_total_errors():
     entry2 = {"metrics": metrics2}
     orch2 = SimpleNamespace(risk_manager=SimpleNamespace(pending_loss={"a": "bad"}), stream=None)
     with (
-        patch("src.application.services.execution_direction_resolver.compute_scale_directions"),
         patch(
             "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
             return_value=(TradeDirection.CALL, 0.6),

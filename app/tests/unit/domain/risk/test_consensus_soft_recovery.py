@@ -37,6 +37,95 @@ def test_soft_recovery_progression_multiplier_powers():
     assert soft_recovery_progression_multiplier(5, payout=payout) == pytest.approx(factor**5)
 
 
+def test_apply_soft_recovery_stake_amort_one_clears_pend_under_cap():
+    metrics: dict = {}
+    payout = 0.85
+    pending = 100.0
+    soft = {
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "cover_enabled": True,
+        "cover_multiple": 1.0,
+        "material_pending_min": 0.5,
+        "infeasible_force_explore": True,
+        "max_safe_stake_pct": 0.05,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=pending,
+        base_unit=10.0,
+        consecutive_losses=1,
+        previous_stake=0.0,
+        bankroll=10000.0,
+        metrics=metrics,
+        payout=payout,
+        soft_recovery=soft,
+    )
+    assert stake == pytest.approx(pending / payout)
+    assert metrics.get("recovery_amort_cycles") == 1
+
+
+def test_apply_soft_recovery_cover_l0_cap_clears_pend_at_linear3():
+    metrics: dict = {}
+    payout = 0.85
+    pending = 200.0
+    bankroll = 9000.0
+    soft = {
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "cover_enabled": True,
+        "cover_multiple": 1.0,
+        "material_pending_min": 0.5,
+        "max_safe_stake_pct": 0.035,
+        "max_safe_stake_pct_linear2": 0.03,
+        "max_safe_stake_pct_linear3": 0.025,
+        "near_stop_win_freeze_pct": 0.70,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=pending,
+        base_unit=10.0,
+        consecutive_losses=3,
+        previous_stake=0.0,
+        bankroll=bankroll,
+        metrics=metrics,
+        payout=payout,
+        soft_recovery=soft,
+    )
+    need = pending / payout
+    assert stake == pytest.approx(need)
+    assert stake * payout == pytest.approx(pending)
+    assert metrics.get("recovery_cap_mode") == "cover_l0"
+    assert stake > bankroll * 0.025
+
+
+def test_apply_soft_recovery_near_stop_keeps_cover_with_pend():
+    metrics: dict = {}
+    payout = 0.85
+    pending = 91.0
+    soft = {
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "cover_enabled": True,
+        "cover_multiple": 1.0,
+        "material_pending_min": 0.5,
+        "max_safe_stake_pct": 0.035,
+        "near_stop_win_freeze_pct": 0.70,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=pending,
+        base_unit=10.0,
+        consecutive_losses=1,
+        previous_stake=0.0,
+        bankroll=9000.0,
+        metrics=metrics,
+        payout=payout,
+        soft_recovery=soft,
+        session_pnl=280.0,
+        target_win=390.0,
+    )
+    assert stake == pytest.approx(pending / payout)
+    assert metrics.get("recovery_force_explore") is not True
+
+
 def test_apply_soft_recovery_stake_amort_uses_cover_not_geometric():
     metrics: dict = {}
     payout = 0.95
@@ -268,7 +357,13 @@ def test_max_safe_stake_cap_compresses_on_linear_streak():
 
 def test_apply_soft_recovery_stake_respects_bankroll_cap():
     metrics: dict = {}
-    soft = {"infeasible_force_explore": False, "cover_enabled": True}
+    soft = {
+        "infeasible_force_explore": False,
+        "cover_enabled": True,
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "max_safe_stake_pct": 0.035,
+    }
     stake = apply_soft_recovery_stake(
         pending_total=5000.0,
         base_unit=200.0,
@@ -279,4 +374,5 @@ def test_apply_soft_recovery_stake_respects_bankroll_cap():
         payout=0.70,
         soft_recovery=soft,
     )
-    assert stake == pytest.approx(max_safe_stake_cap(10000.0, consecutive_losses_linear=8, soft_recovery=soft))
+    assert stake == pytest.approx(350.0)
+    assert metrics.get("recovery_cap_mode") == "cover_l0"

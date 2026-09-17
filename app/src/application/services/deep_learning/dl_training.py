@@ -12,6 +12,9 @@ from src.application.services.deep_learning.dl_calibration_fit import (
     fit_calibrator,
     maybe_identity_on_oos_collapse,
 )
+from src.application.services.deep_learning.dl_calibration_sharpen import (
+    maybe_temperature_sharpen_for_export,
+)
 from src.application.services.deep_learning.dl_calibration_variance import (
     maybe_identity_on_variance_collapse,
 )
@@ -142,6 +145,7 @@ def train_model_walkforward(
         min_epochs = max(0, int(dl_config.get("min_epochs", 0)))
         label_smoothing = float(dl_config.get("label_smoothing", 0.0))
         focal_gamma = float(dl_config.get("focal_gamma", 0.0))
+        lr_scheduler = str(dl_config.get("lr_scheduler") or "cosine").strip().lower() or "cosine"
     train_n = len(x_train)
     power = max(3, int(math.floor(math.log2(max(1, train_n / 4))))) if train_n > 0 else 3
     dynamic_cap = 32 if int(granularity) >= 86400 or train_n <= 120 else int(batch_size)
@@ -218,6 +222,11 @@ def train_model_walkforward(
     )
     if val_probs:
         calibrator, oos_sharpness = maybe_identity_on_oos_collapse(
+            calibrator,
+            val_probs=val_probs,
+            min_oos_sharpness=sharp_floor,
+        )
+        calibrator, oos_sharpness = maybe_temperature_sharpen_for_export(
             calibrator,
             val_probs=val_probs,
             min_oos_sharpness=sharp_floor,

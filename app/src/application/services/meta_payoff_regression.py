@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.execution_gate_verdict import stamp_soft_size
 from src.application.services.execution_quality_gate import sync_direction_margin
 from src.application.services.execution_runtime_config import resolve_meta_payoff_veto_config
 from src.application.services.regime_micro_freeze import (
@@ -52,35 +51,8 @@ def _apply_direction_scores(metrics: dict[str, Any], *, direction: TradeDirectio
 
 def _clear_meta_soft_kelly(metrics: dict[str, Any]) -> None:
     """Limpa flags de soft Kelly do META neste ciclo."""
-    metrics.pop("meta_negative_edge", None)
     metrics.pop("meta_soft_kelly", None)
-    metrics.pop("meta_sat_soft", None)
     metrics.pop("meta_soft_strong", None)
-
-
-def _resolve_soft_factor(predicted_edge: float, cfg: dict[str, Any]) -> float:
-    """Escolhe fator soft normal ou forte conforme edge META."""
-    mild = max(0.05, min(1.0, float(cfg["soft_veto_score_factor"])))
-    strong_edge = float(cfg["soft_veto_strong_edge"])
-    if float(predicted_edge) <= strong_edge + 1e-12:
-        return max(0.05, min(mild, float(cfg["soft_veto_strong_factor"])))
-    return mild
-
-
-def _apply_meta_soft_kelly(
-    metrics: dict[str, Any],
-    *,
-    reason: str,
-    predicted_edge: float,
-) -> None:
-    """Comprime kelly_fraction_scale via soft_veto_* (sem SKIP)."""
-    cfg = resolve_meta_payoff_veto_config()
-    factor = _resolve_soft_factor(float(predicted_edge), cfg)
-    current = float(metrics.get("kelly_fraction_scale", 1.0) or 1.0)
-    metrics["kelly_fraction_scale"] = max(0.05, current * factor)
-    metrics["meta_soft_kelly"] = True
-    metrics["meta_soft_strong"] = bool(float(predicted_edge) <= float(cfg["soft_veto_strong_edge"]) + 1e-12)
-    stamp_soft_size(metrics, reason)
 
 
 def _meta_edge_saturated(predicted_edge: float) -> bool:
@@ -108,7 +80,7 @@ def apply_meta_regression_edge(
     base_score: float,
     symbol: str | None = None,
 ) -> tuple[TradeDirection, float]:
-    """Aplica edge continuo do meta-regressor com soft Kelly se edge <= 0 ou sat vs Cal."""
+    """Aplica telemetria do meta-regressor sem soft Kelly (direcao = TCN)."""
     metrics["meta_classifier_applied"] = bool(meta_applied)
     if meta_applied:
         metrics["predicted_payoff_edge"] = float(predicted_edge)
@@ -116,15 +88,16 @@ def apply_meta_regression_edge(
         metrics.pop("predicted_payoff_edge", None)
     squeeze_active = micro_volatility_squeeze_active(metrics)
     metrics["meta_squeeze_active"] = bool(squeeze_active)
+    _clear_meta_soft_kelly(metrics)
     if not meta_applied:
-        _clear_meta_soft_kelly(metrics)
+        metrics.pop("meta_negative_edge", None)
+        metrics.pop("meta_sat_soft", None)
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         return dl_dir, float(base_score)
     if float(predicted_edge) <= 0.0:
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         metrics["meta_negative_edge"] = True
         metrics["meta_sat_soft"] = False
-        _apply_meta_soft_kelly(metrics, reason="meta_negative_edge", predicted_edge=float(predicted_edge))
         return dl_dir, float(base_score)
     cfg = resolve_meta_payoff_veto_config()
     sat_cal_max = float(cfg["soft_veto_sat_cal_edge_max"])
@@ -132,9 +105,9 @@ def apply_meta_regression_edge(
         _apply_direction_scores(metrics, direction=dl_dir, score=base_score)
         metrics.pop("meta_negative_edge", None)
         metrics["meta_sat_soft"] = True
-        _apply_meta_soft_kelly(metrics, reason="meta_sat_vs_soft_cal", predicted_edge=float(predicted_edge))
         return dl_dir, float(base_score)
-    _clear_meta_soft_kelly(metrics)
+    metrics.pop("meta_negative_edge", None)
+    metrics.pop("meta_sat_soft", None)
     squeeze_danger = severe_bb_compression(metrics)
     if squeeze_danger:
         squeeze_score = float(cfg["squeeze_trade_score"])

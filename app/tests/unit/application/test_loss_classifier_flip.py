@@ -163,15 +163,15 @@ def test_loss_clf_flip_min_n_train_blocks(monkeypatch):
         "scale_tape_consensus": "PUT",
         "execution_candidate_ready": True,
     }
-    _patch_predict(monkeypatch, p_loss=0.90, n_train=4)
+    _patch_predict(monkeypatch, p_loss=0.90, n_train=2)
     assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["loss_clf_flip_blocked"] == "flip_min_n"
-    assert metrics["loss_clf_flip_min_n_train"] == 8
+    assert metrics["loss_clf_flip_min_n_train"] == 4
     assert metrics["exec_direction"] == "PUT"
 
 
-def test_loss_clf_candle_holds_blocks_flip_against_closed(monkeypatch):
+def test_loss_clf_flips_even_when_candle_agrees_tcn(monkeypatch):
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "CALL",
@@ -181,9 +181,9 @@ def test_loss_clf_candle_holds_blocks_flip_against_closed(monkeypatch):
     }
     _patch_predict(monkeypatch, p_loss=0.76, n_train=32)
     assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=_orch()) is False
-    assert metrics.get("loss_clf_flip") is not True
-    assert metrics["loss_clf_flip_blocked"] == "candle_holds"
-    assert metrics["exec_direction"] == "CALL"
+    assert metrics["loss_clf_flip"] is True
+    assert metrics["exec_direction"] == "PUT"
+    assert metrics.get("loss_clf_flip_blocked") is None
 
 
 def test_loss_clf_flip_allowed_when_candle_opposes_tcn(monkeypatch):

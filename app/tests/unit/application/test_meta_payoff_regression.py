@@ -81,12 +81,9 @@ def test_apply_meta_regression_edge_loss_expected_keeps_direction():
     assert direction == TradeDirection.PUT
     assert score == pytest.approx(0.68)
     assert metrics.get("meta_negative_edge") is True
-    assert metrics.get("meta_soft_kelly") is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(
-        float(resolve_meta_payoff_veto_config()["soft_veto_score_factor"])
-    )
-    assert metrics["gate_verdict"] == "SOFT_SIZE"
-    assert metrics["gate_verdict_reason"] == "meta_negative_edge"
+    assert metrics.get("meta_soft_kelly") is None
+    assert "kelly_fraction_scale" not in metrics or metrics.get("kelly_fraction_scale") == pytest.approx(1.0)
+    assert metrics.get("gate_verdict") is None
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
@@ -123,7 +120,7 @@ def test_apply_meta_regression_edge_mild_negative_keeps_call():
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.71)
     assert metrics.get("meta_negative_edge") is True
-    assert metrics.get("meta_soft_kelly") is True
+    assert metrics.get("meta_soft_kelly") is None
     assert metrics.get("meta_squeeze_downgrade") is not True
 
 
@@ -159,7 +156,7 @@ def test_apply_meta_regression_edge_positive_clears_soft_kelly():
     assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
 
 
-def test_apply_meta_regression_edge_negative_compounds_existing_scale():
+def test_apply_meta_regression_edge_negative_does_not_compress_scale():
     metrics = {"kelly_fraction_scale": 0.80}
     apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -168,10 +165,10 @@ def test_apply_meta_regression_edge_negative_compounds_existing_scale():
         meta_applied=True,
         base_score=0.55,
     )
-    factor = float(resolve_meta_payoff_veto_config()["soft_veto_strong_factor"])
-    assert metrics["kelly_fraction_scale"] == pytest.approx(max(0.05, 0.80 * factor))
-    assert metrics["meta_soft_kelly"] is True
-    assert metrics["meta_soft_strong"] is True
+    assert metrics["kelly_fraction_scale"] == pytest.approx(0.80)
+    assert metrics.get("meta_soft_kelly") is None
+    assert metrics.get("meta_soft_strong") is None
+    assert metrics.get("meta_negative_edge") is True
 
 
 def test_apply_meta_regression_edge_ignores_calibration_neutral_drift():
@@ -192,7 +189,7 @@ def test_meta_squeeze_trade_score_constant():
     assert pytest.approx(0.52) == float(resolve_meta_payoff_veto_config()["squeeze_trade_score"])
 
 
-def test_apply_meta_regression_edge_strong_negative_uses_strong_factor():
+def test_apply_meta_regression_edge_strong_negative_no_soft_kelly():
     metrics = {"kelly_fraction_scale": 1.0}
     apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -201,13 +198,13 @@ def test_apply_meta_regression_edge_strong_negative_uses_strong_factor():
         meta_applied=True,
         base_score=0.62,
     )
-    cfg = resolve_meta_payoff_veto_config()
-    assert metrics["meta_soft_strong"] is True
-    assert metrics["kelly_fraction_scale"] == pytest.approx(float(cfg["soft_veto_strong_factor"]))
-    assert metrics["gate_verdict_reason"] == "meta_negative_edge"
+    assert metrics.get("meta_soft_strong") is None
+    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
+    assert metrics.get("meta_negative_edge") is True
+    assert metrics.get("meta_soft_kelly") is None
 
 
-def test_apply_meta_mild_negative_uses_mild_factor():
+def test_apply_meta_mild_negative_no_soft_kelly():
     metrics = {"kelly_fraction_scale": 1.0}
     apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -216,12 +213,12 @@ def test_apply_meta_mild_negative_uses_mild_factor():
         meta_applied=True,
         base_score=0.62,
     )
-    cfg = resolve_meta_payoff_veto_config()
-    assert metrics.get("meta_soft_strong") is False
-    assert metrics["kelly_fraction_scale"] == pytest.approx(float(cfg["soft_veto_score_factor"]))
+    assert metrics.get("meta_soft_strong") is None
+    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
+    assert metrics.get("meta_soft_kelly") is None
 
 
-def test_apply_meta_sat_vs_soft_cal_soft_kelly():
+def test_apply_meta_sat_vs_soft_cal_telemetry_only():
     metrics = {"cal_side_edge": -0.029, "kelly_fraction_scale": 1.0}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -233,16 +230,12 @@ def test_apply_meta_sat_vs_soft_cal_soft_kelly():
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.52)
     assert metrics.get("meta_sat_soft") is True
-    assert metrics.get("meta_soft_kelly") is True
+    assert metrics.get("meta_soft_kelly") is None
     assert metrics.get("meta_negative_edge") is None
-    assert metrics["gate_verdict"] == "SOFT_SIZE"
-    assert metrics["gate_verdict_reason"] == "meta_sat_vs_soft_cal"
-    assert metrics["kelly_fraction_scale"] == pytest.approx(
-        float(resolve_meta_payoff_veto_config()["soft_veto_score_factor"])
-    )
+    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
 
 
-def test_apply_meta_sat_with_near_be_cal_edge_soft():
+def test_apply_meta_sat_with_near_be_cal_edge_telemetry():
     metrics = {"cal_side_edge": 0.015, "kelly_fraction_scale": 1.0}
     direction, score = apply_meta_regression_edge(
         TradeDirection.CALL,
@@ -254,8 +247,8 @@ def test_apply_meta_sat_with_near_be_cal_edge_soft():
     assert direction == TradeDirection.CALL
     assert score == pytest.approx(0.55)
     assert metrics.get("meta_sat_soft") is True
-    assert metrics.get("meta_soft_kelly") is True
-    assert metrics["gate_verdict_reason"] == "meta_sat_vs_soft_cal"
+    assert metrics.get("meta_soft_kelly") is None
+    assert metrics["kelly_fraction_scale"] == pytest.approx(1.0)
 
 
 def test_apply_meta_sat_with_firm_cal_edge_no_soft():

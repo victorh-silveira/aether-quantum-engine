@@ -25,7 +25,7 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 
 | Tag | Nivel tipico | Frequencia | Consumidor |
 |-----|--------------|------------|------------|
-| CLUSTER / IND / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, live_monitor |
+| CLUSTER / GATES / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, live_monitor |
 | SETTLE.{canal} | INFO em estado; DEBUG se quiet | rate-limit canal+tick | settlement-debug |
 | WSS / AUTH / MINIO | INFO no boot; DEBUG em reconexao (exceto AVISO/ERRO) | evento | deriv-connect / infra |
 | RECOV (restaurado / ciclo liberado) | INFO | reconexao | cycle-debug |
@@ -43,7 +43,9 @@ Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do moni
 | `SESSAO INICIADA` | banca, stop-win |
 | `DATA` / `CFG` | buffer e knobs efetivos |
 | `DL` | device / inferencia |
-| `CLUSTER` | Prob / Cal / Margin / Edge / raw_edge / be (ALLOW e SKIP, incl. `NEUTRAL_ZONE`) |
+| `CLUSTER` | Prob / Cal / Margin / Edge / raw_edge / be |
+| `GATES` | LOSS_CLF FLIP/OK + skip |
+| `KELLY` / `EXEC` / `RESOLVED` | sizing e resultado |
 | `SIDE_EQ` / `META_VETO` | equilibrio lateral / veto meta |
 | `IND` | indicadores de contexto |
 | `KELLY` | p, live_wr, f*, mode |

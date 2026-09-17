@@ -145,7 +145,7 @@ Ordem lógica de uma entrada:
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover equilibrado do pending em 2–3 ciclos (`amort_cycles` **2/3**, `cover_multiple` **1.10**, teto `max_safe_stake_pct`); stop win por sessão (4,31% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
+13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover do pending em 1 ciclo (`amort_cycles` **1/1**, `cover_multiple` **1.0**, teto `max_safe_stake_pct`); stop win por sessão (4,31% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
 
 Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
@@ -365,7 +365,7 @@ Com `soft_recovery.enabled: true`, o switch em `calculate_stake_for_manager` usa
 | Regime | Condição | Sizer | Tag |
 |--------|----------|-------|-----|
 | **EXPLORE** | `pending_total == 0` e `linear == 0` | Kelly fracionário (`fraction: 0.08`, tetos 3,5%) | `EXPLORE_KELLY` |
-| **RECOVER** | `pending_total > 0` ou `linear >= 1` | Soft Recovery cover equilibrado (`amort_cycles` **2/3**, teto `max_safe_stake_pct` **3.5%**) | `RECOVER_DAL_Ln` / `D'ALEMBERT` |
+| **RECOVER** | `pending_total > 0` ou `linear >= 1` | Soft Recovery cover (`amort_cycles` **1/1**, teto L0 `max_safe_stake_pct` **3.5%** / `cover_l0`) | `RECOVER_DAL_Ln` / `D'ALEMBERT` |
 
 #### Soft Recovery (path canônico)
 

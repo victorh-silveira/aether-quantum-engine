@@ -245,6 +245,6 @@ def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == pytest.approx(1.0)
+    assert stake == pytest.approx(118.0)
     assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
     assert metrics.get("consensus_penalty_recovery_waived") is not True

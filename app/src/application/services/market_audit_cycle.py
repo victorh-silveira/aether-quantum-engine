@@ -110,14 +110,9 @@ def format_kelly_audit_line(
         mode = str(metrics.get("stake_regime") or "explore").lower()
     wr_s = f"{float(live_wr):.4f}" if live_wr is not None else "n/a"
     infeas = " | RECOVERY_INFEASIBLE" if (audit or {}).get("recovery_infeasible") else ""
-    soft = ""
-    if bool(metrics.get("meta_soft_kelly")):
-        scale = _f(metrics, "kelly_fraction_scale", default=1.0)
-        strong = 1 if bool(metrics.get("meta_soft_strong")) else 0
-        soft = f" | meta_soft=1 strong={strong} kscale={scale:.2f}"
     return (
         f"[KELLY] || p={p:.4f} | live_wr={wr_s} | live_n={live_n} | f*={f_star:.6f} | "
-        f"mode={mode} | stake={float(stake):.2f} ({mode_tag}){soft}{infeas}"
+        f"mode={mode} | stake={float(stake):.2f} ({mode_tag}){infeas}"
     )
 
 

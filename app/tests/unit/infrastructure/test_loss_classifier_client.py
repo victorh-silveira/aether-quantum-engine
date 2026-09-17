@@ -43,7 +43,7 @@ def test_resolve_loss_classifier_config_from_ssot():
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert resolved["flip_min_n_train"] == 8
+    assert resolved["flip_min_n_train"] == 4
     assert resolved["ready_n"] == 32
     assert resolved["retrain_min_n"] == 12
     assert resolved["retrain_on_loss_min_n"] == 4

@@ -9,6 +9,8 @@ from src.domain.risk.consensus_stake_helpers import (
     resolve_contract_payout,
 )
 from src.domain.risk.soft_recovery_policy import (
+    apply_small_account_hard_floor,
+    configured_max_safe_stake_pct,
     fixed_step_progression_multiplier,
     is_recovery_infeasible,
     resolve_amort_cycles,
@@ -36,6 +38,7 @@ def damped_cover_stake(
     soft: dict[str, Any],
     target: float,
     pnl: float,
+    bankroll: float | None = None,
 ) -> tuple[float, float, int]:
     """Cover amortizado com damping de meta; retorna (stake_bruto, cover, amort)."""
     resolved_payout = resolve_contract_payout(payout, risk_params)
@@ -43,7 +46,11 @@ def damped_cover_stake(
     cover_mult = max(1.0, float(soft.get("cover_multiple", 1.0)))
     cover = float(pending) / resolved_payout / float(amort) * cover_mult
     stake = float(cover)
-    if int(amort) > 1 and target > 0.0:
+    if int(amort) <= 1 and bankroll is not None and float(bankroll) > 0.0:
+        pct = float(configured_max_safe_stake_pct(soft))
+        cap = apply_small_account_hard_floor(float(bankroll) * pct, float(bankroll), soft_recovery=soft)
+        stake = min(stake, float(cap))
+    elif int(amort) > 1 and target > 0.0:
         stake = apply_target_proximity_damping(stake, target, pnl)
     return stake, cover, int(amort)
 

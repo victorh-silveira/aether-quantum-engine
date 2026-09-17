@@ -206,11 +206,66 @@ def test_calculate_stake_recover_cover_enabled_uses_dal(kelly_config):
         apply_stop_win=False,
         kwargs={"cycle_id": 1, "dl_metrics": {"execute": True}},
     )
+    floor = 100.0 * float(rm.kelly_config["min_stake_pct"])
+    assert stake >= floor - 1e-9
     assert stake != pytest.approx(4.0)
     assert stake <= 4.20 + 1e-9
     assert stake > 0.0
     assert rm._last_stake_audit["mode_tag"] == "RECOVER_DAL_L2"
     assert rm._last_stake_audit["stake_regime"] == "RECOVER"
+
+
+def test_calculate_stake_recover_residual_pend_respects_min_stake_pct(kelly_config):
+    soft = {
+        **kelly_config["soft_recovery"],
+        "cover_enabled": True,
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 3,
+        "cover_multiple": 1.0,
+        "max_safe_stake_pct": 0.035,
+        "max_safe_stake_cap": 350.0,
+    }
+    bankroll = 9000.0
+    pending = 13.15
+    metrics = {"execute": True, "live_n": 10, "live_wr": 0.7}
+    rm = _soft_path_rm(
+        kelly_config,
+        soft_recovery_config=soft,
+        consecutive_losses_linear=1,
+        last_loss_stake=90.0,
+        pending_loss={"1HZ75V": pending},
+        initial_bankroll=bankroll,
+    )
+    stake = calculate_stake_for_manager(
+        rm,
+        bankroll=bankroll,
+        symbol="1HZ75V",
+        conviction=0.7,
+        silent=False,
+        apply_stop_win=False,
+        kwargs={"cycle_id": 11, "dl_metrics": metrics},
+    )
+    floor = bankroll * float(rm.kelly_config["min_stake_pct"])
+    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=1, soft_recovery=soft)
+    cover = pending / 0.72 / 2.0
+    assert cover + 1e-6 < floor
+    assert stake >= floor - 1e-6
+    assert stake <= cap + 1e-6
+    assert metrics.get("min_stake_pct_floor_applied") is True
+    assert metrics.get("min_stake_pct_floor") == pytest.approx(floor)
+    assert rm._last_stake_audit["stake_regime"] == "RECOVER"
+
+
+def test_enforce_min_stake_pct_skips_zero_and_respects_cap():
+    from src.domain.risk.stake_sizing import enforce_min_stake_pct
+
+    cfg = {"min_stake_pct": 0.01}
+    assert enforce_min_stake_pct(0.0, 9000.0, cfg, safe_cap=300.0) == 0.0
+    metrics = {}
+    out = enforce_min_stake_pct(7.0, 9000.0, cfg, safe_cap=50.0, metrics=metrics)
+    assert out == pytest.approx(50.0)
+    assert metrics.get("min_stake_pct_floor_applied") is True
+    assert metrics.get("min_stake_pct_floor") == pytest.approx(90.0)
 
 
 def test_calculate_stake_explore_after_reset_uses_kelly(kelly_config):

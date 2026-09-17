@@ -22,6 +22,7 @@ from src.application.services.deep_learning.dl_sharpness import (
 )
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.model import save_model_checkpoint
+from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible
 from src.application.services.live_signal_metrics import live_signal_snapshot
 
 
@@ -57,6 +58,38 @@ def _log_horizon_gap(
         int(contract_sec),
         int(label_horizon_seconds - contract_sec),
     )
+
+
+def _promote_deploy_via_settle(
+    *,
+    symbol: str,
+    runtime: dict,
+    params: dict,
+    orch,
+    deploy_ok: bool,
+) -> bool:
+    """Se ACC/mini falhou, promove deploy_ok pelo mesmo criterio settle do load/sweep."""
+    if deploy_ok:
+        return True
+    settings = getattr(orch, "config", None) if orch is not None else None
+    if not isinstance(settings, dict):
+        settings = {}
+    payload = {
+        "deploy_settlement_win_rate": float(runtime.get("deploy_settlement_win_rate") or 0.0),
+        "deploy_settlement_n": int(runtime.get("deploy_settlement_n") or 0),
+        "training_history_bars": int(params.get("training_history_bars") or 0),
+    }
+    if not checkpoint_settle_eligible(payload, settings):
+        return False
+    settle_wr = float(payload["deploy_settlement_win_rate"])
+    settle_n = int(payload["deploy_settlement_n"])
+    logger.info(
+        "DL TREINO | %s | deploy_ok=true via settle_wr=%.4f n=%d (SSOT be+edge)",
+        symbol,
+        settle_wr,
+        settle_n,
+    )
+    return True
 
 
 def apply_successful_symbol_train(
@@ -115,6 +148,13 @@ def apply_successful_symbol_train(
         pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
         minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
     )
+    deploy_ok = _promote_deploy_via_settle(
+        symbol=symbol,
+        runtime=runtime,
+        params=params,
+        orch=orch,
+        deploy_ok=deploy_ok,
+    )
     apply_deploy_to_runtime(
         runtime,
         deploy_ok=deploy_ok,
@@ -132,14 +172,24 @@ def apply_successful_symbol_train(
             label="holdout",
         )
     except RuntimeError as exc:
-        logger.warning(
-            "DL TREINO | %s | sharpness abaixo do piso — deploy_ok=false | %s (raw_sharpness=%.4f method=%s)",
-            symbol,
-            exc,
-            raw_sharpness,
-            getattr(runtime.get("calibrator"), "method", "?"),
-        )
-        runtime["deploy_ok"] = False
+        if bool(gate_cfg.get("force_ok", False)):
+            logger.warning(
+                "DL TREINO | %s | sharpness abaixo do piso — export segue (force_ok) | %s "
+                "(raw_sharpness=%.4f method=%s)",
+                symbol,
+                exc,
+                raw_sharpness,
+                getattr(runtime.get("calibrator"), "method", "?"),
+            )
+        else:
+            logger.warning(
+                "DL TREINO | %s | sharpness abaixo do piso — deploy_ok=false | %s (raw_sharpness=%.4f method=%s)",
+                symbol,
+                exc,
+                raw_sharpness,
+                getattr(runtime.get("calibrator"), "method", "?"),
+            )
+            runtime["deploy_ok"] = False
     runtime["oos_sharpness"] = oos_sharpness
     runtime["raw_sharpness"] = raw_sharpness
     runtime["label_call_frac"] = float(getattr(train_result, "label_call_frac", 0.5))

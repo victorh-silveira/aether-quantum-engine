@@ -79,7 +79,7 @@ def test_recover_mandatory_blocked_returns_zero_when_below_min(kelly_config):
     assert stake == 0.0
 
 
-def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
+def test_recovery_near_stop_keeps_cover_regime_with_pend(kelly_config):
     rm = _rm(kelly_config)
     rm.pending_loss = {"R_10": 40.0}
     rm.consecutive_losses_linear = 1
@@ -93,7 +93,7 @@ def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
         "near_stop_win_freeze_pct": 0.70,
         "material_pending_min": 0.25,
         "cover_enabled": True,
-        "cover_multiple": 1.5,
+        "cover_multiple": 1.0,
         "max_safe_stake_pct": 0.05,
         "amort_cycles_min": 1,
         "amort_cycles_max": 1,
@@ -108,8 +108,9 @@ def test_recovery_force_explore_near_stop_sets_explore_regime(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "cycle_id": 12},
     )
-    assert metrics.get("recovery_force_explore") is True
-    assert metrics.get("stake_regime") == "EXPLORE"
+    assert metrics.get("recovery_force_explore") is not True
+    assert metrics.get("stake_regime") == "RECOVER"
+    assert metrics.get("recovery_cap_mode") == "cover_l0"
 
     rm = _rm(kelly_config)
     rm.pending_loss = {"R_10": 80.0}

@@ -86,7 +86,7 @@ def apply_soft_recovery_stake(
         metrics["recovery_cover_disabled"] = not cover_enabled
     if material_pending:
         quality_force_explore = False
-        force_early = bool(near_stop_win) or cover_disabled_path
+        force_early = cover_disabled_path
     else:
         quality_force_explore = bool(acc_force_explore or live_force_explore or adapted_force_explore)
         force_early = True
@@ -124,6 +124,11 @@ def apply_soft_recovery_stake(
     amort = resolve_amort_cycles(losses, soft_recovery)
     cover_mult = max(1.0, float(soft.get("cover_multiple", 1.0)))
     cover = pending / resolved_payout / float(amort) * cover_mult
+    if int(amort) <= 1 and cover_enabled:
+        pct = float(configured_max_safe_stake_pct(soft_recovery))
+        cap = apply_small_account_hard_floor(float(bankroll) * pct, float(bankroll), soft_recovery=soft_recovery)
+        if isinstance(metrics, dict):
+            metrics["recovery_cap_mode"] = "cover_l0"
     horizon_infeasible = is_recovery_infeasible(pending, cap, resolved_payout, soft_recovery)
     cover_blocked = cover + 1e-12 >= cap
     infeasible = bool(horizon_infeasible or cover_blocked)

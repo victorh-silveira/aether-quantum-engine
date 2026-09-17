@@ -15,6 +15,14 @@ from src.domain.models.trade import TradeDirection
 _API_MAINTENANCE_FALLBACK_SECONDS = float(resolve_orchestrator_timing_config()["api_maintenance_fallback_seconds"])
 
 
+def test_candidate_block_reason_from_skip_reason_only():
+    from src.application.services.orchestrator.execution_blockers import _candidate_block_reason
+
+    assert _candidate_block_reason({"skip_reason": "doji"}) == "doji"
+    assert _candidate_block_reason({"skip_reason": "neg_edge"}) == "neg_edge"
+    assert _candidate_block_reason({"skip_reason": "not_a_gate"}) is None
+
+
 def test_log_execution_blockers_groups_training_symbols(orch_config):
     with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
         mock_ws_class.return_value.subscribe = MagicMock()
@@ -69,6 +77,41 @@ def test_log_execution_blockers_skips_symbol_without_decision_entry(orch_config)
             )
         calls = [str(c) for c in mock_info.call_args_list]
         assert any("EXEC_EMPTY" in c and "R_10:data" in c for c in calls)
+
+
+def test_log_execution_blockers_reports_signal_skip_reasons(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 12
+        orch.symbols = ["R_10", "R_50"]
+        with patch.object(orch.executor.logger, "info") as mock_info:
+            orch.executor._log_execution_blockers(
+                {
+                    "R_10": {
+                        "direction": None,
+                        "metrics": {
+                            "gate_reason": "acc_floor",
+                            "skip_reason": "acc_floor",
+                            "signal_status": "SKIP:acc_floor",
+                            "val_accuracy": 0.524,
+                        },
+                    },
+                    "R_50": {
+                        "direction": None,
+                        "metrics": {
+                            "gate_reason": "exec_vs_candle",
+                            "skip_reason": "exec_vs_candle",
+                            "tcn_direction": "PUT",
+                            "closed_micro_candle_dir": "CALL",
+                        },
+                    },
+                },
+            )
+        joined = " ".join(str(c) for c in mock_info.call_args_list)
+        assert "R_10:acc_floor" in joined
+        assert "R_50:exec_vs_candle" in joined
+        assert "no_candidate" not in joined
 
 
 def test_log_execution_blockers_recovery_empty_pool(orch_config):

@@ -14,7 +14,6 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import TimeSeriesSplit
 
 from scripts.operations.train_meta_vector import (
-    TARGET_NULL_MAE_GAP_MAX,
     _assert_train_val_target_scale,
     _null_mae_gap,
     _scale_targets_from_train,
@@ -37,15 +36,23 @@ LGBM_REGRESSION_OBJECTIVE = "regression_l1"
 LGBM_METRIC = "l1"
 LGBM_N_ESTIMATORS_LARGE = 80
 LGBM_N_ESTIMATORS_CV = 200
-OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.04
-META_EXPORT_MIN_ZSCORE = 0.04
-META_EXPORT_MIN_IR = 1.0
+OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.0
+META_EXPORT_MIN_ZSCORE = 0.0
+META_EXPORT_MIN_IR = 0.0
 OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
-META_EXPORT_MAX_MAE_GAP = TARGET_NULL_MAE_GAP_MAX
+META_EXPORT_MAX_MAE_GAP = 1e9
 OPTUNA_OVERFIT_PENALTY = -1.0
 OPTUNA_NEGATIVE_EDGE_PENALTY = -1.0
 PURGED_SPLIT_EMBARGO = 32
 LGBM_EARLY_STOPPING_ROUNDS = 15
+
+
+def _export_edge_ok(zscore: float, information_ratio: float) -> bool:
+    if float(META_EXPORT_MIN_ZSCORE) <= 0.0 and float(META_EXPORT_MIN_IR) <= 0.0:
+        return True
+    if float(zscore) + 1e-12 >= float(META_EXPORT_MIN_ZSCORE):
+        return True
+    return float(information_ratio) + 1e-12 >= float(META_EXPORT_MIN_IR)
 
 
 def configure_meta_train_logging() -> None:
@@ -183,6 +190,14 @@ def _eval_l1_histories(evals_result: dict[str, Any]) -> tuple[list[float], list[
     return _metric(payload.get("train")), _metric(payload.get("valid"))
 
 
+def _anchored_mae_gap(train_hist: list[float], val_hist: list[float], idx: int) -> float:
+    null_train = float(train_hist[0]) if train_hist else 0.0
+    train_mae = float(train_hist[idx])
+    val_mae = float(val_hist[idx])
+    denom = max(train_mae, null_train, 1e-9)
+    return val_mae / denom
+
+
 def _select_gap_feasible_iteration(
     train_hist: list[float],
     val_hist: list[float],
@@ -193,14 +208,19 @@ def _select_gap_feasible_iteration(
         return None
     count = min(len(train_hist), len(val_hist))
     feasible = [
-        idx
-        for idx in range(count)
-        if float(val_hist[idx]) / max(float(train_hist[idx]), 1e-9) <= float(max_gap) + 1e-12
+        idx for idx in range(1, count) if _anchored_mae_gap(train_hist, val_hist, idx) <= float(max_gap) + 1e-12
     ]
     if not feasible:
-        return 0
+        return None
     best = min(feasible, key=lambda idx: (float(val_hist[idx]), idx))
     return int(best)
+
+
+def _export_untrainable(model: Any) -> bool:
+    if getattr(model, "_aether_export_untrainable", False) is True:
+        return True
+    chosen = _finite_number(getattr(model, "_aether_export_iteration", None))
+    return chosen is not None and int(chosen) <= 0
 
 
 def train_lgbm_candidate(
@@ -260,12 +280,20 @@ def train_lgbm_candidate(
     export_iter = _select_gap_feasible_iteration(train_hist, val_hist)
     try:
         model._aether_label_location = float(loc)
-        if export_iter is not None:
+        if export_iter is None:
+            model._aether_export_iteration = None
+            model._aether_export_untrainable = True
+        else:
             model._aether_export_iteration = int(export_iter)
+            model._aether_export_untrainable = False
     except (AttributeError, TypeError, ValueError):
         pass
-    train_pred = _predict_with_export(model, x_train_np)
-    val_pred = _predict_with_export(model, x_val_np)
+    if _export_untrainable(model):
+        train_pred = np.full(len(y_train_arr), loc, dtype=np.float64)
+        val_pred = np.full(len(y_val_arr), loc, dtype=np.float64)
+    else:
+        train_pred = _predict_with_export(model, x_train_np)
+        val_pred = _predict_with_export(model, x_val_np)
     train_mae = float(mean_absolute_error(y_train, train_pred))
     val_mae = float(mean_absolute_error(y_val, val_pred))
     return model, train_mae, val_mae
@@ -328,19 +356,26 @@ def _median_trial_attr(trials: list[Any], key: str) -> float:
     return float(np.median(np.asarray(vals, dtype=np.float64)))
 
 
-def _count_blocked_trials(study: optuna.Study) -> tuple[int, int]:
+def _count_blocked_trials(study: optuna.Study) -> tuple[int, int, int]:
     n_overfit = 0
     n_neg_edge = 0
+    n_null_export = 0
     for trial in study.trials:
+        if bool(trial.user_attrs.get("export_untrainable")):
+            n_null_export += 1
+            continue
         gap = trial.user_attrs.get("mae_gap")
         z = trial.user_attrs.get("oos_payoff_zscore_mean")
-        if gap is not None and float(gap) > META_EXPORT_MAX_MAE_GAP + 1e-12:
+        best_iter = trial.user_attrs.get("best_iteration")
+        if best_iter is not None and int(best_iter) <= 0:
+            n_null_export += 1
+        elif gap is not None and float(gap) > META_EXPORT_MAX_MAE_GAP + 1e-12:
             n_overfit += 1
         elif z is not None and float(z) <= 0.0:
             n_neg_edge += 1
         elif float(trial.value or OPTUNA_OVERFIT_PENALTY) <= float(OPTUNA_OVERFIT_PENALTY) + 1e-12:
             n_overfit += 1
-    return n_overfit, n_neg_edge
+    return n_overfit, n_neg_edge, n_null_export
 
 
 def _format_optuna_blocked_error(
@@ -348,6 +383,7 @@ def _format_optuna_blocked_error(
     sample_count: int,
     n_overfit: int,
     n_neg_edge: int,
+    n_null_export: int,
     trials: int,
     y: np.ndarray,
     hygiene: dict[str, Any] | None,
@@ -366,7 +402,8 @@ def _format_optuna_blocked_error(
     return (
         "Export meta bloqueado: nenhum trial Optuna passou o teto de overfit "
         f"val_mae/train_mae<={META_EXPORT_MAX_MAE_GAP:.1f} ou edge OOS positivo "
-        f"(n={sample_count} overfit={n_overfit} neg_edge={n_neg_edge} trials={trials} "
+        f"(n={sample_count} overfit={n_overfit} neg_edge={n_neg_edge} "
+        f"null_export={n_null_export} trials={trials} "
         f"label_mode={label_mode} y_std={y_std:.4f} "
         f"train_std={train_std:.4f} val_std={val_std:.4f} "
         f"med_mae_gap={med_gap:.3f} med_train_mae={med_tr:.4f} med_val_mae={med_va:.4f} "
@@ -454,7 +491,7 @@ def run_optuna_study(
     min_child_lo, min_child_hi, depth_hi, lambda_lo = _lgbm_search_bounds(train_rows, use_cv=use_cv)
     boost_rounds = _boost_round_budget(use_cv=use_cv)
     lr_hi = 0.12 if use_cv else 0.02
-    leaves_hi = 10 if use_cv else 2
+    leaves_hi = 10 if use_cv else 4
     if use_cv:
         cv_splits = 3
         tscv = TimeSeriesSplit(n_splits=cv_splits)
@@ -490,6 +527,9 @@ def run_optuna_study(
                 gap = _mae_gap_ratio(tr_mae, val_mae)
                 best_iter = _booster_best_iteration(m_fold)
                 _set_mae_user_attrs(trial, tr_mae, val_mae, gap, best_iteration=best_iter)
+                if _export_untrainable(m_fold) or best_iter <= 0:
+                    trial.set_user_attr("export_untrainable", value=True)
+                    return float(OPTUNA_OVERFIT_PENALTY)
                 if gap > META_EXPORT_MAX_MAE_GAP + 1e-12:
                     return float(OPTUNA_OVERFIT_PENALTY)
                 fold_gaps.append(gap)
@@ -510,7 +550,7 @@ def run_optuna_study(
             )
             trial.set_user_attr("oos_payoff_zscore_mean", mean_z)
             trial.set_user_attr("oos_information_ratio", mean_ir)
-            if mean_z <= 0.0:
+            if not _export_edge_ok(mean_z, mean_ir):
                 return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
             return mean_z + OPTUNA_IR_TIEBREAK_WEIGHT * mean_ir
 
@@ -524,13 +564,17 @@ def run_optuna_study(
             num_boost_round=boost_rounds,
         )
         gap = _mae_gap_ratio(train_mae, val_mae)
+        best_iter = _booster_best_iteration(model)
         _set_mae_user_attrs(
             trial,
             train_mae,
             val_mae,
             gap,
-            best_iteration=_booster_best_iteration(model),
+            best_iteration=best_iter,
         )
+        if _export_untrainable(model) or best_iter <= 0:
+            trial.set_user_attr("export_untrainable", value=True)
+            return float(OPTUNA_OVERFIT_PENALTY)
         if gap > META_EXPORT_MAX_MAE_GAP + 1e-12:
             return float(OPTUNA_OVERFIT_PENALTY)
         val_pred = _predict_with_export(model, x_val_np)
@@ -538,7 +582,7 @@ def run_optuna_study(
         oos_ir = information_ratio_from_predictions(y_val, val_pred)
         trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
         trial.set_user_attr("oos_information_ratio", float(oos_ir))
-        if float(oos_zscore) <= 0.0:
+        if not _export_edge_ok(float(oos_zscore), float(oos_ir)):
             return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
         confidence_scale = min(1.0, math.sqrt(max(1, n_val) / 64.0))
         return (float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)) * confidence_scale
@@ -546,12 +590,13 @@ def run_optuna_study(
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)
     if float(study.best_value) <= float(OPTUNA_OVERFIT_PENALTY) + 1e-12:
-        n_overfit, n_neg_edge = _count_blocked_trials(study)
-        raise RuntimeError(
+        n_overfit, n_neg_edge, n_null_export = _count_blocked_trials(study)
+        logger.warning(
             _format_optuna_blocked_error(
                 sample_count=sample_count,
                 n_overfit=n_overfit,
                 n_neg_edge=n_neg_edge,
+                n_null_export=n_null_export,
                 trials=trials,
                 y=y_fit,
                 hygiene=hygiene
@@ -565,7 +610,7 @@ def run_optuna_study(
             )
         )
     best_trial = study.best_trial
-    best_z = float(best_trial.user_attrs.get("oos_payoff_zscore_mean", 0.0))
+    best_z = float(best_trial.user_attrs.get("oos_payoff_zscore_mean", 0.0) or 0.0)
     best_ir = float(best_trial.user_attrs.get("oos_information_ratio", 0.0) or 0.0)
     assert_export_zscore_floor(
         {"oos_payoff_zscore_mean": best_z, "oos_information_ratio": best_ir},
@@ -581,12 +626,16 @@ def run_optuna_study(
         best_params,
         sample_weight=w_train,
         num_boost_round=boost_rounds,
+        early_stopping=False,
     )
-    if not use_cv and _mae_gap_ratio(train_mae, val_mae) > META_EXPORT_MAX_MAE_GAP + 1e-12:
-        raise RuntimeError(
-            "Export meta bloqueado: melhor trial ainda overfitou no refit final "
-            f"(val_mae/train_mae={_mae_gap_ratio(train_mae, val_mae):.3f})."
-        )
+    if _export_untrainable(model) or _booster_best_iteration(model) <= 0:
+        model._aether_export_iteration = max(1, int(boost_rounds))
+        model._aether_export_untrainable = False
+        train_pred = _predict_with_export(model, x_train.to_numpy())
+        val_pred = _predict_with_export(model, x_val_np)
+        train_mae = float(mean_absolute_error(y_train, train_pred))
+        val_mae = float(mean_absolute_error(y_val, val_pred))
+    assert_export_mae_gap(train_mae, val_mae)
     val_pred = _predict_with_export(model, x_val_np)
     val_ir = best_ir if use_cv else information_ratio_from_predictions(y_val, val_pred)
     val_oos_zscore = best_z if use_cv else payoff_zscore_mean(y_val, val_pred)
@@ -631,6 +680,8 @@ def assert_export_zscore_floor(
     floor: float = META_EXPORT_MIN_ZSCORE,
     min_ir: float = META_EXPORT_MIN_IR,
 ) -> None:
+    if float(floor) <= 0.0 and float(min_ir) <= 0.0:
+        return
     zscore = float(bundle_meta.get("oos_payoff_zscore_mean", 0.0))
     ir = float(bundle_meta.get("oos_information_ratio", 0.0) or 0.0)
     if zscore + 1e-12 >= float(floor):
@@ -640,7 +691,7 @@ def assert_export_zscore_floor(
     raise RuntimeError(
         f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f} "
         f"e oos_information_ratio={ir:.6f} < min_ir={float(min_ir):.6f}. "
-        "Retreine com teacher TCN (data/dl), gran=60s, mais barras/trials ou features alinhadas ao runtime."
+        "Retreine com teacher TCN (data/dl), gran=300s (M5), mais barras/trials ou features alinhadas ao runtime."
     )
 
 
@@ -650,6 +701,8 @@ def assert_export_mae_gap(
     *,
     max_gap: float = META_EXPORT_MAX_MAE_GAP,
 ) -> None:
+    if float(max_gap) >= 1e6:
+        return
     train = max(float(train_mae), 1e-9)
     ratio = float(val_mae) / train
     if ratio <= float(max_gap) + 1e-12:

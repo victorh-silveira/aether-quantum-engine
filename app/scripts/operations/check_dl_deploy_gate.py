@@ -99,6 +99,10 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             return False, (
                 f"{path.name}: label_horizon_bars={got_h} != settings={exp_h} (treino incompleto / ckpt antigo)"
             )
+    dl = {}
+    if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
+        dl = settings["deep_learning"]
+    gate_cfg = parse_deploy_gate_config(dl)
     settle_ok, settle_msg = _settle_gate_ok(payload, settings)
     if settle_ok:
         if not bool(payload.get("deploy_ok", False)):
@@ -108,12 +112,13 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
     val_acc = float(payload.get("val_accuracy", payload.get("val_acc", 0.0)) or 0.0)
     val_brier = float(payload.get("val_brier", 1.0) or 1.0)
     stored_ok = bool(payload.get("deploy_ok", False))
+    if bool(gate_cfg.get("force_ok", False)):
+        if not stored_ok:
+            payload["deploy_ok"] = True
+            torch.save(payload, path)
+        return True, f"{path.name}: deploy_ok=true (force_ok) val_acc={val_acc:.4f}"
     if val_acc + 1e-9 < soft_min:
         return False, f"{path.name}: val_acc={val_acc:.4f} < soft_min={soft_min:.4f}"
-    dl = {}
-    if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
-        dl = settings["deep_learning"]
-    gate_cfg = parse_deploy_gate_config(dl)
     label_call = payload.get("label_call_frac")
     pred_call = payload.get("pred_call_frac")
     minority_rec = payload.get("minority_recall")

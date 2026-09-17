@@ -58,6 +58,11 @@ def test_last_closed_micro_candle_uses_penultimate():
     assert last_closed_micro_candle(None, "R_10") is None
     assert last_closed_micro_candle(SimpleNamespace(micro_candles={"R_10": [forming]}), "R_10") is None
 
+    from src.application.services.market_audit_candle import _all_closed_micro_candles
+
+    assert _all_closed_micro_candles(None, "R_10") == []
+    assert _all_closed_micro_candles(SimpleNamespace(micro_candles=None), "R_10") == []
+
 
 def test_format_candle_outcome_line_contains_side_and_window():
     candle = _candle("R_10", 1_700_000_000, 10.0, 10.5)
@@ -107,15 +112,18 @@ def test_log_closed_candle_outcomes_emits_and_fallbacks():
     )
     logger = MagicMock()
     log_closed_candle_outcomes(logger, None, {"R_10": {}})
+    assert logger.debug.call_count == 0
     assert logger.info.call_count == 0
     log_closed_candle_outcomes(logger, orch, {"R_10": {}})
-    assert logger.info.call_count == 1
-    assert "[CANDLE]" in str(logger.info.call_args.args[1])
-    assert "PUT" in str(logger.info.call_args.args[1])
+    assert logger.debug.call_count == 1
+    assert logger.info.call_count == 0
+    assert "[CANDLE]" in str(logger.debug.call_args.args[1])
+    assert "PUT" in str(logger.debug.call_args.args[1])
     log_closed_candle_outcomes(logger, orch, {"R_10": {}})
-    assert logger.info.call_count == 1
+    assert logger.debug.call_count == 2
     log_closed_candle_outcomes(logger, orch, {})
-    assert logger.info.call_count == 1
+    assert logger.debug.call_count == 3
+    assert logger.info.call_count == 0
     empty = SimpleNamespace(stream=SimpleNamespace(micro_candles={"R_10": []}), symbols=["R_10"], config={})
     log_closed_candle_outcomes(MagicMock(), empty, {"R_10": {}})
 
@@ -129,6 +137,7 @@ def test_log_closed_candle_outcomes_five_candles_synthetic():
     )
     logger = MagicMock()
     log_closed_candle_outcomes(logger, orch, {"R_10": {}})
-    assert logger.info.call_count == 1
-    msg = str(logger.info.call_args.args[1])
+    assert logger.debug.call_count == 1
+    assert logger.info.call_count == 0
+    msg = str(logger.debug.call_args.args[1])
     assert "[CANDLE] || M5 || R_10:" in msg

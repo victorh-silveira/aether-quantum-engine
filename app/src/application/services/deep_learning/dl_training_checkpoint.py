@@ -13,14 +13,6 @@ from src.application.services.deep_learning.dl_sharpness import mean_sharpness
 from src.application.services.deep_learning.model import _model_raw_prob, model_accuracy
 
 
-MAX_STABLE_VAL_LOSS = 0.72
-
-
-def _ce_stable(val_loss: float) -> bool:
-    """True quando a CE de validacao esta abaixo do piso de chute aleatorio."""
-    return float(val_loss) + 1e-9 < MAX_STABLE_VAL_LOSS
-
-
 def checkpoint_if_improved(
     model,
     *,
@@ -33,26 +25,37 @@ def checkpoint_if_improved(
     best_val_acc: float,
     best_sharp_acc: float,
     best_sharp_loss: float,
+    best_sharp_value: float = -1.0,
     collapse_hit: bool = False,
-) -> tuple[float, float, float, float, dict | None, dict | None, bool]:
-    """Atualiza picos estaveis (CE < 0.70); sharp prefere maior val_acc (loss desempata)."""
+) -> tuple[float, float, float, float, float, dict | None, dict | None, bool]:
+    """Atualiza pico por maior val_acc; ramo sharp maximiza nitidez com ACC no piso.
+
+    O piso de export (`min_sharpness`) nao bloqueia o ramo sharp no treino — so o gate
+    final de export exige o piso. Collapse so bloqueia o ramo sharp.
+    """
+    _ = float(min_sharpness)
     loss_improved = val_loss + 1e-9 < best_val_loss
-    stable = _ce_stable(val_loss)
-    acc_improved = bool(stable) and (not bool(collapse_hit)) and val_acc > best_val_acc + 1e-6
     if loss_improved:
         best_val_loss = val_loss
     best_state = None
     best_sharp_state = None
+    acc_improved = val_acc > best_val_acc + 1e-6
     if acc_improved:
         best_val_acc = val_acc
         best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
-    sharp_ok = float(val_sharpness) + 1e-12 >= float(min_sharpness)
     acc_floor_ok = float(val_acc) + 1e-9 >= float(min_val_accuracy)
-    if sharp_ok and acc_floor_ok and stable and not bool(collapse_hit):
-        first_sharp = best_sharp_acc < 0.0
-        acc_better = val_acc > best_sharp_acc + 1e-6
-        same_acc_better_loss = abs(val_acc - best_sharp_acc) <= 1e-6 and float(val_loss) + 1e-9 < float(best_sharp_loss)
-        if first_sharp or acc_better or same_acc_better_loss:
+    if acc_floor_ok and not bool(collapse_hit):
+        sharp_v = float(val_sharpness)
+        first_sharp = best_sharp_value < 0.0
+        sharper = sharp_v > float(best_sharp_value) + 1e-6
+        same_sharp_better_acc = abs(sharp_v - float(best_sharp_value)) <= 1e-6 and val_acc > best_sharp_acc + 1e-6
+        same_sharp_same_acc_better_loss = (
+            abs(sharp_v - float(best_sharp_value)) <= 1e-6
+            and abs(val_acc - best_sharp_acc) <= 1e-6
+            and float(val_loss) + 1e-9 < float(best_sharp_loss)
+        )
+        if first_sharp or sharper or same_sharp_better_acc or same_sharp_same_acc_better_loss:
+            best_sharp_value = sharp_v
             best_sharp_acc = val_acc
             best_sharp_loss = float(val_loss)
             best_sharp_state = (
@@ -66,6 +69,7 @@ def checkpoint_if_improved(
         best_val_acc,
         best_sharp_acc,
         best_sharp_loss,
+        best_sharp_value,
         best_state,
         best_sharp_state,
         improved_any,
@@ -75,9 +79,19 @@ def checkpoint_if_improved(
 def prefer_sharp_checkpoint(
     best_state: dict | None,
     best_sharp_state: dict | None,
+    *,
+    best_acc: float = -1.0,
+    sharp_acc: float = -1.0,
+    min_val_accuracy: float = 0.53,
 ) -> dict | None:
-    """Prefere o melhor estado que respeitou o piso de sharpness OOS."""
-    if best_sharp_state is not None:
+    """Prefere sharp se a ACC sharp limpa o piso soft (export ainda exige nitidez)."""
+    if best_sharp_state is None:
+        return best_state
+    if best_state is None:
+        return best_sharp_state
+    if float(sharp_acc) + 1e-9 >= float(min_val_accuracy):
+        return best_sharp_state
+    if float(sharp_acc) + 1e-9 >= float(best_acc) - 1e-6:
         return best_sharp_state
     return best_state
 

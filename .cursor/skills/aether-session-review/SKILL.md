@@ -24,25 +24,24 @@ Ler `docs/llm-trading-doctrine.md`, `docs/binary-senior-playbook.md` e `docs/eng
 $$\text{Lucro Alvo} = \text{Banca} \times 0.0431$$
 $$\text{Stake} = \frac{\text{Banca} \times 0.0431}{0.85} \approx 0.0507 \times \text{Banca} \implies \text{cap } 5.0\%$$
 
-Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_live_n_min` **12**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**; piso Kelly **1%**; `max_safe_stake_pct` **0.035**. Sem revenge sizing. Cold start (`live_n < 12`): Kelly × `explore_stake_scale` (piso **0.40**), sem boost Single-Strike.
+Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_live_n_min` **12**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**; stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `recovery_cap_mode=cover_l0` (L0 **3.5%**, ignora L2/L3); PEND material nao force-explore por near-stop; skips de sinal waived com PEND; piso Kelly **1%** soberano tambem em RECOVER residual. Sem revenge sizing. Cold start (`live_n < 12`): Kelly × `explore_stake_scale` (piso **0.40**), sem boost Single-Strike.
 
 ## Pre-trade (PlayBook)
 
-1. Setup: TCN resolve lado + FLIP por p_eff (auto_learn; young/mature pe>=**0.58**; `n_train>=8`; **nao** se vela==TCN) + SCALE adapt + Kelly
-2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown pos-LOSS / pausa de sessao / WSS down)
-3. Explore ou recover? Com `cover_enabled` **true**, PEND material usa cover capped (`min(PEND/payout/amort, cap_L)`)
+1. Setup: TCN + FLIP + SKIP `neg_edge` (EXPLORE; waived com PEND) + Kelly/cover_l0 amort **1**
+2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown / pausa / WSS); sinal? (`SKIP:neg_edge`) — com PEND material `neg_edge` nao trava recover (skips de vela/scale/doji desativados)
+3. Explore ou recover? Cover amort **1** → `min(max(PEND/payout, 1% banca), cap_L0)`; telemetria `cover_l0`
 4. Hipotese falsificavel se mudar knob; gate novo so via catalogo
 5. Alvo: stop-win **4,31%** — processo, nao “mao quente”
+6. Execucao: TCN (Cal ≥ 0.5 CALL) ou FLIP loss-clf (se pe no piso)
 
-## During (leitura de log) — ordem CLUSTER→CANDLE→GATES→SCALE→META→KELLY
+## During (leitura de log) — ordem CLUSTER→GATES→KELLY→EXEC→RESOLVED
 
-1. CLUSTER — lado TCN (Cal≥0.5 CALL); Prob / Margin / Edge (EV vs be=0.541); `live_n`; Edge negativo sozinho nao e SKIP
-2. CANDLE — `dir_vela` same-cycle (o→c da M5 fechada); compara com TCN
-3. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap` / `flip_min_n` / **`candle_holds`** = FLIP off; se FLIP, lado = !TCN so se vela ≠ TCN
-4. IND SCALE — `adapted=` + `why=retract_vs_tcn|explos_vs_tcn|tape_vs_tcn|candle_vs_tcn|flip_holds|explos_edge_firm`; mi/mili/tape; regime falha → tape_strong; candle last (exceto FLIP sticky)
-5. META — `applied=` / edge ≤ 0 ou `sat=1`+Cal Edge≤0.02 → soft Kelly (`meta_soft_kelly`; **nao flipa**); `edge=+0.850 sat=1` = clip
-6. KELLY / EXEC — lado final deve bater a cascata; stake = explore/recover/cover
-7. RESOLVED / RISK — `LIN:` pos-settle; pending; `QUALITY hit=` so pos-FLIP; pnl vs 4.31%; ACC ~0.53 = retreino TCN, nao “mais trades”
+1. CLUSTER — lado TCN (Cal≥0.5 CALL); Prob / Margin / Edge (EV vs be=0.541); `live_n`; Edge ≤ 0 → `SKIP:neg_edge` em EXPLORE (waived com PEND)
+2. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap` / `flip_min_n` = FLIP off; se FLIP, lado = !TCN (sem bloqueio por vela)
+3. KELLY — p, live_wr, f*, mode; sem meta_soft; stake = explore/recover/cover
+4. EXEC — lado final: TCN ou FLIP; ticket em uma linha
+5. RESOLVED / RISK — `LIN:` pos-settle; pending; `QUALITY hit=` so pos-FLIP; pnl vs 4.31%; ACC ~0.53 = retreino TCN, nao “mais trades”
 
 ## Pos-mortem (9 perguntas)
 

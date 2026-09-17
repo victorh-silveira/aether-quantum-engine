@@ -22,7 +22,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
 
-O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.55/0.45**; o meta-regressor LightGBM estima `predicted_payoff_edge` (telemetria); o ranking usa `tcn × max(0.1, 1+z)`. **Unica inversao de ordem:** loss-classifier FLIP se auto_learn e `p_eff >= 0.55` young / `0.58` mature. Proibido qualquer outro flip (fusao, persistence, candle, invert_exec_side).
+O mercado é tratado como série temporal ruidosa: a TCN estima `P(CALL)` / `P(PUT)` com calibração e threshold **0.55/0.45**; o meta-regressor LightGBM estima `predicted_payoff_edge` (telemetria); o ranking usa `tcn × max(0.1, 1+z)`. Inversões de lado: loss-classifier FLIP se auto_learn e `p_eff` no piso; SCALE adapt; e `invert_exec_side` (ops) apos a cascata.
 
 **Invariante temporal:** inferências seguem `signature_boundary_seconds` (**300 s**) via `get_data_state_signature()` — alinhado a **300 s** (micro M5) e **86400 s** (macro D1); ratio macro:micro **1:288**.
 

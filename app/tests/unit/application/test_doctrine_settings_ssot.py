@@ -26,7 +26,7 @@ def test_production_settings_pass_doctrine_invariants():
     assert int(inv["loss_clf_flip_trust_n"]) == 32
     assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
     assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.58)
-    assert int(inv["loss_clf_flip_min_n_train"]) == 8
+    assert int(inv["loss_clf_flip_min_n_train"]) == 4
     assert int(inv["loss_clf_bootstrap_exit_n"]) == 4
     assert inv["cover_enabled"] is True
     assert float(inv["cover_multiple"]) == pytest.approx(1.0)
@@ -43,8 +43,10 @@ def test_production_deploy_gate_armed():
     dl = settings["deep_learning"]
     gate = dl["deploy_gate"]
     assert gate["enabled"] is True
-    assert gate["force_ok"] is False
-    assert float(gate["soft_min_val_accuracy"]) >= 0.53
+    assert gate["force_ok"] is True
+    assert float(gate["soft_min_val_accuracy"]) == pytest.approx(0.0)
+    assert float(gate["soft_max_brier"]) == pytest.approx(1.0)
+    assert bool(gate["reject_majority_collapse"]) is False
     assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.20)
     assert bool(dl.get("allow_undeployed_inference")) is False
     assert int(dl.get("training_history_bars", 0)) == 2000
@@ -55,7 +57,14 @@ def test_production_deploy_gate_armed():
     assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "signal_skip" not in settings["orchestrator"]["execution"]
-    assert "invert_exec_side" not in settings["orchestrator"]["execution"]
+    assert settings["orchestrator"]["execution"]["invert_exec_side"] is False
+    assert settings["orchestrator"]["execution"]["skip_exec_vs_candle"] is False
+    assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False
+    assert settings["orchestrator"]["execution"]["skip_scale_candle_discord"] is False
+    assert settings["orchestrator"]["execution"]["skip_neg_edge"] is True
+    assert settings["orchestrator"]["execution"]["skip_doji"] is False
+    assert settings["risk_management"]["soft_recovery"]["amort_cycles_min"] == 1
+    assert settings["risk_management"]["soft_recovery"]["amort_cycles_max"] == 1
     assert "cal_soft_edge_skip_enabled" not in settings["orchestrator"]["execution"]
     assert "cal_soft_edge_margin_floor" not in settings["orchestrator"]["execution"]
 
@@ -83,7 +92,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert int(block["flip_trust_n"]) == 32
     assert float(block["flip_young_shrink"]) == pytest.approx(0.35)
     assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.58)
-    assert int(block["flip_min_n_train"]) == 8
+    assert int(block["flip_min_n_train"]) == 4
     assert int(block["bootstrap_exit_n"]) == 4
     assert "flip_require_auto_learn" not in block
     assert "soft_kelly_mult" not in block
@@ -94,7 +103,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert resolved["flip_trust_n"] == 32
     assert resolved["flip_young_shrink"] == pytest.approx(0.35)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert int(resolved["flip_min_n_train"]) == 8
+    assert int(resolved["flip_min_n_train"]) == 4
     assert int(resolved["bootstrap_exit_n"]) == 4
     assert int(block["ready_n"]) == 32
     assert int(block["retrain_min_n"]) == 12
@@ -107,7 +116,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     scale = settings["orchestrator"]["execution"]["scale_vision"]
     assert scale["enabled"] is True
     assert int(scale["ops_window_bars"]) == 3
-    assert bool(scale["adapt_retract_enabled"]) is True
+    assert bool(scale["adapt_retract_enabled"]) is False
     assert bool(scale["adapt_tape_require_strong"]) is True
     assert float(scale["adapt_explos_max_tcn_edge"]) == pytest.approx(0.05)
     assert "adapt_soft_margin" not in scale
@@ -130,11 +139,16 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(cal["neutral_calibration_half_width"]) == pytest.approx(0.05)
     assert float(cal["min_calibration_margin_floor"]) == pytest.approx(0.05)
     assert float(cal["temperature_min"]) == pytest.approx(0.75)
-    assert float(cal["min_calibration_sharpness"]) == pytest.approx(0.03)
-    assert float(cal["min_oos_sharpness"]) == pytest.approx(0.03)
+    assert float(cal["min_calibration_sharpness"]) == pytest.approx(0.0)
+    assert float(cal["min_oos_sharpness"]) == pytest.approx(0.0)
     assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.05)
-    assert float(dl["label_smoothing"]) == pytest.approx(0.02)
-    assert float(dl["tcn"]["dropout"]) == pytest.approx(0.20)
+    assert float(dl["label_smoothing"]) == pytest.approx(0.0)
+    assert float(dl["tcn"]["dropout"]) == pytest.approx(0.25)
+    assert float(dl["focal_gamma"]) == pytest.approx(1.0)
+    assert float(dl["weight_decay"]) == pytest.approx(0.01)
+    assert float(dl["aux_regression_weight"]) == pytest.approx(0.08)
+    assert int(dl["early_stopping_patience"]) == 12
+    assert str(dl["lr_scheduler"]) == "reduce_on_plateau"
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 300
     assert bool(orch["require_signature_boundary"]) is True

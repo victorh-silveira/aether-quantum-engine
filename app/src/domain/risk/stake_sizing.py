@@ -19,6 +19,7 @@ __all__ = [
     "consensus_vote_agreement",
     "conviction_stop_win_weight",
     "enrich_metrics_conviction",
+    "enforce_min_stake_pct",
     "finalize_stake_with_min",
     "metric_float",
     "raw_side_from_metrics",
@@ -229,3 +230,26 @@ def finalize_stake_with_min(
         if final_stake < stake_min:
             return 0.0
     return final_stake
+
+
+def enforce_min_stake_pct(
+    final_stake: float,
+    bankroll: float,
+    kelly_config: dict[str, Any],
+    *,
+    safe_cap: float = 0.0,
+    metrics: dict[str, Any] | None = None,
+) -> float:
+    """Eleva stake ao piso percentual da banca; re-cap no safe_cap de recovery."""
+    if float(final_stake) <= 0.0:
+        return 0.0
+    min_pct = float(kelly_config.get("min_stake_pct", 0.0) or 0.0)
+    if min_pct <= 0.0 or float(bankroll) <= 0.0:
+        return float(final_stake)
+    floor = float(bankroll) * min_pct
+    lifted = max(float(final_stake), floor)
+    out = min(lifted, float(safe_cap)) if float(safe_cap) > 0.0 else lifted
+    if isinstance(metrics, dict) and lifted + 1e-12 > float(final_stake):
+        metrics["min_stake_pct_floor_applied"] = True
+        metrics["min_stake_pct_floor"] = float(floor)
+    return float(out)

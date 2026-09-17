@@ -1,4 +1,4 @@
-"""Motor de direcao TCN com SKIP tecnico e FLIP por P_LOSS alto."""
+"""Motor de direcao: TCN + FLIP por p_eff do loss-clf; SKIP tecnico e neg_edge."""
 
 from __future__ import annotations
 
@@ -12,13 +12,8 @@ from src.application.services.execution_direction_checks import (
     sync_entry_metrics,
 )
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
-from src.application.services.execution_scale_adapt import apply_scale_retract_adapt
-from src.application.services.execution_scale_vision import (
-    compute_scale_directions,
-    format_scale_audit_line,
-    parse_scale_vision_config,
-)
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
+from src.application.services.execution_signal_skips import should_skip_acc_floor, should_skip_neg_edge
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
@@ -56,6 +51,22 @@ def _sync_kelly_side(metrics: dict[str, Any], exec_dir: TradeDirection) -> None:
     )
 
 
+def _apply_invert_exec_side(
+    exec_dir: TradeDirection,
+    metrics: dict[str, Any],
+    exec_cfg: dict | None,
+) -> TradeDirection:
+    """Inverte CALL↔PUT se invert_exec_side=true."""
+    enabled = bool((exec_cfg or {}).get("invert_exec_side", False))
+    metrics["invert_exec_side"] = enabled
+    if not enabled:
+        return exec_dir
+    metrics["exec_direction_pre_invert"] = exec_dir.name
+    if exec_dir == TradeDirection.CALL:
+        return TradeDirection.PUT
+    return TradeDirection.CALL
+
+
 def _finalize_execution_metrics(
     entry: dict,
     metrics: dict,
@@ -69,8 +80,8 @@ def _finalize_execution_metrics(
     orch: Any | None = None,
     force: bool = False,
     exec_cfg: dict | None = None,
-) -> tuple[TradeDirection, dict]:
-    """Aplica telemetria, FLIP loss-clf, depois SCALE retract (ultima palavra)."""
+) -> tuple[TradeDirection, dict] | None:
+    """TCN → FLIP loss-clf → invert → SKIP neg_edge → Kelly."""
     if symbol is not None:
         attach_live_signal_metrics(orch, symbol, metrics)
     apply_live_calib_drift_soft(metrics, orch=orch, symbol=symbol)
@@ -104,8 +115,6 @@ def _finalize_execution_metrics(
                 metrics["pending_loss_total"] = max(0.0, float(sum(risk_manager.pending_loss.values())))
             except (TypeError, ValueError):
                 metrics.setdefault("pending_loss_total", 0.0)
-    scale_cfg = parse_scale_vision_config((exec_cfg or {}).get("scale_vision") if isinstance(exec_cfg, dict) else None)
-    compute_scale_directions(orch, symbol, exec_dir, metrics)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     metrics["execution_candidate_ready"] = True
@@ -118,13 +127,18 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
-    exec_dir = apply_scale_retract_adapt(metrics, dl_dir, cfg=scale_cfg)
+    metrics["exec_direction_pre_scale"] = exec_dir.name
+    metrics["scale_adapt_applied"] = False
+    metrics.pop("scale_adapt_reason", None)
+    exec_dir = _apply_invert_exec_side(exec_dir, metrics, exec_cfg)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
+    if should_skip_neg_edge(metrics, exec_cfg, force=force):
+        sync_entry_metrics(entry, metrics)
+        return None
     _sync_kelly_side(metrics, exec_dir)
     sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
-    metrics["scale_audit"] = format_scale_audit_line(metrics)
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 
@@ -144,7 +158,7 @@ def resolve_execution_direction(
     skipped_cycles_counter: int | None = None,
     orch: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
-    """Resolve direcao micro fiel ao sinal TCN/DL com telemetria meta-regressor."""
+    """Resolve direcao: TCN + FLIP loss-clf; telemetria meta sem soft Kelly."""
     _ = (calibration_cfg, corr_matrix, recovery_active, peer_entry, risk_manager, skipped_cycles_counter)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     force = force_trade_every_cycle(exec_cfg_dict)
@@ -166,6 +180,10 @@ def resolve_execution_direction(
         _stamp_direction_resolved_cycle(entry, active_cycle)
         return None
     dl_dir, metrics, prob = checks
+    if should_skip_acc_floor(metrics, exec_cfg_dict, orch=orch, force=force):
+        sync_entry_metrics(entry, metrics)
+        _stamp_direction_resolved_cycle(entry, active_cycle)
+        return None
     score = seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
     predicted_edge, meta_applied = resolve_meta_payoff_edge(
         symbol=symbol,

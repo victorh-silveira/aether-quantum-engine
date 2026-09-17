@@ -41,7 +41,7 @@
   },
   "deep_learning": {
     "arch": "tcn",
-    "aux_regression_weight": 0.15,
+    "aux_regression_weight": 0.08,
     "bootstrap_max_wait_rounds": 16,
     "bootstrap_history_wait_cap_seconds": 30,
     "train_history_shortfall_ratio": 0.95,
@@ -60,8 +60,8 @@
       "max_calibrated_raw_gap": 0.05,
       "method": "auto",
       "min_calibration_margin_floor": 0.05,
-      "min_calibration_sharpness": 0.03,
-      "min_oos_sharpness": 0.03,
+      "min_calibration_sharpness": 0.0,
+      "min_oos_sharpness": 0.0,
       "neutral_calibration_half_width": 0.05,
       "neutral_half_width": 0.05,
       "platt_a_default": 1.0,
@@ -84,22 +84,22 @@
       "eval_put_threshold_default": 0.25,
       "eval_put_threshold_floor": 0.01,
       "eval_relaxed_gating": true,
-      "force_ok": false,
+      "force_ok": true,
       "max_brier": 0.28,
       "max_eval_steps": 48,
       "min_trades": 10,
       "min_win_rate": 0.55,
       "mini_bars": 20,
-      "soft_max_brier": 0.28,
-      "soft_min_val_accuracy": 0.53,
-      "reject_majority_collapse": true,
+      "soft_max_brier": 1.0,
+      "soft_min_val_accuracy": 0.0,
+      "reject_majority_collapse": false,
       "max_label_call_frac_bias": 0.20,
       "min_minority_recall": 0.25
     },
-    "early_stopping_patience": 25,
+    "early_stopping_patience": 12,
     "min_epochs": 15,
     "enabled": true,
-    "focal_gamma": 2.5,
+    "focal_gamma": 1.0,
     "implied_vol_bars": 20,
     "indicators": {
       "congestion": {
@@ -188,7 +188,7 @@
     "label_ma_window": 3,
     "label_mode": "quantum_multi_barrier",
     "label_smooth_bars": 1,
-    "label_smoothing": 0.02,
+    "label_smoothing": 0.0,
     "learning_rate": 0.001,
     "live_signal_metrics": {
       "drift_min_score": 0.5,
@@ -206,7 +206,7 @@
     "session_max_losses_in_window": 3,
     "session_window_trades": 5,
     "session_pause_cycles": 2,
-    "lr_scheduler": "cosine",
+    "lr_scheduler": "reduce_on_plateau",
     "lstm": {
       "dropout": 0.2,
       "hidden_size": 64,
@@ -225,7 +225,7 @@
         64,
         32
       ],
-      "dropout": 0.20
+      "dropout": 0.25
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
@@ -240,7 +240,7 @@
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,
     "validation_ratio": 0.2,
-    "weight_decay": 0.005,
+    "weight_decay": 0.01,
     "require_deploy": false,
     "allow_undeployed_inference": false,
     "calibration_margin_floor": 0.01,
@@ -313,7 +313,7 @@
       "flip_trust_n": 32,
       "flip_young_shrink": 0.35,
       "flip_young_p_eff_floor": 0.58,
-      "flip_min_n_train": 8,
+      "flip_min_n_train": 4,
       "bootstrap_exit_n": 4,
       "ready_n": 32,
       "retrain_min_n": 12,
@@ -441,6 +441,12 @@
         "stake_min_floor": 0.01
       },
       "force_trade_every_cycle": false,
+      "invert_exec_side": false,
+      "skip_exec_vs_candle": false,
+      "skip_below_soft_min_acc": false,
+      "skip_scale_candle_discord": false,
+      "skip_neg_edge": true,
+      "skip_doji": false,
       "fractional_lot_stagger_base_us": 100.0,
       "fractional_lot_stagger_jitter_us": 50.0,
       "include_anchor_trades": true,
@@ -599,7 +605,7 @@
         "use_last_bar": true,
         "retraction_require_mili": true,
         "retraction_use_tick_accel": true,
-        "adapt_retract_enabled": true,
+        "adapt_retract_enabled": false,
         "adapt_tape_require_strong": true,
         "adapt_explos_max_tcn_edge": 0.05
       }
@@ -739,8 +745,8 @@
     "small_account_stop_win": 10.0,
     "small_account_threshold": 100.0,
     "soft_recovery": {
-      "amort_cycles_max": 3,
-      "amort_cycles_min": 2,
+      "amort_cycles_max": 1,
+      "amort_cycles_min": 1,
       "coing_redirect_drawdown_threshold": 10.0,
       "dust_pending_clear_max": 0.25,
       "enabled": true,

@@ -19,10 +19,10 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
 | Lean fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **2000** (nao 500) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `soft_min_val_accuracy` **0.53**; `max_brier` / `soft_max_brier` **0.28**; `force_ok=false`; `max_label_call_frac_bias` **0.20**; `allow_undeployed_inference` **false** |
-| Limiares live | TCN sempre CALL se Cal ≥**0.5** senao PUT; `apply_calibrator_stable` prefere raw se mais nitido; clamp `[raw±0.05]`; `temperature_min` **0.75**; sharpness **0.03**; banda `[0.45, 0.55]` so telemetria/`raw_extreme` |
+| ACC / deploy | `force_ok=true` (launch-train **sempre** exporta); `soft_min_val_accuracy` **0.0**; `soft_max_brier` **1.0**; `reject_majority_collapse=false`; `max_brier` **0.28**; `allow_undeployed_inference` **false** |
+| Limiares live | TCN sempre CALL se Cal ≥**0.5** senao PUT; `apply_calibrator_stable` prefere raw se mais nitido; clamp `[raw±0.05]`; `temperature_min` **0.75**; `min_oos_sharpness` / `min_calibration_sharpness` **0.0** (sem piso de export); banda `[0.45, 0.55]` so telemetria/`raw_extreme` |
 | Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
-| Early stop | `min_epochs` **15**, `early_stopping_patience` **25** |
+| Early stop | `min_epochs` **15**, `early_stopping_patience` **12** |
 | Meta | LightGBM **23D** `predicted_payoff_edge` |
 
 Leitura operacional (sessao live): checkpoint `data/dl/1HZ75V.pth` com `val_accuracy` colado ao piso implica Cal mole. Nao “operar mais para aprender”; se ACC estruturalmente no piso, retreinar via `launch-train`. Loss-clf FLIP so apos bootstrap live `LOSS_BOOTSTRAP_EXIT_N` **4**; Edge EV (payout **0.85**) e telemetria — negativo sozinho nao skipa; meta nao flipa lado.
@@ -47,7 +47,7 @@ Acao: `launch-train` → gate deploy/settle → `make docker-rebuild` + sync Min
 | `app/scripts/operations/run_launch_train_tf_pipeline.py` | orquestra sweep horizonte N + promote (fallback `train.py` se `horizon_sweep.run_in_launch_train=false`) |
 | `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
 | `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls e estado em `data/` (so train/reset) |
-| `app/scripts/operations/check_dl_deploy_gate.py` | aborta meta se geometria invalida; aceita **settle_wr** elegivel (mesmos knobs do sweep) ou ACC≥0.53 + soft path; simbolos de `settings.symbols` |
+| `app/scripts/operations/check_dl_deploy_gate.py` | com `force_ok=true` promove `deploy_ok` e segue meta; ainda rejeita geometria invalida (lookback/granularity/horizon); simbolos de `settings.symbols` |
 | `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`; `--bars` **5000** em micro M5; nao usar 365 D1) |
 | `app/scripts/operations/sweep_train_timeframes.py` | loop de celulas H1–H4; artefactos em `data/dl/sweep/1HZ75V/H{N}`; leaderboard JSON |
 | `app/scripts/operations/promote_tf_winner.py` | promove vencedor elegivel para `settings.json` + `drift_symbols.py` + `data/dl` (fail-closed se nenhum) |
@@ -81,16 +81,16 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 ## Deploy gate (senior)
 
-`resolve_deploy_ok` (treino) exige `val_accuracy >= soft_min` **antes** de `mini_ok` / `force_ok`. Checkpoint com ACC 0.52 grava `deploy_ok=false` no treino. Pos-promote, `check_dl_deploy_gate` **e** o load DEMO (`_effective_deploy_ok`) aceitam o ckpt se **settle_wr** passar a elegibilidade do sweep; senao caem no path ACC/Brier/collapse. Com `allow_undeployed_inference=false`, ckpt `deploy_ok=false` **nao** opera em DEMO “como se fosse deploy_ok”. Treino rejeitado **sempre sobrescreve** o `.pth` anterior (sem preservar deploy antigo). Nao usar `force_ok=true` nem `bypass_deploy_gate=true` em producao.
+`resolve_deploy_ok` com `force_ok=true` **sempre** retorna true (launch-train exporta o melhor checkpoint da sessao). Soft floors (`soft_min_val_accuracy` **0.0**, `soft_max_brier` **1.0**, `reject_majority_collapse=false`) nao bloqueiam. `check_dl_deploy_gate` honra `force_ok` e ainda falha so em geometria invalida. Com `allow_undeployed_inference=false`, ckpt `deploy_ok=false` **nao** opera em DEMO — por isso o treino forca export. Treino **sempre sobrescreve** o `.pth` anterior.
 
-Majority-collapse (alem do ACC): com `reject_majority_collapse=true`, rejeita se a fracao predita colapsa (`|pred_call_frac-0.5|` ou `|pred_call_frac-label_call_frac|` &gt; `max_label_call_frac_bias` **0.20**) — mesmo com `minority_recall` acima do piso (ex.: labels ~0.5 e `pred_call=0.24`). Alternativa: label viesado (`|label_call_frac-0.5|` &gt; bias) **e** `minority_recall < min_minority_recall` (**0.25**). Checkpoint de treino nao promove pico com `collapse_hit`.
+Majority-collapse: com `reject_majority_collapse=true`, rejeita no gate final se pred skew (`|pred-0.5|` / `|pred-label|` > **0.20**) ou label skew + `minority_recall < 0.25`. Ops atual: **false** (telemetria permanece). No checkpoint, `collapse_hit` **nao** impede salvar o pico de `val_acc` (so bloqueia o ramo sharp).
 
-Checkpoint de treino restaura o melhor estado **sharp** por **maior val_acc** apenas se a **BCE** de validacao &lt; **0.70** (abaixo de chute aleatorio; pico da epoca 1 com loss 0.80 e ignorado). `focal_gamma` afeta so o treino — nao o monitor de checkpoint. Loss so desempata. Em 1HZ75V, `spot_forward` costuma platô ~0.52; `quantum_multi_barrier` e o label SSOT atual.
+Checkpoint de treino restaura o pico de **maior val_acc** (sem veto por BCE nem por collapse no pico ACC). Ramo sharp maximiza nitidez entre epocas com ACC≥soft_min e sem `collapse_hit`. Anti-overfit SSOT: `focal_gamma` **1.0**, `weight_decay` **0.01**, `tcn.dropout` **0.25**, `label_smoothing` **0.0**, `lr_scheduler` **reduce_on_plateau**, `aux_regression_weight` **0.08**. Export sharpness: `min_oos_sharpness` **0.0** (assert no-op); temperature sharpen ainda roda se calibracao pedir.
 
 ## Meta — alvo e dados
 
 
-- Alvo preferencial: payoff assinado **cru** ate o split cronologico; winsorize 1%/99% e unit-scale O(1) usam **so o fold de treino** (`label_scale` = std do treino apos clip; `train_std` / `val_std` no bundle). Pontos brutos 1HZ75V nao entram no booster. Prefixo `|payoff|~0` **ou** `val_std/train_std > 1.5` **ou** mediana L1 `val_mae/train_mae > 2.0` e cortado (`n_dropped_flat_prefix`); se o split continuar degenerado, falha fechado. Z-score de forward so se payoff indisponivel. Teto Optuna `val_mae/train_mae` **2.0** inalterado; o booster escolhe o snapshot com gap legal de menor val L1 (snapshot 0 = mediana L1 do treino; z/IR OOS no mesmo snapshot). Validacao purged usa o fold completo (sem stride 5). Objetivo **regression_l1** (alinhado ao gate MAE); n grande: **80** rounds, early-stop **L1** patience **15**, `max_depth` **1**, `bagging_fraction` ligado.
+- Alvo preferencial: payoff assinado **cru** ate o split cronologico; winsorize 1%/99% e unit-scale O(1) usam **so o fold de treino** (`label_scale` = std do treino apos clip; `train_std` / `val_std` no bundle). Pontos brutos 1HZ75V nao entram no booster. Prefixo `|payoff|~0` e cortado quando possivel; split degenerado / gap MAE / z-IR fracos geram **WARNING** e o Optuna **exporta o melhor trial** (`META_EXPORT_MIN_ZSCORE` / `MIN_IR` **0.0**, `META_EXPORT_MAX_MAE_GAP` **1e9**). Snapshot **0** = mediana L1 (baseline); export forca iteracao ≥1 quando o gap legal nao aparece. Objetivo **regression_l1**; n grande: **80** rounds, early-stop **L1** patience **15**, `max_depth` **1**, `num_leaves` ate **4**, `bagging_fraction` ligado.
 - Hydrate Docker = smoke (500/365). `launch-train` chama `ensure_timescale` (seed Deriv) antes do meta: piso micro **5000** / macro D1 **365**. Timescale smoke/curto/flat → INFO e Deriv (nao WARNING "rejeitado"); apos Deriv, seed no Timescale.
 - Fit do calibrador: se std calibrado colapsa vs raw no holdout/val → persiste `identity`. Teacher meta: raw+expand em INFO se cal ainda esmagar.
 - `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`, `label_scale`. Escala O(1) nao usa o y completo (lookahead no alvo e proibido).
@@ -106,7 +106,15 @@ Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibr
 - Kelly / sizing usam **Cal** (pos-stable), nao o raw cru do TCN.
 - Nomes das chaves SSOT (`tcn_macro_*_override`) sao historicos: limiam extremo de **raw TCN**, nao o timeframe MACRO OHLC.
 
-`calibration.method=auto` + piso `min_calibration_sharpness` / `min_oos_sharpness` (**0.03**): se temperatura/Platt/isotonico colapsar nitidez, o fit cai para `identity` (raw). Export mede sharpness via `apply_calibrator_stable` (mesmo caminho do live).
+`calibration.method=auto` + `min_calibration_sharpness` / `min_oos_sharpness` (**0.0**): export nao bloqueia por nitidez; se temperatura/Platt/isotonico colapsar nitidez, o fit ainda pode cair para `identity` (raw). `min_calibration_margin_floor` **0.05** no live: se Cal mole e raw nitido, devolve raw; se ambos moles, fica o mais nitido **sem stretch** (nao inventa Edge). Edge CLUSTER = EV; Edge≤0 em EXPLORE → SKIP `neg_edge` (waive com PEND material). Com `online_training` **false**, limpar `EXEC_EMPTY` exige **retreino + export** (sempre no launch-train com `force_ok`). Knobs live sozinhos nao limpam a sessao.
+
+### Ops apos launch-train (obrigatorio)
+
+1. `launch-train` / treino TCN `1HZ75V` com `force_ok` (exporta sempre)
+2. Deploy do novo checkpoint / TorchScript no MinIO (`data/dl` + sidecars)
+3. Reiniciar o motor
+
+Ate la, `EXEC_EMPTY` + `SKIP:neg_edge` com Cal~0.52 continua correto (`skip_neg_edge` intacto). **Proibido** Soft Kelly no TCN ou desligar `skip_neg_edge` para “passar” trade.
 
 Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.05**) **antes** de `apply_calibration_neutral_tolerance`, para CLUSTER e Kelly usarem o mesmo Cal. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.05** (= half-width) e fallback; o restore principal e margem relativa raw vs Cal. Lado live: CALL se Cal ≥**0.5**, PUT se Cal <**0.5** (sem `SKIP:NEUTRAL_ZONE`). Limiares `confidence_call_threshold` **0.55** / `confidence_put_threshold` **0.45** nao skipam. Banda `calibration_neutral_drift` **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (lado raw quando Cal mole). Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/Kelly (nao so `trade_score`). `temperature_min` **0.75** permite T&lt;1 no fit.
 
@@ -135,8 +143,8 @@ Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (n
 ## Anti-padroes
 
 - Trocar `label_mode` sem retreinar
-- `deploy_gate.force_ok=true` ou gate desligado
+- Desligar `force_ok` sem mandato (bloqueia launch-train)
 - Treinar meta em OHLC sintetico/flat do hydrate Docker
-- Seguir `launch-train` para meta com ACC&lt;0.53
+- Soft Kelly no TCN / desligar `skip_neg_edge` para “passar” Edge mole
 
 Skill: `aether-dl-train`.

@@ -35,6 +35,29 @@ def test_damped_cover_applies_target_proximity_when_amort_gt_one():
     assert stake < cover
 
 
+def test_damped_cover_l0_caps_when_amort_one():
+    soft = {
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "cover_multiple": 1.0,
+        "max_safe_stake_pct": 0.035,
+    }
+    stake, cover, amort = damped_cover_stake(
+        pending=500.0,
+        consecutive_losses=3,
+        payout=0.85,
+        risk_params=None,
+        soft=soft,
+        target=0.0,
+        pnl=0.0,
+        bankroll=9000.0,
+    )
+    assert amort == 1
+    assert cover == pytest.approx(500.0 / 0.85)
+    assert stake == pytest.approx(9000.0 * 0.035)
+    assert stake < cover
+
+
 def test_forced_explore_infeasible_ignores_pending_cover():
     metrics: dict = {}
     soft = {"amort_cycles_min": 2, "amort_cycles_max": 4, "cover_multiple": 1.5}
@@ -137,6 +160,29 @@ def test_soft_early_infeasible_false_without_pending():
             cap=250.0,
         )
         is False
+    )
+
+
+def test_soft_early_infeasible_true_when_cover_hits_cap():
+    soft = {
+        "amort_cycles_min": 1,
+        "amort_cycles_max": 1,
+        "cover_multiple": 1.0,
+        "cover_enabled": True,
+        "max_safe_stake_pct": 0.035,
+    }
+    assert (
+        soft_early_infeasible(
+            pending=800.0,
+            material_pending=True,
+            consecutive_losses=2,
+            payout=0.95,
+            risk_params=None,
+            soft=soft,
+            soft_recovery=soft,
+            cap=250.0,
+        )
+        is True
     )
 
 

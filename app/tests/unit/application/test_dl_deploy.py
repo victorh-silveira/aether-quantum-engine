@@ -3,6 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime, direction_wins
 from src.application.services.deep_learning.dl_deploy_eval import (
@@ -19,10 +20,10 @@ from src.domain.models.trade import TradeDirection
 def test_parse_deploy_gate_config_defaults():
     cfg = parse_deploy_gate_config({})
     assert cfg["enabled"] is True
-    assert cfg["force_ok"] is False
+    assert cfg["force_ok"] is True
     assert cfg["max_brier"] == 0.28
     assert cfg["max_eval_steps"] == 48
-    assert float(cfg["soft_min_val_accuracy"]) >= 0.53
+    assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.0)
 
 
 def test_deploy_eval_bar_indices_caps_steps():

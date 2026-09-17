@@ -7,7 +7,8 @@ from src.application.services.deep_learning.dl_calibration_tolerance import (
     apply_calibration_neutral_tolerance,
     infer_direction_from_prob,
 )
-from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake, max_safe_stake_cap
+from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
+from src.domain.risk.soft_recovery_policy import configured_max_safe_stake_pct
 
 
 def test_load_settings_json_structure():
@@ -58,5 +59,5 @@ def test_risk_stake_recovery_scenarios(pending_loss, payout):
         previous_stake=1.0,
     )
     assert stake >= 1.0
-    cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=2)
-    assert stake <= cap
+    cap_l0 = bankroll * float(configured_max_safe_stake_pct(None))
+    assert stake <= cap_l0 + 1e-9

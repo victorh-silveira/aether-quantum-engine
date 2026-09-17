@@ -23,6 +23,12 @@ def test_emit_audit_info_splits_multiline():
     emit_audit_info(logger, "   \n  ")
     assert logger.info.call_count == 3
 
+    from types import SimpleNamespace
+
+    from src.application.services.market_audit_ops_window import closed_micro_candles
+
+    assert closed_micro_candles(SimpleNamespace(micro_candles={"R_10": []}), "R_10") == []
+
 
 def test_resolve_cluster_timeframe_branches():
     assert resolve_cluster_timeframe(None) == "M5"
@@ -231,7 +237,7 @@ def test_format_kelly_audit_line():
         audit={},
     )
     assert "mode=recover" in custom_mode
-    soft = format_kelly_audit_line(
+    clean = format_kelly_audit_line(
         {
             "conviction": 0.64,
             "live_n": 0,
@@ -244,4 +250,6 @@ def test_format_kelly_audit_line():
         mode_tag="EXPLORE_KELLY",
         audit={"mode_tag": "EXPLORE_KELLY"},
     )
-    assert "meta_soft=1 strong=1 kscale=0.40" in soft
+    assert "meta_soft=" not in clean
+    assert "kscale=" not in clean
+    assert "[KELLY] || p=0.6400" in clean

@@ -118,7 +118,7 @@ def _feed_meta_classifier_learn(
         f"source={result.get('source') or '-'}"
     )
     orch._last_meta_clf_learn = detail
-    logger.info("META || LEARN %s", detail)
+    logger.debug("META || LEARN %s", detail)
 
 
 def process_contract_outcome(

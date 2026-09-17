@@ -149,8 +149,18 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     )
     if "signal_skip" in execution:
         raise ValueError("orchestrator.execution.signal_skip removido da doutrina (gates = tecnico + loss_clf)")
-    if "invert_exec_side" in execution:
-        raise ValueError("orchestrator.execution.invert_exec_side removido da doutrina")
+    require_keys(
+        execution,
+        (
+            "invert_exec_side",
+            "skip_exec_vs_candle",
+            "skip_below_soft_min_acc",
+            "skip_scale_candle_discord",
+            "skip_neg_edge",
+            "skip_doji",
+        ),
+        "orchestrator.execution",
+    )
     risk = full.get("risk_management")
     if not isinstance(risk, dict) or "min_validation_accuracy_gate" not in risk:
         raise ValueError("risk_management.min_validation_accuracy_gate obrigatorio")
@@ -179,6 +189,12 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
         "mandatory_trade_each_cycle": require_bool(execution, "mandatory_trade_each_cycle"),
+        "invert_exec_side": require_bool(execution, "invert_exec_side"),
+        "skip_exec_vs_candle": require_bool(execution, "skip_exec_vs_candle"),
+        "skip_below_soft_min_acc": require_bool(execution, "skip_below_soft_min_acc"),
+        "skip_scale_candle_discord": require_bool(execution, "skip_scale_candle_discord"),
+        "skip_neg_edge": require_bool(execution, "skip_neg_edge"),
+        "skip_doji": require_bool(execution, "skip_doji"),
         "online_training": require_bool(dl, "online_training"),
         "min_validation_accuracy_gate": require_float(risk, "min_validation_accuracy_gate"),
         "explore_stake_scale_floor": _explore_floor(execution),
@@ -192,6 +208,24 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     return resolved
 
 
+def _eq_int(inv: dict[str, Any], key: str, expected: int, msg: str) -> None:
+    """Fail-closed se inteiro divergir."""
+    if int(inv[key]) != expected:
+        raise ValueError(msg)
+
+
+def _eq_float(inv: dict[str, Any], key: str, expected: float, msg: str) -> None:
+    """Fail-closed se float divergir."""
+    if abs(float(inv[key]) - expected) > 1e-9:
+        raise ValueError(msg)
+
+
+def _eq_bool(inv: dict[str, Any], key: str, *, expected: bool, msg: str) -> None:
+    """Fail-closed se bool divergir."""
+    if bool(inv[key]) is not expected:
+        raise ValueError(msg)
+
+
 def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[str, Any]:
     """Valida settings de producao contra pisos da doutrina AGENTS; retorna invariantes."""
     inv = load_doctrine_invariants(settings)
@@ -199,10 +233,7 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
     execution = _execution_block(full)
     require_keys(
         execution,
-        (
-            "force_trade_every_cycle",
-            "mandatory_trade_each_cycle",
-        ),
+        ("force_trade_every_cycle", "mandatory_trade_each_cycle"),
         "orchestrator.execution",
     )
     if "cal_soft_edge_skip_enabled" in execution or "cal_soft_edge_margin_floor" in execution:
@@ -210,68 +241,58 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
     scale = execution.get("scale_vision")
     if not isinstance(scale, dict):
         raise ValueError("scale_vision ausente")
-    if not require_bool(scale, "adapt_retract_enabled"):
-        raise ValueError("scale_vision.adapt_retract_enabled deve ser true")
+    if require_bool(scale, "adapt_retract_enabled"):
+        raise ValueError("scale_vision.adapt_retract_enabled deve ser false (direcao = TCN + loss-clf)")
     if not require_bool(scale, "adapt_tape_require_strong"):
         raise ValueError("scale_vision.adapt_tape_require_strong deve ser true")
     if abs(float(require_float(scale, "adapt_explos_max_tcn_edge")) - 0.05) > 1e-9:
         raise ValueError("scale_vision.adapt_explos_max_tcn_edge deve ser 0.05")
     if "adapt_soft_margin" in scale:
         raise ValueError("scale_vision.adapt_soft_margin removido (retract adapta sem freio de margem)")
-    if int(inv["loss_clf_bootstrap_exit_n"]) != 4:
-        raise ValueError("loss_classifier.bootstrap_exit_n deve ser 4")
-    if int(inv["loss_clf_flip_min_n_train"]) != 8:
-        raise ValueError("loss_classifier.flip_min_n_train deve ser 8")
-    if inv["force_trade_every_cycle"]:
-        raise ValueError("force_trade_every_cycle deve ser false na doutrina de producao")
-    if inv["mandatory_trade_each_cycle"]:
-        raise ValueError("mandatory_trade_each_cycle deve ser false na doutrina de producao")
-    if inv["online_training"]:
-        raise ValueError("online_training deve ser false na doutrina de producao")
+    _eq_int(inv, "loss_clf_bootstrap_exit_n", 4, "loss_classifier.bootstrap_exit_n deve ser 4")
+    _eq_int(inv, "loss_clf_flip_min_n_train", 4, "loss_classifier.flip_min_n_train deve ser 4")
+    for key, msg in (
+        ("force_trade_every_cycle", "force_trade_every_cycle deve ser false na doutrina de producao"),
+        ("mandatory_trade_each_cycle", "mandatory_trade_each_cycle deve ser false na doutrina de producao"),
+        ("online_training", "online_training deve ser false na doutrina de producao"),
+        ("invert_exec_side", "invert_exec_side deve ser false na doutrina de producao"),
+        ("skip_below_soft_min_acc", "skip_below_soft_min_acc deve ser false na doutrina de producao"),
+        ("skip_exec_vs_candle", "skip_exec_vs_candle deve ser false (vela nao decide lado)"),
+        ("skip_scale_candle_discord", "skip_scale_candle_discord deve ser false (sem SCALE adapt)"),
+        ("skip_doji", "skip_doji deve ser false (vela nao decide lado)"),
+    ):
+        _eq_bool(inv, key, expected=False, msg=msg)
+    for key, msg in (
+        ("skip_neg_edge", "skip_neg_edge deve ser true na doutrina de producao"),
+        ("loss_clf_enabled", "loss_classifier.enabled deve ser true"),
+        ("cover_enabled", "cover_enabled deve ser true (cover soft capped)"),
+    ):
+        _eq_bool(inv, key, expected=True, msg=msg)
     if inv["loss_clf_veto_mode"] != "hard":
         raise ValueError("loss_classifier.veto_mode deve ser hard")
-    if abs(float(inv["loss_clf_hard_p_loss_floor"]) - 0.58) > 1e-9:
-        raise ValueError("loss_classifier.hard_p_loss_floor deve ser 0.58")
-    if int(inv["loss_clf_flip_trust_n"]) != 32:
-        raise ValueError("loss_classifier.flip_trust_n deve ser 32")
-    if abs(float(inv["loss_clf_flip_young_shrink"]) - 0.35) > 1e-9:
-        raise ValueError("loss_classifier.flip_young_shrink deve ser 0.35")
-    if abs(float(inv["loss_clf_flip_young_p_eff_floor"]) - 0.58) > 1e-9:
-        raise ValueError("loss_classifier.flip_young_p_eff_floor deve ser 0.58")
-    if int(inv["loss_clf_ready_n"]) != 32:
-        raise ValueError("loss_classifier.ready_n deve ser 32")
-    if int(inv["loss_clf_retrain_min_n"]) != 12:
-        raise ValueError("loss_classifier.retrain_min_n deve ser 12")
-    if int(inv["loss_clf_retrain_on_loss_min_n"]) != 4:
-        raise ValueError("loss_classifier.retrain_on_loss_min_n deve ser 4")
-    if int(inv["loss_clf_min_win_for_loss_retrain"]) != 4:
-        raise ValueError("loss_classifier.min_win_for_loss_retrain deve ser 4")
-    if not inv["loss_clf_enabled"]:
-        raise ValueError("loss_classifier.enabled deve ser true")
-    if int(inv["watchdog_stale_tick_seconds"]) != 300:
-        raise ValueError("watchdog_stale_tick_seconds deve ser 300")
-    if int(inv["settlement_tolerance_window_seconds"]) != 600:
-        raise ValueError("settlement_tolerance_window_seconds deve ser 600")
-    if int(inv["post_settlement_is_trading_wait_seconds"]) != 90:
-        raise ValueError("post_settlement_is_trading_wait_seconds deve ser 90")
-    if int(inv["amort_cycles_min"]) < 1 or int(inv["amort_cycles_max"]) > 4:
-        raise ValueError("amort_cycles deve estar entre 1 e 4")
-    if abs(float(inv["cover_multiple"]) - 1.0) > 1e-9:
-        raise ValueError("cover_multiple deve ser 1.0")
-    if inv["cover_enabled"] is not True:
-        raise ValueError("cover_enabled deve ser true (cover soft capped)")
-    if abs(float(inv["neutral_bankroll_pct"]) - 0.01) > 1e-9:
-        raise ValueError("neutral_bankroll_pct deve ser 0.01")
-    if abs(float(inv["min_stake_pct"]) - 0.01) > 1e-9:
-        raise ValueError("min_stake_pct deve ser 0.01")
-    if abs(float(inv["max_safe_stake_pct_linear3"]) - 0.025) > 1e-9:
-        raise ValueError("max_safe_stake_pct_linear3 deve ser 0.025")
+    _eq_float(inv, "loss_clf_hard_p_loss_floor", 0.58, "loss_classifier.hard_p_loss_floor deve ser 0.58")
+    _eq_int(inv, "loss_clf_flip_trust_n", 32, "loss_classifier.flip_trust_n deve ser 32")
+    _eq_float(inv, "loss_clf_flip_young_shrink", 0.35, "loss_classifier.flip_young_shrink deve ser 0.35")
+    _eq_float(inv, "loss_clf_flip_young_p_eff_floor", 0.58, "loss_classifier.flip_young_p_eff_floor deve ser 0.58")
+    _eq_int(inv, "loss_clf_ready_n", 32, "loss_classifier.ready_n deve ser 32")
+    _eq_int(inv, "loss_clf_retrain_min_n", 12, "loss_classifier.retrain_min_n deve ser 12")
+    _eq_int(inv, "loss_clf_retrain_on_loss_min_n", 4, "loss_classifier.retrain_on_loss_min_n deve ser 4")
+    _eq_int(inv, "loss_clf_min_win_for_loss_retrain", 4, "loss_classifier.min_win_for_loss_retrain deve ser 4")
+    _eq_int(inv, "watchdog_stale_tick_seconds", 300, "watchdog_stale_tick_seconds deve ser 300")
+    _eq_int(inv, "settlement_tolerance_window_seconds", 600, "settlement_tolerance_window_seconds deve ser 600")
+    _eq_int(inv, "post_settlement_is_trading_wait_seconds", 90, "post_settlement_is_trading_wait_seconds deve ser 90")
+    if int(inv["amort_cycles_min"]) != 1 or int(inv["amort_cycles_max"]) != 1:
+        raise ValueError("amort_cycles_min/max devem ser 1 (cover_l0 zera PEND em 1 WIN sob L0)")
+    _eq_float(inv, "max_safe_stake_pct", 0.035, "max_safe_stake_pct L0 deve ser 0.035 (cover amort<=1)")
+    _eq_float(inv, "cover_multiple", 1.0, "cover_multiple deve ser 1.0")
+    _eq_float(inv, "neutral_bankroll_pct", 0.01, "neutral_bankroll_pct deve ser 0.01")
+    _eq_float(inv, "min_stake_pct", 0.01, "min_stake_pct deve ser 0.01")
+    _eq_float(inv, "max_safe_stake_pct_linear3", 0.025, "max_safe_stake_pct_linear3 deve ser 0.025")
     if float(inv["large_account_stop_win_pct"]) <= 0.0 or float(inv["large_account_stop_win_pct"]) > 5.0:
         raise ValueError("large_account_stop_win_pct deve estar em (0.0, 5.0]")
     if float(inv["min_validation_accuracy_gate"]) + 1e-12 < _PRODUCTION_MIN_ACC:
         raise ValueError(f"min_validation_accuracy_gate < {_PRODUCTION_MIN_ACC}")
-    if abs(float(inv["explore_stake_scale_floor"]) - 0.40) > 1e-9:
-        raise ValueError("explore_stake_scale_floor deve ser 0.40")
+    _eq_float(inv, "explore_stake_scale_floor", 0.40, "explore_stake_scale_floor deve ser 0.40")
     if float(inv["max_safe_stake_cap"]) <= 0.0 or float(inv["max_safe_stake_pct"]) <= 0.0:
         raise ValueError("max_safe_stake_cap/pct devem ser > 0")
     return inv

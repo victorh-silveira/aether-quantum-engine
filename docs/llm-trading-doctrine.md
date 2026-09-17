@@ -2,45 +2,25 @@
 
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime.
 
-Decisao live: TCN (Cal vs 0.5) → **FLIP** loss-clf se auto_learn, `n_train>=8` e `p_eff` no piso (**exceto** se vela fechada confirma TCN) → SCALE retract/explos/tape → **vela M5 fechada last** (`candle_vs_tcn`; FLIP sticky) → Kelly (META edge ≤ 0 = soft Kelly). SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate.
+Decisao live: TCN (Cal vs 0.5) → **FLIP** loss-clf se auto_learn, `n_train>=4` e `p_eff` no piso (sem trava por vela) → `invert_exec_side` (**false**) → SKIP `neg_edge` em EXPLORE (**waive** com PEND ≥ `material_pending_min`) → Kelly / cover_l0 (META inerte / no-op no sizing). SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. `acc_floor` so se knob `skip_below_soft_min_acc` **true** (ops **false**). Sem `cal_soft_edge` / quality gate amplo / skips de vela/scale/doji.
 
-**Removido:** HARD SKIP por loss-clf, Soft Kelly do loss-clf, fusao EV, signal_skip soft, micro/regime/vol/exhaust/neg_edge, anti-loss EMA/RSI, `invert_exec_side`, `cal_soft_edge`.
+**Removido:** HARD SKIP por loss-clf, Soft Kelly do loss-clf ou META, fusao EV, signal_skip soft legado, skips de vela/scale/doji no path live, micro/regime/vol/exhaust generico, anti-loss EMA/RSI, `cal_soft_edge`. **Edge TCN ≤ 0 = SKIP em EXPLORE** (`skip_neg_edge`); waived com PEND material.
 
 Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**; payout **0.85**; stop-win **4.31%** Single-Strike).
+
+Ops: `invert_exec_side` **false**; `skip_neg_edge` **true**; `skip_exec_vs_candle` / `skip_scale_candle_discord` / `skip_doji` **false**; `adapt_retract_enabled` **false**; `skip_below_soft_min_acc` **false**; cover `amort_cycles` **1/1** + cap L0.
 
 ## Nunca propor
 
 1. `force_trade_every_cycle=true` como fix de EXEC_EMPTY
-2. Reabrir quality gate amplo / `signal_skip` multi-gate / Soft do loss-clf / HARD SKIP no lugar do FLIP no piso / trava por Edge
-3. Revenge sizing apos LOSS
+2. Reabrir quality gate amplo / `signal_skip` multi-gate / Soft do loss-clf / HARD SKIP no lugar do FLIP no piso
+3. Revenge sizing apos LOSS; subir amort acima de 1 sem mandato
 4. Remover caps, settlement ZSET ou timeouts “temporariamente”
 5. Julgar mudanca so pelo P&L de poucos ciclos
 
 ## Sempre fazer
 
-1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, `min(PEND/payout/amort, cap)`); piso **1%**
-2. SKIP tecnico = processo ok quando coerente; FLIP young/mature `pe>=0.58` (apos auto_learn e `n_train>=8`) e processo esperado
+1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, amort **1** → `min(max(PEND/payout, 1% banca), cap_L0)`); cover L0 **3.5%**; PEND nao force-explore por near-stop; piso **1%** soberano
+2. SKIP tecnico / `neg_edge` = processo ok quando coerente (EXPLORE); FLIP young/mature `pe>=0.58` (apos auto_learn e `n_train>=4`); Cal~0.52 + Edge≤0 = `neg_edge` correto — limpar exige **retreino + export** (`force_ok`), nao Soft Kelly no TCN
 3. Evidencia: `live_n`, Cal/Edge (EV vs BE), `val_accuracy`, telemetria `LOSS_CLF` (`p=` / `pe=` / `floor=` / `boot=N/4` / `n=`) e `QUALITY` pos-settle se houve FLIP
-4. Pos-LOSS → container loss-clf `/learn`
-
-## Diagnostico de log
-
-CLUSTER → SCALE (vision) → `[GATES] || LOSS_CLF` → SCALE adapt (last) → KELLY → EXEC → RESOLVED.
-
-Leitura critica:
-
-- `adapted=1` + `why=retract_vs_tcn` = SCALE virou contra o TCN (sem FLIP ativo) pela retracao.
-- `adapted=1` + `why=explos_vs_tcn` = SCALE virou pela explosao com mi+mili e Cal Edge TCN ≤ **0.05**.
-- `adapted=1` + `why=tape_vs_tcn` = fita forte (`tape_strong`) oposta; tambem apos falha de explos/retract (`mili_mismatch` / `explos_edge_firm` caem no tape).
-- `adapted=1` + `why=candle_vs_tcn` = vela M5 fechada sobrescreveu regime/tape (ou alinhou EXEC ao `[CANDLE]`).
-- `why=flip_holds` = FLIP sticky: SCALE (incl. candle) nao desfaz o FLIP.
-- `why=explos_edge_firm` = explos bloqueado e tape nao forte o bastante para virar.
-- `blocked=flip_min_n` = FLIP off com `n_train < 8`.
-- `blocked=candle_holds` = vela M5 fechada confirma TCN; FLIP nao inverte.
-- Edge CLUSTER = EV vs BE; negativo sozinho nao skipa.
-- `META: applied=1 edge≤0` = soft Kelly (`meta_soft_kelly`; forte se edge ≤ -0.5 → factor **0.40**); Soft_SIZE **nao** re-eleva stake.
-- `META: sat=1` com Cal Edge ≤ 0.02 = soft Kelly (`meta_sat_vs_soft_cal`).
-- KELLY: `meta_soft=1 strong=0|1 kscale=` quando soft ativo.
-- `[CANDLE]` same-cycle = vela fechada (entrada de `candle_vs_tcn`); ciclo seguinte = janela do contrato anterior.
-
-Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md). Playbook: [`binary-senior-playbook.md`](binary-senior-playbook.md).
+4. Com PEND material, `neg_edge` e waived; recover prioriza zerar divida (skips de vela/scale/doji desativados no hot path)

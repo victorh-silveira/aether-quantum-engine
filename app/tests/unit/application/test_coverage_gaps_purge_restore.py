@@ -98,7 +98,7 @@ def test_log_dl_cycle_scale_line_branches(caplog):
     }
     with caplog.at_level(logging.DEBUG):
         _log_scale_lines(logger, decisions, orch=None, cycle_id=3)
-    assert any("MACRO=CALL" in r.message for r in caplog.records if r.levelname == "DEBUG")
+    assert not any("MACRO=CALL" in r.message for r in caplog.records)
 
 
 def test_stamp_macro_frame_telemetry_with_stream():
@@ -163,8 +163,24 @@ def test_load_doctrine_invariants_cache_and_validation_errors():
     with pytest.raises(ValueError, match="kelly"):
         load_doctrine_invariants(settings)
     settings = copy.deepcopy(load_settings_json())
-    settings["orchestrator"]["execution"]["invert_exec_side"] = True
+    del settings["orchestrator"]["execution"]["invert_exec_side"]
     with pytest.raises(ValueError, match="invert_exec_side"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["skip_exec_vs_candle"]
+    with pytest.raises(ValueError, match="skip_exec_vs_candle"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["skip_scale_candle_discord"]
+    with pytest.raises(ValueError, match="skip_scale_candle_discord"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["skip_neg_edge"]
+    with pytest.raises(ValueError, match="skip_neg_edge"):
+        load_doctrine_invariants(settings)
+    settings = copy.deepcopy(load_settings_json())
+    del settings["orchestrator"]["execution"]["skip_doji"]
+    with pytest.raises(ValueError, match="skip_doji"):
         load_doctrine_invariants(settings)
     settings = copy.deepcopy(load_settings_json())
     del settings["risk_management"]["large_account_stop_win_pct"]
@@ -197,9 +213,10 @@ def _mutate_inv(key: str, *, value: object):
         (_mutate_inv("settlement_tolerance_window_seconds", value=120), "settlement_tolerance"),
         (_mutate_inv("post_settlement_is_trading_wait_seconds", value=30), "post_settlement"),
         (_mutate_inv("amort_cycles_min", value=0), "amort_cycles"),
+        (_mutate_inv("max_safe_stake_pct", value=0.05), "max_safe_stake_pct L0"),
         (_mutate_inv("cover_multiple", value=1.5), "cover_multiple"),
         (_mutate_inv("cover_enabled", value=False), "cover_enabled"),
-        (_mutate_inv("loss_clf_flip_min_n_train", value=4), "flip_min_n_train"),
+        (_mutate_inv("loss_clf_flip_min_n_train", value=2), "flip_min_n_train"),
         (_mutate_inv("neutral_bankroll_pct", value=0.02), "neutral_bankroll_pct"),
         (_mutate_inv("min_stake_pct", value=0.02), "min_stake_pct"),
         (_mutate_inv("max_safe_stake_pct_linear3", value=0.05), "max_safe_stake_pct_linear3"),

@@ -213,7 +213,7 @@ def fit_training_epochs(
     min_val_accuracy: float = 0.53,
     deploy_gate_cfg: dict | None = None,
 ) -> tuple[float, None | dict, int]:
-    """Executa epocas de treino com early stopping pela perda de validacao."""
+    """Executa epocas de treino com early stopping."""
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
     scheduler_mode, scheduler = _build_lr_scheduler(
         optimizer,
@@ -225,8 +225,8 @@ def fit_training_epochs(
     model.train()
     total_loss, patience_counter, epochs_ran = 0.0, 0, 0
     best_state, best_sharp_state = None, None
-    best_val_loss, best_sharp_loss = float("inf"), float("inf")
-    best_val_acc, best_sharp_acc = -1.0, -1.0
+    best_val_loss, best_sharp_loss, best_val_acc, best_sharp_acc = float("inf"), float("inf"), -1.0, -1.0
+    best_sharp_value = -1.0
     patience, min_ep, total_epochs = max(0, int(early_stopping_patience)), max(0, int(min_epochs)), max(1, epochs)
     weight_arr = np.asarray(weights, dtype=np.float32)
     sharp_floor, acc_floor = float(min_oos_sharpness), float(min_val_accuracy)
@@ -252,6 +252,7 @@ def fit_training_epochs(
         total_loss += mean_epoch_loss
         val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=0.0)
         val_acc, val_sharp, collapse_hit = val_collapse_hit(model, x_val, y_val, mask_val, deploy_gate_cfg)
+        model.train()
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
         (
@@ -259,6 +260,7 @@ def fit_training_epochs(
             best_val_acc,
             best_sharp_acc,
             best_sharp_loss,
+            best_sharp_value,
             improved_state,
             sharp_state,
             _improved,
@@ -273,19 +275,26 @@ def fit_training_epochs(
             best_val_acc=best_val_acc,
             best_sharp_acc=best_sharp_acc,
             best_sharp_loss=best_sharp_loss,
+            best_sharp_value=best_sharp_value,
             collapse_hit=bool(collapse_hit),
         )
         if improved_state is not None:
-            best_state = improved_state
+            best_state, patience_counter = improved_state, 0
+        elif sharp_state is not None:
             patience_counter = 0
         elif epochs_ran >= min_ep:
             patience_counter += 1
-            if patience > 0 and patience_counter >= patience:
+            eff = max(3, patience // 3) if (best_sharp_state or sharp_state) else patience
+            if patience > 0 and patience_counter >= eff:
                 break
         if sharp_state is not None:
             best_sharp_state = sharp_state
-        if scheduler_mode == "reduce_on_plateau":
-            scheduler.step(val_loss)
-        else:
-            scheduler.step()
-    return total_loss / max(epochs_ran, 1), prefer_sharp_checkpoint(best_state, best_sharp_state), epochs_ran
+        scheduler.step(val_loss) if scheduler_mode == "reduce_on_plateau" else scheduler.step()
+    chosen = prefer_sharp_checkpoint(
+        best_state,
+        best_sharp_state,
+        best_acc=float(best_val_acc),
+        sharp_acc=float(best_sharp_acc),
+        min_val_accuracy=float(acc_floor),
+    )
+    return total_loss / max(epochs_ran, 1), chosen, epochs_ran

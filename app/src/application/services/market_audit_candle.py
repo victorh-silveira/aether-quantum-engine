@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from src.application.services.log_dedupe import log_info_if_changed
+from src.application.services.log_dedupe import log_debug_if_changed
 from src.domain.models.market_data import Candle
 
 
@@ -128,7 +128,7 @@ def log_closed_candle_outcomes(logger: Any, orch: Any, decisions: dict[str, Any]
         candle = closed[-1]
         line = format_candle_outcome_line(str(symbol), candle, granularity=gran)
         log_key = str(int(candle.epoch))
-        log_info_if_changed(
+        log_debug_if_changed(
             orch,
             logger,
             f"candle_closed:{symbol}",

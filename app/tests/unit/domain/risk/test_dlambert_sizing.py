@@ -2,7 +2,6 @@ import math
 
 import pytest
 
-from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.dlambert_sizing import (
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
@@ -108,6 +107,7 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         risk_params = {"payout_estimate": 0.95}
         last_loss_stake = 0.0
 
+    metrics: dict = {}
     stake, tag = resolve_dlambert_stake(
         recovery_active=False,
         bankroll=10000.0,
@@ -117,13 +117,13 @@ def test_resolve_dlambert_stake_soft_recovery_with_progression():
         consecutive_losses_linear=3,
         pending_total=93.19,
         payout=0.95,
+        dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    cover = 93.19 / 0.95 / 2.0 * 1.0
+    cover = 93.19 / 0.95 / 1.0 * 1.0
     expected = math.ceil(cover * 100) / 100
-    cap = max_safe_stake_cap(10000.0, consecutive_losses_linear=3)
-    expected = min(expected, cap)
     assert stake == pytest.approx(expected)
+    assert metrics.get("recovery_cap_mode") == "cover_l0"
 
 
 def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progression():
@@ -146,7 +146,7 @@ def test_resolve_dlambert_stake_ignores_last_loss_stake_for_geometric_progressio
         payout=payout,
     )
     assert tag == "D'ALEMBERT"
-    cover_need = 36.72 / payout / 2.0 * 1.0
+    cover_need = 36.72 / payout / 1.0 * 1.0
     expected = math.ceil(cover_need * 100) / 100
     assert stake == pytest.approx(expected)
 
@@ -197,7 +197,8 @@ def test_resolve_dlambert_stake_caps_at_bankroll_pct_and_splits_pending():
         dl_metrics=metrics,
     )
     assert tag == "D'ALEMBERT"
-    assert stake == pytest.approx(250.0)
+    assert stake == pytest.approx(350.0, rel=1e-3)
+    assert metrics.get("recovery_cap_mode") == "cover_l0"
     assert metrics.get("recovery_infeasible") is True
     assert metrics.get("recovery_force_explore") is False
 

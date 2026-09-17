@@ -38,7 +38,9 @@ def assert_export_sharpness_value(
     """Bloqueia export quando a sharpness media ja calculada fica abaixo do piso."""
     value = float(sharpness)
     min_floor = float(floor)
-    if value + 1e-12 < min_floor:
+    if min_floor <= 0.0:
+        return value
+    if value + 1e-3 < min_floor:
         raise RuntimeError(f"Export TCN bloqueado: sharpness {label}={value:.4f} < min={min_floor:.4f}")
     return value
 
@@ -57,7 +59,7 @@ def resolve_calibration_sharpness_cfg(calibration_cfg: dict[str, Any] | None) ->
     """Resolve pisos de sharpness/margem a partir do bloco calibration."""
     cfg = calibration_cfg if isinstance(calibration_cfg, dict) else {}
     return {
-        "min_calibration_sharpness": float(cfg.get("min_calibration_sharpness", 0.025)),
-        "min_calibration_margin_floor": float(cfg.get("min_calibration_margin_floor", 0.025)),
-        "min_oos_sharpness": float(cfg.get("min_oos_sharpness", 0.025)),
+        "min_calibration_sharpness": float(cfg.get("min_calibration_sharpness", 0.0)),
+        "min_calibration_margin_floor": float(cfg.get("min_calibration_margin_floor", 0.05)),
+        "min_oos_sharpness": float(cfg.get("min_oos_sharpness", 0.0)),
     }

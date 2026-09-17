@@ -11,7 +11,6 @@ from src.application.services.force_trade_mode import force_trade_from_orch, syn
 from src.application.services.market_audit_log import (
     emit_audit_info,
     format_gates_audit_line,
-    format_indicators_audit_line,
 )
 from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
 from src.application.services.recovery_hurst_store import (
@@ -225,16 +224,10 @@ def schedule_recovery_skip_counter_increment(orch) -> None:
 def log_execution_decision(
     exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float, *, decisions: dict | None = None
 ) -> None:
-    """Registra linha IND da decisao de execucao do simbolo escolhido."""
+    """Registra linha GATES da decisao (LOSS_CLF); sem IND/SCALE/META."""
     metrics = best[2]
-    cycle_digits = cid[1:] if cid.startswith("C") else cid
-    try:
-        cycle_id = int(cycle_digits)
-    except (TypeError, ValueError):
-        cycle_id = int(getattr(exec_mgr.orch, "_active_cycle_id", 0))
-    _ = (candidates, decisions, effective_signal)
+    _ = (cid, candidates, decisions, effective_signal)
     emit_audit_info(exec_mgr.logger, format_gates_audit_line(metrics if isinstance(metrics, dict) else {}))
-    emit_audit_info(exec_mgr.logger, format_indicators_audit_line(cycle_id, str(best[0]), metrics))
 
 
 def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, TradeDirection, dict]]:

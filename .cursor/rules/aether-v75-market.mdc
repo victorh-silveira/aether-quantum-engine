@@ -18,11 +18,11 @@ alwaysApply: true
 2. **Volatilidade e Momentum**:
    - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
    - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 5m capturam a tendência genuína de fluxo.
-   - Anti-loss vivo = **FLIP** do loss-classifier se `p_eff` >= **0.58** young / **0.58** mature (so apos auto_learn; exit live **4**; **nao** se vela fechada confirma TCN); shrink N; tape so telemetria; sem HARD SKIP/Soft Kelly do loss-clf; Edge = EV (nao skip).
+   - Anti-loss vivo = **FLIP** do loss-classifier se `p_eff` >= **0.58** young / **0.58** mature (so apos auto_learn; exit live **4**; **nao** se vela fechada confirma TCN); shrink N; tape so telemetria; sem HARD SKIP/Soft Kelly do loss-clf; Edge ≤ 0 = SKIP `neg_edge`.
 3. **Payout e Breakeven**:
  - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
  - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
- - Toda operação deve comprovar $\text{Edge} = p_{\text{eff}} \times 1.85 - 1.0 > 0$ como telemetria (Edge negativo sozinho nao e SKIP).
+ - Toda operação deve comprovar $\text{Edge} = p_{\text{eff}} \times 1.85 - 1.0 > 0$; Edge ≤ 0 → SKIP `neg_edge`.
 4. **Dimensionamento Single-Strike**:
  - Meta de **4.31% de Stop-Win** em uma tacada: $\text{Stake} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$ da banca.
 

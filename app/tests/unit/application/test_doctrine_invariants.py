@@ -31,7 +31,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_flip_trust_n"] == 32
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.35)
     assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert inv["loss_clf_flip_min_n_train"] == 8
+    assert inv["loss_clf_flip_min_n_train"] == 4
     assert inv["loss_clf_bootstrap_exit_n"] == 4
     assert inv["loss_clf_ready_n"] == 32
     assert inv["loss_clf_retrain_min_n"] == 12
@@ -49,6 +49,72 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["large_account_stop_win_pct"] == pytest.approx(4.31)
     assert inv["min_validation_accuracy_gate"] >= 0.53
     assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
+    assert inv["invert_exec_side"] is False
+    assert inv["skip_exec_vs_candle"] is False
+    assert inv["skip_below_soft_min_acc"] is False
+    assert inv["skip_scale_candle_discord"] is False
+    assert inv["skip_neg_edge"] is True
+    assert inv["skip_doji"] is False
+    assert inv["amort_cycles_min"] == 1
+    assert inv["amort_cycles_max"] == 1
+    assert inv["max_safe_stake_pct"] == pytest.approx(0.035)
+
+
+def test_assert_production_doctrine_rejects_invert_exec_side_true():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["invert_exec_side"] = True
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="invert_exec_side"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_skip_exec_vs_candle_on():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["skip_exec_vs_candle"] = True
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="skip_exec_vs_candle"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_skip_below_soft_min_acc_on():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] = True
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="skip_below_soft_min_acc"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_skip_scale_candle_discord_on():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["skip_scale_candle_discord"] = True
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="skip_scale_candle_discord"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_skip_neg_edge_off():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["skip_neg_edge"] = False
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="skip_neg_edge"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_skip_doji_on():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["skip_doji"] = True
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="skip_doji"):
+        assert_production_doctrine(settings)
+
+
+def test_assert_production_doctrine_rejects_amort_not_one():
+    settings = copy.deepcopy(load_settings_json())
+    settings["risk_management"]["soft_recovery"]["amort_cycles_min"] = 2
+    settings["risk_management"]["soft_recovery"]["amort_cycles_max"] = 2
+    reset_doctrine_invariants_cache()
+    with pytest.raises(ValueError, match="amort_cycles"):
+        assert_production_doctrine(settings)
 
 
 def test_assert_production_doctrine_rejects_online_training():
@@ -77,9 +143,9 @@ def test_assert_production_doctrine_rejects_force_trade():
         assert_production_doctrine(settings)
 
 
-def test_assert_production_doctrine_rejects_adapt_retract_off():
+def test_assert_production_doctrine_rejects_adapt_retract_on():
     settings = copy.deepcopy(load_settings_json())
-    settings["orchestrator"]["execution"]["scale_vision"]["adapt_retract_enabled"] = False
+    settings["orchestrator"]["execution"]["scale_vision"]["adapt_retract_enabled"] = True
     with pytest.raises(ValueError, match="adapt_retract_enabled"):
         assert_production_doctrine(settings)
 
@@ -100,7 +166,7 @@ def test_assert_production_doctrine_rejects_adapt_explos_max_tcn_edge():
 
 def test_assert_production_doctrine_rejects_flip_min_n_train():
     settings = copy.deepcopy(load_settings_json())
-    settings["infra"]["loss_classifier"]["flip_min_n_train"] = 4
+    settings["infra"]["loss_classifier"]["flip_min_n_train"] = 2
     with pytest.raises(ValueError, match="flip_min_n_train"):
         assert_production_doctrine(settings)
 
