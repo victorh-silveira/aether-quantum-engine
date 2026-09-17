@@ -1,3 +1,16 @@
+## [2.61.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.60.0...v2.61.0) (2026-09-17)
+
+### Funcionalidades
+
+* **engine:** alinhar resolucao tcn e aprendizado loss-clf ([d42e47b](https://github.com/victorh-silveira/aether-quantum-engine/commit/d42e47b7e92e762dffbbbf457e304200834a7124))
+* **engine:** FLIP sticky, explos firme e cover soft ([b99ccf3](https://github.com/victorh-silveira/aether-quantum-engine/commit/b99ccf33f1449ae1f1966ee10ce226a75e9dfac4))
+
+### Correcoes de Bug
+
+* **engine:** bloqueia FLIP quando vela confirma TCN ([79cf67e](https://github.com/victorh-silveira/aether-quantum-engine/commit/79cf67e95b0faaf55e5a70286bb251570c2b23e6))
+* **engine:** escala cai na fita apos falha de regime ([6c9c3ca](https://github.com/victorh-silveira/aether-quantum-engine/commit/6c9c3cab601b641f51245d9d16d7ecaeb88fcf3c))
+* **engine:** vela fechada sobrescreve adapt da escala ([553c3d6](https://github.com/victorh-silveira/aether-quantum-engine/commit/553c3d6523e05781b0c00a05ee34dbb7e5e7784f))
+
 ## [2.60.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.59.0...v2.60.0) (2026-09-11)
 
 ### Funcionalidades
