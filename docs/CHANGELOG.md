@@ -1,3 +1,9 @@
+## [2.61.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.1...v2.61.2) (2026-09-17)
+
+### Correcoes de Bug
+
+* **risk:** limpa dust residual pos amortizacao e alinha payout ([47c0984](https://github.com/victorh-silveira/aether-quantum-engine/commit/47c0984bdae054c93f5364c0c47acb150a014ed5))
+
 ## [2.61.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.0...v2.61.1) (2026-09-17)
 
 ### Correcoes de Bug
