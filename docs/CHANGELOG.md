@@ -1,3 +1,9 @@
+## [2.61.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.0...v2.61.1) (2026-09-17)
+
+### Correcoes de Bug
+
+* **engine:** endurece piso amostral de flip e regularizacao do loss-clf ([eec3c48](https://github.com/victorh-silveira/aether-quantum-engine/commit/eec3c48c216d493cbd344abbdc68275a0ca8655b))
+
 ## [2.61.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.60.0...v2.61.0) (2026-09-17)
 
 ### Funcionalidades
