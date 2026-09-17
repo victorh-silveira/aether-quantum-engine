@@ -206,7 +206,7 @@ def _mutate_inv(key: str, *, value: object):
         (_mutate_inv("mandatory_trade_each_cycle", value=True), "mandatory_trade"),
         (_mutate_inv("loss_clf_hard_p_loss_floor", value=0.8), "hard_p_loss_floor"),
         (_mutate_inv("loss_clf_flip_trust_n", value=16), "flip_trust_n"),
-        (_mutate_inv("loss_clf_flip_young_shrink", value=0.5), "flip_young_shrink"),
+        (_mutate_inv("loss_clf_flip_young_shrink", value=0.8), "flip_young_shrink"),
         (_mutate_inv("loss_clf_flip_young_p_eff_floor", value=0.4), "flip_young_p_eff_floor"),
         (_mutate_inv("loss_clf_enabled", value=False), "enabled"),
         (_mutate_inv("watchdog_stale_tick_seconds", value=120), "watchdog"),

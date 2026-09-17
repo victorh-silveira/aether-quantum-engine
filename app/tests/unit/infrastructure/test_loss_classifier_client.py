@@ -22,8 +22,8 @@ def _loss_cfg(**overrides: object) -> dict:
         "veto_mode": "hard",
         "hard_p_loss_floor": 0.55,
         "flip_trust_n": 32,
-        "flip_young_shrink": 0.35,
-        "flip_young_p_eff_floor": 0.58,
+        "flip_young_shrink": 0.50,
+        "flip_young_p_eff_floor": 0.51,
         "bootstrap_exit_n": 4,
         "ready_n": 32,
         "retrain_min_n": 12,
@@ -41,8 +41,8 @@ def test_resolve_loss_classifier_config_from_ssot():
     assert resolved["hard_p_loss_floor"] == pytest.approx(0.58)
     assert resolved["veto_p_loss_floor"] == pytest.approx(0.58)
     assert resolved["flip_trust_n"] == 32
-    assert resolved["flip_young_shrink"] == pytest.approx(0.35)
-    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
+    assert resolved["flip_young_shrink"] == pytest.approx(0.50)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.51)
     assert resolved["flip_min_n_train"] == 12
     assert resolved["ready_n"] == 32
     assert resolved["retrain_min_n"] == 12

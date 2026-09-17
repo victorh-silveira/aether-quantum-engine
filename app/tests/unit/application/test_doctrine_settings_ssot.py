@@ -24,8 +24,8 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["loss_clf_veto_mode"] == "hard"
     assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.58)
     assert int(inv["loss_clf_flip_trust_n"]) == 32
-    assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.35)
-    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.58)
+    assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.50)
+    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.51)
     assert int(inv["loss_clf_flip_min_n_train"]) == 12
     assert int(inv["loss_clf_bootstrap_exit_n"]) == 4
     assert inv["cover_enabled"] is True
@@ -90,8 +90,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert str(block["veto_mode"]).strip().lower() == "hard"
     assert float(block["hard_p_loss_floor"]) == pytest.approx(0.58)
     assert int(block["flip_trust_n"]) == 32
-    assert float(block["flip_young_shrink"]) == pytest.approx(0.35)
-    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.58)
+    assert float(block["flip_young_shrink"]) == pytest.approx(0.50)
+    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.51)
     assert int(block["flip_min_n_train"]) == 12
     assert int(block["bootstrap_exit_n"]) == 4
     assert "flip_require_auto_learn" not in block
@@ -101,8 +101,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert resolved["veto_mode"] == "hard"
     assert resolved["hard_p_loss_floor"] == pytest.approx(0.58)
     assert resolved["flip_trust_n"] == 32
-    assert resolved["flip_young_shrink"] == pytest.approx(0.35)
-    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
+    assert resolved["flip_young_shrink"] == pytest.approx(0.50)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.51)
     assert int(resolved["flip_min_n_train"]) == 12
     assert int(resolved["bootstrap_exit_n"]) == 4
     assert int(block["ready_n"]) == 32
