@@ -1,3 +1,9 @@
+## [2.62.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.2...v2.62.0) (2026-09-17)
+
+### Funcionalidades
+
+* **infra:** calibra sensibilidade do flip anti-loss para 0.51 e shrink 0.50 ([9ff5557](https://github.com/victorh-silveira/aether-quantum-engine/commit/9ff5557ec7c4e027a405da49f0ca4ce1e07946f3))
+
 ## [2.61.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.1...v2.61.2) (2026-09-17)
 
 ### Correcoes de Bug
