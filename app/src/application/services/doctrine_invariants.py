@@ -250,7 +250,7 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
     if "adapt_soft_margin" in scale:
         raise ValueError("scale_vision.adapt_soft_margin removido (retract adapta sem freio de margem)")
     _eq_int(inv, "loss_clf_bootstrap_exit_n", 4, "loss_classifier.bootstrap_exit_n deve ser 4")
-    _eq_int(inv, "loss_clf_flip_min_n_train", 4, "loss_classifier.flip_min_n_train deve ser 4")
+    _eq_int(inv, "loss_clf_flip_min_n_train", 12, "loss_classifier.flip_min_n_train deve ser 12")
     for key, msg in (
         ("force_trade_every_cycle", "force_trade_every_cycle deve ser false na doutrina de producao"),
         ("mandatory_trade_each_cycle", "mandatory_trade_each_cycle deve ser false na doutrina de producao"),
