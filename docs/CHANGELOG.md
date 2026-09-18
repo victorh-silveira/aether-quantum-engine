@@ -1,3 +1,9 @@
+## [2.65.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.64.0...v2.65.0) (2026-09-18)
+
+### Funcionalidades
+
+* **engine:** eleva piso de flip jovem do loss-clf para 0.58 ([2e7231c](https://github.com/victorh-silveira/aether-quantum-engine/commit/2e7231c32f789cf3b678c03355e2747b7039ab8f))
+
 ## [2.64.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.63.0...v2.64.0) (2026-09-18)
 
 ### Funcionalidades
