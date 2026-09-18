@@ -116,6 +116,20 @@ def should_skip_doji(
     return True
 
 
+def _smart_neg_edge_waive(edge: float, metrics: dict[str, Any]) -> bool:
+    """Libera quase-breakeven quando TCN tem lado ativo e loss-clf confirma baixa chance de perda."""
+    if edge < -0.025:
+        return False
+    p_loss = metrics.get("loss_clf_p_loss")
+    if p_loss is None:
+        return False
+    try:
+        p_loss_val = float(p_loss)
+    except (TypeError, ValueError):
+        return False
+    return p_loss_val <= 0.485 and not bool(metrics.get("loss_clf_flip"))
+
+
 def should_skip_neg_edge(
     metrics: dict[str, Any],
     exec_cfg: dict[str, Any] | None,
@@ -144,6 +158,9 @@ def should_skip_neg_edge(
             min_edge = 0.0
     floor = max(0.0, min_edge)
     if edge > floor:
+        return False
+    if _smart_neg_edge_waive(edge, metrics):
+        metrics["neg_edge_smart_waived"] = True
         return False
     _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge))
     return True

@@ -3,7 +3,7 @@
 Hot path vivo:
 
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS (ladder LIN) / pausa de sessao (3 LOSS em janela 5, 2 ciclos M5)
-2. SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived com PEND ≥ `material_pending_min`; `acc_floor` so quando `skip_below_soft_min_acc` **true** (ops **false**)
+2. SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived com PEND ≥ `material_pending_min` ou smart waive (Edge >= -0.025 e loss_clf p_loss <= 0.485); `acc_floor` so quando `skip_below_soft_min_acc` **true** (ops **false**)
 3. TCN decide CALL/PUT (Cal ≥ 0.5 → CALL)
 4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 12` (young/mature 0.58; ancora TCN); **sem** bloqueio por vela
 5. SCALE adapt **off** (`adapt_retract_enabled` **false**); `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**

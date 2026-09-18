@@ -95,6 +95,48 @@ def test_should_skip_neg_edge_zero_is_skip():
     assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
 
 
+def test_should_skip_neg_edge_smart_waive_when_loss_clf_confirms_low_loss():
+    metrics = {
+        "cal_side_edge": -0.015,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.475,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+    assert metrics.get("neg_edge_smart_waived") is True
+
+
+def test_should_skip_neg_edge_smart_waive_rejects_deep_negative():
+    metrics = {
+        "cal_side_edge": -0.040,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.450,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert metrics["skip_reason"] == "neg_edge"
+
+
+def test_should_skip_neg_edge_smart_waive_rejects_when_loss_prob_not_low():
+    metrics = {
+        "cal_side_edge": -0.010,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.520,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+
+
+def test_should_skip_neg_edge_smart_waive_rejects_invalid_p_loss():
+    metrics = {
+        "cal_side_edge": -0.010,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": "invalid",
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+
+
 def test_should_skip_neg_edge_positive_passes():
     metrics = {"cal_side_edge": 0.012}
     assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
@@ -241,6 +283,8 @@ def test_should_skip_neg_edge_falls_back_to_edge_key():
 
 def test_should_skip_neg_edge_missing_or_bad_edge_passes():
     assert should_skip_neg_edge({}, {"skip_neg_edge": True}) is False
+    assert should_skip_neg_edge({"cal_side_edge": -0.05}, {"skip_neg_edge": False}) is False
+    assert should_skip_neg_edge({"cal_side_edge": -0.05}, {"skip_neg_edge": True}, force=True) is False
     assert should_skip_neg_edge({"cal_side_edge": "x"}, {"skip_neg_edge": True}) is False
     assert should_skip_neg_edge({"cal_side_edge": 0.05}, {"skip_neg_edge": True, "min_edge_execute": "bad"}) is False
     assert should_skip_doji({}, {"skip_doji": False}) is False
