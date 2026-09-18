@@ -117,17 +117,22 @@ def should_skip_doji(
 
 
 def _smart_neg_edge_waive(edge: float, metrics: dict[str, Any]) -> bool:
-    """Libera quase-breakeven quando TCN tem lado ativo e loss-clf confirma baixa chance de perda."""
-    if edge < -0.025:
+    """Libera quase-breakeven quando TCN tem lado ativo e loss-clf confirma baixa chance de perda ou bootstrap."""
+    if edge < -0.030 or bool(metrics.get("loss_clf_flip")):
         return False
     p_loss = metrics.get("loss_clf_p_loss")
-    if p_loss is None:
-        return False
-    try:
-        p_loss_val = float(p_loss)
-    except (TypeError, ValueError):
-        return False
-    return p_loss_val <= 0.485 and not bool(metrics.get("loss_clf_flip"))
+    if p_loss is not None:
+        try:
+            if float(p_loss) <= 0.485:
+                return True
+        except (TypeError, ValueError):
+            pass
+    is_boot = bool(metrics.get("loss_clf_bootstrap")) or metrics.get("loss_clf_flip_blocked") == "bootstrap"
+    margin = max(
+        float(metrics.get("direction_margin", 0.0) or 0.0),
+        float(metrics.get("raw_margin", 0.0) or 0.0),
+    )
+    return is_boot and margin >= 0.01
 
 
 def should_skip_neg_edge(

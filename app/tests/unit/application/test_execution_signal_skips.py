@@ -117,6 +117,33 @@ def test_should_skip_neg_edge_smart_waive_rejects_deep_negative():
     assert metrics["skip_reason"] == "neg_edge"
 
 
+def test_should_skip_neg_edge_smart_waive_when_loss_clf_in_bootstrap_with_margin():
+    metrics = {
+        "cal_side_edge": -0.017,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.64391,
+        "loss_clf_flip_blocked": "bootstrap",
+        "direction_margin": 0.025,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+    assert metrics.get("neg_edge_smart_waived") is True
+
+
+def test_should_skip_neg_edge_smart_waive_bootstrap_rejects_zero_margin():
+    metrics = {
+        "cal_side_edge": -0.017,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.64391,
+        "loss_clf_flip_blocked": "bootstrap",
+        "direction_margin": 0.005,
+        "raw_margin": 0.005,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert metrics["skip_reason"] == "neg_edge"
+
+
 def test_should_skip_neg_edge_smart_waive_rejects_when_loss_prob_not_low():
     metrics = {
         "cal_side_edge": -0.010,
