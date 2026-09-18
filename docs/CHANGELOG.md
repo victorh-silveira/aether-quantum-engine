@@ -1,3 +1,9 @@
+## [2.65.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.65.0...v2.65.1) (2026-09-18)
+
+### Melhorias de Performance
+
+* **engine:** otimiza latencia de inferencia e vetorizacao ([243080a](https://github.com/victorh-silveira/aether-quantum-engine/commit/243080af5e46d1ea5d6ea4d692ed4b115549b0f8))
+
 ## [2.65.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.64.0...v2.65.0) (2026-09-18)
 
 ### Funcionalidades
