@@ -1,3 +1,9 @@
+## [2.66.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.65.1...v2.66.0) (2026-09-18)
+
+### Funcionalidades
+
+* **orchestrator:** liberar quase-breakeven em smart waive sob bootstrap ([6d6dc8d](https://github.com/victorh-silveira/aether-quantum-engine/commit/6d6dc8db90a69d63d3bd7ac46b982e658e25a451))
+
 ## [2.65.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.65.0...v2.65.1) (2026-09-18)
 
 ### Melhorias de Performance
