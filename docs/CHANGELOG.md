@@ -1,3 +1,9 @@
+## [2.63.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.62.0...v2.63.0) (2026-09-18)
+
+### Funcionalidades
+
+* **infra:** eleva piso de flip maduro para 0.70 e janela young para 64 ([87bd1e7](https://github.com/victorh-silveira/aether-quantum-engine/commit/87bd1e7eaeb1fb80fec9e1b3c8b99e650770990e))
+
 ## [2.62.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.61.2...v2.62.0) (2026-09-17)
 
 ### Funcionalidades
