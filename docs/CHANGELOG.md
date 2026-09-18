@@ -1,3 +1,9 @@
+## [2.64.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.63.0...v2.64.0) (2026-09-18)
+
+### Funcionalidades
+
+* **engine:** adiciona waiver inteligente de neg_edge quase-breakeven ([11e4f00](https://github.com/victorh-silveira/aether-quantum-engine/commit/11e4f0008a1849a5b3ce9fcaf620033950ea862d))
+
 ## [2.63.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.62.0...v2.63.0) (2026-09-18)
 
 ### Funcionalidades
