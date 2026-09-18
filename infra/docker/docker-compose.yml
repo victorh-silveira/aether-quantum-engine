@@ -235,8 +235,8 @@ services:
       LOSS_RETRAIN_ON_LOSS_MIN_N: "4"
       LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"
       LOSS_MAX_BUFFER: "2000"
-      LOSS_VETO_P_LOSS_FLOOR: "0.58"
-      LOSS_YOUNG_TEMP_N: "32"
+      LOSS_VETO_P_LOSS_FLOOR: "0.70"
+      LOSS_YOUNG_TEMP_N: "64"
     mem_limit: 512m
     mem_swappiness: 0
     cpus: 0.75

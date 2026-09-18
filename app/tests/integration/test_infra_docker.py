@@ -146,12 +146,12 @@ def test_compose_loss_classifier_env_ssot():
     assert 'LOSS_READY_N: "32"' in text
     assert 'LOSS_BOOTSTRAP_EXIT_N: "4"' in text
     assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"' in text
-    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.58"' in text
+    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.70"' in text
     dockerfile = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
     assert "LOSS_READY_N=32" in dockerfile
     assert "LOSS_BOOTSTRAP_EXIT_N=4" in dockerfile
     assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4" in dockerfile
-    assert "LOSS_VETO_P_LOSS_FLOOR=0.58" in dockerfile
+    assert "LOSS_VETO_P_LOSS_FLOOR=0.70" in dockerfile
     assert "calib.py" in dockerfile
     assert "COPY --from=ml_common" in dockerfile
     assert "/opt/ml_common" in dockerfile

@@ -1,6 +1,6 @@
 # Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
 
-Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **4**, `n_train>=4`). Young pe>=**0.51** / mature pe>=**0.58** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. SKIP tecnico = treino/dados/deploy/broker/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate / Soft Kelly do loss-clf.
+Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **4**, `n_train>=4`). Young pe>=**0.51** / mature pe>=**0.70** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. SKIP tecnico = treino/dados/deploy/broker/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate / Soft Kelly do loss-clf.
 
 Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).
 

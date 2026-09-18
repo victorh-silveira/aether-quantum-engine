@@ -270,8 +270,8 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         _eq_bool(inv, key, expected=True, msg=msg)
     if inv["loss_clf_veto_mode"] != "hard":
         raise ValueError("loss_classifier.veto_mode deve ser hard")
-    _eq_float(inv, "loss_clf_hard_p_loss_floor", 0.58, "loss_classifier.hard_p_loss_floor deve ser 0.58")
-    _eq_int(inv, "loss_clf_flip_trust_n", 32, "loss_classifier.flip_trust_n deve ser 32")
+    _eq_float(inv, "loss_clf_hard_p_loss_floor", 0.70, "loss_classifier.hard_p_loss_floor deve ser 0.70")
+    _eq_int(inv, "loss_clf_flip_trust_n", 64, "loss_classifier.flip_trust_n deve ser 64")
     _eq_float(inv, "loss_clf_flip_young_shrink", 0.50, "loss_classifier.flip_young_shrink deve ser 0.50")
     _eq_float(inv, "loss_clf_flip_young_p_eff_floor", 0.51, "loss_classifier.flip_young_p_eff_floor deve ser 0.51")
     _eq_int(inv, "loss_clf_ready_n", 32, "loss_classifier.ready_n deve ser 32")

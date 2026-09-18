@@ -22,8 +22,8 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
     assert inv["loss_clf_veto_mode"] == "hard"
-    assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.58)
-    assert int(inv["loss_clf_flip_trust_n"]) == 32
+    assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.70)
+    assert int(inv["loss_clf_flip_trust_n"]) == 64
     assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.50)
     assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.51)
     assert int(inv["loss_clf_flip_min_n_train"]) == 12
@@ -88,8 +88,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     settings = load_settings_json()
     block = settings["infra"]["loss_classifier"]
     assert str(block["veto_mode"]).strip().lower() == "hard"
-    assert float(block["hard_p_loss_floor"]) == pytest.approx(0.58)
-    assert int(block["flip_trust_n"]) == 32
+    assert float(block["hard_p_loss_floor"]) == pytest.approx(0.70)
+    assert int(block["flip_trust_n"]) == 64
     assert float(block["flip_young_shrink"]) == pytest.approx(0.50)
     assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.51)
     assert int(block["flip_min_n_train"]) == 12
@@ -99,8 +99,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert "veto_p_loss_floor" not in block
     resolved = resolve_loss_classifier_config(None)
     assert resolved["veto_mode"] == "hard"
-    assert resolved["hard_p_loss_floor"] == pytest.approx(0.58)
-    assert resolved["flip_trust_n"] == 32
+    assert resolved["hard_p_loss_floor"] == pytest.approx(0.70)
+    assert resolved["flip_trust_n"] == 64
     assert resolved["flip_young_shrink"] == pytest.approx(0.50)
     assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.51)
     assert int(resolved["flip_min_n_train"]) == 12
