@@ -42,7 +42,7 @@ def test_resolve_loss_classifier_config_from_ssot():
     assert resolved["veto_p_loss_floor"] == pytest.approx(0.70)
     assert resolved["flip_trust_n"] == 64
     assert resolved["flip_young_shrink"] == pytest.approx(0.50)
-    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.51)
+    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
     assert resolved["flip_min_n_train"] == 12
     assert resolved["ready_n"] == 32
     assert resolved["retrain_min_n"] == 12

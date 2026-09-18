@@ -147,6 +147,13 @@ async def test_await_stream_warm_up_gate_exits_when_barrier_expires():
     assert stream_warm_up_active(orch) is False
 
 
+def test_tick_buffer_has_live_data_handles_missing_method_and_none_stream():
+    from src.application.services.orchestrator.warm_up_buffer_guard import _tick_buffer_has_live_data
+
+    assert _tick_buffer_has_live_data(SimpleNamespace(stream=None)) is False
+    assert _tick_buffer_has_live_data(SimpleNamespace(stream=SimpleNamespace(tick_buffer=object()))) is False
+
+
 @pytest.mark.asyncio
 async def test_trading_cycle_skips_inference_during_warm_up_window(orch_ready):
     orch = orch_ready
