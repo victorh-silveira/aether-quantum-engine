@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import polars as pl
 
 from src.application.services.deep_learning.dl_feature_normalize import (
     apply_causal_column_scale,
@@ -32,11 +33,8 @@ UNBOUNDED_COLS: tuple[int, ...] = (0, 1, 3, 5, 6, 7, 8, 9, 12, 13)
 
 def _log_ret_n(log_return: np.ndarray, n: int) -> np.ndarray:
     """Soma causal de log-retornos nas ultimas n barras."""
-    out = np.zeros(len(log_return), dtype=np.float64)
-    for i in range(len(log_return)):
-        start = max(0, i - n + 1)
-        out[i] = float(np.sum(log_return[start : i + 1]))
-    return out
+    w = max(1, int(n))
+    return pl.Series(log_return.astype(np.float64)).rolling_sum(window_size=w, min_samples=1).to_numpy()
 
 
 def _hurst_centered(series: dict[str, np.ndarray], n: int) -> np.ndarray:

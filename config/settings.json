@@ -236,6 +236,7 @@
     "training_device": "auto",
     "training_epochs": 300,
     "training_history_bars": 2000,
+    "inference_history_bars": 384,
     "training_history_days": 365,
     "training_log_every_n_epochs": 1,
     "val_acc_live_blend": 0.2,

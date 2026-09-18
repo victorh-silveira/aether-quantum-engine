@@ -87,38 +87,30 @@ def bollinger(
     std_mult: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Retorna banda inferior, media e superior."""
-    n = len(prices)
-    lower = np.zeros(n, dtype=np.float64)
-    mid = np.zeros(n, dtype=np.float64)
-    upper = np.zeros(n, dtype=np.float64)
     w = max(2, int(window))
+    s_series = pl.Series(prices.astype(np.float64))
+    mid = s_series.rolling_mean(window_size=w, min_samples=1).to_numpy()
+    std = s_series.rolling_std(window_size=w, min_samples=1, ddof=0).fill_nan(0.0).to_numpy()
     mult = float(std_mult)
-    for i in range(n):
-        start = max(0, i - w + 1)
-        segment = prices[start : i + 1]
-        m = float(np.mean(segment))
-        s = float(np.std(segment))
-        mid[i] = m
-        lower[i] = m - mult * s
-        upper[i] = m + mult * s
+    lower = mid - mult * std
+    upper = mid + mult * std
     return lower, mid, upper
 
 
 def atr_norm(high: np.ndarray, low: np.ndarray, close: np.ndarray, window: int) -> np.ndarray:
     """ATR normalizado pelo preco."""
     n = len(close)
-    tr = np.zeros(n, dtype=np.float64)
-    for i in range(n):
-        if i == 0:
-            tr[i] = high[i] - low[i]
-        else:
-            tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
-    out = np.zeros(n, dtype=np.float64)
+    tr = np.empty(n, dtype=np.float64)
+    if n > 0:
+        tr[0] = float(high[0] - low[0])
+    if n > 1:
+        tr[1:] = np.maximum(
+            high[1:] - low[1:],
+            np.maximum(np.abs(high[1:] - close[:-1]), np.abs(low[1:] - close[:-1])),
+        )
     w = max(2, int(window))
-    for i in range(n):
-        start = max(0, i - w + 1)
-        out[i] = float(np.mean(tr[start : i + 1])) / (close[i] + 1e-10)
-    return out
+    mean_tr = pl.Series(tr).rolling_mean(window_size=w, min_samples=1).to_numpy()
+    return mean_tr / (close + 1e-10)
 
 
 def log_returns(prices: np.ndarray) -> np.ndarray:
@@ -153,27 +145,28 @@ def delta_series(values: np.ndarray) -> np.ndarray:
 def rolling_realized_vol_ratio(log_return: np.ndarray, target_vol: float, window: int) -> np.ndarray:
     """Desvio padrao rolling dos retornos log normalizado pela vol alvo do indice."""
     n = len(log_return)
-    out = np.zeros(n, dtype=np.float64)
     span = max(2, int(window))
+    if n < span:
+        return np.zeros(n, dtype=np.float64)
     scale = max(float(target_vol), 1e-10)
-    for i in range(span, n):
-        segment = log_return[max(0, i - span + 1) : i + 1]
-        out[i] = float(np.std(segment)) / scale
+    std = (
+        pl.Series(log_return.astype(np.float64))
+        .rolling_std(window_size=span, min_samples=1, ddof=0)
+        .fill_nan(0.0)
+        .to_numpy()
+    )
+    out = std / scale
+    out[:span] = 0.0
     return out
 
 
 def price_zscore(prices: np.ndarray, window: int) -> np.ndarray:
     """Z-score do close em relacao a media movel e desvio na janela."""
-    n = len(prices)
-    out = np.zeros(n, dtype=np.float64)
     w = max(2, int(window))
-    for i in range(n):
-        start = max(0, i - w + 1)
-        segment = prices[start : i + 1]
-        mean = float(np.mean(segment))
-        std = float(np.std(segment))
-        out[i] = (float(prices[i]) - mean) / (std + 1e-10)
-    return out
+    s_series = pl.Series(prices.astype(np.float64))
+    mean = s_series.rolling_mean(window_size=w, min_samples=1).to_numpy()
+    std = s_series.rolling_std(window_size=w, min_samples=1, ddof=0).fill_nan(0.0).to_numpy()
+    return (prices - mean) / (std + 1e-10)
 
 
 def ema_distances(prices: np.ndarray, span_20: int, span_50: int) -> tuple[np.ndarray, np.ndarray]:

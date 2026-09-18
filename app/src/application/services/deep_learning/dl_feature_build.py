@@ -1,6 +1,7 @@
 """Series de preco e tensores de features para classificacao Rise/Fall."""
 
 import numpy as np
+import polars as pl
 
 from src.application.services.deep_learning.dl_feature_indicators import (
     atr_norm,
@@ -108,13 +109,14 @@ def _rolling_vol_and_z(
     rel_vol_span: int,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Calcula volatilidade rolling e z-score relativo."""
-    vol = np.zeros(n, dtype=np.float64)
-    for i in range(vol_window, n):
-        vol[i] = np.std(log_return[max(0, i - vol_window) : i])
-    vol_z = np.zeros(n, dtype=np.float64)
-    for i in range(vol_window, n):
-        base = np.mean(vol[max(0, i - rel_vol_span) : i + 1]) + 1e-10
-        vol_z[i] = (vol[i] - base) / base
+    if n <= vol_window:
+        return np.zeros(n, dtype=np.float64), np.zeros(n, dtype=np.float64)
+    shifted = pl.Series(log_return.astype(np.float64)).shift(1)
+    vol = shifted.rolling_std(window_size=vol_window, min_samples=1, ddof=0).fill_nan(0.0).to_numpy()
+    vol[:vol_window] = 0.0
+    base = pl.Series(vol).rolling_mean(window_size=rel_vol_span + 1, min_samples=1).to_numpy() + 1e-10
+    vol_z = (vol - base) / base
+    vol_z[:vol_window] = 0.0
     return vol, vol_z
 
 

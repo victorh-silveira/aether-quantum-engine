@@ -69,18 +69,15 @@ def calculate_williams_r(
 ) -> np.ndarray:
     """Calcula Williams %R normalizado na escala de 0.0 a 1.0."""
     n = len(close)
+    p = int(period)
+    if n < p:
+        return np.full(n, 0.5, dtype=np.float64)
+    h_s = pl.Series(high.astype(np.float64)).rolling_max(window_size=p, min_samples=p).to_numpy()
+    l_s = pl.Series(low.astype(np.float64)).rolling_min(window_size=p, min_samples=p).to_numpy()
+    denom = h_s - l_s
     out = np.full(n, 0.5, dtype=np.float64)
-    if n < period:
-        return out
-    for i in range(period - 1, n):
-        start = i - period + 1
-        h_val = np.max(high[start : i + 1])
-        l_val = np.min(low[start : i + 1])
-        denom = h_val - l_val
-        if denom > 1e-10:
-            out[i] = (close[i] - l_val) / denom
-        else:
-            out[i] = 0.5
+    valid = (denom > 1e-10) & ~np.isnan(denom)
+    out[valid] = (close[valid] - l_s[valid]) / denom[valid]
     return out
 
 
@@ -91,19 +88,22 @@ def calculate_volatility_ratio(
 ) -> np.ndarray:
     """Razao de volatilidade realizada de curto prazo vs longo prazo."""
     n = len(log_return)
-    out = np.zeros(n, dtype=np.float64)
-    min_len = max(short, long)
+    s_win = int(short)
+    l_win = int(long)
+    min_len = max(s_win, l_win)
     if n < min_len:
-        return out
-    for i in range(min_len - 1, n):
-        seg_short = log_return[i - short + 1 : i + 1]
-        seg_long = log_return[i - long + 1 : i + 1]
-        std_short = np.std(seg_short)
-        std_long = np.std(seg_long)
-        if std_long > 1e-10:
-            out[i] = std_short / std_long
-        else:
-            out[i] = 1.0
+        return np.zeros(n, dtype=np.float64)
+    s_std = (
+        pl.Series(log_return.astype(np.float64)).rolling_std(window_size=s_win, min_samples=s_win, ddof=0).to_numpy()
+    )
+    l_std = (
+        pl.Series(log_return.astype(np.float64)).rolling_std(window_size=l_win, min_samples=l_win, ddof=0).to_numpy()
+    )
+    out = np.zeros(n, dtype=np.float64)
+    valid = (l_std > 1e-10) & ~np.isnan(l_std)
+    out[valid] = s_std[valid] / l_std[valid]
+    out[~valid & ~np.isnan(l_std)] = 1.0
+    out[: min_len - 1] = 0.0
     return out
 
 
