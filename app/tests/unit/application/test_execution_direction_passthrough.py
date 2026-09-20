@@ -140,3 +140,250 @@ def test_resolve_execution_direction_inverts_exec_side_call_and_put():
         res_put = resolve_execution_direction(entry_put, exec_cfg={"invert_exec_side": True}, symbol="R_10", orch=orch)
     assert res_put is not None
     assert res_put[0] == TradeDirection.CALL
+
+
+def test_resolve_execution_direction_flip_calculates_side_edge_from_p_eff():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.54,
+            "raw_prob": 0.54,
+            "deploy_ok": True,
+            "loss_clf_flip": True,
+            "loss_clf_p_eff": 0.60,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    with patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False):
+        res = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
+    assert res is not None
+    _dir, metrics = res
+    assert metrics["cal_side_edge"] == pytest.approx(0.60 * 1.85 - 1.0)
+
+
+def test_resolve_execution_direction_handles_invalid_loss_clf_p_eff_gracefully():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.60,
+            "raw_prob": 0.60,
+            "deploy_ok": True,
+            "loss_clf_flip": True,
+            "loss_clf_p_eff": "invalid",
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    with patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False):
+        res = resolve_execution_direction(entry, exec_cfg={}, symbol="R_10", orch=orch)
+    assert res is not None
+
+
+def test_resolve_execution_direction_anti_trend_lock_flips_direction():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.40,
+            "raw_prob": 0.40,
+            "deploy_ok": True,
+            "pending_loss_total": 88.0,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    with (
+        patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False),
+        patch("src.application.services.execution_direction_resolver.should_anti_trend_lock_flip", return_value=True),
+    ):
+        res = resolve_execution_direction(entry, exec_cfg={}, symbol="1HZ75V", orch=orch)
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics["anti_trend_lock_flip"] is True
+    assert metrics["anti_trend_lock_from"] == "PUT"
+    assert metrics["anti_trend_lock_to"] == "CALL"
+
+
+def test_resolve_execution_direction_force():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.60,
+            "deploy_ok": True,
+            "signal_status": "WAITING",
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(entry, exec_cfg={"force_trade_every_cycle": True}, symbol="1HZ75V", orch=orch)
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics["force_trade_every_cycle"] is True
+    assert "signal_status" not in metrics
+
+
+def test_resolve_execution_direction_skips_trend_discord():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "trend_direction": "PUT",
+            "closed_micro_candle_stamped": True,
+            "closed_micro_candle_dir": "PUT",
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_trend_discord": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "trend_discord"
+
+
+def test_resolve_execution_direction_skips_on_exhaustion():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "indicators": {"rsi": 0.82, "bb_pct_b": 1.15},
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_exhaustion": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "exhaustion_call"
+
+
+def test_resolve_execution_direction_skips_on_chop_congestion():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "indicators": {"adx": 0.12, "bb_width": 0.025},
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "chop_congestion"
+
+
+def test_resolve_execution_direction_skips_on_two_bar_counter_trend():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "scale_micro_prev_bar_dir": "PUT",
+            "scale_micro_bar_dir": "PUT",
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_two_bar_counter_trend": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "two_bar_counter_trend"
+
+
+def test_resolve_execution_direction_skips_on_wick_rejection():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "closed_candle_ohlc": [100.0, 120.0, 95.0, 105.0],
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_wick_rejection": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "wick_rejection_call"
+
+
+def test_resolve_execution_direction_skips_on_climactic_blowoff():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0],
+            "indicators": {"atr": 10.0},
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_climactic_blowoff": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "climactic_blowoff_call"
+
+
+def test_resolve_execution_direction_skips_on_adverse_tick_flow():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "flow_features": {"price_velocity": -1.0, "micro_tick_acceleration": -0.8},
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_adverse_tick_flow": True, "skip_neg_edge": False},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "adverse_tick_flow_call"

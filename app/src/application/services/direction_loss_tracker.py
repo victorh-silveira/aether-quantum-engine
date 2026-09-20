@@ -68,6 +68,10 @@ class DirectionLossTracker:
             return
         bucket = self._loss_tracker.setdefault(sym, dict.fromkeys(_DIRECTION_KEYS, 0))
         ts_key = _loss_timestamp_key(sym, dir_key)
+        opp_key = "PUT" if dir_key == "CALL" else "CALL"
+        opp_ts_key = _loss_timestamp_key(sym, opp_key)
+        bucket[opp_key] = 0
+        self._last_loss_timestamp.pop(opp_ts_key, None)
         if won:
             bucket[dir_key] = 0
             self._last_loss_timestamp.pop(ts_key, None)
@@ -79,7 +83,7 @@ class DirectionLossTracker:
         """Indica bloqueio anti-trend-lock apos o limiar de duas perdas consecutivas."""
         return self.consecutive_losses(symbol, direction.name) >= 2
 
-    def prune_obsolete_direction_losses(self, max_age_seconds: float = 120.0) -> None:
+    def prune_obsolete_direction_losses(self, max_age_seconds: float = 900.0) -> None:
         """Expira memoria de stress obsoleta quando a ultima perda excede o TTL."""
         now = _cooperative_loop_time()
         for sym, bucket in list(self._loss_tracker.items()):
@@ -125,3 +129,26 @@ def record_direction_outcome(symbol: str, direction: str | None, *, won: bool) -
 def anti_trend_lock_active(symbol: str, direction: TradeDirection) -> bool:
     """Indica bloqueio anti-trend-lock apos o limiar de duas perdas consecutivas."""
     return get_direction_loss_tracker().anti_trend_lock_active(symbol, direction)
+
+
+def should_anti_trend_lock_flip(
+    symbol: str | None,
+    direction: TradeDirection,
+    *,
+    pending_loss_total: float = 0.0,
+    edge: float = 0.0,
+    prob: float = 0.5,
+    trend_direction: str | None = None,
+) -> bool:
+    """Indica se a direcao proposta deve sofrer inversao por perdas acumuladas recentes."""
+    if not symbol:
+        return False
+    tracker = get_direction_loss_tracker()
+    losses = tracker.consecutive_losses(str(symbol), direction.name)
+    if losses >= 2:
+        return True
+    if float(pending_loss_total) > 0.0 and losses == 1:
+        if float(prob) >= 0.60 and float(edge) >= 0.080:
+            return False
+        return not (bool(trend_direction) and str(trend_direction).upper() == direction.name and float(prob) >= 0.58)
+    return False

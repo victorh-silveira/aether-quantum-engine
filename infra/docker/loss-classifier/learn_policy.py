@@ -4,9 +4,9 @@ from __future__ import annotations
 def bootstrap_retrain_floor(
     *,
     retrain_on_loss_min_n: int = 2,
-    bootstrap_exit_n: int = 4,
+    bootstrap_exit_n: int = 2,
 ) -> int:
-    return int(max(int(bootstrap_exit_n), max(4, int(retrain_on_loss_min_n))))
+    return int(max(int(bootstrap_exit_n), max(2, int(retrain_on_loss_min_n))))
 
 
 def bootstrap_seed_keep_detail(
@@ -36,9 +36,9 @@ def should_retrain_after_learn(
     buffer_win: int = 0,
     buffer_loss: int = 0,
     max_loss_frac: float = 0.60,
-    min_win_for_loss_retrain: int = 4,
+    min_win_for_loss_retrain: int = 2,
     bootstrap_active: bool = False,
-    bootstrap_exit_n: int = 4,
+    bootstrap_exit_n: int = 2,
 ) -> bool:
     n = int(buffer_n)
     wins = int(buffer_win)
@@ -76,7 +76,7 @@ def retrain_min_for_label(
     retrain_min_n: int,
     retrain_on_loss_min_n: int = 2,
     bootstrap_active: bool = False,
-    bootstrap_exit_n: int = 4,
+    bootstrap_exit_n: int = 2,
 ) -> int:
     if bool(bootstrap_active):
         return bootstrap_retrain_floor(
@@ -97,9 +97,9 @@ def retrain_skipped_reason(
     buffer_win: int = 0,
     buffer_loss: int = 0,
     max_loss_frac: float = 0.60,
-    min_win_for_loss_retrain: int = 4,
+    min_win_for_loss_retrain: int = 2,
     bootstrap_active: bool = False,
-    bootstrap_exit_n: int = 4,
+    bootstrap_exit_n: int = 2,
     should_retrain: bool | None = None,
 ) -> str:
     if should_retrain is None:

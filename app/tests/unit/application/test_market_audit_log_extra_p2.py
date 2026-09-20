@@ -63,3 +63,90 @@ def test_format_cluster_leans_call_when_direction_missing():
     }
     line = format_cluster_audit_line(decisions, timeframe="M2")
     assert "R_10: CALL (" in line and "p_call: 0.52497" in line and "p_put: 0.47503" in line
+
+
+def test_format_decision_origin_line_variants():
+    from src.application.services.market_audit_cycle import format_decision_origin_line
+
+    line_direct = format_decision_origin_line(
+        "1HZ75V",
+        "CALL",
+        {"direction_origin": "TCN_DIRECT", "conviction": 0.62, "cal_side_edge": 0.12, "trend_direction": "CALL"},
+    )
+    assert "[DECISION] || CALL [1HZ75V] || ORIGEM: TCN_DIRECT | p=0.620 | edge=+0.120 | trend=CALL" in line_direct
+
+    line_flip_clf = format_decision_origin_line(
+        "1HZ75V",
+        "PUT",
+        {
+            "direction_origin": "FLIP_LOSS_CLF",
+            "tcn_direction": "CALL",
+            "loss_clf_p_eff": 0.72,
+            "trend_direction": "NEUTRAL",
+        },
+    )
+    assert "[DECISION] || PUT [1HZ75V] || ORIGEM: FLIP loss_clf (CALL->PUT) | pe=0.720 | trend=NEUTRAL" in line_flip_clf
+
+    line_flip_lock = format_decision_origin_line(
+        "1HZ75V",
+        "PUT",
+        {
+            "direction_origin": "FLIP_ANTI_TREND_LOCK",
+            "anti_trend_lock_from": "CALL",
+            "conviction": 0.55,
+            "trend_direction": "PUT",
+        },
+    )
+    assert (
+        "[DECISION] || PUT [1HZ75V] || ORIGEM: FLIP anti_trend_lock (CALL->PUT) | trend=PUT | p_orig=0.550"
+        in line_flip_lock
+    )
+
+
+def test_format_market_summary_line():
+    from src.application.services.market_audit_cycle import format_market_summary_line
+
+    metrics = {
+        "indicators": {
+            "rsi": 0.5432,
+            "adx": 0.2850,
+            "atr": 12.34,
+            "bb_width": 0.0456,
+        },
+        "closed_micro_candle_dir": "CALL",
+        "trend_direction": "CALL",
+        "scale_micro_regime": "TRENDING",
+    }
+    line = format_market_summary_line("1HZ75V", metrics)
+    assert "[MARKET] || 1HZ75V || RSI: 0.543 | ADX: 0.285 | ATR: 12.34 | BB_W: 0.0456" in line
+    assert "CANDLE: CALL | TREND: CALL | REGIME: trending" in line
+
+
+def test_format_settlement_audit_line_session_pnl():
+    from src.application.services.market_audit_cycle import format_settlement_audit_line
+
+    line = format_settlement_audit_line(
+        1,
+        "WIN",
+        50.0,
+        "CALL",
+        "1HZ75V",
+        0.10,
+        session_pnl=120.50,
+        target_pnl=384.94,
+    )
+    assert "SESSAO: +120.50" in line
+    assert "ALVO: $384.94 (31.3%)" in line
+
+    line_no_target = format_settlement_audit_line(
+        1,
+        "LOSS",
+        -25.0,
+        "PUT",
+        "1HZ75V",
+        -0.05,
+        session_pnl=-50.0,
+        target_pnl=0.0,
+    )
+    assert "SESSAO:  -50.00" in line_no_target
+    assert "ALVO:" not in line_no_target

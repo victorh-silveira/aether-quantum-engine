@@ -120,28 +120,21 @@ def _validation_loss(
 
 
 def _build_lr_scheduler(
-    optimizer: optim.Optimizer,
-    lr_scheduler: str,
-    *,
-    epochs: int,
-    early_stopping_patience: int,
-    lr: float,
+    optimizer: optim.Optimizer, lr_scheduler: str, *, epochs: int, early_stopping_patience: int, lr: float
 ):
     """Instancia scheduler cosine ou reduce_on_plateau."""
-    scheduler_mode = str(lr_scheduler).strip().lower()
-    if scheduler_mode == "reduce_on_plateau":
-        return scheduler_mode, optim.lr_scheduler.ReduceLROnPlateau(
+    mode = str(lr_scheduler).strip().lower()
+    if mode == "reduce_on_plateau":
+        sched = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer,
             mode="min",
             factor=0.5,
             patience=max(2, early_stopping_patience // 3),
             min_lr=max(lr * 0.02, 1e-6),
         )
-    return scheduler_mode, optim.lr_scheduler.CosineAnnealingLR(
-        optimizer,
-        T_max=max(1, epochs),
-        eta_min=max(lr * 0.05, 1e-6),
-    )
+    else:
+        sched = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs), eta_min=max(lr * 0.05, 1e-6))
+    return mode, sched
 
 
 def _mean_epoch_loss(
@@ -255,16 +248,7 @@ def fit_training_epochs(
         model.train()
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
-        (
-            best_val_loss,
-            best_val_acc,
-            best_sharp_acc,
-            best_sharp_loss,
-            best_sharp_value,
-            improved_state,
-            sharp_state,
-            _improved,
-        ) = checkpoint_if_improved(
+        ck_res = checkpoint_if_improved(
             model,
             val_loss=val_loss,
             val_acc=float(val_acc),
@@ -278,6 +262,8 @@ def fit_training_epochs(
             best_sharp_value=best_sharp_value,
             collapse_hit=bool(collapse_hit),
         )
+        best_val_loss, best_val_acc, best_sharp_acc, best_sharp_loss = ck_res[:4]
+        best_sharp_value, improved_state, sharp_state = ck_res[4:7]
         if improved_state is not None:
             best_state, patience_counter = improved_state, 0
         elif sharp_state is not None:

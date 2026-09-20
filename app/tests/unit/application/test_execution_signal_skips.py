@@ -10,6 +10,7 @@ from src.application.services.execution_signal_skips import (
     should_skip_exec_vs_candle,
     should_skip_neg_edge,
     should_skip_scale_candle_discord,
+    should_skip_trend_discord,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -102,8 +103,19 @@ def test_should_skip_neg_edge_smart_waive_when_loss_clf_confirms_low_loss():
         "loss_clf_p_loss": 0.475,
         "loss_clf_flip": False,
     }
-    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True, "smart_waive_neg_edge": True}) is False
     assert metrics.get("neg_edge_smart_waived") is True
+
+
+def test_should_skip_neg_edge_smart_waive_disabled_in_explore_by_default():
+    metrics = {
+        "cal_side_edge": -0.015,
+        "pending_loss_total": 0.0,
+        "loss_clf_p_loss": 0.475,
+        "loss_clf_flip": False,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert metrics["skip_reason"] == "neg_edge"
 
 
 def test_should_skip_neg_edge_smart_waive_rejects_deep_negative():
@@ -113,7 +125,7 @@ def test_should_skip_neg_edge_smart_waive_rejects_deep_negative():
         "loss_clf_p_loss": 0.450,
         "loss_clf_flip": False,
     }
-    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True, "smart_waive_neg_edge": True}) is True
     assert metrics["skip_reason"] == "neg_edge"
 
 
@@ -126,7 +138,7 @@ def test_should_skip_neg_edge_smart_waive_when_loss_clf_in_bootstrap_with_margin
         "direction_margin": 0.025,
         "loss_clf_flip": False,
     }
-    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True, "smart_waive_neg_edge": True}) is False
     assert metrics.get("neg_edge_smart_waived") is True
 
 
@@ -144,6 +156,24 @@ def test_should_skip_neg_edge_smart_waive_bootstrap_rejects_zero_margin():
     assert metrics["skip_reason"] == "neg_edge"
 
 
+def test_should_skip_neg_edge_waived_when_loss_clf_flip():
+    metrics = {
+        "cal_side_edge": -0.15,
+        "pending_loss_total": 0.0,
+        "loss_clf_flip": True,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+
+
+def test_should_skip_neg_edge_waived_when_anti_trend_lock_flip():
+    metrics = {
+        "cal_side_edge": -0.15,
+        "pending_loss_total": 0.0,
+        "anti_trend_lock_flip": True,
+    }
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is False
+
+
 def test_should_skip_neg_edge_smart_waive_rejects_when_loss_prob_not_low():
     metrics = {
         "cal_side_edge": -0.010,
@@ -151,7 +181,7 @@ def test_should_skip_neg_edge_smart_waive_rejects_when_loss_prob_not_low():
         "loss_clf_p_loss": 0.520,
         "loss_clf_flip": False,
     }
-    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True, "smart_waive_neg_edge": True}) is True
 
 
 def test_should_skip_neg_edge_smart_waive_rejects_invalid_p_loss():
@@ -161,7 +191,7 @@ def test_should_skip_neg_edge_smart_waive_rejects_invalid_p_loss():
         "loss_clf_p_loss": "invalid",
         "loss_clf_flip": False,
     }
-    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True, "smart_waive_neg_edge": True}) is True
 
 
 def test_should_skip_neg_edge_positive_passes():
@@ -337,3 +367,75 @@ def test_should_skip_scale_discord_without_closed_candle():
         "scale_adapted": True,
     }
     assert should_skip_scale_candle_discord(metrics, {"skip_scale_candle_discord": True}) is False
+
+
+def test_should_skip_trend_discord_cases():
+    cfg = {"skip_trend_discord": True}
+    assert should_skip_trend_discord({}, TradeDirection.CALL, cfg, force=True) is False
+    assert should_skip_trend_discord({}, TradeDirection.CALL, {"skip_trend_discord": False}) is False
+    m_oppose_with_pend = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "pending_loss_total": 50.0,
+        "cal_side_edge": 0.03,
+    }
+    assert should_skip_trend_discord(m_oppose_with_pend, TradeDirection.CALL, cfg) is True
+    assert should_skip_trend_discord({"loss_clf_flip": True}, TradeDirection.CALL, cfg) is False
+    assert should_skip_trend_discord({"anti_trend_lock_flip": True}, TradeDirection.CALL, cfg) is False
+
+    assert should_skip_trend_discord({"trend_direction": "NONE"}, TradeDirection.CALL, cfg) is False
+    assert should_skip_trend_discord({"trend_direction": "PUT"}, TradeDirection.CALL, cfg) is False
+
+    m_agree_trend = {
+        "trend_direction": "CALL",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+    }
+    assert should_skip_trend_discord(m_agree_trend, TradeDirection.CALL, cfg) is False
+
+    m_agree_candle = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "CALL",
+    }
+    assert should_skip_trend_discord(m_agree_candle, TradeDirection.CALL, cfg) is False
+
+    m_oppose_strong = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.08,
+    }
+    assert should_skip_trend_discord(m_oppose_strong, TradeDirection.CALL, cfg) is False
+
+    m_oppose_mod = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.03,
+    }
+    assert should_skip_trend_discord(m_oppose_mod, TradeDirection.CALL, cfg) is True
+    assert m_oppose_mod["signal_status"] == "SKIP:trend_discord"
+    assert m_oppose_mod["skip_reason"] == "trend_discord"
+
+    m_oppose_bad_edge = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": "bad",
+    }
+    assert should_skip_trend_discord(m_oppose_bad_edge, TradeDirection.CALL, cfg) is True
+
+
+def test_should_skip_neg_edge_min_edge_execute():
+    cfg = {"skip_neg_edge": True, "min_edge_execute": 0.025}
+    m_low = {"cal_side_edge": 0.017, "pending_loss_total": 0.0}
+    assert should_skip_neg_edge(m_low, cfg) is True
+    assert m_low["skip_reason"] == "neg_edge"
+
+    m_ok = {"cal_side_edge": 0.030, "pending_loss_total": 0.0}
+    assert should_skip_neg_edge(m_ok, cfg) is False
+
+    m_rec = {"cal_side_edge": 0.017, "pending_loss_total": 50.0}
+    assert should_skip_neg_edge(m_rec, cfg) is False

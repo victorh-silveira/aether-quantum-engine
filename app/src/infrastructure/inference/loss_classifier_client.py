@@ -67,8 +67,8 @@ def resolve_loss_classifier_config(raw: dict[str, Any] | None = None) -> dict[st
     if flip_min_n_train < 1:
         raise ValueError("infra.loss_classifier.flip_min_n_train deve ser >= 1")
     bootstrap_exit_n = require_int(block, "bootstrap_exit_n")
-    if bootstrap_exit_n < 4:
-        raise ValueError("infra.loss_classifier.bootstrap_exit_n deve ser >= 4")
+    if bootstrap_exit_n < 2:
+        raise ValueError("infra.loss_classifier.bootstrap_exit_n deve ser >= 2")
     return {
         "enabled": require_bool(block, "enabled"),
         "http_url": str(block["http_url"]).rstrip("/"),

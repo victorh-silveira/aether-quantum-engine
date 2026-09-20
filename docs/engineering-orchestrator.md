@@ -45,7 +45,7 @@ warmup/buffer → training_gate → collect decisoes DL
 
 SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
 
-Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **4**) → Kelly.
+Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **1**) → Kelly.
 
 | Campo | Papel |
 |-------|-------|

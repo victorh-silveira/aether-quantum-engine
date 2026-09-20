@@ -231,7 +231,10 @@ def test_fit_training_epochs_checkpoint_on_val_acc_only():
         ),
         patch(
             "src.application.services.deep_learning.dl_training_epochs._mean_epoch_loss",
-            return_value=(0.5, 1),
+            side_effect=lambda *_a, **kwargs: (
+                kwargs.get("optimizer").step() if kwargs.get("optimizer") is not None else None,
+                (0.5, 1),
+            )[1],
         ),
     ):
         avg, state, ran = fit_training_epochs(

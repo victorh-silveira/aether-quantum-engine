@@ -147,7 +147,7 @@ def is_degenerate_quality(
 def fit_classifier(buffer_x: list[list[float]], buffer_y: list[int], *, half_life: int = 32) -> Any:
     n_samples = len(buffer_y)
     mature = n_samples >= 32
-    min_child = max(8, min(20, n_samples // 8)) if mature else max(2, min(8, n_samples // 4))
+    min_child = max(8, min(20, n_samples // 8)) if mature else (1 if n_samples < 8 else max(2, min(8, n_samples // 4)))
     model = lgb.LGBMClassifier(
         n_estimators=80 if mature else 50,
         learning_rate=0.05,
@@ -225,6 +225,8 @@ def is_collapsed_classifier(
     if probs.size < 2:
         return True
     spread = float(probs.max() - probs.min())
+    if len(buffer_x) < 8:
+        return spread < 1e-4
     return float(probs.std()) < float(min_std) or spread < float(min_range)
 
 

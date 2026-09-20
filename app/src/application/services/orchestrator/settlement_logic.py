@@ -99,6 +99,8 @@ async def _complete_contract_settlement(
         audit_direction=audit_direction,
         audit_raw_prob=audit_raw_prob,
     )
+    pnl = float(getattr(orch.risk_manager, "total_session_profit", 0.0) or 0.0)
+    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
     if result_line is None and isinstance(resolved_meta, dict):
         stake_audit = resolve_stake_audit_context(orch.risk_manager)
         linear_before = int(resolved_meta.get("linear_before", 0) or 0)
@@ -117,6 +119,8 @@ async def _complete_contract_settlement(
             mode_tag=str(stake_audit.get("mode_tag") or ""),
             recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
             learn_detail=learn or None,
+            session_pnl=pnl,
+            target_pnl=target,
         )
         orch._last_loss_clf_learn = None
     if result_line is not None:
@@ -130,9 +134,6 @@ async def _complete_contract_settlement(
 
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
-
-    pnl = orch.risk_manager.total_session_profit
-    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
 
     stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
 
@@ -182,6 +183,8 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
         stake_audit = resolve_stake_audit_context(orch.risk_manager)
         linear_after = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
+        pnl = float(getattr(orch.risk_manager, "total_session_profit", 0.0) or 0.0)
+        target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
         orch.logger.info(
             "%s || API: %s (late)",
             format_settlement_audit_line(
@@ -197,6 +200,8 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
                 mode_tag=str(stake_audit.get("mode_tag") or ""),
                 recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
                 learn_detail=learn or None,
+                session_pnl=pnl,
+                target_pnl=target,
             ),
             api_status_raw.lower() or "-",
         )

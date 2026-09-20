@@ -6,10 +6,12 @@ import logging
 from typing import Any
 
 from src.application.services.market_audit_cycle import (
+    format_decision_origin_line,
     format_execution_ticket_line,
     format_gates_audit_line,
     format_indicators_audit_line,
     format_kelly_audit_line,
+    format_market_summary_line,
     format_settlement_audit_line,
 )
 from src.application.services.market_audit_log_helpers import (
@@ -27,10 +29,12 @@ from src.application.services.market_audit_log_helpers import (
 __all__ = [
     "emit_audit_info",
     "format_cluster_audit_line",
+    "format_decision_origin_line",
     "format_execution_ticket_line",
     "format_gates_audit_line",
     "format_indicators_audit_line",
     "format_kelly_audit_line",
+    "format_market_summary_line",
     "format_settlement_audit_line",
     "pop_contract_audit",
     "resolve_cluster_timeframe",

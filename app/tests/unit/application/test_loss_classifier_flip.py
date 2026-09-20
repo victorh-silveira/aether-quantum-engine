@@ -163,11 +163,11 @@ def test_loss_clf_flip_min_n_train_blocks(monkeypatch):
         "scale_tape_consensus": "PUT",
         "execution_candidate_ready": True,
     }
-    _patch_predict(monkeypatch, p_loss=0.90, n_train=2)
+    _patch_predict(monkeypatch, p_loss=0.90, n_train=0)
     assert apply_loss_classifier_gate(metrics, TradeDirection.PUT, orch=_orch()) is False
     assert metrics.get("loss_clf_flip") is not True
     assert metrics["loss_clf_flip_blocked"] == "flip_min_n"
-    assert metrics["loss_clf_flip_min_n_train"] == 12
+    assert metrics["loss_clf_flip_min_n_train"] == 1
     assert metrics["exec_direction"] == "PUT"
 
 

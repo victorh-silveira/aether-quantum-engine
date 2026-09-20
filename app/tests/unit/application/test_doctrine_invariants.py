@@ -31,8 +31,8 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_flip_trust_n"] == 64
     assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.50)
     assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert inv["loss_clf_flip_min_n_train"] == 12
-    assert inv["loss_clf_bootstrap_exit_n"] == 4
+    assert inv["loss_clf_flip_min_n_train"] == 1
+    assert inv["loss_clf_bootstrap_exit_n"] == 2
     assert inv["loss_clf_ready_n"] == 32
     assert inv["loss_clf_retrain_min_n"] == 12
     assert inv["loss_clf_retrain_on_loss_min_n"] == 4

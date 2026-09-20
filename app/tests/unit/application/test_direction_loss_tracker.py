@@ -12,6 +12,7 @@ from src.application.services.direction_loss_tracker import (
     get_direction_loss_tracker,
     record_direction_outcome,
     reset_direction_persistence_tracker,
+    should_anti_trend_lock_flip,
 )
 from src.domain.models.trade import TradeDirection
 
@@ -137,3 +138,56 @@ def test_cooperative_loop_time_skips_closed_event_loop():
         patch("src.application.services.direction_loss_tracker.time.monotonic", return_value=88.0),
     ):
         assert _cooperative_loop_time() == 88.0
+
+
+def test_should_anti_trend_lock_flip_cases():
+    assert should_anti_trend_lock_flip(None, TradeDirection.CALL) is False
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT) is False
+
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=0.0) is False
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0) is True
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, pending_loss_total=50.0) is False
+    # Conviccao alta (prob >= 0.60 e edge >= 0.080) ignora flip
+    assert (
+        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.10, prob=0.62)
+        is False
+    )
+    # Alinhamento com a tendencia macro (trend == direction e prob >= 0.58) ignora flip
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.PUT,
+            pending_loss_total=50.0,
+            edge=0.02,
+            prob=0.59,
+            trend_direction="PUT",
+        )
+        is False
+    )
+    # Tendencia contraria nao ignora flip
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.PUT,
+            pending_loss_total=50.0,
+            edge=0.02,
+            prob=0.59,
+            trend_direction="CALL",
+        )
+        is True
+    )
+
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=0.0) is True
+    assert (
+        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.03, prob=0.56) is True
+    )
+
+
+def test_record_direction_outcome_resets_opposite_direction():
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    assert consecutive_direction_losses("1HZ75V", "PUT") == 1
+    record_direction_outcome("1HZ75V", "CALL", won=False)
+    assert consecutive_direction_losses("1HZ75V", "CALL") == 1
+    assert consecutive_direction_losses("1HZ75V", "PUT") == 0

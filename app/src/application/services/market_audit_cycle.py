@@ -148,6 +148,45 @@ def _settlement_tag(*, profit: float, linear_before: int) -> str:
     return f"COOLDOWN_L{max(1, int(linear_before) + 1)}"
 
 
+def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, Any]) -> str:
+    """Linha [DECISION] com direcao e origem (TCN_DIRECT / FLIP_LOSS_CLF / FLIP_ANTI_TREND_LOCK)."""
+    dir_name = direction.name if hasattr(direction, "name") else str(direction).upper()
+    origin = str(metrics.get("direction_origin") or "TCN_DIRECT")
+    tcn_dir = str(metrics.get("tcn_direction") or dir_name).upper()
+    prob = _f(metrics, "conviction", "calibrated_prob", "tcn_probability", default=0.5)
+    edge = _f(metrics, "cal_side_edge", "edge", default=0.0)
+    trend = str(metrics.get("trend_direction") or "-").upper()
+    if origin == "FLIP_ANTI_TREND_LOCK":
+        from_dir = str(metrics.get("anti_trend_lock_from") or tcn_dir)
+        detail = f"FLIP anti_trend_lock ({from_dir}->{dir_name}) | trend={trend} | p_orig={prob:.3f}"
+    elif origin == "FLIP_LOSS_CLF":
+        pe = _f(metrics, "loss_clf_p_eff", "loss_clf_p_loss", default=0.58)
+        detail = f"FLIP loss_clf ({tcn_dir}->{dir_name}) | pe={pe:.3f} | trend={trend}"
+    else:
+        detail = f"TCN_DIRECT | p={prob:.3f} | edge={edge:+.3f} | trend={trend}"
+    return f"[DECISION] || {dir_name} [{symbol}] || ORIGEM: {detail}"
+
+
+def format_market_summary_line(symbol: str, metrics: dict[str, Any]) -> str:
+    """Linha [MARKET] com indicadores chave e candle M5 em formato conciso."""
+    snap = indicator_snapshot(metrics)
+    rsi = _snap_f(snap, "rsi", default=_f(metrics, "rsi", default=0.5))
+    adx = _snap_f(snap, "adx", default=_f(metrics, "adx", default=0.0))
+    atr = _snap_f(
+        snap,
+        "atr_norm",
+        default=_snap_f(snap, "atr_raw", default=_snap_f(snap, "atr", default=_f(metrics, "atr_norm", default=0.0))),
+    )
+    bbw = _snap_f(snap, "bb_width", default=_f(metrics, "bb_width", default=0.0))
+    trend = str(metrics.get("trend_direction") or "-").upper()
+    candle = str(metrics.get("closed_micro_candle_dir") or "-").upper()
+    regime = str(metrics.get("scale_micro_regime") or "-").lower()
+    return (
+        f"[MARKET] || {symbol} || RSI: {rsi:.3f} | ADX: {adx:.3f} | ATR: {atr:.2f} | "
+        f"BB_W: {bbw:.4f} | CANDLE: {candle} | TREND: {trend} | REGIME: {regime}"
+    )
+
+
 def format_settlement_audit_line(
     cycle_id: int,
     outcome: str,
@@ -162,8 +201,10 @@ def format_settlement_audit_line(
     mode_tag: str | None = None,
     recovery_infeasible: bool = False,
     learn_detail: str | None = None,
+    session_pnl: float | None = None,
+    target_pnl: float | None = None,
 ) -> str:
-    """Linha [RESOLVED] com opcional LEARN embutido."""
+    """Linha [RESOLVED] com opcional LEARN e progresso da sessao embutidos."""
     _ = (direction, symbol, edge, cycle_id)
     tag = settlement_tag or _settlement_tag(profit=profit, linear_before=0)
     pend_s = f"{float(pending):.2f}" if pending is not None else "n/a"
@@ -171,7 +212,13 @@ def format_settlement_audit_line(
     mode_s = str(mode_tag) if mode_tag else "n/a"
     infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
     learn = f" | LEARN: {learn_detail}" if learn_detail else ""
+    sess_tok = ""
+    if session_pnl is not None:
+        sess_tok = f" | SESSAO: {float(session_pnl):>+7.2f}"
+        if target_pnl is not None and float(target_pnl) > 0.0:
+            pct = (float(session_pnl) / float(target_pnl)) * 100.0
+            sess_tok += f" | ALVO: ${float(target_pnl):.2f} ({pct:.1f}%)"
     return (
-        f"[RESOLVED] || STATUS: {str(outcome):<4} | P&L: {float(profit):>+7.2f} | {tag} | "
+        f"[RESOLVED] || STATUS: {str(outcome):<4} | P&L: {float(profit):>+7.2f}{sess_tok} | {tag} | "
         f"PEND: {pend_s} | LIN: {lin_s} | MODE: {mode_s}{infeas}{learn}"
     )

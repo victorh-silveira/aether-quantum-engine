@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.deep_learning.dl_gating import MARKET_PAYOUT_SSOT, resolve_side_edge
+from src.application.services.direction_loss_tracker import should_anti_trend_lock_flip
 from src.application.services.execution_direction_checks import (
     infer_dl_direction,
     initial_direction_checks,
@@ -11,9 +13,26 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_market_confluence import (
+    should_skip_chop_congestion,
+    should_skip_directional_momentum_discord,
+    should_skip_exhaustion,
+    should_skip_two_bar_momentum_trap,
+)
+from src.application.services.execution_price_action import (
+    should_skip_adverse_tick_flow,
+    should_skip_climactic_blowoff,
+    should_skip_opposing_marubozu_flow,
+    should_skip_wick_rejection,
+)
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
+from src.application.services.execution_scale_vision import compute_scale_directions
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
-from src.application.services.execution_signal_skips import should_skip_acc_floor, should_skip_neg_edge
+from src.application.services.execution_signal_skips import (
+    should_skip_acc_floor,
+    should_skip_neg_edge,
+    should_skip_trend_discord,
+)
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
@@ -127,15 +146,65 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
+    if not bool(metrics.get("loss_clf_flip")):
+        pend = float(metrics.get("pending_loss_total", 0.0) or 0.0)
+        trend = str(metrics.get("trend_direction") or "").strip().upper()
+        curr_edge = float(metrics.get("cal_side_edge", predicted_edge) or 0.0)
+        if should_anti_trend_lock_flip(
+            symbol, exec_dir, pending_loss_total=pend, edge=curr_edge, prob=prob, trend_direction=trend
+        ):
+            flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
+            metrics["anti_trend_lock_flip"] = True
+            metrics["anti_trend_lock_from"] = exec_dir.name
+            metrics["anti_trend_lock_to"] = flipped.name
+            exec_dir = flipped
+    if bool(metrics.get("loss_clf_flip")):
+        metrics["direction_origin"] = "FLIP_LOSS_CLF"
+    elif bool(metrics.get("anti_trend_lock_flip")):
+        metrics["direction_origin"] = "FLIP_ANTI_TREND_LOCK"
+    else:
+        metrics["direction_origin"] = "TCN_DIRECT"
     metrics["exec_direction_pre_scale"] = exec_dir.name
     metrics["scale_adapt_applied"] = False
     metrics.pop("scale_adapt_reason", None)
+    if orch is not None and symbol:
+        compute_scale_directions(orch, str(symbol), exec_dir, metrics)
     exec_dir = _apply_invert_exec_side(exec_dir, metrics, exec_cfg)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
-    if should_skip_neg_edge(metrics, exec_cfg, force=force):
-        sync_entry_metrics(entry, metrics)
-        return None
+    cal_prob = metrics.get("calibrated_prob")
+    if cal_prob is not None:
+        try:
+            if bool(metrics.get("loss_clf_flip")):
+                p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
+                metrics["cal_side_edge"] = float((p_eff * (1.0 + MARKET_PAYOUT_SSOT)) - 1.0)
+            elif bool(metrics.get("anti_trend_lock_flip")):
+                conv = float(metrics.get("conviction") or metrics.get("trade_score") or 0.58)
+                p_dir = max(0.55, conv)
+                metrics["cal_side_edge"] = float((p_dir * (1.0 + MARKET_PAYOUT_SSOT)) - 1.0)
+            else:
+                metrics["cal_side_edge"] = resolve_side_edge(
+                    float(cal_prob),
+                    direction=exec_dir,
+                    payout=MARKET_PAYOUT_SSOT,
+                )
+        except (TypeError, ValueError):
+            pass
+    for skip_fn in (
+        lambda: should_skip_neg_edge(metrics, exec_cfg, force=force),
+        lambda: should_skip_trend_discord(metrics, exec_dir, exec_cfg, force=force),
+        lambda: should_skip_exhaustion(metrics, exec_dir, exec_cfg, force=force),
+        lambda: should_skip_chop_congestion(metrics, exec_cfg, force=force),
+        lambda: should_skip_directional_momentum_discord(metrics, exec_dir, exec_cfg, force=force),
+        lambda: should_skip_two_bar_momentum_trap(metrics, exec_dir, exec_cfg, force=force),
+        lambda: should_skip_wick_rejection(metrics, exec_dir, exec_cfg, orch=orch, symbol=symbol, force=force),
+        lambda: should_skip_climactic_blowoff(metrics, exec_dir, exec_cfg, orch=orch, symbol=symbol, force=force),
+        lambda: should_skip_opposing_marubozu_flow(metrics, exec_dir, exec_cfg, orch=orch, symbol=symbol, force=force),
+        lambda: should_skip_adverse_tick_flow(metrics, exec_dir, exec_cfg, force=force),
+    ):
+        if skip_fn():
+            sync_entry_metrics(entry, metrics)
+            return None
     _sync_kelly_side(metrics, exec_dir)
     sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)

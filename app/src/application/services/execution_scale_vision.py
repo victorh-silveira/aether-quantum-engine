@@ -127,32 +127,35 @@ def _field_from_stream(stream: Any, getter: str, symbol: str, field: str) -> np.
 
 
 def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None:
-    """Inicializa campos SCALE no metrics."""
+    """Inicializa campos SCALE no metrics preservando valores pre-existentes."""
     metrics["scale_micro_dir"] = micro_name
-    metrics["scale_macro_dir"] = None
-    metrics["scale_mini_dir"] = None
-    metrics["scale_mili_dir"] = None
-    metrics["scale_mini_bar_dir"] = None
-    metrics["scale_mini_prev_bar_dir"] = None
-    metrics["scale_micro_bar_dir"] = None
-    metrics["scale_micro_prev_bar_dir"] = None
-    metrics["closed_micro_candle_dir"] = None
-    metrics["closed_micro_candle_body"] = None
-    metrics["closed_micro_candle_stamped"] = False
-    metrics["ops_window_candle_dir"] = None
-    metrics["ops_window_candle_body"] = None
-    metrics["ops_window_stamped"] = False
-    metrics["ops_window_bars"] = None
-    metrics["scale_tape_consensus"] = None
-    metrics["scale_tape_strong"] = False
-    metrics["scale_mini_pair_oppose"] = False
-    metrics["scale_micro_regime"] = "chop"
-    metrics["scale_micro_side"] = None
-    metrics["scale_retraction_vs_tcn"] = False
-    metrics["scale_mili_oppose_tcn"] = False
-    metrics["scale_agree_n"] = 0
-    metrics["scale_disagree_n"] = 0
-    metrics["scale_discordance"] = False
+    for key in (
+        "scale_macro_dir",
+        "scale_mini_dir",
+        "scale_mili_dir",
+        "scale_mini_bar_dir",
+        "scale_mini_prev_bar_dir",
+        "scale_micro_bar_dir",
+        "scale_micro_prev_bar_dir",
+        "closed_micro_candle_dir",
+        "closed_micro_candle_body",
+        "ops_window_candle_dir",
+        "ops_window_candle_body",
+        "ops_window_bars",
+        "scale_tape_consensus",
+        "scale_micro_side",
+    ):
+        metrics.setdefault(key, None)
+    metrics.setdefault("closed_micro_candle_stamped", False)
+    metrics.setdefault("ops_window_stamped", False)
+    metrics.setdefault("scale_tape_strong", False)
+    metrics.setdefault("scale_mini_pair_oppose", False)
+    metrics.setdefault("scale_micro_regime", "chop")
+    metrics.setdefault("scale_retraction_vs_tcn", False)
+    metrics.setdefault("scale_mili_oppose_tcn", False)
+    metrics.setdefault("scale_agree_n", 0)
+    metrics.setdefault("scale_disagree_n", 0)
+    metrics.setdefault("scale_discordance", False)
 
 
 def compute_scale_directions(
@@ -201,12 +204,18 @@ def compute_scale_directions(
             else:
                 micro_closes = _closes_from_stream(stream, "get_micro_numpy_series", str(symbol))
                 micro_opens = _field_from_stream(stream, "get_micro_numpy_series", str(symbol), "open")
-            metrics["scale_micro_bar_dir"] = last_bar_direction(micro_opens, micro_closes)
-            metrics["scale_micro_prev_bar_dir"] = prev_bar_direction(micro_opens, micro_closes)
+            if micro_closes is not None and len(micro_closes) > 0:
+                dir_b = last_bar_direction(micro_opens, micro_closes)
+                dir_p = prev_bar_direction(micro_opens, micro_closes)
+                if dir_b is not None:
+                    metrics["scale_micro_bar_dir"] = dir_b
+                if dir_p is not None:
+                    metrics["scale_micro_prev_bar_dir"] = dir_p
         closed_candle = last_closed_micro_candle(stream, str(symbol))
-        metrics["closed_micro_candle_stamped"] = closed_candle is not None
-        metrics["closed_micro_candle_dir"] = closed_micro_candle_dir_from_stream(stream, str(symbol))
-        metrics["closed_micro_candle_body"] = closed_micro_candle_body_from_stream(stream, str(symbol))
+        if closed_candle is not None:
+            metrics["closed_micro_candle_stamped"] = True
+            metrics["closed_micro_candle_dir"] = closed_micro_candle_dir_from_stream(stream, str(symbol))
+            metrics["closed_micro_candle_body"] = closed_micro_candle_body_from_stream(stream, str(symbol))
         stamp_ops_window_metrics(
             metrics,
             stream,

@@ -10,7 +10,9 @@ from src.application.services.execution_symbols_recovery import recovery_blocked
 from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
 from src.application.services.market_audit_log import (
     emit_audit_info,
+    format_decision_origin_line,
     format_gates_audit_line,
+    format_market_summary_line,
 )
 from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
 from src.application.services.recovery_hurst_store import (
@@ -224,10 +226,13 @@ def schedule_recovery_skip_counter_increment(orch) -> None:
 def log_execution_decision(
     exec_mgr, cid: str, best: tuple, candidates: list, effective_signal: float, *, decisions: dict | None = None
 ) -> None:
-    """Registra linha GATES da decisao (LOSS_CLF); sem IND/SCALE/META."""
-    metrics = best[2]
+    """Registra linhas MARKET, DECISION e GATES da decisao."""
+    symbol, direction, metrics = best[0], best[1], best[2]
     _ = (cid, candidates, decisions, effective_signal)
-    emit_audit_info(exec_mgr.logger, format_gates_audit_line(metrics if isinstance(metrics, dict) else {}))
+    metrics_dict = metrics if isinstance(metrics, dict) else {}
+    emit_audit_info(exec_mgr.logger, format_market_summary_line(str(symbol), metrics_dict))
+    emit_audit_info(exec_mgr.logger, format_decision_origin_line(str(symbol), direction, metrics_dict))
+    emit_audit_info(exec_mgr.logger, format_gates_audit_line(metrics_dict))
 
 
 def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, TradeDirection, dict]]:

@@ -146,6 +146,8 @@ def should_skip_neg_edge(
         return False
     if _pend_waives(metrics, exec_cfg):
         return False
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+        return False
     raw = metrics.get("cal_side_edge")
     if raw is None:
         raw = metrics.get("edge")
@@ -164,7 +166,9 @@ def should_skip_neg_edge(
     floor = max(0.0, min_edge)
     if edge > floor:
         return False
-    if _smart_neg_edge_waive(edge, metrics):
+    pend = float(metrics.get("pending_loss_total", 0.0) or 0.0)
+    allow_smart = bool((exec_cfg or {}).get("smart_waive_neg_edge", False)) or pend > 0.0
+    if allow_smart and _smart_neg_edge_waive(edge, metrics):
         metrics["neg_edge_smart_waived"] = True
         return False
     _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge))
@@ -235,4 +239,39 @@ def should_skip_scale_candle_discord(
             candle_dir=candle,
         )
         return True
+    return False
+
+
+def should_skip_trend_discord(
+    metrics: dict[str, Any],
+    exec_dir: TradeDirection,
+    exec_cfg: dict[str, Any] | None,
+    *,
+    force: bool = False,
+) -> bool:
+    """True quando a direcao EXEC discordar simultaneamente de trend_direction e candle M5 em EXPLORE."""
+    if force or not bool((exec_cfg or {}).get("skip_trend_discord", False)):
+        return False
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+        return False
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    candle = _closed_candle_dir(metrics)
+    if trend not in _VALID or candle not in _VALID:
+        return False
+    exec_name = exec_dir.name
+    if exec_name not in (trend, candle):
+        raw_edge = metrics.get("cal_side_edge", metrics.get("edge", 0.0))
+        try:
+            edge = float(raw_edge or 0.0)
+        except (TypeError, ValueError):
+            edge = 0.0
+        if edge < 0.060:
+            _mark_skip(
+                metrics,
+                "trend_discord",
+                exec_pre_skip=exec_name,
+                trend_direction=trend,
+                candle_dir=candle,
+            )
+            return True
     return False
