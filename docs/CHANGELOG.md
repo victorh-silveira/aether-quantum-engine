@@ -1,3 +1,9 @@
+## [2.67.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.2...v2.67.3) (2026-09-20)
+
+### Correcoes de Bug
+
+* **orchestrator:** prevenir inversao whip-saw no anti-trend lock e absorver residuo no lucro ([56adad3](https://github.com/victorh-silveira/aether-quantum-engine/commit/56adad3cae6d60223d371dd3f2b4f704cefc91ab))
+
 ## [2.67.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.1...v2.67.2) (2026-09-20)
 
 ### Correcoes de Bug
