@@ -91,6 +91,16 @@ def test_should_skip_wick_rejection_call_super_edge_passes():
     assert should_skip_wick_rejection(metrics, TradeDirection.CALL, cfg) is False
 
 
+def test_should_skip_wick_rejection_trend_pullback_passes():
+    cfg = {"skip_wick_rejection": True}
+    metrics = {
+        "closed_candle_ohlc": [100.0, 120.0, 95.0, 105.0],
+        "edge": 0.025,
+        "trend_direction": "CALL",
+    }
+    assert should_skip_wick_rejection(metrics, TradeDirection.CALL, cfg) is False
+
+
 def test_should_skip_wick_rejection_put_triggers():
     cfg = {"skip_wick_rejection": True}
     # Open 110, High 112, Low 90, Close 102. Range = 22. Lower wick = 102 - 90 = 12. Ratio = 12/22 = 0.545 >= 0.45

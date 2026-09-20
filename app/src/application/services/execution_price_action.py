@@ -56,7 +56,10 @@ def should_skip_wick_rejection(
     if range_px <= 1e-12:
         return False
     edge = _extract_edge_float(metrics)
-    if edge >= 0.075:
+    if edge >= 0.035:
+        return False
+    trend_raw = str(metrics.get("trend_direction") or "").strip().upper()
+    if trend_raw == exec_dir.name and edge >= 0.020:
         return False
     if exec_dir == TradeDirection.CALL:
         upper_wick = high_px - max(open_px, close_px)

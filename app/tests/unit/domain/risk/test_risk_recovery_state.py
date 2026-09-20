@@ -200,3 +200,60 @@ def test_cluster_win_with_amort_dust_residual_clears_linear_and_pending():
     assert rm.pending_loss == {}
     assert rm.last_loss_stake == 0.0
     assert rm._linear_reset_occurred is True
+
+
+def test_cluster_win_absorbs_residual_pending_when_session_in_profit():
+    rm = type("RM", (), {})()
+    rm.initial_bankroll = 9236.16
+    rm.pending_loss = {"1HZ75V": 15.73}
+    rm.consecutive_losses_linear = 1
+    rm.total_session_profit = 56.68
+    rm.last_loss_stake = 109.52
+    rm.soft_recovery_config = {"dust_pending_clear_max": 0.25}
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
+
+    reset = apply_cluster_profit_to_recovery_state(rm, 186.88)
+
+    assert reset is True
+    assert rm.consecutive_losses_linear == 0
+    assert rm.pending_loss == {}
+    assert rm.last_loss_stake == 0.0
+    assert rm._linear_reset_occurred is True
+
+
+def test_clear_dust_pending_loss_with_positive_session_pnl():
+    from src.domain.risk.risk_recovery_state import clear_dust_pending_loss
+
+    rm = type("RM", (), {})()
+    rm.initial_bankroll = 9236.16
+    rm.pending_loss = {"1HZ75V": 15.73}
+    rm.consecutive_losses_linear = 0
+    rm.total_session_profit = 56.68
+    rm.last_loss_stake = 109.52
+    rm.soft_recovery_config = {"dust_pending_clear_max": 0.25}
+    rm.logger = type("L", (), {"info": lambda *a, **k: None, "debug": lambda *a, **k: None})()
+
+    cleared = clear_dust_pending_loss(rm)
+
+    assert cleared is True
+    assert rm.consecutive_losses_linear == 0
+    assert rm.pending_loss == {}
+    assert rm.last_loss_stake == 0.0
+
+
+def test_apply_win_to_pending_loss_breaks_when_remaining_profit_zero():
+    from src.domain.risk.risk_recovery_state import apply_win_to_pending_loss
+
+    pending = {"R_10": 10.0, "R_50": 20.0}
+    apply_win_to_pending_loss(pending, 5.0)
+    assert pending["R_10"] == 5.0
+    assert pending["R_50"] == 20.0
+
+
+def test_cointegration_redirect_score_fallbacks():
+    from src.domain.risk.risk_recovery_state import cointegration_pair_score
+
+    s1 = cointegration_pair_score({"raw_prob": 0.55, "edge_zscore": 1.2})
+    assert s1 != float("-inf")
+    s2 = cointegration_pair_score({"edge_zscore": 1.2})
+    assert s2 != float("-inf")

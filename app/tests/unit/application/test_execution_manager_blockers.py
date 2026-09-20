@@ -29,6 +29,10 @@ def test_candidate_block_reason_from_skip_reason_only():
         == "neg_edge"
     )
     assert _candidate_block_reason({"skip_reason": "chop_congestion"}) == "chop_congestion"
+    assert _candidate_block_reason({"skip_reason": "wick_rejection_call"}) == "wick_rejection_call"
+    assert _candidate_block_reason({"skip_reason": "wick_rejection_put"}) == "wick_rejection_put"
+    assert _candidate_block_reason({"skip_reason": "exhaustion_call"}) == "exhaustion_call"
+    assert _candidate_block_reason({"skip_reason": "exhaustion_put"}) == "exhaustion_put"
     assert _candidate_block_reason({"deploy_ok": False}) == "deploy"
     assert _candidate_block_reason({"execution_candidate_ready": True}) == "ready_not_selected"
     assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
