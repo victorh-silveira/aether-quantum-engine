@@ -1,3 +1,9 @@
+## [2.69.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.68.0...v2.69.0) (2026-09-20)
+
+### Funcionalidades
+
+* **engine:** converter divergencias tecnicas em decisao institucional de trader senior ([d70bd71](https://github.com/victorh-silveira/aether-quantum-engine/commit/d70bd7158e2cdd4d503527e7075ca7dc999804b3))
+
 ## [2.68.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.3...v2.68.0) (2026-09-20)
 
 ### Funcionalidades
