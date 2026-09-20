@@ -146,7 +146,11 @@ def should_skip_neg_edge(
         return False
     if _pend_waives(metrics, exec_cfg):
         return False
-    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+    if (
+        bool(metrics.get("loss_clf_flip"))
+        or bool(metrics.get("anti_trend_lock_flip"))
+        or bool(metrics.get("senior_trader_flip"))
+    ):
         return False
     raw = metrics.get("cal_side_edge")
     if raw is None:
@@ -252,7 +256,11 @@ def should_skip_trend_discord(
     """True quando a direcao EXEC discordar simultaneamente de trend_direction e candle M5 em EXPLORE."""
     if force or not bool((exec_cfg or {}).get("skip_trend_discord", False)):
         return False
-    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+    if (
+        bool(metrics.get("loss_clf_flip"))
+        or bool(metrics.get("anti_trend_lock_flip"))
+        or bool(metrics.get("senior_trader_flip"))
+    ):
         return False
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = _closed_candle_dir(metrics)

@@ -443,6 +443,7 @@
       },
       "force_trade_every_cycle": false,
       "invert_exec_side": false,
+      "senior_confluence_flip": true,
       "skip_exec_vs_candle": false,
       "skip_below_soft_min_acc": false,
       "skip_scale_candle_discord": false,

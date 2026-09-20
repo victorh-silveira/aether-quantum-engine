@@ -119,3 +119,19 @@ def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled_with_str
     assert metrics["trade_score"] == pytest.approx(0.70)
     assert "predicted_payoff_edge" not in metrics
     assert metrics["meta_classifier_applied"] is False
+
+
+def test_resolve_senior_confluence_flip():
+    entry = _entry(direction=TradeDirection.CALL, raw_prob=0.52, calibrated_prob=0.52)
+    entry["metrics"]["cal_side_edge"] = 0.01
+    entry["metrics"]["trend_direction"] = "PUT"
+    entry["metrics"]["closed_micro_candle_dir"] = "PUT"
+    entry["metrics"]["closed_micro_candle_stamped"] = True
+    result = resolve_execution_direction(entry, symbol="1HZ75V")
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.PUT
+    assert metrics["senior_trader_flip"] is True
+    assert metrics["direction_origin"] == "FLIP_SENIOR_CONFLUENCE"
+    assert metrics["senior_confluence_reason"] == "trend_candle_alignment"
+    assert metrics["cal_side_edge"] >= 0.035

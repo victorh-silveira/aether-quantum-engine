@@ -162,6 +162,9 @@ def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, 
     elif origin == "FLIP_LOSS_CLF":
         pe = _f(metrics, "loss_clf_p_eff", "loss_clf_p_loss", default=0.58)
         detail = f"FLIP loss_clf ({tcn_dir}->{dir_name}) | pe={pe:.3f} | trend={trend}"
+    elif origin == "FLIP_SENIOR_CONFLUENCE":
+        reason = str(metrics.get("senior_confluence_reason") or "confluence")
+        detail = f"FLIP senior_confluence ({tcn_dir}->{dir_name}) | reason={reason} | edge={edge:+.3f}"
     else:
         detail = f"TCN_DIRECT | p={prob:.3f} | edge={edge:+.3f} | trend={trend}"
     return f"[DECISION] || {dir_name} [{symbol}] || ORIGEM: {detail}"

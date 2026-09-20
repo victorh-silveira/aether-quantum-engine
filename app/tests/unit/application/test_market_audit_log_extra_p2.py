@@ -102,6 +102,21 @@ def test_format_decision_origin_line_variants():
         in line_flip_lock
     )
 
+    line_flip_senior = format_decision_origin_line(
+        "1HZ75V",
+        "PUT",
+        {
+            "direction_origin": "FLIP_SENIOR_CONFLUENCE",
+            "tcn_direction": "CALL",
+            "senior_confluence_reason": "opposing_marubozu",
+            "cal_side_edge": 0.036,
+        },
+    )
+    assert (
+        "[DECISION] || PUT [1HZ75V] || ORIGEM: FLIP senior_confluence (CALL->PUT) | reason=opposing_marubozu | edge=+0.036"
+        in line_flip_senior
+    )
+
 
 def test_format_market_summary_line():
     from src.application.services.market_audit_cycle import format_market_summary_line
