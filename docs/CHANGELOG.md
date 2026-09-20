@@ -1,3 +1,9 @@
+## [2.69.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.69.0...v2.69.1) (2026-09-20)
+
+### Correcoes de Bug
+
+* **engine:** blindar contra insistencia direcional oposta a macro-tendencia ([70767e3](https://github.com/victorh-silveira/aether-quantum-engine/commit/70767e3b3d86b92a6c91eb7d01a0ee7d650da126))
+
 ## [2.69.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.68.0...v2.69.0) (2026-09-20)
 
 ### Funcionalidades
