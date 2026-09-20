@@ -1,3 +1,9 @@
+## [2.67.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.66.0...v2.67.0) (2026-09-20)
+
+### Funcionalidades
+
+* **orchestrator:** aprimorar confluencia direcional e salvaguarda marubozu ([77718eb](https://github.com/victorh-silveira/aether-quantum-engine/commit/77718eb298a11061627622be7a18fe264802360a))
+
 ## [2.66.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.65.1...v2.66.0) (2026-09-18)
 
 ### Funcionalidades
