@@ -296,3 +296,14 @@ def test_should_skip_directional_momentum_discord_put_passes_if_not_violating():
         should_skip_directional_momentum_discord({"di_diff": 0.20, "rsi": 0.50, "edge": 0.03}, TradeDirection.PUT, cfg)
         is False
     )
+
+
+def test_should_skip_two_bar_momentum_trap_pullback_with_trend_passes():
+    cfg = {"skip_two_bar_counter_trend": True}
+    metrics = {
+        "scale_micro_prev_bar_dir": "PUT",
+        "scale_micro_bar_dir": "PUT",
+        "trend_direction": "CALL",
+        "edge": 0.025,
+    }
+    assert should_skip_two_bar_momentum_trap(metrics, TradeDirection.CALL, cfg) is False

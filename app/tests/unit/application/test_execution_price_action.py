@@ -339,3 +339,23 @@ def test_should_skip_opposing_marubozu_aligned_passes():
     # Bearish candle with PUT direction -> aligned, passes
     metrics2 = {"closed_candle_ohlc": [110.0, 110.0, 90.0, 91.0], "edge": 0.03}
     assert should_skip_opposing_marubozu_flow(metrics2, TradeDirection.PUT, cfg) is False
+
+
+def test_should_skip_climactic_blowoff_low_atr_floor_scaling():
+    cfg = {"skip_climactic_blowoff": True}
+    metrics = {
+        "closed_candle_ohlc": [100.0, 110.0, 100.0, 109.0],
+        "indicators": {"atr_raw": 0.05},
+        "edge": 0.02,
+    }
+    assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is True
+
+
+def test_should_skip_opposing_marubozu_pullback_with_trend_passes():
+    cfg = {"skip_opposing_marubozu": True}
+    metrics = {
+        "closed_candle_ohlc": [110.0, 110.0, 90.0, 91.0],
+        "trend_direction": "CALL",
+        "edge": 0.025,
+    }
+    assert should_skip_opposing_marubozu_flow(metrics, TradeDirection.CALL, cfg) is False

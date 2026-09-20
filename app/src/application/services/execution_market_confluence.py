@@ -104,7 +104,10 @@ def should_skip_two_bar_momentum_trap(
     exec_name = exec_dir.name
     if exec_name not in (prev_bar, curr_bar):
         edge = _extract_edge_float(metrics)
-        if edge < 0.065:
+        trend = str(metrics.get("trend_direction") or "").strip().upper()
+        if trend == exec_name and edge >= 0.020:
+            return False
+        if edge < 0.035:
             _mark_skip(
                 metrics,
                 "two_bar_counter_trend",
@@ -131,7 +134,7 @@ def should_skip_directional_momentum_discord(
     if di_diff is None or rsi is None:
         return False
     edge = _extract_edge_float(metrics)
-    if edge >= 0.080:
+    if edge >= 0.035:
         return False
     if exec_dir == TradeDirection.CALL and di_diff < -0.15 and rsi < 0.45:
         _mark_skip(metrics, "bearish_momentum_discord", di_diff=float(di_diff), rsi=float(rsi))

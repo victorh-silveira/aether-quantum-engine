@@ -93,16 +93,19 @@ def should_skip_climactic_blowoff(
     open_px, high_px, low_px, close_px = ohlc
     range_px = high_px - low_px
     atr = (
-        _extract_indicator_float(metrics, "atr_norm")
-        or _extract_indicator_float(metrics, "atr_raw")
+        _extract_indicator_float(metrics, "atr_raw")
+        or _extract_indicator_float(metrics, "atr_abs")
         or _extract_indicator_float(metrics, "atr")
+        or _extract_indicator_float(metrics, "atr_norm")
     )
-    if atr is None or atr <= 1e-12 or range_px <= 1e-12:
+    if atr is None or range_px <= 1e-12:
         return False
+    if atr <= 0.5:
+        atr = max(1.0, open_px * 0.001)
     if (range_px / atr) <= 2.5:
         return False
     edge = _extract_edge_float(metrics)
-    if edge >= 0.075:
+    if edge >= 0.035:
         return False
     is_bullish = close_px > open_px
     is_bearish = close_px < open_px
@@ -131,11 +134,11 @@ def should_skip_adverse_tick_flow(
     if not isinstance(flow, dict):
         return False
     try:
-        vel = float(flow.get("price_velocity") or flow.get("micro_tick_velocity") or 0.0)
+        vel = float(flow.get("price_velocity", flow.get("micro_tick_velocity", 0.0)) or 0.0)
     except (TypeError, ValueError):
         vel = 0.0
     try:
-        accel = float(flow.get("micro_tick_acceleration") or flow.get("price_acceleration") or 0.0)
+        accel = float(flow.get("micro_tick_acceleration", flow.get("price_acceleration", 0.0)) or 0.0)
     except (TypeError, ValueError):
         accel = 0.0
     flow_score = vel + 0.5 * accel
@@ -171,10 +174,13 @@ def should_skip_opposing_marubozu_flow(
     if range_px <= 1e-12:
         return False
     body_px = abs(close_px - open_px)
-    if (body_px / range_px) < 0.75:
+    if (body_px / range_px) < 0.80:
         return False
     edge = _extract_edge_float(metrics)
-    if edge >= 0.080:
+    if edge >= 0.035:
+        return False
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    if trend == exec_dir.name and edge >= 0.020:
         return False
     if exec_dir == TradeDirection.CALL and close_px < open_px:
         lower_wick = (min(open_px, close_px) - low_px) / range_px

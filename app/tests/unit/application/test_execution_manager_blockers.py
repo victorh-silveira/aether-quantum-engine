@@ -30,6 +30,7 @@ def test_candidate_block_reason_from_skip_reason_only():
     )
     assert _candidate_block_reason({"skip_reason": "chop_congestion"}) == "chop_congestion"
     assert _candidate_block_reason({"deploy_ok": False}) == "deploy"
+    assert _candidate_block_reason({"execution_candidate_ready": True}) == "ready_not_selected"
     assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
     assert _candidate_block_reason({"skip_reason": "not_a_gate"}) is None
 

@@ -22,6 +22,8 @@ _TECHNICAL_REASONS = frozenset(
         "two_bar_counter_trend",
         "wick_rejection",
         "climactic_blowoff",
+        "climactic_blowoff_call",
+        "climactic_blowoff_put",
         "opposing_bearish_marubozu",
         "opposing_bullish_marubozu",
         "adverse_tick_flow_call",
