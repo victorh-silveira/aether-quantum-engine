@@ -12,6 +12,20 @@ _TECHNICAL_REASONS = frozenset(
         "deploy",
         "predict_error",
         "neg_edge",
+        "min_edge",
+        "chop_congestion",
+        "trend_discord",
+        "exhaustion",
+        "directional_momentum_discord",
+        "bearish_momentum_discord",
+        "bullish_momentum_discord",
+        "two_bar_counter_trend",
+        "wick_rejection",
+        "climactic_blowoff",
+        "opposing_bearish_marubozu",
+        "opposing_bullish_marubozu",
+        "adverse_tick_flow_call",
+        "adverse_tick_flow_put",
         "neg_edge_zscore_panic",
         "anti_loss_seed_discord",
         "anti_loss_ema_trend",
@@ -29,14 +43,18 @@ _TECHNICAL_REASONS = frozenset(
 
 def _candidate_block_reason(metrics: dict) -> str | None:
     """Extrai motivo tecnico ou SKIP de sinal para EXEC_EMPTY."""
-    reason = metrics.get("gate_reason")
+    reason = metrics.get("gate_reason") or metrics.get("skip_reason")
     if isinstance(reason, str) and reason.strip():
         token = reason.strip()
-        if token in _TECHNICAL_REASONS:
-            return token
-    skip = metrics.get("skip_reason")
-    if isinstance(skip, str) and skip.strip():
-        token = skip.strip()
+        if token == "neg_edge":
+            edge_raw = metrics.get("cal_side_edge", metrics.get("edge"))
+            try:
+                edge_f = float(edge_raw)
+                floor_f = float(metrics.get("min_edge_floor", 0.0) or 0.0)
+                if edge_f > 0.0 and floor_f > 0.0:
+                    return "min_edge"
+            except (TypeError, ValueError):
+                pass
         if token in _TECHNICAL_REASONS:
             return token
     if metrics.get("deploy_ok") is False:

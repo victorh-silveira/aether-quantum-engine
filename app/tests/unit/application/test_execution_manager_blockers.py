@@ -20,7 +20,32 @@ def test_candidate_block_reason_from_skip_reason_only():
 
     assert _candidate_block_reason({"skip_reason": "doji"}) == "doji"
     assert _candidate_block_reason({"skip_reason": "neg_edge"}) == "neg_edge"
+    assert (
+        _candidate_block_reason({"skip_reason": "neg_edge", "cal_side_edge": 0.015, "min_edge_floor": 0.025})
+        == "min_edge"
+    )
+    assert (
+        _candidate_block_reason({"skip_reason": "neg_edge", "cal_side_edge": "bad", "min_edge_floor": 0.025})
+        == "neg_edge"
+    )
+    assert _candidate_block_reason({"skip_reason": "chop_congestion"}) == "chop_congestion"
+    assert _candidate_block_reason({"deploy_ok": False}) == "deploy"
+    assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
     assert _candidate_block_reason({"skip_reason": "not_a_gate"}) is None
+
+
+def test_log_execution_blockers_force_trade_early_return():
+    from types import SimpleNamespace
+
+    from src.application.services.orchestrator.execution_blockers import log_execution_blockers
+
+    orch = SimpleNamespace(
+        config={"orchestrator": {"execution": {"force_trade_every_cycle": True}}},
+        _active_cycle_id=1,
+    )
+    executor = SimpleNamespace(orch=orch)
+    # deve retornar None imediatamente sem erro
+    assert log_execution_blockers(executor, {}) is None
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):

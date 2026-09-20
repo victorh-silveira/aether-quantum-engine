@@ -46,6 +46,19 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
         loss_tok = "OFF"
         skip = "-"
     reason = str(metrics.get("gate_reason") or "").strip()
-    if reason:
+    if reason == "neg_edge":
+        edge_raw = metrics.get("cal_side_edge", metrics.get("edge"))
+        try:
+            edge_f = float(edge_raw)
+            floor_f = float(metrics.get("min_edge_floor", 0.0) or 0.0)
+            if edge_f > 0.0 and floor_f > 0.0:
+                skip = f"min_edge({edge_f:+.3f}<{floor_f:.3f})"
+            elif edge_f <= 0.0:
+                skip = f"neg_edge({edge_f:+.3f})"
+            else:
+                skip = reason
+        except (TypeError, ValueError):
+            skip = reason
+    elif reason:
         skip = reason
     return f"[GATES] || LOSS_CLF: {loss_tok} | skip={skip}{verdict_tok}"

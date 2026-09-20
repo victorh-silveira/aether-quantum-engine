@@ -171,7 +171,7 @@ def should_skip_neg_edge(
     if allow_smart and _smart_neg_edge_waive(edge, metrics):
         metrics["neg_edge_smart_waived"] = True
         return False
-    _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge))
+    _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge), min_edge_floor=float(floor))
     return True
 
 

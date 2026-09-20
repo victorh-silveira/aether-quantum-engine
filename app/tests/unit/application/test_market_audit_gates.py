@@ -82,3 +82,38 @@ def test_format_gates_audit_line_ok_shows_blocked_bootstrap():
     assert "ready=1" not in line.replace("ready_seed=1", "")
     assert "ver=loss_bootstrap_live64" in line
     assert "skip=-" in line
+
+
+def test_format_gates_audit_line_informative_min_edge_and_neg_edge():
+    line_min = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "cal_side_edge": 0.016,
+            "min_edge_floor": 0.025,
+        }
+    )
+    assert "skip=min_edge(+0.016<0.025)" in line_min
+
+    line_neg = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "cal_side_edge": -0.005,
+        }
+    )
+    assert "skip=neg_edge(-0.005)" in line_neg
+
+    line_bad = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "cal_side_edge": "bad",
+        }
+    )
+    assert "skip=neg_edge" in line_bad
+
+    line_no_floor = format_gates_audit_line(
+        {
+            "gate_reason": "neg_edge",
+            "cal_side_edge": 0.02,
+        }
+    )
+    assert "skip=neg_edge" in line_no_floor
