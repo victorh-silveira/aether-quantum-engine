@@ -52,10 +52,15 @@ def should_skip_exhaustion(
     if rsi is None or bb_b is None:
         return False
     edge = _extract_edge_float(metrics)
-    if exec_dir == TradeDirection.CALL and rsi > 0.75 and bb_b > 1.05 and edge < 0.080:
+    if edge >= 0.035:
+        return False
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    if trend in _VALID and trend == exec_dir.name and edge >= 0.020:
+        return False
+    if exec_dir == TradeDirection.CALL and rsi > 0.75 and bb_b > 1.05:
         _mark_skip(metrics, "exhaustion_call", rsi=float(rsi), bb_pct_b=float(bb_b))
         return True
-    if exec_dir == TradeDirection.PUT and rsi < 0.25 and bb_b < -0.05 and edge < 0.080:
+    if exec_dir == TradeDirection.PUT and rsi < 0.25 and bb_b < -0.05:
         _mark_skip(metrics, "exhaustion_put", rsi=float(rsi), bb_pct_b=float(bb_b))
         return True
     return False
@@ -77,11 +82,17 @@ def should_skip_chop_congestion(
     if adx is None:
         return False
     edge = _extract_edge_float(metrics)
+    if edge >= 0.035:
+        return False
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    exec_name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").strip().upper()
+    if trend in _VALID and exec_name == trend and edge >= 0.020:
+        return False
     vol_ratio = _extract_indicator_float(metrics, "vol_ratio") or 1.0
-    if adx < 0.20 and not (vol_ratio >= 1.35 and edge >= 0.20):
+    if adx < 0.18 and not (vol_ratio >= 1.25 and edge >= 0.025):
         _mark_skip(metrics, "chop_congestion", adx=float(adx), bb_width=float(bb_w or 0.0))
         return True
-    if adx < 0.22 and bb_w is not None and (bb_w < 0.0 or bb_w < 0.035) and edge < 0.120:
+    if adx < 0.22 and bb_w is not None and (bb_w < 0.0 or bb_w < 0.035) and edge < 0.035:
         _mark_skip(metrics, "chop_congestion", adx=float(adx), bb_width=float(bb_w))
         return True
     return False
@@ -135,6 +146,9 @@ def should_skip_directional_momentum_discord(
         return False
     edge = _extract_edge_float(metrics)
     if edge >= 0.035:
+        return False
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    if trend in _VALID and trend == exec_dir.name and edge >= 0.020:
         return False
     if exec_dir == TradeDirection.CALL and di_diff < -0.15 and rsi < 0.45:
         _mark_skip(metrics, "bearish_momentum_discord", di_diff=float(di_diff), rsi=float(rsi))

@@ -144,7 +144,7 @@ def test_should_skip_chop_congestion_super_edge_passes():
 
 def test_should_skip_chop_congestion_squeeze_adx_below_22():
     cfg = {"skip_chop_congestion": True}
-    metrics = {"indicators": {"adx": 0.21, "bb_width": -0.85}, "edge": 0.05}
+    metrics = {"indicators": {"adx": 0.21, "bb_width": -0.85}, "edge": 0.020}
     assert should_skip_chop_congestion(metrics, cfg) is True
     assert metrics["skip_reason"] == "chop_congestion"
 
@@ -307,3 +307,44 @@ def test_should_skip_two_bar_momentum_trap_pullback_with_trend_passes():
         "edge": 0.025,
     }
     assert should_skip_two_bar_momentum_trap(metrics, TradeDirection.CALL, cfg) is False
+
+
+def test_should_skip_exhaustion_trend_confluence_passes():
+    cfg = {"skip_exhaustion": True}
+    metrics = {
+        "indicators": {"rsi": 0.78, "bb_pct_b": 1.08},
+        "edge": 0.025,
+        "trend_direction": "CALL",
+    }
+    assert should_skip_exhaustion(metrics, TradeDirection.CALL, cfg) is False
+
+
+def test_should_skip_chop_congestion_trend_confluence_passes():
+    cfg = {"skip_chop_congestion": True}
+    metrics = {
+        "indicators": {"adx": 0.15, "bb_width": 0.02},
+        "edge": 0.025,
+        "trend_direction": "PUT",
+        "exec_direction": "PUT",
+    }
+    assert should_skip_chop_congestion(metrics, cfg) is False
+
+
+def test_should_skip_chop_congestion_edge_35_passes():
+    cfg = {"skip_chop_congestion": True}
+    metrics = {
+        "indicators": {"adx": 0.15, "bb_width": 0.02},
+        "edge": 0.038,
+    }
+    assert should_skip_chop_congestion(metrics, cfg) is False
+
+
+def test_should_skip_directional_momentum_discord_trend_confluence_passes():
+    cfg = {"skip_directional_momentum_discord": True}
+    metrics = {
+        "di_diff": -0.20,
+        "rsi": 0.40,
+        "edge": 0.025,
+        "trend_direction": "CALL",
+    }
+    assert should_skip_directional_momentum_discord(metrics, TradeDirection.CALL, cfg) is False

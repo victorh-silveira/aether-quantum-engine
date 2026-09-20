@@ -265,7 +265,7 @@ def should_skip_trend_discord(
             edge = float(raw_edge or 0.0)
         except (TypeError, ValueError):
             edge = 0.0
-        if edge < 0.060:
+        if edge < 0.035:
             _mark_skip(
                 metrics,
                 "trend_discord",
