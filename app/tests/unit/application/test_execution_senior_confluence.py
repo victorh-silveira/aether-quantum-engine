@@ -31,7 +31,7 @@ def test_evaluate_senior_decision_skips_if_already_flipped():
 
 
 def test_evaluate_senior_decision_respects_high_edge():
-    m = {"edge": 0.040, "trend_direction": "PUT", "closed_micro_candle_dir": "PUT", "closed_micro_candle_stamped": True}
+    m = {"edge": 0.040, "trend_direction": "CALL"}
     assert evaluate_senior_directional_decision(TradeDirection.CALL, m) == (TradeDirection.CALL, False, None)
 
 
@@ -270,3 +270,22 @@ def test_evaluate_senior_decision_tick_flow_branch():
 def test_evaluate_senior_decision_neutral_returns_original():
     m = {"edge": 0.01}
     assert evaluate_senior_directional_decision(TradeDirection.CALL, m) == (TradeDirection.CALL, False, None)
+
+
+def test_evaluate_senior_decision_anti_counter_trend_loss():
+    from src.application.services.direction_loss_tracker import record_direction_outcome
+
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    m = {"trend_direction": "CALL", "edge": 0.15}
+    res = evaluate_senior_directional_decision(TradeDirection.PUT, m, symbol="1HZ75V")
+    assert res == (TradeDirection.CALL, True, "anti_counter_trend_loss")
+
+
+def test_evaluate_senior_decision_loss_clf_macro_discord():
+    m = {"trend_direction": "CALL", "loss_clf_p_loss": 0.58, "edge": 0.15}
+    res = evaluate_senior_directional_decision(TradeDirection.PUT, m)
+    assert res == (TradeDirection.CALL, True, "loss_clf_macro_discord")
+
+    # Invalid p_loss format does not crash
+    m_bad = {"trend_direction": "CALL", "loss_clf_p_loss": "invalid", "edge": 0.15}
+    assert evaluate_senior_directional_decision(TradeDirection.PUT, m_bad) == (TradeDirection.PUT, False, None)

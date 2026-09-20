@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.direction_loss_tracker import get_direction_loss_tracker
 from src.application.services.execution_market_confluence import (
     _extract_edge_float,
     _extract_indicator_float,
@@ -142,8 +143,24 @@ def evaluate_senior_directional_decision(
         return exec_dir, False, None
     if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return exec_dir, False, None
+    trend = str(metrics.get("trend_direction") or "").strip().upper()
+    candle = _closed_candle_dir(metrics)
     edge = _extract_edge_float(metrics)
-    if edge >= 0.035:
+    if trend in _VALID and trend != exec_dir.name:
+        if symbol:
+            losses = get_direction_loss_tracker().consecutive_losses(str(symbol), exec_dir.name)
+            if losses >= 1:
+                return TradeDirection[trend], True, "anti_counter_trend_loss"
+        if candle == trend:
+            return TradeDirection[trend], True, "trend_candle_alignment"
+        p_loss = metrics.get("loss_clf_p_loss")
+        if p_loss is not None:
+            try:
+                if float(p_loss) >= 0.52:
+                    return TradeDirection[trend], True, "loss_clf_macro_discord"
+            except (TypeError, ValueError):
+                pass
+    elif edge >= 0.035:
         return exec_dir, False, None
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if ohlc is not None:
@@ -156,10 +173,6 @@ def evaluate_senior_directional_decision(
         climax = _check_climactic_confluence(exec_dir, ohlc, metrics)
         if climax is not None:
             return climax[0], True, climax[1]
-    trend = str(metrics.get("trend_direction") or "").strip().upper()
-    candle = _closed_candle_dir(metrics)
-    if trend in _VALID and candle == trend and trend != exec_dir.name:
-        return TradeDirection[trend], True, "trend_candle_alignment"
     momo = _check_momentum_confluence(exec_dir, metrics)
     if momo is not None:
         return momo[0], True, momo[1]

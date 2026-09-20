@@ -148,7 +148,10 @@ def should_anti_trend_lock_flip(
     if losses >= 2:
         return True
     if float(pending_loss_total) > 0.0 and losses == 1:
+        trend = str(trend_direction or "").strip().upper()
+        if trend in {TradeDirection.CALL.name, TradeDirection.PUT.name} and trend != direction.name:
+            return True
         if float(edge) >= 0.070 or (float(edge) >= 0.035 and float(prob) >= 0.58):
             return False
-        return not (bool(trend_direction) and str(trend_direction).upper() == direction.name and float(prob) >= 0.55)
+        return not (trend == direction.name and float(prob) >= 0.55)
     return False
