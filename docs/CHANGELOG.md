@@ -1,3 +1,9 @@
+## [2.67.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.1...v2.67.2) (2026-09-20)
+
+### Correcoes de Bug
+
+* **orchestrator:** calibrar sensibilidade de gates de price action e confluencia ([a1238c9](https://github.com/victorh-silveira/aether-quantum-engine/commit/a1238c9143399671c808ba8c84d6e2fed05b8603))
+
 ## [2.67.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.0...v2.67.1) (2026-09-20)
 
 ### Correcoes de Bug
