@@ -1,3 +1,9 @@
+## [2.68.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.3...v2.68.0) (2026-09-20)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar decisao direcional por confluencia e destravar chop ([05b0957](https://github.com/victorh-silveira/aether-quantum-engine/commit/05b09576fb93b7e6b3ecdc7f0f5abc53e5779e70))
+
 ## [2.67.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.2...v2.67.3) (2026-09-20)
 
 ### Correcoes de Bug
