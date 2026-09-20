@@ -1,3 +1,9 @@
+## [2.67.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.67.0...v2.67.1) (2026-09-20)
+
+### Correcoes de Bug
+
+* **orchestrator:** ajustar piso de borda minima e telemetria de skip ([08dc4e6](https://github.com/victorh-silveira/aether-quantum-engine/commit/08dc4e632a41895c5dec525255a5e14b2827bc30))
+
 ## [2.67.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.66.0...v2.67.0) (2026-09-20)
 
 ### Funcionalidades
