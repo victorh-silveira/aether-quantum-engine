@@ -1,3 +1,9 @@
+## [2.70.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.69.1...v2.70.0) (2026-09-21)
+
+### Funcionalidades
+
+* **engine:** converter salvaguardas tecnicas em decisoes direcionais senior ([3876165](https://github.com/victorh-silveira/aether-quantum-engine/commit/387616515d5d1f73a30f1be942b9be06aebf2d92))
+
 ## [2.69.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.69.0...v2.69.1) (2026-09-20)
 
 ### Correcoes de Bug
