@@ -1,3 +1,9 @@
+## [2.70.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.1...v2.70.2) (2026-09-21)
+
+### Correcoes de Bug
+
+* **engine:** refina confluencia e elimina losses de contratendencia ([e70963e](https://github.com/victorh-silveira/aether-quantum-engine/commit/e70963e2c1e65520a40fd56205bef40ffb1fbf36))
+
 ## [2.70.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.0...v2.70.1) (2026-09-21)
 
 ### Correcoes de Bug
