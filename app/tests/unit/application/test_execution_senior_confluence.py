@@ -452,34 +452,55 @@ def test_climactic_confluence_extremes():
         TradeDirection.PUT,
         "climactic_exhaustion",
     )
-    assert _check_climactic_confluence(TradeDirection.CALL, ohlc, {"bb_pct_b": 1.08}) == (
+    assert _check_climactic_confluence(TradeDirection.CALL, ohlc, {"bb_pct_b": 1.16}) == (
         TradeDirection.PUT,
         "climactic_exhaustion",
     )
-    assert _check_climactic_confluence(
-        TradeDirection.CALL, (100.0, 110.0, 99.0, 105.0), {"rsi": 0.76, "bb_pct_b": 1.01}
-    ) == (
-        TradeDirection.PUT,
-        "climactic_exhaustion",
-    )
+    # Strong trend disables bb_pct_b alone
+    assert _check_climactic_confluence(TradeDirection.CALL, ohlc, {"bb_pct_b": 1.16, "adx": 0.35}) is None
+
     ohlc_bear = (105.0, 110.0, 90.0, 95.0)
     assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"rsi": 0.18}) == (
         TradeDirection.CALL,
         "climactic_exhaustion",
     )
-    assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"bb_pct_b": -0.08}) == (
+    assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"bb_pct_b": -0.16}) == (
         TradeDirection.CALL,
         "climactic_exhaustion",
     )
-    assert _check_climactic_confluence(
-        TradeDirection.PUT, (105.0, 106.0, 95.0, 100.0), {"rsi": 0.24, "bb_pct_b": -0.01}
-    ) == (
-        TradeDirection.CALL,
-        "climactic_exhaustion",
-    )
+    # Strong trend disables bb_pct_b alone for PUT
+    assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"bb_pct_b": -0.16, "adx": 0.35}) is None
 
     # Chop middle range returns None
     assert _check_chop_confluence(TradeDirection.CALL, {"adx": 0.15, "rsi": 0.50, "bb_pct_b": 0.50}) is None
+
+
+def test_strong_trend_following_lock():
+    # In strong trend (ADX >= 0.30) aligned with trend, do not flip
+    m_strong_call = {
+        "trend_direction": "CALL",
+        "adx": 0.35,
+        "rsi": 0.72,
+        "closed_micro_candle_dir": "PUT",  # 1-bar pullback does NOT flip
+    }
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_strong_call) == (
+        TradeDirection.CALL,
+        False,
+        None,
+    )
+
+    # In strong trend with extreme climax (RSI >= 0.82), take mean reversion
+    m_climax_call = {
+        "trend_direction": "CALL",
+        "adx": 0.35,
+        "rsi": 0.85,
+        "closed_candle_ohlc": [100.0, 110.0, 90.0, 105.0],
+    }
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_climax_call) == (
+        TradeDirection.PUT,
+        True,
+        "climactic_exhaustion",
+    )
 
 
 def test_post_loss_candle_flow_and_trend_breakdown():
@@ -489,8 +510,8 @@ def test_post_loss_candle_flow_and_trend_breakdown():
     tracker.reset()
     tracker.record_outcome("SYM_TEST", "CALL", won=False)
 
-    # After CALL loss, closed candle is PUT -> align with candle
-    m_loss = {"closed_micro_candle_dir": "PUT", "trend_direction": "CALL"}
+    # After CALL loss, closed candle is PUT in weak trend (ADX < 0.30) -> align with candle
+    m_loss = {"closed_micro_candle_dir": "PUT", "trend_direction": "CALL", "adx": 0.20}
     res = evaluate_senior_directional_decision(TradeDirection.CALL, m_loss, symbol="SYM_TEST")
     assert res == (TradeDirection.PUT, True, "post_loss_candle_flow")
 

@@ -129,22 +129,23 @@ def _check_tick_flow_confluence(
 
 def _check_climactic_confluence(
     exec_dir: TradeDirection,
-    ohlc: tuple[float, float, float, float],
+    _ohlc: tuple[float, float, float, float],
     metrics: dict[str, Any],
 ) -> tuple[TradeDirection, str] | None:
     """Detecta exaustao climatica extrema e reverte para mean reversion."""
-    open_px, _, _, close_px = ohlc
     rsi = _extract_indicator_float(metrics, "rsi")
     bb_b = _extract_indicator_float(metrics, "bb_pct_b")
+    adx = _extract_indicator_float(metrics, "adx") or _extract_indicator_float(metrics, "adx_norm")
+    is_strong_trend = adx is not None and adx >= 0.30
     if exec_dir == TradeDirection.CALL:
-        if (rsi is not None and rsi >= 0.80) or (bb_b is not None and bb_b >= 1.05):
+        if rsi is not None and rsi >= 0.80:
             return TradeDirection.PUT, "climactic_exhaustion"
-        if close_px > open_px and (rsi is not None and rsi >= 0.75) and (bb_b is not None and bb_b >= 1.00):
+        if not is_strong_trend and bb_b is not None and bb_b >= 1.10:
             return TradeDirection.PUT, "climactic_exhaustion"
     elif exec_dir == TradeDirection.PUT:
-        if (rsi is not None and rsi <= 0.20) or (bb_b is not None and bb_b <= -0.05):
+        if rsi is not None and rsi <= 0.20:
             return TradeDirection.CALL, "climactic_exhaustion"
-        if close_px < open_px and (rsi is not None and rsi <= 0.25) and (bb_b is not None and bb_b <= 0.00):
+        if not is_strong_trend and bb_b is not None and bb_b <= -0.10:
             return TradeDirection.CALL, "climactic_exhaustion"
     return None
 
@@ -186,6 +187,13 @@ def evaluate_senior_directional_decision(
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = resolve_closed_candle_direction(metrics, orch=orch, symbol=symbol)
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
+    adx = _extract_indicator_float(metrics, "adx") or _extract_indicator_float(metrics, "adx_norm")
+    if trend in _VALID and trend == exec_dir.name and adx is not None and adx >= 0.30:
+        if ohlc is not None:
+            climax = _check_climactic_confluence(exec_dir, ohlc, metrics)
+            if climax is not None:
+                return climax[0], True, climax[1]
+        return exec_dir, False, None
     if symbol and candle in _VALID and candle != exec_dir.name:
         tracker = get_direction_loss_tracker()
         if tracker.consecutive_losses(str(symbol), exec_dir.name) >= 1:
