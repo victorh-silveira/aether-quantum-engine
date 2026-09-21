@@ -59,21 +59,35 @@ def _check_marubozu_confluence(
 def _check_wick_confluence(
     exec_dir: TradeDirection,
     ohlc: tuple[float, float, float, float],
+    metrics: dict[str, Any] | None = None,
 ) -> tuple[TradeDirection, str] | None:
-    """Detecta rejeicao severa por pavio em extremidade."""
+    """Detecta rejeicao severa por pavio em extremidade com filtro institucional de tendencia."""
     open_px, high_px, low_px, close_px = ohlc
     range_px = high_px - low_px
     if range_px <= 1e-12:
         return None
+    trend = str((metrics or {}).get("trend_direction") or "").strip().upper()
+    adx = _extract_indicator_float(metrics or {}, "adx") or _extract_indicator_float(metrics or {}, "adx_norm")
+    rsi = _extract_indicator_float(metrics or {}, "rsi")
     if exec_dir == TradeDirection.CALL:
         upper_wick = (high_px - max(open_px, close_px)) / range_px
-        if upper_wick >= 0.45:
-            return TradeDirection.PUT, "wick_rejection"
-    elif exec_dir == TradeDirection.PUT:
-        lower_wick = (min(open_px, close_px) - low_px) / range_px
-        if lower_wick >= 0.45:
-            return TradeDirection.CALL, "wick_rejection"
-    return None
+        if upper_wick < 0.45:
+            return None
+        if trend == TradeDirection.CALL.name and close_px > open_px:
+            if (adx is not None and adx >= 0.25) and (rsi is None or rsi < 0.70):
+                return None
+            if upper_wick < 0.55:
+                return None
+        return TradeDirection.PUT, "wick_rejection"
+    lower_wick = (min(open_px, close_px) - low_px) / range_px
+    if lower_wick < 0.45:
+        return None
+    if trend == TradeDirection.PUT.name and close_px < open_px:
+        if (adx is not None and adx >= 0.25) and (rsi is None or rsi > 0.30):
+            return None
+        if lower_wick < 0.55:
+            return None
+    return TradeDirection.CALL, "wick_rejection"
 
 
 def _check_momentum_confluence(
@@ -118,31 +132,20 @@ def _check_climactic_confluence(
     ohlc: tuple[float, float, float, float],
     metrics: dict[str, Any],
 ) -> tuple[TradeDirection, str] | None:
-    """Detecta exaustao climatica e reverte para mean reversion."""
-    open_px, high_px, low_px, close_px = ohlc
-    range_px = high_px - low_px
-    atr = (
-        _extract_indicator_float(metrics, "atr_norm")
-        or _extract_indicator_float(metrics, "atr_abs")
-        or _extract_indicator_float(metrics, "atr_raw")
-        or _extract_indicator_float(metrics, "atr")
-    )
-    if atr is None or atr <= 0.5 or range_px <= 1e-12 or (range_px / atr) <= 2.5:
-        return None
+    """Detecta exaustao climatica extrema e reverte para mean reversion."""
+    open_px, _, _, close_px = ohlc
     rsi = _extract_indicator_float(metrics, "rsi")
     bb_b = _extract_indicator_float(metrics, "bb_pct_b")
-    if (
-        exec_dir == TradeDirection.CALL
-        and close_px > open_px
-        and ((rsi is not None and rsi > 0.75) or (bb_b is not None and bb_b > 1.05))
-    ):
-        return TradeDirection.PUT, "climactic_exhaustion"
-    if (
-        exec_dir == TradeDirection.PUT
-        and close_px < open_px
-        and ((rsi is not None and rsi < 0.25) or (bb_b is not None and bb_b < -0.05))
-    ):
-        return TradeDirection.CALL, "climactic_exhaustion"
+    if exec_dir == TradeDirection.CALL:
+        if (rsi is not None and rsi >= 0.80) or (bb_b is not None and bb_b >= 1.05):
+            return TradeDirection.PUT, "climactic_exhaustion"
+        if close_px > open_px and (rsi is not None and rsi >= 0.75) and (bb_b is not None and bb_b >= 1.00):
+            return TradeDirection.PUT, "climactic_exhaustion"
+    elif exec_dir == TradeDirection.PUT:
+        if (rsi is not None and rsi <= 0.20) or (bb_b is not None and bb_b <= -0.05):
+            return TradeDirection.CALL, "climactic_exhaustion"
+        if close_px < open_px and (rsi is not None and rsi <= 0.25) and (bb_b is not None and bb_b <= 0.00):
+            return TradeDirection.CALL, "climactic_exhaustion"
     return None
 
 
@@ -183,16 +186,27 @@ def evaluate_senior_directional_decision(
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = resolve_closed_candle_direction(metrics, orch=orch, symbol=symbol)
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
+    if symbol and candle in _VALID and candle != exec_dir.name:
+        tracker = get_direction_loss_tracker()
+        if tracker.consecutive_losses(str(symbol), exec_dir.name) >= 1:
+            return TradeDirection[candle], True, "post_loss_candle_flow"
+    if ohlc is not None:
+        climax = _check_climactic_confluence(exec_dir, ohlc, metrics)
+        if climax is not None:
+            return climax[0], True, climax[1]
     if trend in _VALID and trend != exec_dir.name:
         if symbol:
-            losses = get_direction_loss_tracker().consecutive_losses(str(symbol), exec_dir.name)
-            if losses >= 1:
+            trend_losses = get_direction_loss_tracker().consecutive_losses(str(symbol), trend)
+            if trend_losses >= 1 and candle != trend:
+                return exec_dir, False, None
+            exec_losses = get_direction_loss_tracker().consecutive_losses(str(symbol), exec_dir.name)
+            if exec_losses >= 1:
                 return TradeDirection[trend], True, "anti_counter_trend_loss"
         if ohlc is not None:
             climax = _check_climactic_confluence(TradeDirection[trend], ohlc, metrics)
             if climax is not None and climax[0] == exec_dir:
                 return climax[0], True, climax[1]
-            wick = _check_wick_confluence(TradeDirection[trend], ohlc)
+            wick = _check_wick_confluence(TradeDirection[trend], ohlc, metrics)
             if wick is not None and wick[0] == exec_dir:
                 return wick[0], True, wick[1]
         if candle == trend:
@@ -209,12 +223,9 @@ def evaluate_senior_directional_decision(
         maru = _check_marubozu_confluence(exec_dir, ohlc)
         if maru is not None:
             return maru[0], True, maru[1]
-        wick = _check_wick_confluence(exec_dir, ohlc)
+        wick = _check_wick_confluence(exec_dir, ohlc, metrics)
         if wick is not None:
             return wick[0], True, wick[1]
-        climax = _check_climactic_confluence(exec_dir, ohlc, metrics)
-        if climax is not None:
-            return climax[0], True, climax[1]
     momo = _check_momentum_confluence(exec_dir, metrics)
     if momo is not None:
         return momo[0], True, momo[1]

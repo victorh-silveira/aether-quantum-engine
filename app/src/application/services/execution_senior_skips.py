@@ -63,6 +63,9 @@ def resolve_senior_skip_decision(
             return TradeDirection[trend], "trend_discord_alignment"
         return exec_dir, "trend_maintained"
     if skip_name == "two_bar_momentum_trap":
+        adx = _extract_indicator_float(metrics, "adx") or _extract_indicator_float(metrics, "adx_norm")
+        if trend in _VALID and adx is not None and adx >= 0.30:
+            return TradeDirection[trend], "trend_pullback_support"
         if prev_bar in _VALID:
             return TradeDirection[prev_bar], "two_bar_flow_alignment"
         return (TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL), "two_bar_inversion"
@@ -75,6 +78,12 @@ def resolve_senior_skip_decision(
             open_px, high_px, low_px, close_px = ohlc
             rng = high_px - low_px
             if rng > 1e-12:
+                adx = _extract_indicator_float(metrics, "adx") or _extract_indicator_float(metrics, "adx_norm")
+                if trend in _VALID and adx is not None and adx >= 0.25:
+                    if trend == TradeDirection.CALL.name and close_px > open_px:
+                        return TradeDirection.CALL, "wick_trend_continuation"
+                    if trend == TradeDirection.PUT.name and close_px < open_px:
+                        return TradeDirection.PUT, "wick_trend_continuation"
                 upper = (high_px - max(open_px, close_px)) / rng
                 lower = (min(open_px, close_px) - low_px) / rng
                 return (TradeDirection.PUT if upper >= lower else TradeDirection.CALL), "wick_rejection_reversal"

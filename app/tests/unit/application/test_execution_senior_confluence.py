@@ -393,3 +393,109 @@ def test_resolve_closed_candle_direction():
     # Flat or empty
     assert resolve_closed_candle_direction({"closed_candle_ohlc": [100.0, 100.0, 100.0, 100.0]}) is None
     assert resolve_closed_candle_direction({}) is None
+
+
+def test_wick_confluence_trend_filter():
+    from src.application.services.execution_senior_confluence import _check_wick_confluence
+
+    # Bullish candle in uptrend with ADX >= 0.25 does not trigger wick rejection
+    ohlc_bull = (100.0, 110.0, 99.0, 105.0)  # range 11, upper_wick = 5 / 11 = 0.454
+    m_trend_call = {"trend_direction": "CALL", "adx": 0.35, "rsi": 0.60}
+    assert _check_wick_confluence(TradeDirection.CALL, ohlc_bull, m_trend_call) is None
+
+    # Bullish candle with extreme upper wick and high RSI in low ADX triggers rejection
+    ohlc_reject_call = (100.0, 120.0, 99.0, 102.0)  # range 21, upper_wick = 18 / 21 = 0.857
+    m_exhaust_call = {"trend_direction": "CALL", "adx": 0.20, "rsi": 0.75}
+    assert _check_wick_confluence(TradeDirection.CALL, ohlc_reject_call, m_exhaust_call) == (
+        TradeDirection.PUT,
+        "wick_rejection",
+    )
+
+    # Bullish candle with upper wick between 0.45 and 0.55 returns None
+    ohlc_mid_call = (100.0, 110.0, 99.0, 105.0)  # upper_wick = 0.454 < 0.55
+    assert (
+        _check_wick_confluence(
+            TradeDirection.CALL, ohlc_mid_call, {"trend_direction": "CALL", "adx": 0.20, "rsi": 0.75}
+        )
+        is None
+    )
+
+    # Bearish candle in downtrend with ADX >= 0.25 does not trigger wick rejection
+    ohlc_bear = (110.0, 111.0, 100.0, 105.0)  # range 11, lower_wick = 5 / 11 = 0.454
+    m_trend_put = {"trend_direction": "PUT", "adx": 0.35, "rsi": 0.40}
+    assert _check_wick_confluence(TradeDirection.PUT, ohlc_bear, m_trend_put) is None
+
+    # Bearish candle with extreme lower wick and low RSI in low ADX triggers rejection
+    ohlc_reject_put = (110.0, 111.0, 90.0, 108.0)  # range 21, lower_wick = 18 / 21 = 0.857
+    m_exhaust_put = {"trend_direction": "PUT", "adx": 0.20, "rsi": 0.25}
+    assert _check_wick_confluence(TradeDirection.PUT, ohlc_reject_put, m_exhaust_put) == (
+        TradeDirection.CALL,
+        "wick_rejection",
+    )
+
+    # Bearish candle with lower wick between 0.45 and 0.55 returns None
+    ohlc_mid_put = (110.0, 111.0, 100.0, 105.0)  # lower_wick = 0.454 < 0.55
+    assert (
+        _check_wick_confluence(TradeDirection.PUT, ohlc_mid_put, {"trend_direction": "PUT", "adx": 0.20, "rsi": 0.25})
+        is None
+    )
+
+
+def test_climactic_confluence_extremes():
+    from src.application.services.execution_senior_confluence import (
+        _check_chop_confluence,
+        _check_climactic_confluence,
+    )
+
+    ohlc = (100.0, 110.0, 90.0, 105.0)
+    assert _check_climactic_confluence(TradeDirection.CALL, ohlc, {"rsi": 0.82}) == (
+        TradeDirection.PUT,
+        "climactic_exhaustion",
+    )
+    assert _check_climactic_confluence(TradeDirection.CALL, ohlc, {"bb_pct_b": 1.08}) == (
+        TradeDirection.PUT,
+        "climactic_exhaustion",
+    )
+    assert _check_climactic_confluence(
+        TradeDirection.CALL, (100.0, 110.0, 99.0, 105.0), {"rsi": 0.76, "bb_pct_b": 1.01}
+    ) == (
+        TradeDirection.PUT,
+        "climactic_exhaustion",
+    )
+    ohlc_bear = (105.0, 110.0, 90.0, 95.0)
+    assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"rsi": 0.18}) == (
+        TradeDirection.CALL,
+        "climactic_exhaustion",
+    )
+    assert _check_climactic_confluence(TradeDirection.PUT, ohlc_bear, {"bb_pct_b": -0.08}) == (
+        TradeDirection.CALL,
+        "climactic_exhaustion",
+    )
+    assert _check_climactic_confluence(
+        TradeDirection.PUT, (105.0, 106.0, 95.0, 100.0), {"rsi": 0.24, "bb_pct_b": -0.01}
+    ) == (
+        TradeDirection.CALL,
+        "climactic_exhaustion",
+    )
+
+    # Chop middle range returns None
+    assert _check_chop_confluence(TradeDirection.CALL, {"adx": 0.15, "rsi": 0.50, "bb_pct_b": 0.50}) is None
+
+
+def test_post_loss_candle_flow_and_trend_breakdown():
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("SYM_TEST", "CALL", won=False)
+
+    # After CALL loss, closed candle is PUT -> align with candle
+    m_loss = {"closed_micro_candle_dir": "PUT", "trend_direction": "CALL"}
+    res = evaluate_senior_directional_decision(TradeDirection.CALL, m_loss, symbol="SYM_TEST")
+    assert res == (TradeDirection.PUT, True, "post_loss_candle_flow")
+
+    # In a CALL trend where CALL has recent loss and candle is PUT -> do NOT force CALL
+    m_breakdown = {"trend_direction": "CALL", "closed_micro_candle_dir": "PUT"}
+    res_breakdown = evaluate_senior_directional_decision(TradeDirection.PUT, m_breakdown, symbol="SYM_TEST")
+    assert res_breakdown == (TradeDirection.PUT, False, None)
+    tracker.reset()

@@ -53,6 +53,13 @@ def test_resolve_senior_skip_trend_discord():
 
 
 def test_resolve_senior_skip_two_bar_momentum_trap():
+    res_support = resolve_senior_skip_decision(
+        TradeDirection.CALL,
+        {"trend_direction": "CALL", "adx": 0.35, "scale_micro_prev_bar_dir": "PUT"},
+        "two_bar_momentum_trap",
+    )
+    assert res_support == (TradeDirection.CALL, "trend_pullback_support")
+
     res_bar = resolve_senior_skip_decision(
         TradeDirection.CALL, {"scale_micro_prev_bar_dir": "PUT"}, "two_bar_momentum_trap"
     )
@@ -79,6 +86,26 @@ def test_resolve_senior_skip_wick_rejection():
     assert resolve_senior_skip_decision(TradeDirection.CALL, m_up, "wick_rejection") == (
         TradeDirection.PUT,
         "wick_rejection_reversal",
+    )
+
+    # Trend continuation when strong ADX and candle aligns with trend
+    m_wick_trend_call = {
+        "closed_candle_ohlc": [100.0, 120.0, 99.0, 105.0],
+        "trend_direction": "CALL",
+        "adx": 0.35,
+    }
+    assert resolve_senior_skip_decision(TradeDirection.CALL, m_wick_trend_call, "wick_rejection") == (
+        TradeDirection.CALL,
+        "wick_trend_continuation",
+    )
+    m_wick_trend_put = {
+        "closed_candle_ohlc": [110.0, 111.0, 90.0, 105.0],
+        "trend_direction": "PUT",
+        "adx": 0.35,
+    }
+    assert resolve_senior_skip_decision(TradeDirection.PUT, m_wick_trend_put, "wick_rejection") == (
+        TradeDirection.PUT,
+        "wick_trend_continuation",
     )
 
     # Lower wick larger -> CALL
