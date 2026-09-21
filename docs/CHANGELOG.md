@@ -1,3 +1,9 @@
+## [2.70.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.2...v2.70.3) (2026-09-21)
+
+### Correcoes de Bug
+
+* **engine:** protege fluxo em tendencia forte e elimina reversao indevida ([e7b77fe](https://github.com/victorh-silveira/aether-quantum-engine/commit/e7b77fe62d2c6d7449a1f07f8ede5e0ddca779d3))
+
 ## [2.70.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.1...v2.70.2) (2026-09-21)
 
 ### Correcoes de Bug
