@@ -10,11 +10,30 @@ from src.application.services.execution_market_confluence import (
     _extract_indicator_float,
 )
 from src.application.services.execution_price_action import _resolve_candle_ohlc
-from src.application.services.execution_signal_skips import _closed_candle_dir
 from src.domain.models.trade import TradeDirection
 
 
 _VALID = {TradeDirection.CALL.name, TradeDirection.PUT.name}
+
+
+def resolve_closed_candle_direction(
+    metrics: dict[str, Any],
+    *,
+    orch: Any | None = None,
+    symbol: str | None = None,
+) -> str | None:
+    """Extrai a direcao da vela M5 fechada com fallback robusto para OHLC."""
+    direct = str(metrics.get("closed_micro_candle_dir") or metrics.get("scale_micro_bar_dir") or "").strip().upper()
+    if direct in _VALID:
+        return direct
+    ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
+    if ohlc is not None:
+        open_px, _, _, close_px = ohlc
+        if close_px > open_px:
+            return TradeDirection.CALL.name
+        if close_px < open_px:
+            return TradeDirection.PUT.name
+    return None
 
 
 def _check_marubozu_confluence(
@@ -144,7 +163,7 @@ def evaluate_senior_directional_decision(
     if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return exec_dir, False, None
     trend = str(metrics.get("trend_direction") or "").strip().upper()
-    candle = _closed_candle_dir(metrics)
+    candle = resolve_closed_candle_direction(metrics, orch=orch, symbol=symbol)
     edge = _extract_edge_float(metrics)
     if trend in _VALID and trend != exec_dir.name:
         if symbol:
@@ -156,7 +175,7 @@ def evaluate_senior_directional_decision(
         p_loss = metrics.get("loss_clf_p_loss")
         if p_loss is not None:
             try:
-                if float(p_loss) >= 0.52:
+                if float(p_loss) >= 0.50:
                     return TradeDirection[trend], True, "loss_clf_macro_discord"
             except (TypeError, ValueError):
                 pass

@@ -289,3 +289,19 @@ def test_evaluate_senior_decision_loss_clf_macro_discord():
     # Invalid p_loss format does not crash
     m_bad = {"trend_direction": "CALL", "loss_clf_p_loss": "invalid", "edge": 0.15}
     assert evaluate_senior_directional_decision(TradeDirection.PUT, m_bad) == (TradeDirection.PUT, False, None)
+
+
+def test_resolve_closed_candle_direction():
+    from src.application.services.execution_senior_confluence import resolve_closed_candle_direction
+
+    # Direct from closed_micro_candle_dir
+    assert resolve_closed_candle_direction({"closed_micro_candle_dir": "CALL"}) == "CALL"
+    assert resolve_closed_candle_direction({"scale_micro_bar_dir": "PUT"}) == "PUT"
+
+    # From OHLC
+    assert resolve_closed_candle_direction({"closed_candle_ohlc": [100.0, 110.0, 95.0, 105.0]}) == "CALL"
+    assert resolve_closed_candle_direction({"closed_candle_ohlc": [105.0, 110.0, 95.0, 100.0]}) == "PUT"
+
+    # Flat or empty
+    assert resolve_closed_candle_direction({"closed_candle_ohlc": [100.0, 100.0, 100.0, 100.0]}) is None
+    assert resolve_closed_candle_direction({}) is None

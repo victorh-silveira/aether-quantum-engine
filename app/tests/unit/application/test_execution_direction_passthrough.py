@@ -264,7 +264,7 @@ def test_resolve_execution_direction_skips_on_exhaustion():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_exhaustion": True, "skip_neg_edge": False},
+        exec_cfg={"skip_exhaustion": True, "skip_neg_edge": False, "senior_confluence_flip": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -287,12 +287,40 @@ def test_resolve_execution_direction_skips_on_chop_congestion():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False},
+        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False, "senior_confluence_flip": False},
         symbol="1HZ75V",
         orch=orch,
     )
     assert res is None
     assert entry["metrics"]["skip_reason"] == "chop_congestion"
+
+
+def test_resolve_execution_direction_converts_chop_to_senior_decision():
+    entry = {
+        "metrics": {
+            "calibrated_prob": 0.55,
+            "deploy_ok": True,
+            "trend_direction": "CALL",
+            "indicators": {"adx": 0.12, "bb_width": 0.025},
+            "cal_side_edge": 0.02,
+        }
+    }
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch.risk_manager = None
+    orch._log_dedupe = {}
+    res = resolve_execution_direction(
+        entry,
+        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False, "senior_confluence_flip": True},
+        symbol="1HZ75V",
+        orch=orch,
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics.get("senior_skip_converted") == "chop_congestion"
+    assert metrics.get("senior_confluence_resolved") is True
+    assert metrics.get("cal_side_edge", 0.0) > 0.0
 
 
 def test_resolve_execution_direction_skips_on_two_bar_counter_trend():
