@@ -14,14 +14,39 @@ from src.application.services.orchestrator.post_settlement_loss_cooldown import 
 
 def test_post_loss_cooldown_behavior():
     assert post_loss_cooldown_delay_seconds(0) == 0.0
-    assert post_loss_cooldown_delay_seconds(1) == 300.0
-    assert post_loss_cooldown_delay_seconds(2) == 300.0
-    assert post_loss_cooldown_delay_seconds(3) == 600.0
-    assert post_loss_cooldown_delay_seconds(4) == 900.0
-    assert post_loss_cooldown_delay_seconds(5) == 900.0
-    assert post_loss_cooldown_active("LOSS", 1) is True
-    assert post_loss_cooldown_active("LOSS", 2) is True
+    assert post_loss_cooldown_delay_seconds(1) == 0.0
+    assert post_loss_cooldown_delay_seconds(2) == 0.0
+    assert post_loss_cooldown_delay_seconds(3) == 0.0
+    assert post_loss_cooldown_delay_seconds(4) == 0.0
+    assert post_loss_cooldown_delay_seconds(5) == 0.0
+    assert post_loss_cooldown_active("LOSS", 1) is False
+    assert post_loss_cooldown_active("LOSS", 2) is False
     assert post_loss_cooldown_active("WIN", 2) is False
+    custom_orch = type(
+        "MockOrch",
+        (),
+        {
+            "config": {
+                "orchestrator": {
+                    "execution": {
+                        "post_loss_cooldown": {
+                            "lin_min": 1,
+                            "delay_seconds_lin1": 300.0,
+                            "delay_seconds_lin2": 300.0,
+                            "delay_seconds_lin3": 600.0,
+                            "delay_seconds_lin4": 900.0,
+                        }
+                    }
+                }
+            }
+        },
+    )()
+    assert post_loss_cooldown_delay_seconds(1, custom_orch) == 300.0
+    assert post_loss_cooldown_delay_seconds(2, custom_orch) == 300.0
+    assert post_loss_cooldown_delay_seconds(3, custom_orch) == 600.0
+    assert post_loss_cooldown_delay_seconds(4, custom_orch) == 900.0
+    assert post_loss_cooldown_active("LOSS", 1, custom_orch) is True
+    assert post_loss_cooldown_active("WIN", 1, custom_orch) is False
 
 
 @pytest.mark.asyncio
@@ -45,6 +70,8 @@ def test_orchestrator_cooldown_helpers_active(orch_ready):
     assert orchestrator_cooldown_remaining(orch) > 0.0
     assert orchestrator_cooldown_until(orch) > 0.0
     log_trading_cycle_cooldown_skip(orch)
+    orch._cooldown_until = 0.0
+    assert orchestrator_cooldown_active(orch) is False
 
 
 def test_post_loss_cooldown_override_and_max_until(orch_ready):
@@ -73,9 +100,9 @@ def test_post_loss_cooldown_override_and_max_until(orch_ready):
     assert schedule_post_loss_cooldown(orch) == 300.0
     assert orch._cooldown_until >= 9_999_999_999.0
     orch.config = None
-    assert post_loss_cooldown_delay_seconds(1, orch) == 300.0
+    assert post_loss_cooldown_delay_seconds(1, orch) == 0.0
     orch.config = {"orchestrator": "x"}
-    assert post_loss_cooldown_delay_seconds(3, orch) == 600.0
+    assert post_loss_cooldown_delay_seconds(3, orch) == 0.0
     from src.application.services.execution_runtime_config import resolve_post_loss_cooldown_config
 
     with pytest.raises(ValueError, match="post_loss_cooldown"):

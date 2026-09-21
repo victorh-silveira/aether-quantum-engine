@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.direction_loss_tracker import get_direction_loss_tracker
-from src.application.services.execution_market_confluence import (
-    _extract_edge_float,
-    _extract_indicator_float,
-)
+from src.application.services.execution_market_confluence import _extract_indicator_float
 from src.application.services.execution_price_action import _resolve_candle_ohlc
 from src.domain.models.trade import TradeDirection
 
@@ -149,6 +146,24 @@ def _check_climactic_confluence(
     return None
 
 
+def _check_chop_confluence(
+    exec_dir: TradeDirection,
+    metrics: dict[str, Any],
+) -> tuple[TradeDirection, str] | None:
+    """Detecta canal lateral / chop e reverte operacao em suporte/resistencia."""
+    adx = _extract_indicator_float(metrics, "adx") or _extract_indicator_float(metrics, "adx_norm")
+    is_chop = bool(metrics.get("micro_chop_congestion")) or (adx is not None and adx <= 0.20)
+    if not is_chop:
+        return None
+    rsi = _extract_indicator_float(metrics, "rsi")
+    bb_b = _extract_indicator_float(metrics, "bb_pct_b")
+    if exec_dir == TradeDirection.PUT and ((rsi is not None and rsi <= 0.45) or (bb_b is not None and bb_b <= 0.40)):
+        return TradeDirection.CALL, "chop_support_bounce"
+    if exec_dir == TradeDirection.CALL and ((rsi is not None and rsi >= 0.55) or (bb_b is not None and bb_b >= 0.60)):
+        return TradeDirection.PUT, "chop_resistance_reversal"
+    return None
+
+
 def evaluate_senior_directional_decision(
     exec_dir: TradeDirection,
     metrics: dict[str, Any],
@@ -162,14 +177,24 @@ def evaluate_senior_directional_decision(
         return exec_dir, False, None
     if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return exec_dir, False, None
+    chop = _check_chop_confluence(exec_dir, metrics)
+    if chop is not None:
+        return chop[0], True, chop[1]
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = resolve_closed_candle_direction(metrics, orch=orch, symbol=symbol)
-    edge = _extract_edge_float(metrics)
+    ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if trend in _VALID and trend != exec_dir.name:
         if symbol:
             losses = get_direction_loss_tracker().consecutive_losses(str(symbol), exec_dir.name)
             if losses >= 1:
                 return TradeDirection[trend], True, "anti_counter_trend_loss"
+        if ohlc is not None:
+            climax = _check_climactic_confluence(TradeDirection[trend], ohlc, metrics)
+            if climax is not None and climax[0] == exec_dir:
+                return climax[0], True, climax[1]
+            wick = _check_wick_confluence(TradeDirection[trend], ohlc)
+            if wick is not None and wick[0] == exec_dir:
+                return wick[0], True, wick[1]
         if candle == trend:
             return TradeDirection[trend], True, "trend_candle_alignment"
         p_loss = metrics.get("loss_clf_p_loss")
@@ -179,9 +204,7 @@ def evaluate_senior_directional_decision(
                     return TradeDirection[trend], True, "loss_clf_macro_discord"
             except (TypeError, ValueError):
                 pass
-    elif edge >= 0.035:
-        return exec_dir, False, None
-    ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
+        return TradeDirection[trend], True, "trend_pullback_resumption"
     if ohlc is not None:
         maru = _check_marubozu_confluence(exec_dir, ohlc)
         if maru is not None:

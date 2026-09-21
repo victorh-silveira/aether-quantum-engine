@@ -32,24 +32,28 @@ def _cooldown_cfg(orch: Any | None = None) -> dict[str, Any]:
 
 
 def post_loss_cooldown_delay_seconds(linear_losses: int, orch: Any | None = None) -> float:
-    """Pausa tecnica por LIN: L1/L2=300s, L3=600s, L4+=900s (SSOT)."""
+    """Pausa tecnica por LIN (SSOT). Desativado quando delays=0 ou lin_min=999."""
     cfg = _cooldown_cfg(orch)
     lin = int(linear_losses or 0)
     if lin < int(cfg["lin_min"]):
         return 0.0
     if lin <= 1:
-        return float(cfg["delay_seconds_lin1"])
+        return max(0.0, float(cfg["delay_seconds_lin1"]))
     if lin == 2:
-        return float(cfg["delay_seconds_lin2"])
+        return max(0.0, float(cfg["delay_seconds_lin2"]))
     if lin == 3:
-        return float(cfg["delay_seconds_lin3"])
-    return float(cfg["delay_seconds_lin4"])
+        return max(0.0, float(cfg["delay_seconds_lin3"]))
+    return max(0.0, float(cfg["delay_seconds_lin4"]))
 
 
 def post_loss_cooldown_active(last_outcome: str, linear_losses: int, orch: Any | None = None) -> bool:
-    """True se ultimo trade foi LOSS e linear >= lin_min do SSOT."""
+    """True se ultimo trade foi LOSS e linear >= lin_min do SSOT com delay positivo."""
+    if str(last_outcome or "").upper() != "LOSS":
+        return False
     cfg = _cooldown_cfg(orch)
-    return str(last_outcome or "").upper() == "LOSS" and int(linear_losses or 0) >= int(cfg["lin_min"])
+    if int(linear_losses or 0) < int(cfg["lin_min"]):
+        return False
+    return post_loss_cooldown_delay_seconds(linear_losses, orch) > 0.0
 
 
 def orchestrator_cooldown_until(orch: Any) -> float:
@@ -110,6 +114,8 @@ def log_trading_cycle_cooldown_skip(orch: Any) -> None:
 
 def post_loss_cooldown_blocks_trading_cycle(orch: Any) -> bool:
     """True se o motor estiver em resfriamento pos-loss."""
+    if post_loss_cooldown_delay_seconds(1, orch) <= 0.0:
+        return False
     active = orchestrator_cooldown_active(orch)
     if active:
         log_trading_cycle_cooldown_skip(orch)

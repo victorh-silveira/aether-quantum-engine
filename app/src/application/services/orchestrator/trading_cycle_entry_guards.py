@@ -113,6 +113,11 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
 
 def _session_pause_blocks_cycle(orch: Any) -> bool:
     """True quando pausa de sessao pos-streak bloqueia o ciclo (SKIP tecnico)."""
+    cfg = getattr(orch, "config", None)
+    if isinstance(cfg, dict):
+        dl_cfg = cfg.get("deep_learning")
+        if isinstance(dl_cfg, dict) and int(dl_cfg.get("session_pause_cycles", 0) or 0) <= 0:
+            return False
     symbols = getattr(orch, "symbols", None) or []
     if symbols:
         paused = any(is_symbol_session_paused(orch, str(sym)) for sym in symbols)

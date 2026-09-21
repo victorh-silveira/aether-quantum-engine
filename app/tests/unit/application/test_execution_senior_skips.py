@@ -16,17 +16,17 @@ def test_resolve_senior_skip_chop_congestion():
 
     # Oscillator rebound at support / resistance
     res_rsi_low = resolve_senior_skip_decision(TradeDirection.PUT, {"rsi": 0.35}, "chop_congestion")
-    assert res_rsi_low == (TradeDirection.CALL, "chop_oscillator_bound")
+    assert res_rsi_low == (TradeDirection.CALL, "chop_support_bounce")
 
     res_rsi_high = resolve_senior_skip_decision(TradeDirection.CALL, {"rsi": 0.65}, "chop_congestion")
-    assert res_rsi_high == (TradeDirection.PUT, "chop_oscillator_bound")
+    assert res_rsi_high == (TradeDirection.PUT, "chop_resistance_reversal")
 
     # Bollinger %B bounds
     res_bb_low = resolve_senior_skip_decision(TradeDirection.PUT, {"bb_pct_b": 0.20}, "chop_congestion")
-    assert res_bb_low == (TradeDirection.CALL, "chop_bb_bound")
+    assert res_bb_low == (TradeDirection.CALL, "chop_support_bounce")
 
     res_bb_high = resolve_senior_skip_decision(TradeDirection.CALL, {"bb_pct_b": 0.80}, "chop_congestion")
-    assert res_bb_high == (TradeDirection.PUT, "chop_bb_bound")
+    assert res_bb_high == (TradeDirection.PUT, "chop_resistance_reversal")
 
     # Fallback when no indicators available
     res_none = resolve_senior_skip_decision(TradeDirection.CALL, {}, "chop_congestion")

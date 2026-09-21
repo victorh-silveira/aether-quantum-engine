@@ -203,9 +203,9 @@
       "wr_raw_inconsistent_gap": 0.12
     },
     "lookback": 30,
-    "session_max_losses_in_window": 3,
-    "session_window_trades": 5,
-    "session_pause_cycles": 2,
+    "session_max_losses_in_window": 999,
+    "session_window_trades": 999,
+    "session_pause_cycles": 0,
     "lr_scheduler": "reduce_on_plateau",
     "lstm": {
       "dropout": 0.2,
@@ -452,7 +452,7 @@
       "smart_waive_neg_edge": true,
       "skip_trend_discord": true,
       "skip_exhaustion": true,
-      "skip_chop_congestion": true,
+      "skip_chop_congestion": false,
       "skip_directional_momentum_discord": true,
       "skip_two_bar_counter_trend": true,
       "skip_wick_rejection": true,
@@ -460,6 +460,7 @@
       "skip_opposing_marubozu": true,
       "skip_adverse_tick_flow": true,
       "skip_doji": false,
+      "senior_confluence_flip": true,
       "fractional_lot_stagger_base_us": 100.0,
       "fractional_lot_stagger_jitter_us": 50.0,
       "include_anchor_trades": true,
@@ -501,11 +502,11 @@
       },
       "mandatory_trade_each_cycle": false,
       "post_loss_cooldown": {
-        "lin_min": 1,
-        "delay_seconds_lin1": 300,
-        "delay_seconds_lin2": 300,
-        "delay_seconds_lin3": 600,
-        "delay_seconds_lin4": 900
+        "lin_min": 999,
+        "delay_seconds_lin1": 0,
+        "delay_seconds_lin2": 0,
+        "delay_seconds_lin3": 0,
+        "delay_seconds_lin4": 0
       },
       "market_rank": {
         "composite": {

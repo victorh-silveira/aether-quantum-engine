@@ -137,6 +137,7 @@ async def test_acquire_trading_cycle_lock_rejects_when_stop_win_reached(orch_rea
 
 def test_trading_cycle_entry_blocked_by_session_pause(orch_ready):
     orch = orch_ready
+    orch.config["deep_learning"]["session_pause_cycles"] = 2
     orch._cooldown_until = 0.0
     orch.logger = MagicMock()
     paused_sym = str(orch.symbols[0]) if getattr(orch, "symbols", None) else "R_10"
@@ -154,6 +155,7 @@ def test_trading_cycle_entry_blocked_by_session_pause(orch_ready):
 
 def test_trading_cycle_entry_releases_expired_session_pause(orch_ready):
     orch = orch_ready
+    orch.config["deep_learning"]["session_pause_cycles"] = 2
     orch._cooldown_until = 0.0
     paused_sym = str(orch.symbols[0]) if getattr(orch, "symbols", None) else "R_10"
     orch._dl_session_pause = {paused_sym: 2}

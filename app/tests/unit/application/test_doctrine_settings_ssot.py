@@ -164,24 +164,24 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(ssp["explore_stake_scale_floor"]) == pytest.approx(0.40)
     assert int(ssp["evidence_n_min"]) == 12
     cool = settings["orchestrator"]["execution"]["post_loss_cooldown"]
-    assert int(cool["lin_min"]) == 1
-    assert float(cool["delay_seconds_lin1"]) == pytest.approx(300.0)
-    assert float(cool["delay_seconds_lin2"]) == pytest.approx(300.0)
-    assert float(cool["delay_seconds_lin3"]) == pytest.approx(600.0)
-    assert float(cool["delay_seconds_lin4"]) == pytest.approx(900.0)
+    assert int(cool["lin_min"]) == 999
+    assert float(cool["delay_seconds_lin1"]) == pytest.approx(0.0)
+    assert float(cool["delay_seconds_lin2"]) == pytest.approx(0.0)
+    assert float(cool["delay_seconds_lin3"]) == pytest.approx(0.0)
+    assert float(cool["delay_seconds_lin4"]) == pytest.approx(0.0)
     from src.application.services.deep_learning.dl_outcomes import resolve_session_pause_config
     from src.application.services.deep_learning.dl_params import parse_dl_params
     from src.application.services.execution_runtime_config import resolve_post_loss_cooldown_config
 
     ladder = resolve_post_loss_cooldown_config(None)
-    assert int(ladder["lin_min"]) == 1
-    assert float(ladder["delay_seconds_lin3"]) == pytest.approx(600.0)
+    assert int(ladder["lin_min"]) == 999
+    assert float(ladder["delay_seconds_lin3"]) == pytest.approx(0.0)
     pause = resolve_session_pause_config(None)
-    assert int(pause["session_max_losses_in_window"]) == 3
-    assert int(pause["session_window_trades"]) == 5
-    assert int(pause["session_pause_cycles"]) == 2
-    assert int(dl["session_max_losses_in_window"]) == 3
-    assert int(dl["session_window_trades"]) == 5
-    assert int(dl["session_pause_cycles"]) == 2
+    assert int(pause["session_max_losses_in_window"]) == 999
+    assert int(pause["session_window_trades"]) == 999
+    assert int(pause["session_pause_cycles"]) == 0
+    assert int(dl["session_max_losses_in_window"]) == 999
+    assert int(dl["session_window_trades"]) == 999
+    assert int(dl["session_pause_cycles"]) == 0
     params = parse_dl_params(dl, data, settings["risk_management"]["params"])
     assert int(params["inference_history_bars"]) >= 288 + 30 + 16

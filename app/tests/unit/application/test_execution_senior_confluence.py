@@ -287,8 +287,96 @@ def test_evaluate_senior_decision_loss_clf_macro_discord():
     assert res == (TradeDirection.CALL, True, "loss_clf_macro_discord")
 
     # Invalid p_loss format does not crash
-    m_bad = {"trend_direction": "CALL", "loss_clf_p_loss": "invalid", "edge": 0.15}
+    m_bad = {"trend_direction": "PUT", "loss_clf_p_loss": "invalid", "edge": 0.15}
     assert evaluate_senior_directional_decision(TradeDirection.PUT, m_bad) == (TradeDirection.PUT, False, None)
+
+
+def test_evaluate_senior_decision_chop_confluence():
+    from src.application.services.execution_senior_confluence import _check_chop_confluence
+
+    # Not chop
+    assert _check_chop_confluence(TradeDirection.PUT, {"adx": 0.35}) is None
+
+    # Chop bounce at support (PUT inverted to CALL)
+    m_chop_support = {"adx": 0.15, "rsi": 0.38}
+    assert evaluate_senior_directional_decision(TradeDirection.PUT, m_chop_support) == (
+        TradeDirection.CALL,
+        True,
+        "chop_support_bounce",
+    )
+
+    # Chop bounce via BB %b
+    m_chop_bb = {"micro_chop_congestion": True, "bb_pct_b": 0.30}
+    assert evaluate_senior_directional_decision(TradeDirection.PUT, m_chop_bb) == (
+        TradeDirection.CALL,
+        True,
+        "chop_support_bounce",
+    )
+
+    # Chop reversal at resistance (CALL inverted to PUT)
+    m_chop_res = {"adx": 0.15, "rsi": 0.62}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_chop_res) == (
+        TradeDirection.PUT,
+        True,
+        "chop_resistance_reversal",
+    )
+
+    m_chop_res_bb = {"micro_chop_congestion": True, "bb_pct_b": 0.70}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_chop_res_bb) == (
+        TradeDirection.PUT,
+        True,
+        "chop_resistance_reversal",
+    )
+
+
+def test_evaluate_senior_decision_trend_pullback_resumption():
+    # Counter-trend CALL during PUT trend without reversal pattern -> trend_pullback_resumption
+    m = {"trend_direction": "PUT", "edge": 0.040}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m) == (
+        TradeDirection.PUT,
+        True,
+        "trend_pullback_resumption",
+    )
+
+    # Counter-trend with invalid p_loss falls through to trend_pullback_resumption
+    m_bad_ploss = {"trend_direction": "PUT", "loss_clf_p_loss": "bad_type"}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_bad_ploss) == (
+        TradeDirection.PUT,
+        True,
+        "trend_pullback_resumption",
+    )
+
+    # Counter-trend with neutral ohlc (no climax, no wick) returns trend_pullback_resumption
+    ohlc_neutral = [100.0, 102.0, 99.0, 101.0]
+    m_neutral_ohlc = {"trend_direction": "PUT", "closed_candle_ohlc": ohlc_neutral}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_neutral_ohlc) == (
+        TradeDirection.PUT,
+        True,
+        "trend_pullback_resumption",
+    )
+
+    # Counter-trend with genuine wick rejection passes to wick_rejection
+    ohlc_wick = [117.0, 120.0, 99.0, 118.0]  # close > open (CALL), lower wick >= 0.45
+    m_wick = {"trend_direction": "PUT", "closed_candle_ohlc": ohlc_wick}
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_wick) == (
+        TradeDirection.CALL,
+        True,
+        "wick_rejection",
+    )
+
+    # Genuine climactic exhaustion at extreme oversold allows mean-reversion
+    ohlc_climax = [140.0, 150.0, 95.0, 105.0]
+    m_climax = {
+        "trend_direction": "PUT",
+        "closed_candle_ohlc": ohlc_climax,
+        "atr_norm": 10.0,
+        "rsi": 0.15,
+    }
+    assert evaluate_senior_directional_decision(TradeDirection.CALL, m_climax) == (
+        TradeDirection.CALL,
+        True,
+        "climactic_exhaustion",
+    )
 
 
 def test_resolve_closed_candle_direction():

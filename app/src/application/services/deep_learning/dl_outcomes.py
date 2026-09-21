@@ -88,6 +88,11 @@ def tick_dl_session_pauses(orch) -> None:
 
 def is_symbol_session_paused(orch, symbol: str) -> bool:
     """Indica pausa tecnica apos sequencia de losses no simbolo."""
+    cfg = getattr(orch, "config", None)
+    if isinstance(cfg, dict):
+        dl_cfg = cfg.get("deep_learning")
+        if isinstance(dl_cfg, dict) and int(dl_cfg.get("session_pause_cycles", 0) or 0) <= 0:
+            return False
     sym = str(symbol)
     until_map = getattr(orch, "_dl_session_pause_until", None)
     pauses = getattr(orch, "_dl_session_pause", None)

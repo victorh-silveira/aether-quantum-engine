@@ -45,12 +45,16 @@ def resolve_senior_skip_decision(
     prev_bar = str(metrics.get("scale_micro_prev_bar_dir") or "").strip().upper()
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if skip_name == "chop_congestion":
+        if rsi is not None and rsi <= 0.45:
+            return TradeDirection.CALL, "chop_support_bounce"
+        if rsi is not None and rsi >= 0.55:
+            return TradeDirection.PUT, "chop_resistance_reversal"
+        if bb_b is not None and bb_b <= 0.40:
+            return TradeDirection.CALL, "chop_support_bounce"
+        if bb_b is not None and bb_b >= 0.60:
+            return TradeDirection.PUT, "chop_resistance_reversal"
         if trend in _VALID:
             return TradeDirection[trend], "chop_trend_breakout"
-        if rsi is not None:
-            return (TradeDirection.CALL if rsi < 0.50 else TradeDirection.PUT), "chop_oscillator_bound"
-        if bb_b is not None:
-            return (TradeDirection.CALL if bb_b < 0.50 else TradeDirection.PUT), "chop_bb_bound"
         return exec_dir, "chop_maintained"
     if skip_name == "exhaustion":
         return (TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL), "exhaustion_reversal"
@@ -107,7 +111,7 @@ def apply_senior_execution_skips(
     force: bool = False,
 ) -> tuple[TradeDirection, bool]:
     """Processa salvaguardas tecnicas: converte em decisao senior ou aborta em modo legado."""
-    senior_active = bool((exec_cfg or {}).get("senior_confluence_flip", False))
+    senior_active = bool((exec_cfg or {}).get("senior_confluence_flip", True))
     skips: list[tuple[str, Any]] = [
         ("trend_discord", lambda: should_skip_trend_discord(metrics, exec_dir, exec_cfg, force=force)),
         ("exhaustion", lambda: should_skip_exhaustion(metrics, exec_dir, exec_cfg, force=force)),
@@ -140,8 +144,13 @@ def apply_senior_execution_skips(
                 return exec_dir, True
             new_dir, reason = resolve_senior_skip_decision(exec_dir, metrics, name, orch=orch, symbol=symbol)
             metrics.pop("skip_reason", None)
+            metrics.pop("signal_status", None)
+            metrics.pop("gate_reason", None)
             metrics.pop("skip_cal_side_edge", None)
             metrics.pop("min_edge_floor", None)
+            metrics.pop("regime_skip_cycle", None)
+            metrics.pop("quality_guard_reject", None)
+            metrics["execution_candidate_ready"] = True
             metrics["senior_skip_converted"] = name
             metrics["senior_confluence_reason"] = reason
             metrics["senior_confluence_resolved"] = True

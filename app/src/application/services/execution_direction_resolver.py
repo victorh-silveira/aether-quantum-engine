@@ -188,7 +188,7 @@ def _finalize_execution_metrics(
         except (TypeError, ValueError):
             pass
     if should_skip_neg_edge(metrics, exec_cfg, force=force) and not bool(
-        (exec_cfg or {}).get("senior_confluence_flip", False)
+        (exec_cfg or {}).get("senior_confluence_flip", True)
     ):
         sync_entry_metrics(entry, metrics)
         return None
@@ -206,6 +206,7 @@ def _finalize_execution_metrics(
     _sync_kelly_side(metrics, exec_dir)
     sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
+    metrics["execution_candidate_ready"] = True
     sync_entry_metrics(entry, metrics)
     return exec_dir, metrics
 

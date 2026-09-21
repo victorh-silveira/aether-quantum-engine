@@ -588,7 +588,23 @@ def test_log_execution_decision_bad_cycle_id():
 
 
 def test_post_settlement_cooldown_and_learn_success(caplog):
-    orch = SimpleNamespace(logger=None, _cooldown_until=9999999999.0)
+    orch = SimpleNamespace(
+        logger=None,
+        _cooldown_until=9999999999.0,
+        config={
+            "orchestrator": {
+                "execution": {
+                    "post_loss_cooldown": {
+                        "lin_min": 1,
+                        "delay_seconds_lin1": 300,
+                        "delay_seconds_lin2": 300,
+                        "delay_seconds_lin3": 600,
+                        "delay_seconds_lin4": 900,
+                    }
+                }
+            }
+        },
+    )
     log_trading_cycle_cooldown_skip(orch)
     assert post_loss_cooldown_blocks_trading_cycle(orch) is True
     orch2 = MagicMock()

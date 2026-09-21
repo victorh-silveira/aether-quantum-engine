@@ -79,10 +79,10 @@ def test_resolve_low_accuracy_keeps_dl_side():
         raw_prob=0.62,
         calibrated_prob=0.62,
         val_accuracy=0.45,
-        trend_direction="PUT",
+        trend_direction="CALL",
         indicators={
             "hurst": 0.60,
-            "adx": 0.20,
+            "adx": 0.35,
             "vol_ratio": 0.90,
             "rsi": 0.55,
             "keltner": 0.55,
