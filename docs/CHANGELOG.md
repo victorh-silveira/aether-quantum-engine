@@ -1,3 +1,9 @@
+## [2.70.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.0...v2.70.1) (2026-09-21)
+
+### Correcoes de Bug
+
+* **engine:** elimina cooldowns e converte skips em trade senior ([400a3c3](https://github.com/victorh-silveira/aether-quantum-engine/commit/400a3c3388e7e7b065b2ae05bf646b4a011a1fa0))
+
 ## [2.70.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.69.1...v2.70.0) (2026-09-21)
 
 ### Funcionalidades
