@@ -8,7 +8,6 @@ from typing import Any
 _SOFT_SIGNAL_FLAGS = (
     "loss_clf_soft",
     "cal_margin_soft",
-    "neg_edge_soft",
     "mini_pair_soft",
     "regime_chop_soft",
     "fusion_weak_ev_soft",

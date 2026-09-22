@@ -134,7 +134,7 @@ def test_finalize_neg_edge_skips():
             score=0.62,
             symbol="1HZ75V",
             orch=orch,
-            exec_cfg={"skip_neg_edge": True, "senior_confluence_flip": False},
+            exec_cfg={"skip_neg_edge": True},
         )
     assert out is None
 

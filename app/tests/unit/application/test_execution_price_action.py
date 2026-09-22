@@ -66,7 +66,7 @@ def test_should_skip_wick_rejection_protects_during_recovery_and_flips():
     m3 = {"closed_candle_ohlc": [100.0, 120.0, 99.0, 101.0], "anti_trend_lock_flip": True}
     assert should_skip_wick_rejection(m3, TradeDirection.CALL, cfg) is False
     m4 = {"closed_candle_ohlc": [100.0, 120.0, 99.0, 101.0], "senior_trader_flip": True}
-    assert should_skip_wick_rejection(m4, TradeDirection.CALL, cfg) is False
+    assert should_skip_wick_rejection(m4, TradeDirection.CALL, cfg) is True
 
 
 def test_should_skip_wick_rejection_missing_ohlc_or_flat():
@@ -139,7 +139,7 @@ def test_should_skip_climactic_blowoff_protects_during_recovery_and_flips():
     m3 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "anti_trend_lock_flip": True}
     assert should_skip_climactic_blowoff(m3, TradeDirection.CALL, cfg) is False
     m4 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "senior_trader_flip": True}
-    assert should_skip_climactic_blowoff(m4, TradeDirection.CALL, cfg) is False
+    assert should_skip_climactic_blowoff(m4, TradeDirection.CALL, cfg) is True
 
 
 def test_should_skip_climactic_blowoff_missing_atr_or_normal_range():
@@ -229,7 +229,7 @@ def test_should_skip_adverse_tick_flow_protects_during_recovery_and_flips():
     m3 = {"flow_features": {"price_velocity": -2.0}, "anti_trend_lock_flip": True}
     assert should_skip_adverse_tick_flow(m3, TradeDirection.CALL, cfg) is False
     m4 = {"flow_features": {"price_velocity": -2.0}, "senior_trader_flip": True}
-    assert should_skip_adverse_tick_flow(m4, TradeDirection.CALL, cfg) is False
+    assert should_skip_adverse_tick_flow(m4, TradeDirection.CALL, cfg) is True
 
 
 def test_should_skip_adverse_tick_flow_missing_or_invalid_flow():
@@ -296,7 +296,7 @@ def test_should_skip_opposing_marubozu_protects_during_flips():
     m2 = {"closed_candle_ohlc": [110.0, 110.0, 90.0, 91.0], "anti_trend_lock_flip": True}
     assert should_skip_opposing_marubozu_flow(m2, TradeDirection.CALL, cfg) is False
     m3 = {"closed_candle_ohlc": [110.0, 110.0, 90.0, 91.0], "senior_trader_flip": True}
-    assert should_skip_opposing_marubozu_flow(m3, TradeDirection.CALL, cfg) is False
+    assert should_skip_opposing_marubozu_flow(m3, TradeDirection.CALL, cfg) is True
 
 
 def test_should_skip_opposing_marubozu_missing_ohlc_or_flat():

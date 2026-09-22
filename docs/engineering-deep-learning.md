@@ -25,7 +25,7 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **12** |
 | Meta | LightGBM **23D** `predicted_payoff_edge` |
 
-Leitura operacional (sessao live): checkpoint `data/dl/1HZ75V.pth` com `val_accuracy` colado ao piso implica Cal mole. Nao “operar mais para aprender”; se ACC estruturalmente no piso, retreinar via `launch-train`. Loss-clf FLIP so apos bootstrap live `LOSS_BOOTSTRAP_EXIT_N` **4**; Edge EV (payout **0.85**) e telemetria — negativo sozinho nao skipa; meta nao flipa lado.
+Leitura operacional (sessao live): checkpoint `data/dl/1HZ75V.pth` com `val_accuracy` colado ao piso implica Cal mole. Nao “operar mais para aprender”; se ACC estruturalmente no piso, retreinar via `launch-train`. Loss-clf FLIP so apos bootstrap live `LOSS_BOOTSTRAP_EXIT_N` **4**; Edge EV usa payout configurado ate a primeira proposta e taxa liquida cotada na sessao depois disso; Edge ≤ 0 em EXPLORE gera `SKIP:neg_edge`; meta nao flipa lado.
 
 ### Frente: vies TCN monotono + ACC no piso
 

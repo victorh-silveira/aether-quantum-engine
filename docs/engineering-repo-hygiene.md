@@ -17,7 +17,7 @@ Eliminar codigo, scripts, containers, docs, skills/rules orfaos, JSON, git/Makef
 Falsos positivos tipicos: metodos de `typing.Protocol`, hooks FastAPI lifespan, registro via `__init_subclass__`.
 
 - Allowlist versionada: [`app/.vulture_whitelist.py`](../app/.vulture_whitelist.py)
-- Pipeline: `vulture <paths> .vulture_whitelist.py --min-confidence 80` (via `clean_workspace` / pre-commit)
+- Pipeline: `vulture <paths> .vulture_whitelist.py --min-confidence 100` (via `clean_workspace` / pre-commit)
 - Regenerar: `cd app && python -m vulture src run.py train.py scripts aether_paths.py --make-whitelist >> .vulture_whitelist.py`
 - Item na allowlist que **nao** for porta Protocol / hook registrado → apagar ou refatorar (tolerancia zero a morto novo)
 

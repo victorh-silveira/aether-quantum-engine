@@ -38,7 +38,7 @@ def resolve_predicted_edge(
         p = 1.0 - p
     elif not direction:
         p = max(p, 1.0 - p)
-    pay = payout
+    pay = payout if payout is not None else metrics.get("payout_assumed")
     if pay is None:
         pay = float(load_kelly_runtime_from_settings()["payout_fallback"])
     return float((p * (1.0 + float(pay))) - 1.0)
@@ -94,7 +94,8 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
     dual_cal = f"p_call: {cal_call:.5f} p_put: {cal_put:.5f}"
     display_edge = resolve_predicted_edge(metrics, direction=direction)
     raw_edge = resolve_raw_predicted_edge(metrics, direction=direction)
-    be = resolve_edge_breakeven_p()
+    assumed_payout = _safe_float(metrics.get("payout_assumed"), 0.0)
+    be = resolve_edge_breakeven_p(assumed_payout if assumed_payout > 0.0 else None)
     skip = _resolve_skip_reason(entry, metrics)
     payload = (
         f"{sym}: {direction} (Prob: {raw_display:.5f} {dual_cal} "

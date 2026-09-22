@@ -37,7 +37,7 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 
 ## During (leitura de log) — ordem CLUSTER→GATES→KELLY→EXEC→RESOLVED
 
-1. CLUSTER — lado TCN (Cal≥0.5 CALL); Prob / Margin / Edge (EV vs be=0.541); `live_n`; Edge ≤ 0 → `SKIP:neg_edge` em EXPLORE (waived com PEND)
+1. CLUSTER — lado TCN (Cal≥0.5 CALL); Prob / Margin / Edge e `be`; conferir o payout liquido cotado no `[EXEC]` (`RATE`/`BE`) contra o usado no ciclo seguinte; Edge ≤ 0 → `SKIP:neg_edge` em EXPLORE (waived somente com PEND)
 2. GATES — `[GATES] || LOSS_CLF` FLIP|OK|off; `blocked=bootstrap` / `flip_min_n` = FLIP off; se FLIP, lado = !TCN (sem bloqueio por vela)
 3. KELLY — p, live_wr, f*, mode; sem meta_soft; stake = explore/recover/cover
 4. EXEC — lado final: TCN ou FLIP; ticket em uma linha

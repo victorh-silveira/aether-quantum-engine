@@ -110,8 +110,8 @@ def test_neg_edge_sticky_unit_110_uses_cover_when_pending():
     assert metrics.get("recovery_cover_need") == pytest.approx(cover)
 
 
-def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
-    metrics = {"neg_edge_soft": True}
+def test_without_pending_uses_neutral_floor_not_sticky_u():
+    metrics = {}
     soft = {"material_pending_min": 0.25, "max_safe_stake_pct": 0.05}
     stake = apply_soft_recovery_stake(
         pending_total=0.0,
@@ -125,8 +125,8 @@ def test_neg_edge_without_pending_uses_neutral_floor_not_sticky_u():
     )
     assert stake == pytest.approx(110.0)
     assert metrics.get("recovery_explore_used_cover") is False
-    assert metrics.get("recovery_force_explore_reason") == "neg_edge"
-    assert metrics.get("recovery_force_explore") is True
+    assert metrics.get("recovery_force_explore_reason") == "no_material_pending"
+    assert metrics.get("recovery_force_explore") is False
 
 
 def test_infeasible_with_material_pending_stakes_at_cap():

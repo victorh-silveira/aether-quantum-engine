@@ -63,8 +63,8 @@ Regra: **domain** não importa application nem infrastructure. **Application** o
 | DL | TCN, lookback **30**, micro **300 s** (M5 **2000** velas de treino), macro **86400 s** (365 velas D1), `FEATURE_DIM=14`, label `quantum_multi_barrier`, tensor `[1, 30, 14]` |
 | Meta | LightGBM HTTP `:8005`, `META_FEATURE_DIM=23` (micro **300 s**); **opcional** para execução |
 | Relógio | Micro/MINI **300 s** (M5) + macro **86400 s** (D1); contrato ops **5 m (M5)**; label TCN **N=1** vela M5; ratio **1:288**; ciclo **120 s** |
-| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **120 s** |
-| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; TCN + loss-clf FLIP (`p_eff` 0.55/0.58) + Kelly |
+| Ciclo / assinatura | `cycle_interval_seconds` / `signature_boundary_seconds` = **300 s** (sync fecho M5); `exec_empty_retry` **300 s** |
+| Execução | `mandatory_trade_each_cycle: false`; `force_trade_every_cycle: false`; TCN + loss-clf FLIP (`p_eff` no piso young 0.58) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Calibração | TCN sempre CALL se Cal ≥**0.5** senao PUT; clamp Cal em `[raw±0.08]`; modo `raw_extreme`; thresholds **0.55/0.45** nao skipam |
 | Direção | Resolver modular com anti-loss microestrutura M5 (ancora hibrida, EMA slope 9/21, RSI momentum) |

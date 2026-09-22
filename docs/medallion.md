@@ -12,7 +12,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 
 | Princípio | No motor atual |
 |-----------|----------------|
-| Sinais, não histórias | Direção CALL/PUT pela TCN; **unica inversao** = loss-clf FLIP se `p_loss >= 0.20` |
+| Sinais, não histórias | Direção CALL/PUT pela TCN; inversões somente pelo loss-clf (`p_eff` no piso, apos auto-learn) ou anti-trend-lock pos-loss |
 | Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / **2000** barras de treino); contrato RISE_FALL **5 m** (ops fixo); label `quantum_multi_barrier` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (**300 s**) com ciclo em **300 s** |
 | Esteira contínua | `mandatory_trade_each_cycle: false`; TCN → LOSS_CLF FLIP (so P_LOSS) → Kelly |
@@ -20,7 +20,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Modelo pronto antes de operar | `FASE TREINO` suspende ordens até treino da sessão |
 | Fail-closed seletivo | Meta **opcional** nos settings atuais; TCN eager/CUDA local no host |
 | Feedback real | Win rate live integrado; loss-classifier e meta-classifier treinados online pós-settle via `/v1/learn` |
-| Defesa contra ruído | Anti-loss vivo = FLIP por `P_LOSS` no piso **0.20** (sem Soft Kelly / sem outros flips) |
+| Defesa contra ruído | Anti-loss vivo = FLIP por `P_LOSS` efetivo no piso jovem **0.58** (sem Soft Kelly / sem outros flips) |
 | Persistência financeira | Recovery atrelado a `pending_loss`; `cover_enabled` **true** (`cover_multiple` **1.0**, capped) |
 | Sizing Single-Strike | Kelly Single-Strike projetado para atingir **4,31% da banca em tacada única M5** com cap de **5,0%** |
 | Side equilibrium (LLN) | `sample_size_policy` + `side_equilibrium`: soft Kelly **sem** flip de direção |
@@ -60,7 +60,7 @@ A doutrina LLM estende o mesmo raciocinio aos demais livros (Taleb, Duke, Dougla
 |---------|----------------|
 | `1HZ75V` | Universo operacional unico; ancora e unico simbolo de treino/execucao |
 
-Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contrato, PUT = queda). Ciclo **120 s**; OHLC micro/MINI em **300 s** (M5; label TCN **N=1 vela M5**; alinhado ao contrato ops 5 min).
+Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contrato, PUT = queda). Ciclo **300 s**; OHLC micro/MINI em **300 s** (M5; label TCN **N=1 vela M5**; alinhado ao contrato ops 5 min).
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
@@ -103,7 +103,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds adaptativos |
 | Anti-Loss M5 | Microestrutura estrita: EMA slope 9/21 em barras de 5m, RSI momentum e confirmação de 3 barras |
 | Rotulagem | SSOT `quantum_multi_barrier` (barreiras assimetricas + Expiry; alt. `triple_barrier`) |
-| Gerenciamento de risco | Kelly Single-Strike 4.31% (`kelly.fraction: 0.08`, cap 5.0%); Soft Recovery amortização 2 a 3 ciclos |
+| Gerenciamento de risco | Kelly Single-Strike 4.31% (`kelly.fraction: 0.08`, cap 5.0%); cover de recovery em um ciclo |
 
 ---
 
@@ -116,7 +116,7 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 | Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 14]`; proporção 1:288 |
 | Meta-regressor GBDT | Micro **300 s** | Regressão tabular **23D**; edge contínuo via `/v2/predict_meta` |
 | Orquestrador / contrato | Ciclo **300 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
-| Resolução direcional | TCN + FLIP so por P_LOSS (>=0.20) | Unica inversao de ordem; sem fusao/persistence/candle |
+| Resolução direcional | TCN + FLIP so por P_LOSS efetivo (>=0.58 no jovem) | Unica inversao de ordem; sem fusao/persistence/candle |
 | Execução contínua | Ciclo **300 s** (boundary **300 s**) | Boleta CALL/PUT na cadência M5 quando há sinal válido |
 
 Com `lookback: 30`, `micro_granularity: 300` e `training_history_bars: 365` (1 ano de histórico diário):
@@ -180,7 +180,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `orchestrator.settlement_tolerance_window_seconds` | 600 | Janela de settlement |
 | `orchestrator.watchdog_stale_tick_seconds` | 300 | Watchdog de inanição |
 
-Cover de recovery dimensiona `pending/payout` em **2–3** trades (amort **2/3**, `cover_multiple` **1.10**) para amortizar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.
+Cover de recovery dimensiona `pending/payout` em **um** ciclo (amort **1/1**, `cover_multiple` **1.0**) para amortizar o passivo, sujeito a `max_safe_stake_*`. Turbo de stake (Z≥1.5) **nunca** ultrapassa `max_safe_stake_cap` pós-multiplicador. Z-Score de edge é bufferizado **por símbolo**. Boot emite `CFG_RISK` via `validate_engine_risk_config` / `RiskPolicy`. Labels train/deploy compartilham `LabelSpec` (`horizon` + `smooth_bars`); treino meta usa proxy de retorno **passado**, não forward.
 
 #### Defaults `risk_management.soft_recovery` (`soft_recovery_policy`)
 

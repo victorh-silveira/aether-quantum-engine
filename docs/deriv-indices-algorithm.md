@@ -12,10 +12,10 @@ Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ati
 | Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m`, `label_horizon_bars=1`) |
 | Micro / MINI OHLC | **300 s** (M5, **2000** velas de treino) |
 | Macro OHLC | **86400 s** (D1 / 365 velas de treino - 1 ano) |
-| Ciclo / assinatura | **120 s** / **300 s** (alinhado ao fecho da vela M5); `exec_empty_retry` **120 s** |
+| Ciclo / assinatura | **300 s** / **300 s** (alinhado ao fecho da vela M5); `exec_empty_retry` **300 s** |
 | Lookback TCN | **30** barras |
 | Payout SSOT | **0.85** (85% payout base) |
-| Soft Recovery | amort **2/3**, `cover_multiple` **1.10** |
+| Soft Recovery | amort **1/1**, `cover_multiple` **1.0** |
 | Stop-win | `compounding_rate_daily` **4.31%** / Single-Strike 1 trade |
 | Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |
 | Watchdog stale tick | **300 s** |
@@ -26,9 +26,9 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 ## 2. Pipeline
 
-- TCN em barras M5 (300 s); Cal/Margin; SCALE adapta sem hard SKIP.
-- Soft Kelly: `signal_skip` / loss-clf (sem flip de lado pos-LOSS).
-- EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 2/3, `cover_multiple` **1.10**).
+- TCN em barras M5 (300 s); Cal/Margin; SCALE e indicadores apenas telemetria e salvaguardas de SKIP.
+- Loss-clf inverte o lado por `p_eff` no piso apos auto-learn; nao existe Soft Kelly por loss-clf.
+- EXPLORE Kelly / RECOVER cover `pending/payout` (`amort` 1/1, `cover_multiple` **1.00**).
 
 ---
 

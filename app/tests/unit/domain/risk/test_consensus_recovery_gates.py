@@ -3,7 +3,6 @@
 from src.domain.risk.consensus_recovery_gates import (
     acc_below_recovery_floor,
     adapted_blocks_dal,
-    chop_neg_edge_dampens_dal,
     live_evidence_blocks_dal,
     metric_hurst,
 )
@@ -25,14 +24,3 @@ def test_recovery_gate_helpers_branches():
     assert acc_below_recovery_floor({"val_accuracy": 0.01}, 3) is True
     assert live_evidence_blocks_dal({"live_n": 20, "live_wr": 0.40}, 3, soft) is True
     assert adapted_blocks_dal({"scale_adapted": True}, int(soft["adapted_force_explore_linear_min"]), soft) is True
-
-
-def test_chop_neg_edge_dampens_dal_flags():
-    assert chop_neg_edge_dampens_dal({"regime_chop_soft": True, "neg_edge_soft": True}) is True
-    assert chop_neg_edge_dampens_dal({"regime_chop_soft": True, "signal_skip_waived": "neg_edge_soft"}) is True
-    assert chop_neg_edge_dampens_dal({"neg_edge_soft": True}) is True
-    assert chop_neg_edge_dampens_dal({"signal_skip_waived": "neg_edge_soft"}) is True
-    assert chop_neg_edge_dampens_dal({"gate_reason": "neg_edge"}) is True
-    assert chop_neg_edge_dampens_dal({"signal_status": "SKIP:NEG_EDGE"}) is True
-    assert chop_neg_edge_dampens_dal({"regime_chop_soft": True}) is False
-    assert chop_neg_edge_dampens_dal({}) is False

@@ -12,6 +12,7 @@ from src.application.services.market_audit_log import (
     resolve_stake_audit_context,
     store_contract_audit,
 )
+from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .api_maintenance_guard import handle_broker_maintenance_error
@@ -42,6 +43,13 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
     )
     mode_tag = str(audit.get("mode_tag") or "EXPLORE_KELLY")
     metrics_dict = metrics if isinstance(metrics, dict) else {}
+    observed_rate = record_observed_payout(
+        executor.orch.risk_manager.risk_params,
+        payout=float(contract.payout),
+        buy_price=float(contract.buy_price),
+    )
+    if observed_rate is not None:
+        metrics_dict["payout_observed"] = observed_rate
     emit_audit_info(
         logger,
         format_kelly_audit_line(

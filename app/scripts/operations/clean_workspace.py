@@ -359,7 +359,7 @@ def stage_lint() -> None:
             "aether_paths.py",
             ".vulture_whitelist.py",
             "--min-confidence",
-            "80",
+            "100",
         ],
         "Vulture Dead Code Detection",
     )
@@ -378,6 +378,9 @@ def _test_env_base() -> dict[str, str]:
 
 
 def stage_test(fail_under: int = 100) -> None:
+    if int(fail_under) != 100:
+        print("[ERRO] A cobertura de app/src e obrigatoriamente 100%.")
+        sys.exit(2)
     profile = resolve_test_execution_profile()
     workers = profile.parallel_workers
     print(f"\n>>> {format_profile_summary(profile)}")
@@ -436,6 +439,9 @@ def _run_gitleaks() -> None:
                 f'gitleaks detect --source "{source}" --verbose --redact',
             ]
         )
+    wsl = shutil.which("wsl.exe") or shutil.which("wsl")
+    if wsl is not None:
+        commands.append([wsl, "gitleaks", *args])
     for command in commands:
         try:
             res = subprocess.run(command, check=False, cwd=str(REPO_ROOT), text=True, shell=False)
@@ -443,11 +449,8 @@ def _run_gitleaks() -> None:
                 return
         except (FileNotFoundError, OSError):
             continue
-    if str(os.environ.get("CI", "")).strip().lower() in {"1", "true", "yes"}:
-        print("[ERRO] gitleaks obrigatorio no CI")
-        sys.exit(1)
-    print("[AVISO] gitleaks nao encontrado no PATH local ou retornou codigo diferente de 0. Prosseguindo...")
-    return
+    print("[ERRO] gitleaks obrigatorio e nao passou.")
+    sys.exit(1)
 
 
 def stage_python_compileall(*, quiet: bool) -> None:
@@ -461,11 +464,9 @@ def stage_python_compileall(*, quiet: bool) -> None:
 def stage_security() -> None:
     run_tool("bandit", ["-r", "src", "-c", "pyproject.toml"], "Bandit Security Scan")
     ignored_vulns = ["PYSEC-2022-42969", "PYSEC-2026-139", "CVE-2025-3000", "PYSEC-2026-3447"]
-    ignore_args = ["--local"] + [item for vuln in ignored_vulns for item in ("--ignore-vuln", vuln)]
-    try:
-        run_tool("pip_audit", ignore_args, "Pip-audit Vulnerability Scan")
-    except subprocess.CalledProcessError:
-        print("[AVISO] Pip-audit encontrou vulnerabilidades no ambiente global de pacotes Python.")
+    requirements = ("-r", "requirements.txt", "-r", "requirements-dev.txt")
+    ignore_args = [*requirements] + [item for vuln in ignored_vulns for item in ("--ignore-vuln", vuln)]
+    run_tool("pip_audit", ignore_args, "Pip-audit Vulnerability Scan")
     _run_gitleaks()
 
 

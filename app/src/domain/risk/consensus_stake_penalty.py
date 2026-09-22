@@ -7,7 +7,6 @@ from typing import Any
 from src.domain.risk.consensus_recovery_gates import (
     acc_below_recovery_floor,
     adapted_blocks_dal,
-    chop_neg_edge_dampens_dal,
     live_evidence_blocks_dal,
     metric_hurst,
 )
@@ -76,7 +75,6 @@ def apply_soft_recovery_stake(
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
     hurst_val = metric_hurst(metrics)
     low_hurst_noise = hurst_val is not None and float(hurst_val) < 0.400
-    chop_neg_dampen = chop_neg_edge_dampens_dal(metrics)
     acc_force_explore = acc_below_recovery_floor(metrics, consecutive_losses)
     live_force_explore = live_evidence_blocks_dal(metrics, consecutive_losses, soft)
     adapted_force_explore = adapted_blocks_dal(metrics, consecutive_losses, soft)
@@ -108,7 +106,6 @@ def apply_soft_recovery_stake(
             metrics=metrics,
             near_stop_win=near_stop_win,
             low_hurst_noise=low_hurst_noise,
-            chop_neg_dampen=chop_neg_dampen,
             acc_force_explore=acc_force_explore,
             live_force_explore=live_force_explore,
             adapted_force_explore=adapted_force_explore,

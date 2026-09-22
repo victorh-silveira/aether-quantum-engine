@@ -121,7 +121,7 @@ def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled_with_str
     assert metrics["meta_classifier_applied"] is False
 
 
-def test_resolve_senior_confluence_flip():
+def test_resolve_direction_keeps_tcn_when_confluence_disagrees():
     entry = _entry(direction=TradeDirection.CALL, raw_prob=0.52, calibrated_prob=0.52)
     entry["metrics"]["cal_side_edge"] = 0.01
     entry["metrics"]["trend_direction"] = "PUT"
@@ -130,8 +130,6 @@ def test_resolve_senior_confluence_flip():
     result = resolve_execution_direction(entry, symbol="1HZ75V")
     assert result is not None
     direction, metrics = result
-    assert direction == TradeDirection.PUT
-    assert metrics["senior_trader_flip"] is True
-    assert metrics["direction_origin"] == "FLIP_SENIOR_CONFLUENCE"
-    assert metrics["senior_confluence_reason"] == "trend_candle_alignment"
-    assert metrics["cal_side_edge"] >= 0.035
+    assert direction == TradeDirection.CALL
+    assert metrics["direction_origin"] == "TCN_DIRECT"
+    assert "senior_trader_flip" not in metrics

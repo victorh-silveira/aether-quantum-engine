@@ -185,6 +185,21 @@ def test_format_execution_ticket_line():
     assert line.startswith("[EXEC] || PUT [R_10] || STAKE: 2.06 (RECOVER_DAL_L1)")
     assert "PEND: 1.62" in line and "LIN: 1" in line and "CAP: 4.20" in line
     assert "BANCA: 87.69" in line and "CID: 1129497159" in line and "PAY: 1.79" in line
+
+
+def test_format_execution_ticket_line_includes_quote_rate_and_break_even():
+    line = format_execution_ticket_line(
+        6,
+        direction="CALL",
+        symbol="1HZ75V",
+        stake=100.0,
+        mode_tag="EXPLORE_KELLY",
+        pending=0.0,
+        bankroll=10000.0,
+        contract_id=1,
+        payout=178.4,
+    )
+    assert "RATE: 0.7840" in line and "BE: 0.5605" in line
     assert "\n" not in line
 
 

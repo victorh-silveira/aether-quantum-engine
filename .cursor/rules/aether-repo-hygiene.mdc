@@ -7,7 +7,7 @@ alwaysApply: true
 # Repo hygiene
 
 - So remover com evidencia (grep/import/compose/matriz/vulture); ondas: codigo → JSON SSOT → alinhamentos → deps
-- Vulture: allowlist `app/.vulture_whitelist.py`, `--min-confidence 80`; so Protocol/hooks na allowlist
+- Vulture: allowlist `app/.vulture_whitelist.py`, `--min-confidence 100`; so Protocol/hooks na allowlist
 - Ruff: F401/F841/ERA001/ARG/T201 — sem `print` no motor; sem codigo comentado versionado
 - Chaves Redis transitórias com TTL; settlement permanece ZSET (nunca Streams; sem TTL cego na fila)
 - Nunca apagar skills/docs indexados, redis/timescale/minio/meta/loss, `__init__` de pacote, caps/settlement

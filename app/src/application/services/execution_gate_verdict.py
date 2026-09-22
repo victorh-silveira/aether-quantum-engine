@@ -12,7 +12,6 @@ VERDICT_ALLOW = "ALLOW"
 _SOFT_FLAGS = (
     "loss_clf_soft",
     "cal_margin_soft",
-    "neg_edge_soft",
     "mini_pair_soft",
     "regime_chop_soft",
     "fusion_weak_ev_soft",
@@ -24,8 +23,6 @@ def stamp_hard_skip(metrics: dict[str, Any], reason: str) -> None:
     """Marca veto tecnico HARD; limpa soft de sizing do mesmo ciclo."""
     metrics["gate_verdict"] = VERDICT_HARD_SKIP
     metrics["gate_verdict_reason"] = str(reason or "hard_skip")
-    metrics.pop("neg_edge_soft", None)
-    metrics.pop("neg_edge_soft_kelly_mult", None)
 
 
 def stamp_soft_size(metrics: dict[str, Any], reason: str) -> None:

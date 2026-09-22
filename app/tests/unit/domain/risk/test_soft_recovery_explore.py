@@ -110,7 +110,6 @@ def test_force_early_explore_reason_priority():
         force_early_explore_reason(
             near_stop_win=True,
             low_hurst_noise=True,
-            chop_neg_dampen=True,
             quality_force_explore=True,
         )
         == "near_stop"
@@ -119,7 +118,6 @@ def test_force_early_explore_reason_priority():
         force_early_explore_reason(
             near_stop_win=False,
             low_hurst_noise=False,
-            chop_neg_dampen=False,
             quality_force_explore=False,
             cover_disabled=True,
         )
@@ -129,7 +127,6 @@ def test_force_early_explore_reason_priority():
         force_early_explore_reason(
             near_stop_win=True,
             low_hurst_noise=False,
-            chop_neg_dampen=False,
             quality_force_explore=False,
             cover_disabled=True,
         )
@@ -139,7 +136,6 @@ def test_force_early_explore_reason_priority():
         force_early_explore_reason(
             near_stop_win=False,
             low_hurst_noise=False,
-            chop_neg_dampen=False,
             quality_force_explore=True,
         )
         == "quality"
@@ -195,7 +191,6 @@ def test_mark_forced_explore_metrics_noop_when_metrics_none():
         material_pending=True,
         near_stop_win=False,
         low_hurst_noise=False,
-        chop_neg_dampen=True,
         acc_force_explore=False,
         live_force_explore=False,
         adapted_force_explore=False,

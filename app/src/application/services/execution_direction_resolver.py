@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.application.services.deep_learning.dl_gating import MARKET_PAYOUT_SSOT, resolve_side_edge
+from src.application.services.deep_learning.dl_gating import resolve_side_edge
 from src.application.services.direction_loss_tracker import should_anti_trend_lock_flip
 from src.application.services.execution_direction_checks import (
     infer_dl_direction,
@@ -13,9 +13,9 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_payout import resolve_execution_payout
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
 from src.application.services.execution_scale_vision import compute_scale_directions
-from src.application.services.execution_senior_confluence import evaluate_senior_directional_decision
 from src.application.services.execution_senior_skips import apply_senior_execution_skips
 from src.application.services.execution_side_eq_sizing import apply_side_eq_kelly_sizing
 from src.application.services.execution_signal_skips import should_skip_acc_floor, should_skip_neg_edge
@@ -107,6 +107,8 @@ def _finalize_execution_metrics(
         }
     )
     ensure_direction_margin(metrics)
+    payout = resolve_execution_payout(orch)
+    metrics["payout_assumed"] = payout
     if orch is not None:
         rm = getattr(orch, "risk_manager", None)
         tot_fn = getattr(rm, "pending_loss_total", None)
@@ -144,18 +146,7 @@ def _finalize_execution_metrics(
     elif bool(metrics.get("anti_trend_lock_flip")):
         metrics["direction_origin"] = "FLIP_ANTI_TREND_LOCK"
     else:
-        new_dir, did_flip, reason = evaluate_senior_directional_decision(
-            exec_dir, metrics, orch=orch, symbol=symbol, exec_cfg=exec_cfg
-        )
-        if did_flip:
-            metrics["senior_trader_flip"] = True
-            metrics["senior_confluence_reason"] = reason
-            metrics["senior_flip_from"] = exec_dir.name
-            metrics["senior_flip_to"] = new_dir.name
-            metrics["direction_origin"] = "FLIP_SENIOR_CONFLUENCE"
-            exec_dir = new_dir
-        else:
-            metrics["direction_origin"] = "TCN_DIRECT"
+        metrics["direction_origin"] = "TCN_DIRECT"
     metrics["exec_direction_pre_scale"] = exec_dir.name
     metrics["scale_adapt_applied"] = False
     metrics.pop("scale_adapt_reason", None)
@@ -169,27 +160,20 @@ def _finalize_execution_metrics(
         try:
             if bool(metrics.get("loss_clf_flip")):
                 p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
-                metrics["cal_side_edge"] = float((p_eff * (1.0 + MARKET_PAYOUT_SSOT)) - 1.0)
+                metrics["cal_side_edge"] = float((p_eff * (1.0 + payout)) - 1.0)
             elif bool(metrics.get("anti_trend_lock_flip")):
                 conv = float(metrics.get("conviction") or metrics.get("trade_score") or 0.58)
                 p_dir = max(0.55, conv)
-                metrics["cal_side_edge"] = float((p_dir * (1.0 + MARKET_PAYOUT_SSOT)) - 1.0)
-            elif bool(metrics.get("senior_trader_flip")):
-                p_dir = max(0.56, float(metrics.get("conviction") or 0.56))
-                metrics["calibrated_prob"] = p_dir
-                metrics["conviction"] = p_dir
-                metrics["cal_side_edge"] = float((p_dir * (1.0 + MARKET_PAYOUT_SSOT)) - 1.0)
+                metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
             else:
                 metrics["cal_side_edge"] = resolve_side_edge(
                     float(cal_prob),
                     direction=exec_dir,
-                    payout=MARKET_PAYOUT_SSOT,
+                    payout=payout,
                 )
         except (TypeError, ValueError):
             pass
-    if should_skip_neg_edge(metrics, exec_cfg, force=force) and not bool(
-        (exec_cfg or {}).get("senior_confluence_flip", True)
-    ):
+    if should_skip_neg_edge(metrics, exec_cfg, force=force):
         sync_entry_metrics(entry, metrics)
         return None
     exec_dir, blocked = apply_senior_execution_skips(

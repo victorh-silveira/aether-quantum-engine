@@ -46,11 +46,7 @@ def should_skip_wick_rejection(
     """Bloqueia ordens contra longa sombra de rejeicao na vela fechada."""
     if force or not bool((exec_cfg or {}).get("skip_wick_rejection", False)):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if ohlc is None:
@@ -92,11 +88,7 @@ def should_skip_climactic_blowoff(
     """Bloqueia continuidade imediata apos vela anomala de exaustao de volatilidade."""
     if force or not bool((exec_cfg or {}).get("skip_climactic_blowoff", False)):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if ohlc is None:
@@ -139,11 +131,7 @@ def should_skip_adverse_tick_flow(
     """Bloqueia ordens quando o fluxo de micro-ticks e a aceleracao sao contrarios."""
     if force or not bool((exec_cfg or {}).get("skip_adverse_tick_flow", False)):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     flow = metrics.get("flow_features")
     if not isinstance(flow, dict):
@@ -181,11 +169,7 @@ def should_skip_opposing_marubozu_flow(
     """Bloqueia ordens contra vela Marubozu de forca oposta sem absorcao institucional."""
     if force or not bool((exec_cfg or {}).get("skip_opposing_marubozu", False)):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     ohlc = _resolve_candle_ohlc(metrics, orch=orch, symbol=symbol)
     if ohlc is None:

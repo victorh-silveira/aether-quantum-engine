@@ -130,14 +130,19 @@ def format_execution_ticket_line(
     linear: int = 0,
     cap: float = 0.0,
     recovery_infeasible: bool = False,
+    payout_rate: float | None = None,
 ) -> str:
     """Boleta [EXEC] em uma linha."""
     _ = cycle_id
     infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
+    rate = (float(payout) / float(stake)) - 1.0 if payout_rate is None and float(stake) > 0.0 else payout_rate
+    payout_token = f" | PAY: {float(payout):.2f}"
+    if rate is not None and float(rate) > 0.0:
+        payout_token += f" | RATE: {float(rate):.4f} | BE: {1.0 / (1.0 + float(rate)):.4f}"
     return (
         f"[EXEC] || {direction} [{symbol}] || STAKE: {float(stake):.2f} ({mode_tag}){infeas} | "
         f"PEND: {float(pending):.2f} | LIN: {int(linear)} | CAP: {float(cap):.2f} | "
-        f"BANCA: {float(bankroll):.2f} | CID: {int(contract_id)} | PAY: {float(payout):.2f}"
+        f"BANCA: {float(bankroll):.2f} | CID: {int(contract_id)}{payout_token}"
     )
 
 
@@ -162,9 +167,6 @@ def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, 
     elif origin == "FLIP_LOSS_CLF":
         pe = _f(metrics, "loss_clf_p_eff", "loss_clf_p_loss", default=0.58)
         detail = f"FLIP loss_clf ({tcn_dir}->{dir_name}) | pe={pe:.3f} | trend={trend}"
-    elif origin == "FLIP_SENIOR_CONFLUENCE":
-        reason = str(metrics.get("senior_confluence_reason") or "confluence")
-        detail = f"FLIP senior_confluence ({tcn_dir}->{dir_name}) | reason={reason} | edge={edge:+.3f}"
     else:
         detail = f"TCN_DIRECT | p={prob:.3f} | edge={edge:+.3f} | trend={trend}"
     return f"[DECISION] || {dir_name} [{symbol}] || ORIGEM: {detail}"

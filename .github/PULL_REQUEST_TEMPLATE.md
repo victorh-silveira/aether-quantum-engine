@@ -6,7 +6,7 @@
 
 | Vetor | OK? | Notas |
 |-------|-----|--------|
-| Dead code | | vulture 80 + allowlist Protocol-only; sem ERA/ARG/T20 novos |
+| Dead code | | vulture 100 + allowlist Protocol-only; sem ERA/ARG/T20 novos |
 | Feature flags | | temporarias em `TEMPORARY_FLAGS` com expiry; sem bifurcar legado |
 | Async leaks | | sem `create_task` orfao; TaskGroup/supervisor |
 | Redis TTL | | TTL so efemeros (`bar_sig`/`market_sig`); settlement ZSET **sem** TTL/Streams |

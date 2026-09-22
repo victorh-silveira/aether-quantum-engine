@@ -20,7 +20,7 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 | python | lint | Ruff, Interrogate, Vulture, 300 linhas |
 | python | JSON / YAML | steps `Python \| JSON *` e `Python \| YAML *` (`--config-text json\|yaml`) |
 | python | validate / build | compileall `app/src` |
-| python | security | Bandit + pip-audit + Gitleaks (CI fail-closed) |
+| python | security | Bandit + pip-audit dos requirements do projeto + Gitleaks (fail-closed local e CI) |
 | python | test | pytest + cobertura **100%** em `app/src` |
 | docker | lint…build | Hadolint, compose config, Trivy, smoke, `docker build` (build no CI) |
 | shell | lint / validate | `bash -n` / shellcheck em `*.sh` |
@@ -47,7 +47,7 @@ Bloqueia explore com Cal fraco e edge negativo.
 
 - Layout: `app/tests/unit/{application,domain,infrastructure,presentation,scripts}/`
 - Espelhar a camada do codigo sob teste
-- Cobertura fail-under **100%** em `src`
+- Cobertura de `src` obrigatoriamente **100%**; `clean_workspace` rejeita qualquer limiar diferente de 100.
 - Novos ramos: teste unitario no mesmo PR
 - Hypothesis so em invariantes de dominio (Kelly / `p_eff` FLIP), `max_examples` baixo, pin em `requirements-dev`; **proibido** mutmut, Pact, Testcontainers, E2E visual ou carga no pre-commit
 

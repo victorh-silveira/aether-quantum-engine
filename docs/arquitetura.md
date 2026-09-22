@@ -17,7 +17,7 @@ Motor assíncrono para trading na Deriv com decisão por **Deep Learning** (TCN,
 | Features meta GBDT | **23** (`META_FEATURE_DIM` = 14 + 9) |
 | Contrato | `RISE_FALL`, duração **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | Ciclo | **300 s** (`cycle_interval_seconds`) / **300 s** (`signature_boundary_seconds`; sync M5) |
-| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf FLIP (`p_eff` 0.55/0.58 apos auto_learn) + Kelly |
+| Execução | `mandatory_trade_each_cycle: false`; `force` off; TCN + loss-clf FLIP (`p_eff` young 0.58 apos auto-learn) + Kelly |
 | Fail-closed | Meta **opcional** nos settings atuais (`require_meta_for_execution: false`); TCN eager/CUDA local |
 | Label | `label_mode: quantum_multi_barrier` (barreiras assimetricas + Vertical Expiry; alt. `triple_barrier`) |
 | Meta sessão | Stop win **4,31%** (`compounding_rate_daily: 0.0431`); stop loss desativado |
@@ -271,7 +271,7 @@ Scripts: `train_meta_vector.py`, `train_meta_data.py`, `train_meta_classifier.py
 
 ## 6. Direção e gates (minimo)
 
-Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP** se `p_loss >= 0.20` (unica inversao CALL↔PUT; sem HARD SKIP/Soft) → Kelly + SIDE_EQ sizing / caps. Quality gate amplo (RSI/price_zone) permanece **fora** do codigo. Catalogo: `docs/engineering-indicator-gates.md`.
+Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP** por `p_eff` no piso apos auto-learn (sem HARD SKIP/Soft) → Kelly + SIDE_EQ sizing / caps. Quality gate amplo (RSI/price_zone) permanece **fora** do codigo. Catalogo: `docs/engineering-indicator-gates.md`.
 
 ### 6.1 Motor de direção (modular)
 
@@ -282,7 +282,7 @@ Runtime atual: TCN ancora Cal → SCALE vision (telemetria) → **loss-clf FLIP*
 | `execution_direction_checks` | SKIP tecnico (treino/dados/deploy/predict) + seed TCN |
 | `execution_scale_vision` | Telemetria multi-escala + adapt retract |
 | `execution_side_eq_sizing` | Soft Kelly SIDE_EQ (nao inverte CALL/PUT) |
-| `loss_classifier_gate` | **Unico FLIP:** `p_loss >= hard_p_loss_floor` (**0.20**) |
+| `loss_classifier_gate` | FLIP por `p_eff` no piso SSOT apos auto-learn |
 | `execution_direction_resolver` | Finalize: relê `exec_direction` pos-FLIP + sync Kelly |
 
 | Etapa | Comportamento |
@@ -359,7 +359,7 @@ Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós
 | Persistence de estado | Redis/JSON state + settlement ZSET (nao flipa lado) |
 | Side equilibrium | `execution_side_eq_sizing` (soft Kelly; sem flip) |
 | Val accuracy gate | Limiar configurável (settings atuais sem piso hard de 0.63) |
-| Loss-clf FLIP | `loss_classifier_gate` — **unica** inversao se `p_loss >= 0.20` |
+| Loss-clf FLIP | `loss_classifier_gate` — inversao por `p_eff` no piso SSOT apos auto-learn |
 
 Facade: `domain/risk/risk_manager.RiskManager.calculate_stake`.
 
@@ -395,10 +395,10 @@ Watchdog: `AetherWatchdog` reconecta stream se ticks estagnarem (`watchdog_stale
 `arch`, `lookback` (**30**), `train_symbols`, `confidence_*` (**0.62/0.38**), `calibration.*` (`neutral_half_width: 0.0`), `online_training` (**false**), `deploy_gate.*`, `label_mode` + `label_*`, `tcn.channels`, `training_*`, `model_path_template`, `min_edge_execute`.
 
 ### `orchestrator` / `orchestrator.execution`
-`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**120**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `require_meta_for_execution` (**false**), loss-clf `veto_mode=hard` + `hard_p_loss_floor` **0.20**, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
+`cycle_interval_seconds` (**300**), `signature_boundary_seconds` (**300**), `exec_empty_retry_seconds` (**300**), `watchdog_stale_tick_seconds` (**300**), `mandatory_trade_each_cycle` (**false**), `require_meta_for_execution` (**false**), loss-clf com `flip_young_p_eff_floor` **0.58** apos auto-learn, `settlement_tolerance_window_seconds` (**600**), `post_settlement_is_trading_wait_seconds` (**90**), `warm_up_live_data_timeout_seconds`, `broker_handshake_timeout_seconds`, `state_lock_acquire_timeout_seconds`.
 
 ### `risk_management`
-`kelly.*` (`fraction: 0.08`, explore piso **0.25%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **2/3**, cover **1.10**, linear3 **3.5%**), `min_validation_accuracy_gate` (**0.53**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate **0.85**), `large_account_stop_win_pct` (**4.31**), `small_account_*`.
+`kelly.*` (`fraction: 0.08`, piso **1%**, tetos stop-win Kelly ate **5%**), `soft_recovery.*` (amort **1/1**, cover **1.0**, cap L0 **3.5%**), `params.*` (duration **5** m via `ops_contract_duration_minutes`; `label_horizon_bars` **1**, compounding **0.0431**, stake_min, payout_estimate inicial **0.85**, atualizado pela cotacao valida), `large_account_stop_win_pct` (**4.31**), `small_account_*`.
 
 ### `infra`
 Redis/Timescale/MinIO/meta_classifier/loss_classifier URLs e timeouts.

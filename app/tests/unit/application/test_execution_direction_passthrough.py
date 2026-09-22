@@ -241,7 +241,7 @@ def test_resolve_execution_direction_skips_trend_discord():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_trend_discord": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_trend_discord": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -264,7 +264,7 @@ def test_resolve_execution_direction_skips_on_exhaustion():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_exhaustion": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_exhaustion": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -287,7 +287,7 @@ def test_resolve_execution_direction_skips_on_chop_congestion():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -295,7 +295,7 @@ def test_resolve_execution_direction_skips_on_chop_congestion():
     assert entry["metrics"]["skip_reason"] == "chop_congestion"
 
 
-def test_resolve_execution_direction_converts_chop_to_senior_decision():
+def test_resolve_execution_direction_blocks_chop_even_when_legacy_flag_is_true():
     entry = {
         "metrics": {
             "calibrated_prob": 0.55,
@@ -311,16 +311,12 @@ def test_resolve_execution_direction_converts_chop_to_senior_decision():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False, "senior_confluence_flip": True},
+        exec_cfg={"skip_chop_congestion": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
-    assert res is not None
-    direction, metrics = res
-    assert direction == TradeDirection.CALL
-    assert metrics.get("senior_skip_converted") == "chop_congestion"
-    assert metrics.get("senior_confluence_resolved") is True
-    assert metrics.get("cal_side_edge", 0.0) > 0.0
+    assert res is None
+    assert entry["metrics"]["skip_reason"] == "chop_congestion"
 
 
 def test_resolve_execution_direction_skips_on_two_bar_counter_trend():
@@ -339,7 +335,7 @@ def test_resolve_execution_direction_skips_on_two_bar_counter_trend():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_two_bar_counter_trend": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_two_bar_counter_trend": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -362,7 +358,7 @@ def test_resolve_execution_direction_skips_on_wick_rejection():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_wick_rejection": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_wick_rejection": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -386,7 +382,7 @@ def test_resolve_execution_direction_skips_on_climactic_blowoff():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_climactic_blowoff": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_climactic_blowoff": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -409,7 +405,7 @@ def test_resolve_execution_direction_skips_on_adverse_tick_flow():
     orch._log_dedupe = {}
     res = resolve_execution_direction(
         entry,
-        exec_cfg={"skip_adverse_tick_flow": True, "skip_neg_edge": False, "senior_confluence_flip": False},
+        exec_cfg={"skip_adverse_tick_flow": True, "skip_neg_edge": False},
         symbol="1HZ75V",
         orch=orch,
     )
@@ -417,7 +413,7 @@ def test_resolve_execution_direction_skips_on_adverse_tick_flow():
     assert entry["metrics"]["skip_reason"] == "adverse_tick_flow_call"
 
 
-def test_resolve_execution_direction_converts_skip_to_senior_put():
+def test_resolve_execution_direction_blocks_adverse_tick_flow():
     entry = {
         "metrics": {
             "calibrated_prob": 0.55,
@@ -436,9 +432,6 @@ def test_resolve_execution_direction_converts_skip_to_senior_put():
         symbol="1HZ75V",
         orch=orch,
     )
-    assert res is not None
-    direction, metrics = res
-    assert direction == TradeDirection.PUT
-    assert metrics["senior_trader_flip"] is True
-    assert metrics["direction_origin"] == "FLIP_SENIOR_CONFLUENCE"
-    assert metrics["senior_confluence_reason"] == "adverse_tick_flow"
+    assert res is None
+    metrics = entry["metrics"]
+    assert metrics["skip_reason"] == "adverse_tick_flow_call"

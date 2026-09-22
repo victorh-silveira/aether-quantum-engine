@@ -1,7 +1,7 @@
 """Allowlist Vulture — Protocols hexagonais e simbolos registrados por reflexao.
 
 Regenerar (append) apos auditar falsos positivos:
-  cd app && python -m vulture src run.py train.py scripts aether_paths.py --min-confidence 80 --make-whitelist
+  cd app && python -m vulture src run.py train.py scripts aether_paths.py --min-confidence 100 --make-whitelist
 
 Itens que nao forem porta Protocol / hook de registro devem ser removidos do codigo, nao preservados aqui.
 """

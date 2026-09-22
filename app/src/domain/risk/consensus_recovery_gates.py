@@ -29,19 +29,6 @@ def metric_hurst(metrics: dict | None) -> float | None:
     return None
 
 
-def chop_neg_edge_dampens_dal(metrics: dict | None) -> bool:
-    """True quando NEG_EDGE soft/hard pede EXPLORE em vez de DAL agressivo."""
-    if not isinstance(metrics, dict):
-        return False
-    if bool(metrics.get("neg_edge_soft")):
-        return True
-    if str(metrics.get("gate_reason") or "").strip() == "neg_edge":
-        return True
-    if str(metrics.get("signal_status") or "").strip().upper() == "SKIP:NEG_EDGE":
-        return True
-    return str(metrics.get("signal_skip_waived") or "").strip() == "neg_edge_soft"
-
-
 def acc_below_recovery_floor(metrics: dict | None, consecutive_losses: int) -> bool:
     """True quando val_accuracy live (presente) esta abaixo do piso escalado de recovery."""
     if not isinstance(metrics, dict) or "val_accuracy" not in metrics:

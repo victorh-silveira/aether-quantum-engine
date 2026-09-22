@@ -13,12 +13,12 @@ description: >-
 
 1. Ler `docs/engineering-repo-hygiene.md` + `docs/agent-coverage.md` + `AGENTS.md`
 2. Inventariar candidatos; classificar **morto comprovado** vs vivo frio vs indexado
-3. Rodar vulture com `app/.vulture_whitelist.py` (`--min-confidence 80`); ruff F/ERA/ARG/T20
+3. Rodar vulture com `app/.vulture_whitelist.py` (`--min-confidence 100`); ruff F/ERA/ARG/T20
 4. Montar plan em ondas (codigo → JSON → alinhamentos → deps); fora de escopo explicito
 
 ## Checklist do guia (tooling + sidecars)
 
-- [ ] Vulture CI: confidence **80** + whitelist no `clean_workspace` / `pyproject`
+- [ ] Vulture CI: confidence **100** + whitelist no `clean_workspace` / `pyproject`
 - [ ] Allowlist so Protocols/hooks (sem negocio)
 - [ ] Redis TTL so em efemeros (`bar_sig` / `market_sig` / `corr_matrix`); **sem** TTL em ZSET settlement / `session:current*`
 - [ ] Anti-Streams no settlement

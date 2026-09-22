@@ -87,7 +87,6 @@ def mark_forced_explore_metrics(
     material_pending: bool,
     near_stop_win: bool,
     low_hurst_noise: bool,
-    chop_neg_dampen: bool,
     acc_force_explore: bool,
     live_force_explore: bool,
     adapted_force_explore: bool,
@@ -104,7 +103,6 @@ def mark_forced_explore_metrics(
     metrics["recovery_material_pending"] = bool(material_pending)
     metrics["recovery_near_stop_win_freeze"] = bool(near_stop_win)
     metrics["recovery_low_hurst_damped"] = bool(low_hurst_noise)
-    metrics["recovery_chop_neg_edge_damped"] = bool(chop_neg_dampen)
     metrics["recovery_acc_force_explore"] = bool(acc_force_explore and not material_pending)
     metrics["recovery_live_force_explore"] = bool(live_force_explore and not material_pending)
     metrics["recovery_adapted_force_explore"] = bool(adapted_force_explore and not material_pending)
@@ -112,7 +110,7 @@ def mark_forced_explore_metrics(
     metrics["recovery_infeasible"] = bool(soft_infeasible)
     metrics["recovery_cover_disabled"] = bool(cover_disabled)
     metrics["recovery_force_explore"] = bool(
-        cover_disabled or quality_force_explore or low_hurst_noise or chop_neg_dampen or near_stop_win
+        cover_disabled or quality_force_explore or low_hurst_noise or near_stop_win
     )
 
 
@@ -120,7 +118,6 @@ def force_early_explore_reason(
     *,
     near_stop_win: bool,
     low_hurst_noise: bool,
-    chop_neg_dampen: bool,
     quality_force_explore: bool,
     cover_disabled: bool = False,
 ) -> str:
@@ -131,8 +128,6 @@ def force_early_explore_reason(
         return "cover_disabled"
     if low_hurst_noise:
         return "low_hurst"
-    if chop_neg_dampen:
-        return "neg_edge"
     if quality_force_explore:
         return "quality"
     return "no_material_pending"
@@ -156,7 +151,6 @@ def apply_forced_explore_early(
     metrics: dict | None,
     near_stop_win: bool,
     low_hurst_noise: bool,
-    chop_neg_dampen: bool,
     acc_force_explore: bool,
     live_force_explore: bool,
     adapted_force_explore: bool,
@@ -167,7 +161,6 @@ def apply_forced_explore_early(
     reason = force_early_explore_reason(
         near_stop_win=near_stop_win,
         low_hurst_noise=low_hurst_noise,
-        chop_neg_dampen=chop_neg_dampen,
         quality_force_explore=quality_force_explore,
         cover_disabled=cover_disabled,
     )
@@ -203,7 +196,6 @@ def apply_forced_explore_early(
         material_pending=material_pending,
         near_stop_win=near_stop_win,
         low_hurst_noise=low_hurst_noise,
-        chop_neg_dampen=chop_neg_dampen,
         acc_force_explore=acc_force_explore,
         live_force_explore=live_force_explore,
         adapted_force_explore=adapted_force_explore,

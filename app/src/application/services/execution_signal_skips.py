@@ -116,25 +116,6 @@ def should_skip_doji(
     return True
 
 
-def _smart_neg_edge_waive(edge: float, metrics: dict[str, Any]) -> bool:
-    """Libera quase-breakeven quando TCN tem lado ativo e loss-clf confirma baixa chance de perda ou bootstrap."""
-    if edge < -0.030 or bool(metrics.get("loss_clf_flip")):
-        return False
-    p_loss = metrics.get("loss_clf_p_loss")
-    if p_loss is not None:
-        try:
-            if float(p_loss) <= 0.485:
-                return True
-        except (TypeError, ValueError):
-            pass
-    is_boot = bool(metrics.get("loss_clf_bootstrap")) or metrics.get("loss_clf_flip_blocked") == "bootstrap"
-    margin = max(
-        float(metrics.get("direction_margin", 0.0) or 0.0),
-        float(metrics.get("raw_margin", 0.0) or 0.0),
-    )
-    return is_boot and margin >= 0.01
-
-
 def should_skip_neg_edge(
     metrics: dict[str, Any],
     exec_cfg: dict[str, Any] | None,
@@ -146,11 +127,7 @@ def should_skip_neg_edge(
         return False
     if _pend_waives(metrics, exec_cfg):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     raw = metrics.get("cal_side_edge")
     if raw is None:
@@ -169,11 +146,6 @@ def should_skip_neg_edge(
             min_edge = 0.0
     floor = max(0.0, min_edge)
     if edge > floor:
-        return False
-    pend = float(metrics.get("pending_loss_total", 0.0) or 0.0)
-    allow_smart = bool((exec_cfg or {}).get("smart_waive_neg_edge", False)) or pend > 0.0
-    if allow_smart and _smart_neg_edge_waive(edge, metrics):
-        metrics["neg_edge_smart_waived"] = True
         return False
     _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge), min_edge_floor=float(floor))
     return True
@@ -256,11 +228,7 @@ def should_skip_trend_discord(
     """True quando a direcao EXEC discordar simultaneamente de trend_direction e candle M5 em EXPLORE."""
     if force or not bool((exec_cfg or {}).get("skip_trend_discord", False)):
         return False
-    if (
-        bool(metrics.get("loss_clf_flip"))
-        or bool(metrics.get("anti_trend_lock_flip"))
-        or bool(metrics.get("senior_trader_flip"))
-    ):
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = _closed_candle_dir(metrics)

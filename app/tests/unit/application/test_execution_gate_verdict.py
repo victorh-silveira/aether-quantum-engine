@@ -20,18 +20,17 @@ from src.domain.risk.gate_verdict_sizing import blocks_single_strike_boost
 from src.domain.risk.risk_stake_flow import apply_stop_win_kelly_boost
 
 
-def test_stamp_hard_clears_neg_edge_soft():
-    metrics = {"neg_edge_soft": True, "neg_edge_soft_kelly_mult": 0.55}
+def test_stamp_hard_marks_verdict():
+    metrics = {}
     stamp_hard_skip(metrics, "neg_edge")
     assert metrics["gate_verdict"] == VERDICT_HARD_SKIP
-    assert metrics.get("neg_edge_soft") is None
     assert is_soft_size(metrics) is False
 
 
 def test_stamp_soft_does_not_override_hard():
     metrics: dict = {}
     stamp_hard_skip(metrics, "anti_loss_rsi_momentum")
-    stamp_soft_size(metrics, "neg_edge_soft")
+    stamp_soft_size(metrics, "cal_margin_soft")
     assert metrics["gate_verdict"] == VERDICT_HARD_SKIP
 
 
@@ -44,7 +43,7 @@ def test_stamp_allow_and_soft_flags_block_boost():
     assert metrics["gate_verdict"] == VERDICT_SOFT_SIZE
     assert blocks_single_strike(metrics) is True
     assert blocks_single_strike_boost(metrics) is True
-    assert blocks_single_strike_boost({"neg_edge_soft": True}) is True
+    assert blocks_single_strike_boost({"cal_margin_soft": True}) is True
     assert blocks_single_strike_boost(None) is False
     softed = {"gate_verdict": VERDICT_SOFT_SIZE}
     stamp_allow(softed, "ignored")
@@ -79,7 +78,7 @@ def test_apply_stop_win_kelly_boost_skips_under_soft_size():
     rm.logger = MagicMock()
     soft_metrics = {
         "gate_verdict": "SOFT_SIZE",
-        "neg_edge_soft": True,
+        "cal_margin_soft": True,
         "neg_edge_tcn_cal_edge": 0.03,
         "live_n": 40,
         "live_wr": 0.55,
