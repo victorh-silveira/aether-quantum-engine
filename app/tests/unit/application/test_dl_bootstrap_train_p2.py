@@ -5,32 +5,8 @@ import pytest
 
 from src.application.services.deep_learning.dl_bootstrap_train import (
     _bootstrap_training_context,
-    _train_deploy_attempts,
     run_dl_training_session,
 )
-
-
-def test_train_deploy_attempts_clamps_and_rejects_bad():
-    assert _train_deploy_attempts({"train_deploy_retries": 3}) == 3
-    assert _train_deploy_attempts({"train_deploy_retries": 99}) == 8
-    assert _train_deploy_attempts({"train_deploy_retries": "x"}) == 3
-    assert _train_deploy_attempts(None) == 3
-
-
-def test_reseed_for_attempt_calls_cuda_when_available():
-    from src.application.services.deep_learning.dl_bootstrap_train import _reseed_for_attempt
-
-    with (
-        patch("src.application.services.deep_learning.dl_bootstrap_train.torch.manual_seed") as seed,
-        patch(
-            "src.application.services.deep_learning.dl_bootstrap_train.torch.cuda.is_available",
-            return_value=True,
-        ),
-        patch("src.application.services.deep_learning.dl_bootstrap_train.torch.cuda.manual_seed_all") as cuda_seed,
-    ):
-        _reseed_for_attempt(2)
-    seed.assert_called_once()
-    cuda_seed.assert_called_once()
 
 
 @pytest.mark.asyncio

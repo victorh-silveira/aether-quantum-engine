@@ -114,8 +114,6 @@ def test_log_deduper_and_market_audit_helpers():
     deduper = LogDeduper(owner)
     deduper.log_quality_guard_cycle_minute(logger, cycle_id=1, minute_bucket="m", message="q")
     deduper.log_quality_starvation_escape(logger, skipped_cycles=2, min_margin=0.04)
-    deduper.log_cooldown_cooling_down(logger, "cool", 1.0, 0)
-    deduper.log_cooldown_skip(logger, "skip")
     owner._log_dedupe = {"ch": "x"}
     assert clear_log_channel(owner, "ch") == "x"
     assert cluster_symbol_token("", None) == "N/A"

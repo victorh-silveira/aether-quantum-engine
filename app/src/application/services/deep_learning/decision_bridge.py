@@ -6,7 +6,6 @@ import logging
 import numpy as np
 
 from src.application.services.deep_learning.dl_bridge_helpers import (
-    apply_symbol_loss_cooldown,
     guard_inference_price_history,
     parse_dl_params,
     pending_loss_total,
@@ -21,7 +20,6 @@ from src.application.services.deep_learning.dl_live_bar_patch import (
     store_patched_ohlc_snapshot,
 )
 from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
-from src.application.services.deep_learning.dl_outcomes import tick_dl_session_pauses
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
 from src.application.services.deep_learning.dl_predict_build import prepare_meta_classifier_cross_symbol_bundle
@@ -61,12 +59,15 @@ def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
     """Aplica bloqueio de execucao quando o mini-deploy gate reprova o modelo."""
     gate_cfg = parse_deploy_gate_config(dl_config)
     enabled = gate_cfg.get("enabled", True)
-    force_ok = bool(gate_cfg.get("force_ok", False))
-    deploy_ok = bool(runtime.get("deploy_ok", False)) or (not enabled) or force_ok
+    provisional = bool(runtime.get("deploy_provisional_ok", False)) and bool(gate_cfg.get("provisional_enabled", False))
+    deploy_ok = bool(runtime.get("deploy_ok", False)) or provisional or (not enabled)
     if not deploy_ok and enabled and entry["metrics"].get("execute"):
         entry["metrics"]["execute"] = False
         entry["metrics"]["gate_reason"] = "deploy"
     entry["metrics"]["deploy_ok"] = bool(deploy_ok)
+    entry["metrics"]["deploy_provisional"] = bool(provisional and deploy_ok)
+    if provisional and deploy_ok:
+        entry["metrics"]["provisional_max_stake_pct"] = float(gate_cfg["provisional_max_stake_pct"])
     return entry
 
 
@@ -242,7 +243,7 @@ async def _collect_symbol_decision(
     )
     entry = _apply_deploy_gate(entry, runtime, dl_config)
     entry = _apply_training_gate(entry, runtime, params)
-    return apply_symbol_loss_cooldown(orch, symbol, entry), train_reason
+    return entry, train_reason
 
 
 async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
@@ -258,7 +259,6 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
     params = parse_dl_params(dl_config, data_config, risk_params)
     min_len = _min_dl_history_len(params)
     granularity = granularity_seconds(orch)
-    tick_dl_session_pauses(orch)
     recovery_active = recovery_gating_active(orch)
     pending_total = pending_loss_total(orch)
     trained: list[str] = []

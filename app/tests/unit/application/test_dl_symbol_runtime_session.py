@@ -24,7 +24,7 @@ def _loaded_checkpoint(*, deploy_ok: bool, val_brier: float = 0.22):
     )
 
 
-def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
+def test_get_symbol_runtime_requires_settlement_evidence_for_deploy():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
@@ -40,7 +40,7 @@ def test_get_symbol_runtime_marks_session_trained_when_deploy_ok_checkpoint():
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is True
-    assert runtime["deploy_ok"] is True
+    assert runtime["deploy_ok"] is False
 
 
 def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
@@ -84,7 +84,7 @@ def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
     assert runtime["deploy_ok"] is False
 
 
-def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
+def test_get_symbol_runtime_force_ok_does_not_bypass_settlement_evidence():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
@@ -102,10 +102,10 @@ def test_get_symbol_runtime_force_ok_overrides_deploy_flag():
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
-    assert runtime["deploy_ok"] is True
+    assert runtime["deploy_ok"] is False
 
 
-def test_get_symbol_runtime_exception_on_torch_load():
+def test_get_symbol_runtime_torch_load_failure_rejects_deploy():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
@@ -121,7 +121,7 @@ def test_get_symbol_runtime_exception_on_torch_load():
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["trained_granularity"] == 60
-    assert runtime["deploy_ok"] is True
+    assert runtime["deploy_ok"] is False
 
 
 def test_get_symbol_runtime_discards_lookback_mismatch():

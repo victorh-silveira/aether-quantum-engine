@@ -19,6 +19,7 @@ from src.domain.risk.risk_stake_calc_helpers import (
     apply_mandatory_weak_explore_cap,
     apply_post_kelly_stake_caps,
     cap_final_stake,
+    cap_provisional_stake,
     resolve_f_star_and_kelly_base,
 )
 from src.domain.risk.risk_stake_flow import (
@@ -237,6 +238,7 @@ def calculate_stake_for_manager(
         safe_cap=float(safe_cap),
         metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
+    final_stake = cap_provisional_stake(final_stake, bankroll, dl_metrics if isinstance(dl_metrics, dict) else None)
     log_kelly_base = (
         effective_soft_recovery_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base
     )

@@ -62,13 +62,22 @@ def test_apply_deploy_gate_blocks_when_not_ok():
     assert out["metrics"]["deploy_ok"] is False
 
 
-def test_apply_deploy_gate_force_ok_allows_execution():
+def test_apply_deploy_gate_force_ok_nao_libera_execucao():
     entry = {"metrics": {"execute": True}}
     runtime = {"deploy_ok": False}
     out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True, "force_ok": True}})
+    assert out["metrics"]["execute"] is False
+    assert out["metrics"]["deploy_ok"] is False
+    assert out["metrics"].get("gate_reason") == "deploy"
+
+
+def test_apply_deploy_gate_provisorio_limita_stake():
+    entry = {"metrics": {"execute": True}}
+    runtime = {"deploy_ok": False, "deploy_provisional_ok": True}
+    out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"provisional_enabled": True}})
     assert out["metrics"]["execute"] is True
-    assert out["metrics"]["deploy_ok"] is True
-    assert out["metrics"].get("gate_reason") != "deploy"
+    assert out["metrics"]["deploy_provisional"] is True
+    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.01)
 
 
 def test_log_retrain_batch_empty_and_nonempty(caplog):

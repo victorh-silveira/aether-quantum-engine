@@ -5,15 +5,10 @@ import numpy as np
 import pytest
 import torch
 
-from src.application.services.deep_learning.dl_bridge_helpers import apply_symbol_loss_cooldown
 from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
 from src.application.services.deep_learning.dl_feature_build import attach_microstructure
 from src.application.services.deep_learning.dl_hurst import hurst_exponent
-from src.application.services.deep_learning.dl_outcomes import (
-    live_win_rate,
-    maybe_pause_symbol_session,
-    tick_dl_session_pauses,
-)
+from src.application.services.deep_learning.dl_outcomes import live_win_rate
 from src.application.services.deep_learning.dl_params import optional_float, parse_dl_params
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier
 from src.application.services.deep_learning.model import (
@@ -144,35 +139,6 @@ def test_live_win_rate_insufficient_samples():
     assert live_win_rate(orch, "R_10") is None
 
 
-def test_tick_dl_session_pauses_respects_wall_until():
-    orch = SimpleNamespace(_dl_session_pause={"R_10": 1}, _dl_session_pause_until={"R_10": 9_999_999_999.0})
-    tick_dl_session_pauses(orch)
-    assert orch._dl_session_pause["R_10"] == 1
-    assert "R_10" in orch._dl_session_pause_until
-    tick_dl_session_pauses(SimpleNamespace())
-    reused = SimpleNamespace(
-        _dl_outcome_flags={"R_10": [False, False, False]},
-        _dl_session_pause={"R_10": 1},
-        config={"orchestrator": {"cycle_interval_seconds": 60}},
-    )
-    maybe_pause_symbol_session(reused, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=2)
-    assert reused._dl_session_pause["R_10"] == 2
-    assert reused._cooldown_until > 0.0
-
-
-def test_tick_dl_session_pauses_clears_expired_until():
-    orch = SimpleNamespace(_dl_session_pause={"R_10": 3}, _dl_session_pause_until={"R_10": 1.0})
-    tick_dl_session_pauses(orch)
-    assert "R_10" not in orch._dl_session_pause
-    assert "R_10" not in orch._dl_session_pause_until
-
-
-def test_maybe_pause_noop_when_disabled():
-    orch = SimpleNamespace(_dl_outcome_flags={"R_10": [False, False, False]})
-    maybe_pause_symbol_session(orch, "R_10", max_losses_in_window=2, window_trades=3, pause_cycles=0)
-    assert not hasattr(orch, "_dl_session_pause")
-
-
 def test_optional_float_present():
     assert optional_float({"x": "0.5"}, "x") == pytest.approx(0.5)
 
@@ -246,18 +212,3 @@ def test_evaluate_mini_deploy_micro_slice_runs():
         )
     assert mock_predict.called
     assert ok is True
-
-
-def test_apply_symbol_loss_cooldown_session_pause():
-    orch = SimpleNamespace(risk_manager=MagicMock(is_symbol_on_loss_cooldown=MagicMock(return_value=False)))
-    orch._dl_session_pause = {"R_10": 3}
-    entry = {"metrics": {"execute": True}}
-    out = apply_symbol_loss_cooldown(orch, "R_10", entry)
-    assert out["metrics"].get("gate_reason") is None
-    assert out["metrics"]["execute"] is True
-
-
-def test_apply_symbol_loss_cooldown_empty_entry():
-    orch = SimpleNamespace(risk_manager=MagicMock())
-    assert apply_symbol_loss_cooldown(orch, "R_10", {}) == {}
-    assert apply_symbol_loss_cooldown(orch, "R_10", None) is None

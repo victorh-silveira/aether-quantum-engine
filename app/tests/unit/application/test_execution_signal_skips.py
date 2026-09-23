@@ -316,7 +316,7 @@ def test_should_skip_trend_discord_cases():
     assert should_skip_trend_discord({"anti_trend_lock_flip": True}, TradeDirection.CALL, cfg) is False
 
     assert should_skip_trend_discord({"trend_direction": "NONE"}, TradeDirection.CALL, cfg) is False
-    assert should_skip_trend_discord({"trend_direction": "PUT"}, TradeDirection.CALL, cfg) is False
+    assert should_skip_trend_discord({"trend_direction": "PUT"}, TradeDirection.CALL, cfg) is True
 
     m_agree_trend = {
         "trend_direction": "CALL",
@@ -329,6 +329,7 @@ def test_should_skip_trend_discord_cases():
         "trend_direction": "PUT",
         "closed_micro_candle_stamped": True,
         "closed_micro_candle_dir": "CALL",
+        "cal_side_edge": 0.08,
     }
     assert should_skip_trend_discord(m_agree_candle, TradeDirection.CALL, cfg) is False
 
@@ -347,8 +348,8 @@ def test_should_skip_trend_discord_cases():
         "cal_side_edge": 0.03,
     }
     assert should_skip_trend_discord(m_oppose_mod, TradeDirection.CALL, cfg) is True
-    assert m_oppose_mod["signal_status"] == "SKIP:trend_discord"
-    assert m_oppose_mod["skip_reason"] == "trend_discord"
+    assert m_oppose_mod["signal_status"] == "SKIP:counter_trend_unconfirmed"
+    assert m_oppose_mod["skip_reason"] == "counter_trend_unconfirmed"
 
     m_oppose_bad_edge = {
         "trend_direction": "PUT",

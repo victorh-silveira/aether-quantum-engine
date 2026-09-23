@@ -15,9 +15,7 @@ if str(_APP) not in sys.path:
     sys.path.insert(0, str(_APP))
 
 from aether_paths import REPO_ROOT
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
-from src.application.services.deep_learning.tf_sweep_config import load_tf_sweep_knobs
-from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible, implied_breakeven
+from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.presentation.terminal.logger import setup_logger
 
 
@@ -66,18 +64,6 @@ def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
     return out
 
 
-def _settle_gate_ok(payload: dict, settings: dict | None) -> tuple[bool, str]:
-    """Aceita ckpt do sweep quando settle_wr passa o mesmo criterio de elegibilidade."""
-    if not checkpoint_settle_eligible(payload, settings):
-        return False, ""
-    settle = float(payload.get("deploy_settlement_win_rate") or 0.0)
-    settle_n = int(payload.get("deploy_settlement_n") or 0)
-    be = implied_breakeven(0.72)
-    if isinstance(settings, dict):
-        be = implied_breakeven(float(load_tf_sweep_knobs(settings)["payout_for_breakeven"]))
-    return True, (f"settle_ok settle_wr={settle:.4f} n={settle_n} edge_vs_be={settle - be:.4f}")
-
-
 def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = None) -> tuple[bool, str]:
     if not path.is_file():
         return False, f"checkpoint ausente: {path}"
@@ -103,20 +89,11 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
     if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
         dl = settings["deep_learning"]
     gate_cfg = parse_deploy_gate_config(dl)
-    settle_ok, settle_msg = _settle_gate_ok(payload, settings)
-    if settle_ok:
-        if not bool(payload.get("deploy_ok", False)):
-            payload["deploy_ok"] = True
-            torch.save(payload, path)
-        return True, f"{path.name}: deploy_ok=true ({settle_msg})"
     val_acc = float(payload.get("val_accuracy", payload.get("val_acc", 0.0)) or 0.0)
     val_brier = float(payload.get("val_brier", 1.0) or 1.0)
     stored_ok = bool(payload.get("deploy_ok", False))
-    if bool(gate_cfg.get("force_ok", False)):
-        if not stored_ok:
-            payload["deploy_ok"] = True
-            torch.save(payload, path)
-        return True, f"{path.name}: deploy_ok=true (force_ok) val_acc={val_acc:.4f}"
+    provisional_ok = bool(payload.get("deploy_provisional_ok", False))
+    settlement_lcb = payload.get("deploy_settlement_wilson_lcb")
     if val_acc + 1e-9 < soft_min:
         return False, f"{path.name}: val_acc={val_acc:.4f} < soft_min={soft_min:.4f}"
     label_call = payload.get("label_call_frac")
@@ -129,26 +106,30 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             f"{path.name}: telemetria de collapse ausente "
             "(label_call_frac/pred_call_frac/minority_recall) — retreine com gate atual"
         )
-    soft_ok = resolve_deploy_ok(
-        mini_ok=stored_ok,
-        val_accuracy=val_acc,
-        val_brier=val_brier,
-        gate_cfg=gate_cfg,
-        label_call_frac=float(label_call) if label_call is not None else None,
-        pred_call_frac=float(pred_call) if pred_call is not None else None,
-        minority_recall=float(minority_rec) if minority_rec is not None else None,
-    )
-    if not soft_ok:
+    if not stored_ok:
+        settlement_wr = float(payload.get("deploy_settlement_win_rate", 0.0) or 0.0)
+        settlement_n = int(payload.get("deploy_settlement_n", 0) or 0)
+        settlement_brier = float(payload.get("deploy_settlement_brier", 1.0) or 1.0)
+        if provisional_ok and (
+            settlement_n >= int(gate_cfg["provisional_min_trades"])
+            and settlement_wr + 1e-9 >= float(gate_cfg["provisional_min_win_rate"])
+            and settlement_brier + 1e-9 < float(gate_cfg["provisional_max_brier"])
+        ):
+            return True, (
+                f"{path.name}: deploy_provisional=true "
+                f"(settle_wr={settlement_wr:.4f} n={settlement_n} brier={settlement_brier:.4f})"
+            )
         return False, (
             f"{path.name}: deploy_ok=false "
             f"(val_acc={val_acc:.4f} val_brier={val_brier:.4f} "
             f"pred_call={pred_call} minority_rec={minority_rec} "
-            f"soft_max_brier={float(gate_cfg['soft_max_brier']):.4f})"
+            "sem evidencia OOS de settlement qualificada)"
         )
-    if not stored_ok:
-        payload["deploy_ok"] = True
-        torch.save(payload, path)
-        return True, f"{path.name}: deploy_ok=true (soft fallback) val_acc={val_acc:.4f} val_brier={val_brier:.4f}"
+    if settlement_lcb is None or float(settlement_lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
+        return False, (
+            f"{path.name}: checkpoint sem evidencia Wilson de settlement suficiente "
+            f"(lcb={settlement_lcb}; min_win_rate={float(gate_cfg['min_win_rate']):.6f})"
+        )
     return True, f"{path.name}: deploy_ok=true val_acc={val_acc:.4f}"
 
 

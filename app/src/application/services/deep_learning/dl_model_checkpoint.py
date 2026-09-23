@@ -43,7 +43,7 @@ def checkpoint_meta_ready(path: Path) -> bool:
         return False
     if not isinstance(payload, dict):
         return False
-    if bool(payload.get("deploy_ok", False)):
+    if bool(payload.get("deploy_ok", False)) and payload.get("deploy_settlement_wilson_lcb") is not None:
         return True
     gate_cfg = parse_deploy_gate_config({})
     return bool(
@@ -89,10 +89,12 @@ def save_model_checkpoint(
     val_brier: float | None = None,
     val_ece: float | None = None,
     deploy_ok: bool | None = None,
+    deploy_provisional_ok: bool | None = None,
     deploy_win_rate: float | None = None,
     deploy_settlement_win_rate: float | None = None,
     deploy_settlement_brier: float | None = None,
     deploy_settlement_n: int | None = None,
+    deploy_settlement_wilson_lcb: float | None = None,
     oos_sharpness: float | None = None,
     granularity: int | None = None,
     training_history_bars: int | None = None,
@@ -124,6 +126,8 @@ def save_model_checkpoint(
         payload["val_ece"] = float(val_ece)
     if deploy_ok is not None:
         payload["deploy_ok"] = bool(deploy_ok)
+    if deploy_provisional_ok is not None:
+        payload["deploy_provisional_ok"] = bool(deploy_provisional_ok)
     if deploy_win_rate is not None:
         payload["deploy_win_rate"] = float(deploy_win_rate)
     if deploy_settlement_win_rate is not None:
@@ -132,6 +136,8 @@ def save_model_checkpoint(
         payload["deploy_settlement_brier"] = float(deploy_settlement_brier)
     if deploy_settlement_n is not None:
         payload["deploy_settlement_n"] = int(deploy_settlement_n)
+    if deploy_settlement_wilson_lcb is not None:
+        payload["deploy_settlement_wilson_lcb"] = float(deploy_settlement_wilson_lcb)
     if oos_sharpness is not None:
         payload["oos_sharpness"] = float(oos_sharpness)
     if granularity is not None:

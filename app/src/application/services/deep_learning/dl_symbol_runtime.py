@@ -19,28 +19,9 @@ from src.application.services.deep_learning.model import (
     fit_norm_stats,
     load_model_checkpoint,
 )
-from src.application.services.deep_learning.tf_sweep_score import checkpoint_settle_eligible
 
 
 logger = logging.getLogger("AETH")
-
-
-def _persist_deploy_ok_flag(path: Path, *, deploy_ok: bool) -> None:
-    """Atualiza so a flag deploy_ok no checkpoint sem retreinar."""
-    try:
-        payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
-    except Exception as exc:
-        logger.debug("DL: falha ao reler checkpoint para deploy_ok em %s: %s", path, exc)
-        return
-    if not isinstance(payload, dict):
-        return
-    if bool(payload.get("deploy_ok", False)) == bool(deploy_ok):
-        return
-    payload["deploy_ok"] = bool(deploy_ok)
-    try:
-        torch.save(payload, path)
-    except Exception as exc:
-        logger.debug("DL: falha ao gravar deploy_ok em %s: %s", path, exc)
 
 
 def _effective_deploy_ok(
@@ -55,17 +36,16 @@ def _effective_deploy_ok(
     checkpoint_payload: dict | None = None,
     settings: dict | None = None,
 ) -> bool:
-    """Aplica force_ok / settle / soft fallback SSOT sobre a flag persistida."""
+    """Valida checkpoint promovido pela evidencia OOS de settlement."""
     gate_cfg = parse_deploy_gate_config(dl_config)
-    if bool(gate_cfg.get("force_ok", False)):
-        return True
-    if checkpoint_settle_eligible(checkpoint_payload, settings):
-        return True
-    allow_undeployed = bool(dl_config.get("allow_undeployed_inference", False))
-    if not allow_undeployed and not stored_ok:
+    _ = settings
+    if not bool(stored_ok) or not isinstance(checkpoint_payload, dict):
+        return False
+    lcb = checkpoint_payload.get("deploy_settlement_wilson_lcb")
+    if lcb is None or float(lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
         return False
     return resolve_deploy_ok(
-        mini_ok=bool(stored_ok),
+        mini_ok=True,
         val_accuracy=float(val_accuracy),
         val_brier=float(val_brier),
         gate_cfg=gate_cfg,
@@ -115,6 +95,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
         calibrator = CalibratorState()
         lookback = expected_lookback
         deploy_ok = False
+        deploy_provisional_ok = False
         deploy_win_rate = 0.0
         session_trained = False
         checkpoint_granularity = expected_granularity
@@ -188,16 +169,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 checkpoint_payload=collapse_meta if isinstance(collapse_meta, dict) else None,
                 settings=settings,
             )
-            if deploy_ok and not stored_ok and path.exists():
-                _persist_deploy_ok_flag(path, deploy_ok=True)
-                via = "settle" if checkpoint_settle_eligible(collapse_meta, settings) else "soft fallback"
-                logger.info(
-                    "DL: %s deploy_ok promovido por %s (acc=%.4f brier=%.4f)",
-                    symbol,
-                    via,
-                    float(val_accuracy),
-                    float(val_brier),
-                )
+            deploy_provisional_ok = bool(collapse_meta.get("deploy_provisional_ok", False)) and not deploy_ok
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(
@@ -215,6 +187,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             val_brier = 1.0
             val_ece = 1.0
             deploy_ok = False
+            deploy_provisional_ok = False
             deploy_win_rate = 0.0
             session_trained = False
             calibrator = CalibratorState()
@@ -231,6 +204,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "val_ece": val_ece,
             "lookback": lookback,
             "deploy_ok": deploy_ok,
+            "deploy_provisional_ok": deploy_provisional_ok,
             "deploy_win_rate": deploy_win_rate,
             "session_trained": session_trained,
             "model_lock": threading.RLock(),

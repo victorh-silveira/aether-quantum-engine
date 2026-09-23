@@ -56,7 +56,6 @@ Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do moni
 ## Filtros
 
 - `BlankLineSquasher` — linhas em branco consecutivas
-- `CooldownDeduplicationFilter` — CICLO cooling-down / resfriamento (1×/tick)
 - `SettlementSpamFilter` — SETTLE/WARMUP/EXECUTION_FLOW por **canal+tick**
 - `log_dedupe` — responsabilidade de conteudo (quality/EXEC_EMPTY); Filter = anti-rajada
 

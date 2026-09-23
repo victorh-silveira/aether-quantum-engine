@@ -49,9 +49,11 @@ def apply_deploy_to_runtime(
     deploy_ok: bool,
     deploy_win_rate: float,
     val_brier: float,
+    provisional_ok: bool = False,
 ) -> None:
     """Persiste resultado do gate de deploy no runtime do simbolo."""
     runtime["deploy_ok"] = bool(deploy_ok)
+    runtime["deploy_provisional_ok"] = bool(provisional_ok) and not bool(deploy_ok)
     runtime["deploy_win_rate"] = float(deploy_win_rate)
     if deploy_ok:
         runtime["val_brier"] = float(val_brier)

@@ -17,7 +17,7 @@ def _reset_cache():
 def test_production_settings_pass_doctrine_invariants():
     inv = assert_production_doctrine()
     assert inv["force_trade_every_cycle"] is False
-    assert inv["min_validation_accuracy_gate"] >= 0.53
+    assert inv["min_validation_accuracy_gate"] >= 0.50
     assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
@@ -32,7 +32,7 @@ def test_production_settings_pass_doctrine_invariants():
     assert float(inv["cover_multiple"]) == pytest.approx(1.0)
     assert int(inv["loss_clf_ready_n"]) == 32
     assert int(inv["loss_clf_retrain_min_n"]) == 12
-    assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 4
+    assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 12
     assert int(inv["loss_clf_min_win_for_loss_retrain"]) == 4
 
 
@@ -44,12 +44,12 @@ def test_production_deploy_gate_armed():
     gate = dl["deploy_gate"]
     assert gate["enabled"] is True
     assert gate["force_ok"] is True
-    assert float(gate["soft_min_val_accuracy"]) == pytest.approx(0.0)
-    assert float(gate["soft_max_brier"]) == pytest.approx(1.0)
-    assert bool(gate["reject_majority_collapse"]) is False
-    assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.20)
+    assert float(gate["soft_min_val_accuracy"]) == pytest.approx(0.50)
+    assert float(gate["soft_max_brier"]) == pytest.approx(0.245)
+    assert bool(gate["reject_majority_collapse"]) is True
+    assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.15)
     assert bool(dl.get("allow_undeployed_inference")) is False
-    assert int(dl.get("training_history_bars", 0)) == 2000
+    assert int(dl.get("training_history_bars", 0)) == 5000
     assert int(dl.get("lookback", 0)) == 30
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5
@@ -126,8 +126,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.31)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 300
-    assert int(data["micro_history_bars"]) == 2000
-    assert int(data["micro_fetch_count"]) == 2000
+    assert int(data["micro_history_bars"]) == 5000
+    assert int(data["micro_fetch_count"]) == 5000
     assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
@@ -163,25 +163,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     ssp = settings["orchestrator"]["execution"]["sample_size_policy"]
     assert float(ssp["explore_stake_scale_floor"]) == pytest.approx(0.40)
     assert int(ssp["evidence_n_min"]) == 12
-    cool = settings["orchestrator"]["execution"]["post_loss_cooldown"]
-    assert int(cool["lin_min"]) == 999
-    assert float(cool["delay_seconds_lin1"]) == pytest.approx(0.0)
-    assert float(cool["delay_seconds_lin2"]) == pytest.approx(0.0)
-    assert float(cool["delay_seconds_lin3"]) == pytest.approx(0.0)
-    assert float(cool["delay_seconds_lin4"]) == pytest.approx(0.0)
-    from src.application.services.deep_learning.dl_outcomes import resolve_session_pause_config
     from src.application.services.deep_learning.dl_params import parse_dl_params
-    from src.application.services.execution_runtime_config import resolve_post_loss_cooldown_config
 
-    ladder = resolve_post_loss_cooldown_config(None)
-    assert int(ladder["lin_min"]) == 999
-    assert float(ladder["delay_seconds_lin3"]) == pytest.approx(0.0)
-    pause = resolve_session_pause_config(None)
-    assert int(pause["session_max_losses_in_window"]) == 999
-    assert int(pause["session_window_trades"]) == 999
-    assert int(pause["session_pause_cycles"]) == 0
-    assert int(dl["session_max_losses_in_window"]) == 999
-    assert int(dl["session_window_trades"]) == 999
-    assert int(dl["session_pause_cycles"]) == 0
+    assert float(settings["orchestrator"]["execution"]["counter_trend_min_edge"]) == pytest.approx(0.08)
     params = parse_dl_params(dl, data, settings["risk_management"]["params"])
     assert int(params["inference_history_bars"]) >= 288 + 30 + 16

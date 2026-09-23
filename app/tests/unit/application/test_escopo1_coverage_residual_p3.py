@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import json
 from io import StringIO
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import torch
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState, apply_calibrator_stable
 from src.application.services.deep_learning.dl_calibration_fit import _select_best_calibrator
@@ -19,7 +17,6 @@ from src.application.services.deep_learning.dl_sharpness import (
     assert_export_sharpness_value,
     mean_sharpness,
 )
-from src.application.services.deep_learning.dl_symbol_runtime import _persist_deploy_ok_flag
 from src.application.services.orchestrator.orchestrator_run_loop import (
     _recovery_pending_total,
     align_exec_empty_recovery_signature_cooldown,
@@ -180,7 +177,7 @@ def test_side_equilibrium_store_branches():
     client.hset = MagicMock(return_value=None)
 
 
-def test_dl_sharpness_gate_and_persist_errors(tmp_path: Path):
+def test_dl_sharpness_gate_and_persist_errors():
     assert mean_sharpness([]) == pytest.approx(0.0)
     with pytest.raises(RuntimeError, match="Export TCN bloqueado"):
         assert_export_sharpness_value(0.01, floor=0.05)
@@ -196,16 +193,7 @@ def test_dl_sharpness_gate_and_persist_errors(tmp_path: Path):
         val_accuracy=0.56,
         val_brier=0.20,
         gate_cfg={"soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26},
-    ) == ("gate rejeitou sem motivo tipado")
-    bad = tmp_path / "bad.pth"
-    _persist_deploy_ok_flag(bad, deploy_ok=True)
-    torch.save("not-dict", bad)
-    _persist_deploy_ok_flag(bad, deploy_ok=True)
-    payload = {"deploy_ok": True}
-    torch.save(payload, bad)
-    _persist_deploy_ok_flag(bad, deploy_ok=True)
-    with patch("src.application.services.deep_learning.dl_symbol_runtime.torch.save", side_effect=RuntimeError("disk")):
-        _persist_deploy_ok_flag(bad, deploy_ok=False)
+    ) == ("settlement OOS nao qualificou (val_brier=0.2000; soft_max_brier=0.2600)")
 
 
 def test_dl_calibration_fit_and_stable_margin():

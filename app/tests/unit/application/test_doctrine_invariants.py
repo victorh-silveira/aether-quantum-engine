@@ -35,12 +35,13 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["loss_clf_bootstrap_exit_n"] == 2
     assert inv["loss_clf_ready_n"] == 32
     assert inv["loss_clf_retrain_min_n"] == 12
-    assert inv["loss_clf_retrain_on_loss_min_n"] == 4
+    assert inv["loss_clf_retrain_on_loss_min_n"] == 12
     assert inv["loss_clf_min_win_for_loss_retrain"] == 4
     assert inv["loss_clf_enabled"] is True
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
+    assert inv["counter_trend_min_edge"] == pytest.approx(0.08)
     assert inv["cover_enabled"] is True
     assert inv["cover_multiple"] == pytest.approx(1.0)
     assert inv["neutral_bankroll_pct"] == pytest.approx(0.01)
@@ -199,6 +200,13 @@ def test_assert_production_doctrine_rejects_bootstrap_exit_n():
         assert_production_doctrine(settings)
 
 
+def test_assert_production_doctrine_rejects_counter_trend_floor_change():
+    settings = copy.deepcopy(load_settings_json())
+    settings["orchestrator"]["execution"]["counter_trend_min_edge"] = 0.04
+    with pytest.raises(ValueError, match="counter_trend_min_edge"):
+        assert_production_doctrine(settings)
+
+
 def test_assert_production_doctrine_rejects_low_acc():
     settings = copy.deepcopy(load_settings_json())
     settings["risk_management"]["min_validation_accuracy_gate"] = 0.40
@@ -213,14 +221,10 @@ def test_assert_production_doctrine_rejects_signal_skip_block():
         assert_production_doctrine(settings)
 
 
-def test_load_doctrine_invariants_requires_loss_streak_knobs():
+def test_load_doctrine_invariants_requires_counter_trend_floor():
     settings = copy.deepcopy(load_settings_json())
-    del settings["orchestrator"]["execution"]["post_loss_cooldown"]
-    with pytest.raises(ValueError, match="post_loss_cooldown"):
-        load_doctrine_invariants(settings)
-    settings = copy.deepcopy(load_settings_json())
-    del settings["deep_learning"]["session_pause_cycles"]
-    with pytest.raises(ValueError, match="session_pause_cycles"):
+    del settings["orchestrator"]["execution"]["counter_trend_min_edge"]
+    with pytest.raises(ValueError, match="counter_trend_min_edge"):
         load_doctrine_invariants(settings)
 
 

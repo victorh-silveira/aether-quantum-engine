@@ -237,3 +237,12 @@ def apply_post_kelly_stake_caps(
         pending_total=pending_total,
         soft_recovery=soft_recovery,
     )
+
+
+def cap_provisional_stake(final_stake: float, bankroll: float, metrics: dict[str, Any] | None) -> float:
+    """Impõe teto soberano para checkpoint provisório, sem waiver de recovery."""
+    if not isinstance(metrics, dict) or not bool(metrics.get("deploy_provisional", False)):
+        return float(final_stake)
+    pct = max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0) or 0.0))
+    metrics["provisional_stake_cap_applied"] = True
+    return min(float(final_stake), float(bankroll) * pct)

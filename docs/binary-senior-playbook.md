@@ -1,6 +1,6 @@
 # Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
 
-Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **4**, `n_train>=4`). Young pe>=**0.58** / mature pe>=**0.70** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. SKIP tecnico = treino/dados/deploy/broker/stop-win / cooldown / pausa. Sem `cal_soft_edge` / quality gate / Soft Kelly do loss-clf.
+Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **4**, `n_train>=4`). Young pe>=**0.58** / mature pe>=**0.70** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. Não há bloqueio temporal pós-LOSS; lado contra a tendência exige edge ≥ **0.08**, exceto FLIP/anti-trend-lock. SKIP tecnico = treino/dados/deploy/broker/stop-win. Sem `cal_soft_edge` / quality gate / Soft Kelly do loss-clf.
 
 Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).
 
@@ -19,11 +19,11 @@ Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
 | CALL / PUT | TCN resolve lado; sem FLIP; sem SKIP tecnico |
 | FLIP | auto_learn; `n_train>=4`; `p_eff` no piso → oposto do TCN |
 | SKIP `neg_edge` | Cal Edge ≤ 0 em EXPLORE (waive com PEND material) |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / stop-win / cooldown / pausa |
+| SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / stop-win |
 
 ## Catalogo SKIP
 
 | Razao | Significado |
 |-------|-------------|
-| tecnico | treino/dados/deploy/predict/stop-win / cooldown pos-LOSS / pausa de sessao |
+| tecnico | treino/dados/deploy/predict/stop-win |
 | `neg_edge` | Edge TCN ≤ 0 em EXPLORE |

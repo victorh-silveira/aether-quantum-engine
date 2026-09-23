@@ -18,7 +18,7 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks). Em inferencia live, MACRO D1 **nao** herda `_startup_fetch_count` do piso micro (`inference_history_bars`); teto D1 = `min(365, history_bars)`. Paginacao `history_fetch` ordena por epoch e para quando a pagina nao cresce o buffer (evita loop 366↔63 em `ticks_history` descending).
 - Proporcao MACRO:MICRO **288:1** (86400:300)
 - Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
-- SKIP tecnico pos-LOSS: `orchestrator.execution.post_loss_cooldown` LIN>=**1** (L1/L2 **300s**, L3 **600s**, L4+ **900s**); pausa de sessao `session_max_losses_in_window` **3** / `session_window_trades` **5** / `session_pause_cycles` **2** (parede = ciclos×300s; `until` expirado libera mesmo se o ciclo ficou em SKIP)
+- Não existe bloqueio temporal pós-LOSS. A entrada segue a fronteira de assinatura M5 por integridade do contrato; sinais contra a tendência exigem `counter_trend_min_edge` **0.08**, salvo FLIP/anti-trend-lock.
 - Anti-loss EMA: `invalidate_ema_cache(cycle_id)` no inicio de cada ciclo (`trading_cycle_entry.py`); `calc_ema_series` cacheada por ciclo evita recomputacao de EMA9/EMA21; slope EMA21 2-pontos (lag 5 min) + EMA9 slope rapido (`slope_tol * 0.6`); ancora hibrida (`resolve_hybrid_candle_anchor`) combina janela ops N=3 + ultima vela micro fechada
 
 ## Pipeline do ciclo

@@ -57,7 +57,6 @@ def test_collect_cluster_orders_mandatory_fallback_after_recovery_filter():
             last_loss_symbol=ANCHOR,
             consecutive_losses=0,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=11,
     )
@@ -169,7 +168,6 @@ def test_collect_cluster_orders_skips_entry_without_inferable_direction():
             pending_loss={},
             last_loss_symbol=None,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=3,
     )
@@ -208,7 +206,6 @@ def test_collect_cluster_orders_uses_ultimate_fallback_when_select_empty():
             pending_loss={},
             last_loss_symbol=None,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=5,
     )

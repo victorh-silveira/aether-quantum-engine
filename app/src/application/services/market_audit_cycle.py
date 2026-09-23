@@ -147,10 +147,10 @@ def format_execution_ticket_line(
 
 
 def _settlement_tag(*, profit: float, linear_before: int) -> str:
-    """Resolve sufixo de liquidacao (RESET_LINEAR / COOLDOWN_Ln)."""
+    """Resolve sufixo de liquidacao (RESET_LINEAR / LINEAR_Ln)."""
     if float(profit) >= 0.0:
         return "RESET_LINEAR" if int(linear_before) > 0 else "FLAT_KEEP"
-    return f"COOLDOWN_L{max(1, int(linear_before) + 1)}"
+    return f"LINEAR_L{max(1, int(linear_before) + 1)}"
 
 
 def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, Any]) -> str:

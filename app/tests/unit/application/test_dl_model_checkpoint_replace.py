@@ -39,7 +39,7 @@ def test_checkpoint_meta_ready_true_when_deploy_ok(tmp_path: Path):
     from src.application.services.deep_learning.dl_model_checkpoint import checkpoint_meta_ready
 
     path = tmp_path / "R_10.pth"
-    torch.save({"deploy_ok": True, "val_accuracy": 0.556}, path)
+    torch.save({"deploy_ok": True, "val_accuracy": 0.556, "deploy_settlement_wilson_lcb": 0.56}, path)
     assert checkpoint_meta_ready(path) is True
 
 
@@ -60,7 +60,7 @@ def test_checkpoint_meta_ready_false_on_corrupt_or_non_dict(tmp_path: Path):
     assert checkpoint_meta_ready(not_dict) is False
 
 
-def test_checkpoint_meta_ready_soft_gate_without_flag(tmp_path: Path):
+def test_checkpoint_meta_ready_rejects_soft_gate_without_settlement(tmp_path: Path):
     from src.application.services.deep_learning.dl_model_checkpoint import checkpoint_meta_ready
 
     path = tmp_path / "R_10.pth"
@@ -75,7 +75,7 @@ def test_checkpoint_meta_ready_soft_gate_without_flag(tmp_path: Path):
         },
         path,
     )
-    assert checkpoint_meta_ready(path) is True
+    assert checkpoint_meta_ready(path) is False
 
 
 def test_should_replace_when_missing(tmp_path: Path):

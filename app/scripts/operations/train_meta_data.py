@@ -83,6 +83,28 @@ def bundle_forward_is_flat(bundle: OhlcBundle, *, horizon_bars: int = 1) -> bool
     return float(np.var(fwd)) <= 1e-12
 
 
+def bundle_training_quality_error(bundle: OhlcBundle) -> str | None:
+    """Retorna erro quando um bundle OHLC nao e seguro para treino temporal."""
+    arrays = (bundle.closes, bundle.open_, bundle.high, bundle.low)
+    if any(len(values) != len(bundle.epochs) for values in arrays):
+        return "arrays OHLC desalinhados"
+    if len(bundle.epochs) < MIN_OHLC_ROWS:
+        return f"historico curto ({len(bundle.epochs)}/{MIN_OHLC_ROWS})"
+    if not all(np.all(np.isfinite(values)) for values in (*arrays, bundle.epochs)):
+        return "OHLC contem valores nao finitos"
+    if any(np.any(values <= 0.0) for values in arrays):
+        return "OHLC contem preco nao positivo"
+    if np.any(bundle.high < np.maximum(bundle.open_, bundle.closes)):
+        return "high abaixo de open/close"
+    if np.any(bundle.low > np.minimum(bundle.open_, bundle.closes)):
+        return "low acima de open/close"
+    if np.any(np.diff(bundle.epochs) != int(bundle.granularity)):
+        return "epochs duplicados, fora de ordem ou com lacuna"
+    if len(np.unique(np.round(bundle.closes, decimals=8))) < max(8, len(bundle.closes) // 50):
+        return "diversidade de precos insuficiente"
+    return None
+
+
 @dataclass(frozen=True)
 class OhlcBundle:
     symbol: str
@@ -442,12 +464,14 @@ async def resolve_training_bundles(
                     for b in bundles
                     if not meta_bars_meet_quality(len(b.closes), quality_floor, shortfall_ratio=shortfall_ratio)[0]
                 ]
+                invalid = [b for b in bundles if bundle_training_quality_error(b) is not None]
                 flat = [b for b in bundles if bundle_forward_is_flat(b)]
-                if short or flat:
+                if short or flat or invalid:
                     logger.info(
-                        "META_TRAIN: Timescale smoke/flat (curto=%d flat=%d floor=%d); buscando Deriv.",
+                        "META_TRAIN: Timescale smoke/flat/invalido (curto=%d flat=%d invalido=%d floor=%d); buscando Deriv.",
                         len(short),
                         len(flat),
+                        len(invalid),
                         quality_floor,
                     )
                     bundles = []
@@ -468,6 +492,9 @@ async def resolve_training_bundles(
         assert_bundles_match_granularity(bundles, granularity)
         soft_accepted = False
         for bundle in bundles:
+            quality_error = bundle_training_quality_error(bundle)
+            if quality_error is not None:
+                raise RuntimeError(f"Historico Deriv invalido para meta senior: {quality_error}.")
             ok, soft = meta_bars_meet_quality(len(bundle.closes), quality_floor, shortfall_ratio=shortfall_ratio)
             if not ok:
                 raise RuntimeError(

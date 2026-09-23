@@ -38,7 +38,7 @@ def test_evaluate_checkpoint_rejects_low_acc(tmp_path: Path):
     assert "val_acc" in msg
 
 
-def test_evaluate_checkpoint_accepts_settle_despite_low_acc(tmp_path: Path):
+def test_evaluate_checkpoint_rejeita_acc_abaixo_do_piso_anticolapso(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     settings = {
@@ -55,20 +55,20 @@ def test_evaluate_checkpoint_accepts_settle_despite_low_acc(tmp_path: Path):
         "data_handler": {"micro_granularity": 180, "granularity": 7200},
     }
     payload = {
-        "val_accuracy": 0.4667,
-        "deploy_ok": False,
+        "val_accuracy": 0.51,
+        "deploy_ok": True,
         "deploy_settlement_win_rate": 0.6923,
         "deploy_settlement_n": 26,
+        "deploy_settlement_wilson_lcb": 0.60,
         "lookback": 720,
         "granularity": 180,
         **_COLLAPSE_OK,
     }
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
-    assert ok is True
-    assert "settle_ok" in msg
-    save_mock.assert_called_once()
-    assert payload["deploy_ok"] is True
+    assert ok is False
+    assert "val_acc" in msg
+    save_mock.assert_not_called()
 
 
 def test_evaluate_checkpoint_rejects_deploy_false(tmp_path: Path):
@@ -94,24 +94,32 @@ def test_evaluate_checkpoint_rejects_missing_collapse_telemetry(tmp_path: Path):
     assert "telemetria de collapse ausente" in msg
 
 
-def test_evaluate_checkpoint_soft_fallback_promotes_checkpoint(tmp_path: Path):
+def test_evaluate_checkpoint_rejeita_soft_fallback_sem_settlement(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     payload = {"val_accuracy": 0.566, "val_brier": 0.250, "deploy_ok": False, **_COLLAPSE_OK}
     settings = {"deep_learning": {"deploy_gate": dict(_STRICT_GATE)}}
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
-    assert ok is True
-    assert "soft fallback" in msg
-    save_mock.assert_called_once()
-    assert payload["deploy_ok"] is True
+    assert ok is False
+    assert "sem evidencia OOS" in msg
+    save_mock.assert_not_called()
+    assert payload["deploy_ok"] is False
 
 
 def test_evaluate_checkpoint_accepts_senior(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     settings = {"deep_learning": {"deploy_gate": dict(_STRICT_GATE)}}
-    with patch("torch.load", return_value={"val_accuracy": 0.55, "deploy_ok": True, **_COLLAPSE_OK}):
+    with patch(
+        "torch.load",
+        return_value={
+            "val_accuracy": 0.55,
+            "deploy_ok": True,
+            "deploy_settlement_wilson_lcb": 0.60,
+            **_COLLAPSE_OK,
+        },
+    ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is True
     assert "deploy_ok=true" in msg
@@ -171,7 +179,7 @@ def test_evaluate_checkpoint_rejects_stale_horizon(tmp_path: Path):
     assert "label_horizon_bars" in msg
 
 
-def test_evaluate_checkpoint_force_ok_exports_low_acc(tmp_path: Path):
+def test_evaluate_checkpoint_force_ok_nao_promove_modelo_fraco(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
     payload = {"val_accuracy": 0.40, "val_brier": 0.50, "deploy_ok": False, **_COLLAPSE_OK}
@@ -182,10 +190,10 @@ def test_evaluate_checkpoint_force_ok_exports_low_acc(tmp_path: Path):
     }
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:
         ok, msg = evaluate_checkpoint(path, soft_min=0.0, settings=settings)
-    assert ok is True
-    assert "force_ok" in msg
-    save_mock.assert_called_once()
-    assert payload["deploy_ok"] is True
+    assert ok is False
+    assert "sem evidencia OOS" in msg
+    save_mock.assert_not_called()
+    assert payload["deploy_ok"] is False
 
 
 def test_evaluate_checkpoint_rejects_missing_horizon(tmp_path: Path):

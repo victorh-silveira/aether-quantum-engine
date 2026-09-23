@@ -13,6 +13,7 @@ from src.application.services.deep_learning.dl_deploy_eval import (
 )
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_statistical_gate import wilson_lower_bound
 from src.application.services.deep_learning.model import create_direction_model, fit_norm_stats
 from src.domain.models.trade import TradeDirection
 
@@ -21,9 +22,15 @@ def test_parse_deploy_gate_config_defaults():
     cfg = parse_deploy_gate_config({})
     assert cfg["enabled"] is True
     assert cfg["force_ok"] is True
-    assert cfg["max_brier"] == 0.28
+    assert cfg["max_brier"] == 0.245
     assert cfg["max_eval_steps"] == 48
-    assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.0)
+    assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.50)
+    assert float(cfg["settlement_confidence"]) == pytest.approx(0.90)
+
+
+def test_wilson_lower_bound_exige_evidencia_acima_do_breakeven():
+    assert wilson_lower_bound(wins=23, trials=48, confidence=0.90) < 0.540541
+    assert wilson_lower_bound(wins=32, trials=48, confidence=0.90) > 0.540541
 
 
 def test_deploy_eval_bar_indices_caps_steps():
@@ -131,6 +138,13 @@ def test_apply_deploy_to_runtime_updates_brier():
     assert runtime["val_brier"] == 0.18
 
 
+def test_apply_deploy_to_runtime_preserva_provisorio_sem_promocao_plena():
+    runtime = {"val_brier": 0.5}
+    apply_deploy_to_runtime(runtime, deploy_ok=False, deploy_win_rate=0.58, val_brier=0.24, provisional_ok=True)
+    assert runtime["deploy_ok"] is False
+    assert runtime["deploy_provisional_ok"] is True
+
+
 def test_evaluate_mini_deploy_passes_with_mock_predict():
     prices = np.linspace(100.0, 130.0, 120)
     model = create_direction_model(input_dim=FEATURE_DIM)
@@ -219,7 +233,7 @@ def test_resolve_settlement_horizon_bars_uses_risk_params():
     assert resolve_settlement_horizon_bars({}, 120) == 1
 
 
-def test_evaluate_mini_deploy_falls_back_to_label_metrics_when_settlement_fails():
+def test_evaluate_mini_deploy_rejeita_label_quando_settlement_falha():
     orch = SimpleNamespace(config={"deep_learning": {}})
     model = create_direction_model(input_dim=FEATURE_DIM)
     prices = np.linspace(100.0, 110.0, 80)
@@ -271,7 +285,11 @@ def test_evaluate_mini_deploy_falls_back_to_label_metrics_when_settlement_fails(
             },
             micro={"tick_count": np.ones(80, dtype=np.float32)},
         )
-    assert isinstance(ok, bool)
+    assert ok is False
     assert "deploy_settlement_win_rate" in runtime
     assert wr >= 0.0
     assert brier >= 0.0
+def test_wilson_rejeita_confianca_invalida_e_zero_amostras():
+    assert wilson_lower_bound(wins=0, trials=0, confidence=0.95) == 0.0
+    with pytest.raises(ValueError, match="settlement_confidence"):
+        wilson_lower_bound(wins=1, trials=1, confidence=0.8)

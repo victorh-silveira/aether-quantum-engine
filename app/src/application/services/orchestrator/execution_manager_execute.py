@@ -74,8 +74,6 @@ async def execute_cluster_orders(
         if stake <= 0:
             continue
 
-        executor.orch.risk_manager.register_entry_conviction(conviction)
-
         if i > 0:
             await asyncio.sleep(inter_delay)
         try:

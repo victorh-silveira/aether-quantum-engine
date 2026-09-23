@@ -103,7 +103,7 @@ async def test_train_bootstrap_symbol_runs_training_in_thread(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_train_bootstrap_symbol_retries_until_export_ok(orch_ready):
+async def test_train_bootstrap_symbol_falha_sem_repetir_mesmos_dados(orch_ready):
     orch = orch_ready
     n = 3000
     ohlc = tuple(np.linspace(1.0, 2.0, n) for _ in range(4))
@@ -118,7 +118,7 @@ async def test_train_bootstrap_symbol_retries_until_export_ok(orch_ready):
         patch(
             "src.application.services.deep_learning.dl_bootstrap_train._bootstrap_training_context",
             return_value=(
-                {"train_deploy_retries": 3},
+                {},
                 {"lookback": 32, "arch": "tcn", "tcn_dropout": 0.25},
                 100,
                 60,
@@ -134,14 +134,10 @@ async def test_train_bootstrap_symbol_retries_until_export_ok(orch_ready):
             "src.application.services.deep_learning.dl_bootstrap_train.asyncio.to_thread",
             side_effect=fake_thread,
         ) as mock_thread,
-        patch(
-            "src.application.services.deep_learning.dl_bootstrap_train._reset_runtime_model_for_retry",
-        ) as mock_reset,
     ):
         status = await _train_bootstrap_symbol(orch, "R_10")
-    assert status == "ok"
-    assert mock_thread.await_count == 2
-    mock_reset.assert_called_once()
+    assert status == "fail"
+    assert mock_thread.await_count == 1
 
 
 @pytest.mark.asyncio

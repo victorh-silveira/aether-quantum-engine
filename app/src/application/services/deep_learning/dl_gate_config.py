@@ -10,6 +10,12 @@ _DEPLOY_GATE_KEYS = (
     "force_ok",
     "max_brier",
     "min_win_rate",
+    "provisional_enabled",
+    "provisional_max_brier",
+    "provisional_max_stake_pct",
+    "provisional_min_trades",
+    "provisional_min_win_rate",
+    "settlement_confidence",
     "mini_bars",
     "max_eval_steps",
     "min_trades",
@@ -39,6 +45,12 @@ def parse_deploy_gate_config(dl_config: dict) -> dict[str, Any]:
         "force_ok": require_bool(block, "force_ok"),
         "max_brier": require_float(block, "max_brier"),
         "min_win_rate": require_float(block, "min_win_rate"),
+        "provisional_enabled": require_bool(block, "provisional_enabled"),
+        "provisional_max_brier": require_float(block, "provisional_max_brier"),
+        "provisional_max_stake_pct": require_float(block, "provisional_max_stake_pct"),
+        "provisional_min_trades": require_int(block, "provisional_min_trades"),
+        "provisional_min_win_rate": require_float(block, "provisional_min_win_rate"),
+        "settlement_confidence": require_float(block, "settlement_confidence"),
         "mini_bars": require_int(block, "mini_bars"),
         "max_eval_steps": require_int(block, "max_eval_steps"),
         "min_trades": require_int(block, "min_trades"),
@@ -122,9 +134,7 @@ def resolve_deploy_ok(
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
 ) -> bool:
-    """Combina mini deploy com metricas de validacao; prioriza edge real e assertividade."""
-    if bool(gate_cfg.get("force_ok", False)):
-        return True
+    """Aceita somente evidencia OOS de settlement, sem colapso preditivo."""
     soft_acc = float(gate_cfg.get("soft_min_val_accuracy", 0.53))
     soft_brier = float(gate_cfg.get("soft_max_brier", 0.26))
     if float(val_accuracy) + 1e-9 < soft_acc:
@@ -136,11 +146,32 @@ def resolve_deploy_ok(
         minority_recall=minority_recall,
     ):
         return False
-    if mini_ok:
-        return True
-    if not bool(gate_cfg.get("enabled", True)):
-        return True
-    return float(val_brier) + 1e-9 <= soft_brier
+    _ = (val_brier, soft_brier)
+    return bool(mini_ok) or not bool(gate_cfg.get("enabled", True))
+
+
+def resolve_provisional_deploy_ok(
+    *,
+    provisional_ok: bool,
+    val_accuracy: float,
+    gate_cfg: dict[str, Any],
+    label_call_frac: float | None = None,
+    pred_call_frac: float | None = None,
+    minority_recall: float | None = None,
+) -> bool:
+    """Aceita modo provisório somente com sinal OOS e anti-colapso intactos."""
+    if not bool(gate_cfg.get("provisional_enabled", False)):
+        return False
+    if float(val_accuracy) + 1e-9 < float(gate_cfg.get("soft_min_val_accuracy", 0.50)):
+        return False
+    if _majority_collapse_hit(
+        gate_cfg,
+        label_call_frac=label_call_frac,
+        pred_call_frac=pred_call_frac,
+        minority_recall=minority_recall,
+    ):
+        return False
+    return bool(provisional_ok)
 
 
 def describe_deploy_block(
@@ -170,6 +201,4 @@ def describe_deploy_block(
         return f"majority_collapse label_call={label_s} pred_call={pred_s} minority_rec={rec_s}"
     if mini_ok:
         return "mini_ok mas gate rejeitou (inesperado)"
-    if float(val_brier) + 1e-9 > soft_brier:
-        return f"mini falhou e val_brier={val_brier:.4f}>soft_max={soft_brier:.4f}"
-    return "gate rejeitou sem motivo tipado"
+    return f"settlement OOS nao qualificou (val_brier={val_brier:.4f}; soft_max_brier={soft_brier:.4f})"

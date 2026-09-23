@@ -1,10 +1,7 @@
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.log_dedupe import (
-    LogDeduper,
     clear_log_channel,
     log_debug_if_changed,
     log_info_if_changed,
@@ -67,63 +64,3 @@ def test_log_dl_cycle_summary_dedupes_with_orch():
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
     log_dl_cycle_summary(logger, decisions, recovery_active=False, pending_loss_total=0.0, orch=orch)
     assert logger.info.call_count == 1
-
-
-def test_log_cooldown_cooling_down_dedupes():
-    owner = Owner()
-    logger = MagicMock()
-    deduper = LogDeduper(owner)
-
-    with patch("src.application.services.log_dedupe.time.time", return_value=1000.0):
-        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-
-    assert logger.info.call_count == 1
-    assert logger.debug.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_log_cooldown_cooling_down_inside_loop():
-    owner = Owner()
-    logger = MagicMock()
-    deduper = LogDeduper(owner)
-
-    with patch("src.application.services.log_dedupe.asyncio.get_running_loop") as get_loop:
-        loop = MagicMock()
-        loop.time.return_value = 1000.0
-        get_loop.return_value = loop
-        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-        deduper.log_cooldown_cooling_down(logger, "msg", 15.0, 2)
-
-    assert logger.info.call_count == 1
-    assert logger.debug.call_count == 1
-
-
-def test_log_cooldown_skip_dedupes():
-    owner = Owner()
-    logger = MagicMock()
-    deduper = LogDeduper(owner)
-
-    with patch("src.application.services.log_dedupe.time.time", return_value=1000.0):
-        deduper.log_cooldown_skip(logger, "skip")
-        deduper.log_cooldown_skip(logger, "skip")
-
-    assert logger.info.call_count == 1
-    assert logger.debug.call_count == 1
-
-
-@pytest.mark.asyncio
-async def test_log_cooldown_skip_inside_loop():
-    owner = Owner()
-    logger = MagicMock()
-    deduper = LogDeduper(owner)
-
-    with patch("src.application.services.log_dedupe.asyncio.get_running_loop") as get_loop:
-        loop = MagicMock()
-        loop.time.return_value = 1000.0
-        get_loop.return_value = loop
-        deduper.log_cooldown_skip(logger, "skip")
-        deduper.log_cooldown_skip(logger, "skip")
-
-    assert logger.info.call_count == 1
-    assert logger.debug.call_count == 1

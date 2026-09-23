@@ -7,6 +7,7 @@ from src.application.services.deep_learning.dl_gate_config import deploy_params_
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.deep_learning.dl_labels import LABEL_MODE_SPOT, LabelSpec
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
+from src.application.services.deep_learning.dl_statistical_gate import wilson_lower_bound
 
 
 def _deploy_eval_bar_indices(start: int, end: int, max_steps: int) -> list[int]:
@@ -44,10 +45,9 @@ def _score_deploy_bar(
     high,
     low,
     micro,
-    label_spec: LabelSpec,
     settlement_spec: LabelSpec,
-) -> tuple[bool, bool, float, float] | None:
-    """Avalia um bar de deploy e retorna (ok, win, conf, settlement)."""
+) -> tuple[bool, float, float] | None:
+    """Avalia um bar de deploy e retorna settlement e Brier operacional."""
     window = prices[: bar + 1]
     win_open = open_[: bar + 1] if open_ is not None else None
     win_high = high[: bar + 1] if high is not None else None
@@ -71,12 +71,10 @@ def _score_deploy_bar(
     if not entry["metrics"].get("execute") or entry["direction"] is None:
         return None
     direction = entry["direction"]
-    won = direction_wins(direction, prices, bar, label_spec=label_spec)
     settlement_won = direction_wins(direction, prices, bar, label_spec=settlement_spec)
     score = float(entry["metrics"].get("raw_prob", 0.5))
-    label = call_target_label(prices, bar, label_spec=label_spec)
     settlement_label = call_target_label(prices, bar, label_spec=settlement_spec)
-    return won, settlement_won, (score - label) ** 2, (score - settlement_label) ** 2
+    return settlement_won, (score - settlement_label) ** 2, score
 
 
 def evaluate_mini_deploy(
@@ -105,23 +103,21 @@ def evaluate_mini_deploy(
         runtime["deploy_settlement_n"] = 0
         return False, 0.0, float(runtime.get("val_brier", 1.0))
     start = len(prices) - mini
-    wins = 0
     settlement_wins = 0
     total = 0
-    brier_acc = 0.0
     settlement_brier_acc = 0.0
     eval_params = deploy_params_for_eval(params, cfg)
     sim_runtime = dict(runtime)
     sim_runtime["deploy_ok"] = True
     max_steps = int(cfg.get("max_eval_steps", 24))
-    label_spec = LabelSpec.from_dl_config(params)
+    source_spec = LabelSpec.from_dl_config(params)
     gran = int(params.get("granularity") or runtime.get("granularity") or 3600)
     settlement_horizon = resolve_settlement_horizon_bars(params, gran)
     settlement_spec = LabelSpec(
         horizon_bars=settlement_horizon,
         smooth_bars=1,
         label_mode=LABEL_MODE_SPOT,
-        ma_window=label_spec.ma_window,
+        ma_window=source_spec.ma_window,
     )
     for bar in _deploy_eval_bar_indices(start, len(prices) - 1, max_steps):
         scored = _score_deploy_bar(
@@ -137,16 +133,13 @@ def evaluate_mini_deploy(
             high=high,
             low=low,
             micro=micro,
-            label_spec=label_spec,
             settlement_spec=settlement_spec,
         )
         if scored is None:
             continue
-        won, settlement_won, brier_term, settlement_brier_term = scored
+        settlement_won, settlement_brier_term, _ = scored
         total += 1
-        wins += int(won)
         settlement_wins += int(settlement_won)
-        brier_acc += brier_term
         settlement_brier_acc += settlement_brier_term
     if total < int(cfg["min_trades"]):
         runtime["deploy_settlement_win_rate"] = 0.0
@@ -154,18 +147,25 @@ def evaluate_mini_deploy(
         runtime["deploy_label_win_rate"] = 0.0
         runtime["deploy_settlement_n"] = int(total)
         return False, 0.0, float(runtime.get("val_brier", 1.0))
-    win_rate = wins / float(total)
-    val_brier = brier_acc / float(total)
     settlement_wr = settlement_wins / float(total)
     settlement_brier = settlement_brier_acc / float(total)
-    runtime["deploy_label_win_rate"] = float(win_rate)
+    runtime["deploy_label_win_rate"] = float(settlement_wr)
     runtime["deploy_settlement_win_rate"] = float(settlement_wr)
     runtime["deploy_settlement_brier"] = float(settlement_brier)
     runtime["deploy_settlement_horizon_bars"] = int(settlement_horizon)
     runtime["deploy_settlement_n"] = int(total)
+    settlement_lcb = wilson_lower_bound(
+        wins=settlement_wins,
+        trials=total,
+        confidence=float(cfg.get("settlement_confidence", 0.90)),
+    )
+    runtime["deploy_settlement_wilson_lcb"] = float(settlement_lcb)
     min_wr = float(cfg["min_win_rate"])
     max_brier = float(cfg["max_brier"])
-    deploy_ok = settlement_brier + 1e-9 < max_brier and settlement_wr + 1e-9 >= min_wr
-    if not deploy_ok:
-        deploy_ok = val_brier + 1e-9 < max_brier and win_rate + 1e-9 >= min_wr
-    return deploy_ok, settlement_wr if deploy_ok else win_rate, settlement_brier if deploy_ok else val_brier
+    deploy_ok = settlement_brier + 1e-9 < max_brier and settlement_lcb + 1e-9 >= min_wr
+    runtime["deploy_provisional_ok"] = bool(
+        total >= int(cfg.get("provisional_min_trades", 48))
+        and settlement_brier + 1e-9 < float(cfg.get("provisional_max_brier", max_brier))
+        and settlement_wr + 1e-9 >= float(cfg.get("provisional_min_win_rate", min_wr))
+    )
+    return deploy_ok, settlement_wr, settlement_brier

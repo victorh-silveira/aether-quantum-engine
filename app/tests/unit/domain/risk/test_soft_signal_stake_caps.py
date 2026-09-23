@@ -6,7 +6,14 @@ from src.domain.risk.risk_stake_calc_helpers import (
     apply_loss_clf_soft_stake_cap,
     apply_post_kelly_stake_caps,
     apply_signal_soft_stake_cap,
+    cap_provisional_stake,
 )
+
+
+def test_provisional_cap_nao_tem_waiver_por_recovery():
+    metrics = {"deploy_provisional": True, "provisional_max_stake_pct": 0.01}
+    assert cap_provisional_stake(500.0, 10000.0, metrics) == pytest.approx(100.0)
+    assert metrics["provisional_stake_cap_applied"] is True
 
 
 def test_cal_margin_soft_without_explicit_pct_does_not_crush_stake():

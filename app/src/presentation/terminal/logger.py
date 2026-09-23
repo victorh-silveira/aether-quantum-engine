@@ -38,31 +38,6 @@ class BlankLineSquasher(logging.Filter):
         return True
 
 
-class CooldownDeduplicationFilter(logging.Filter):
-    """Filtro de log que suprime mensagens de cooldown identicas no mesmo tick."""
-
-    def __init__(self) -> None:
-        """Inicializa o filtro com um dicionario de ultimas mensagens vistas."""
-        super().__init__()
-        self._last_seen: dict[str, int] = {}
-
-    def filter(self, record: logging.LogRecord) -> bool:
-        """Suprime mensagens de cooldown repetidas no mesmo segundo."""
-        msg = record.getMessage()
-        if "CICLO: cooling-down" in msg or "CICLO: resfriamento pos-LOSS" in msg:
-            try:
-                loop = asyncio.get_running_loop()
-                current_time = loop.time()
-            except RuntimeError:
-                current_time = time.time()
-            tick = int(current_time)
-            key = "cooling-down" if "cooling-down" in msg else "resfriamento"
-            if self._last_seen.get(key) == tick:
-                return False
-            self._last_seen[key] = tick
-        return True
-
-
 class SettlementSpamFilter(logging.Filter):
     """Suprime repeticoes SETTLE/WARMUP/EXECUTION_FLOW no mesmo segundo por canal."""
 
@@ -151,7 +126,6 @@ def setup_logger(
     logger.handlers.clear()
     logger.filters.clear()
     logger.addFilter(BlankLineSquasher())
-    logger.addFilter(CooldownDeduplicationFilter())
     logger.addFilter(SettlementSpamFilter())
     logger.propagate = False
 

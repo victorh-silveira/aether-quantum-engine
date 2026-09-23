@@ -140,7 +140,7 @@ def test_apply_successful_symbol_train_overwrites_previous_checkpoint(tmp_path):
     assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
 
 
-def test_apply_successful_symbol_train_promotes_deploy_via_settle(tmp_path):
+def test_apply_successful_symbol_train_nao_promove_atalho_do_sweep(tmp_path):
     ckpt = tmp_path / "1HZ75V.pth"
     runtime = {"val_accuracy": 0.51, "val_brier": 0.27}
     train_result = SimpleNamespace(
@@ -217,11 +217,11 @@ def test_apply_successful_symbol_train_promotes_deploy_via_settle(tmp_path):
             level=logging.INFO,
             started=0.0,
         )
-    assert runtime.get("deploy_ok") is True
-    assert runtime.get("export_ok") is True
-    assert runtime.get("session_trained") is True
+    assert runtime.get("deploy_ok") is False
+    assert runtime.get("export_ok") is False
+    assert runtime.get("session_trained") is False
     assert save_ckpt.called
-    assert save_ckpt.call_args.kwargs.get("deploy_ok") is True
+    assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
 
 
 def test_apply_successful_symbol_train_logs_horizon(tmp_path):

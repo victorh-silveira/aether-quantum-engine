@@ -10,7 +10,7 @@ alwaysApply: true
 - Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
 - EXPLORE e RECOVER: piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) soberano apos cover/caps (`enforce_min_stake_pct`; se CAP &lt; piso, fica no CAP).
 - Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$) **so se** `live_n >= 12` (`stop_win_kelly_live_n_min`) **e** conviction ≥ **0.58** (`stop_win_kelly_min_conviction`). Cold start usa Kelly × `explore_stake_scale` (piso **0.40**) + cap 3.5%.
-- Cooldown linear apos loss (LIN>=1: 300/300/600/900s); pausa de sessao apos 3 LOSS em 5 trades (2 ciclos); anti revenge sizing.
+- Sem bloqueio temporal apos LOSS; anti-revenge sizing permanece por meio dos caps e da fórmula de risco.
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Stop-loss interno desativado por politica — nao reativar sem pedido explicito do usuario.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.

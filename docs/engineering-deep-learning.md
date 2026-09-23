@@ -10,18 +10,18 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 | Arch | TCN |
 | Lookback | **30** → tensor `[1, 30, 14]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
-| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **2000**; inferencia live >= `causal_norm_window` **288** + lookback **30** + 16) |
+| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **5000**; inferencia live >= `causal_norm_window` **288** + lookback **30** + 16) |
 | Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
 | MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **14D** (`FEATURE_DIM`) |
 | Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
-| Lean fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **2000** (nao 500) |
+| Fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **5000** velas reais e alinhadas (nao smoke/flat) |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `force_ok=true` (launch-train **sempre** exporta); `soft_min_val_accuracy` **0.0**; `soft_max_brier` **1.0**; `reject_majority_collapse=false`; `max_brier` **0.28**; `allow_undeployed_inference` **false** |
+| ACC / deploy | `force_ok=true` exporta apenas para diagnostico; promocao exige ACC anti-colapso >=**0.50**, ausencia de collapse e mini walk-forward com **48** settlements, Brier **<0.245** e limite inferior de Wilson unilateral a 90% >= breakeven do payout (**0.540541** para payout 0.85); `allow_undeployed_inference` **false** |
 | Limiares live | TCN sempre CALL se Cal ≥**0.5** senao PUT; `apply_calibrator_stable` prefere raw se mais nitido; clamp `[raw±0.05]`; `temperature_min` **0.75**; `min_oos_sharpness` / `min_calibration_sharpness` **0.0** (sem piso de export); banda `[0.45, 0.55]` so telemetria/`raw_extreme` |
-| Retries | `train_deploy_retries` **6** (reseed + reset de pesos) |
+| Rodadas | uma tentativa por conjunto de dados; reprova e aguarda dados novos, sem retreinar aleatoriamente sobre o mesmo historico |
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **12** |
 | Meta | LightGBM **23D** `predicted_payoff_edge` |
 
@@ -47,7 +47,7 @@ Acao: `launch-train` → gate deploy/settle → `make docker-rebuild` + sync Min
 | `app/scripts/operations/run_launch_train_tf_pipeline.py` | orquestra sweep horizonte N + promote (fallback `train.py` se `horizon_sweep.run_in_launch_train=false`) |
 | `make docker-rebuild` | recarrega meta/loss apos o treino (**nao** apaga `data/dl`) |
 | `app/scripts/operations/sanitize_fresh_run.py` | limpa `data/dl`, meta/loss pkls e estado em `data/` (so train/reset) |
-| `app/scripts/operations/check_dl_deploy_gate.py` | com `force_ok=true` promove `deploy_ok` e segue meta; ainda rejeita geometria invalida (lookback/granularity/horizon); simbolos de `settings.symbols` |
+| `app/scripts/operations/check_dl_deploy_gate.py` | `force_ok=true` preserva o artefato para diagnostico, mas nao promove `deploy_ok`; promocao exige geometria e qualidade fora da amostra; simbolos de `settings.symbols` |
 | `app/scripts/operations/train_meta_*.py` | treino offline do meta (`--source auto`; `--bars` **5000** em micro M5; nao usar 365 D1) |
 | `app/scripts/operations/sweep_train_timeframes.py` | loop de celulas H1–H4; artefactos em `data/dl/sweep/1HZ75V/H{N}`; leaderboard JSON |
 | `app/scripts/operations/promote_tf_winner.py` | promove vencedor elegivel para `settings.json` + `drift_symbols.py` + `data/dl` (fail-closed se nenhum) |
@@ -81,17 +81,22 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 ## Deploy gate (senior)
 
-`resolve_deploy_ok` com `force_ok=true` **sempre** retorna true (launch-train exporta o melhor checkpoint da sessao). Soft floors (`soft_min_val_accuracy` **0.0**, `soft_max_brier` **1.0**, `reject_majority_collapse=false`) nao bloqueiam. `check_dl_deploy_gate` honra `force_ok` e ainda falha so em geometria invalida. Com `allow_undeployed_inference=false`, ckpt `deploy_ok=false` **nao** opera em DEMO — por isso o treino forca export. Treino **sempre sobrescreve** o `.pth` anterior.
+`force_ok=true` conserva a exportacao para diagnostico, mas nunca e sinal de qualidade. A acuracia global e somente piso anti-colapso (**0.50**): em uma serie binaria balanceada ela nao prova vantagem. `resolve_deploy_ok` exige que o mini walk-forward de settlement tenha pelo menos **48** operacoes, Brier < **0.245** e limite inferior unilateral de Wilson a **90%** acima do breakeven do payout (**0.540541** com payout 0.85), alem da ausencia de colapso direcional. O checkpoint grava esse limite (`deploy_settlement_wilson_lcb`); `check_dl_deploy_gate` rejeita checkpoints antigos ou sem a evidencia. Com `allow_undeployed_inference=false`, checkpoint reprovado nao opera em DEMO. Treino **sempre sobrescreve** o `.pth` anterior, mas um checkpoint fraco nao pode ser promovido nem servir de professor para o meta.
 
-Majority-collapse: com `reject_majority_collapse=true`, rejeita no gate final se pred skew (`|pred-0.5|` / `|pred-label|` > **0.20**) ou label skew + `minority_recall < 0.25`. Ops atual: **false** (telemetria permanece). No checkpoint, `collapse_hit` **nao** impede salvar o pico de `val_acc` (so bloqueia o ramo sharp).
+### Modo provisório de observação com capital
+
+`deploy_provisional=true` e distinto de `deploy_ok=true`. Ele permite observação ao vivo somente quando o mini-settlement tem pelo menos **48** operações, Brier < **0.245**, taxa bruta >=**0.57** e anti-colapso intacto, mas o LCB Wilson 90% ainda não superou o breakeven. A stake fica limitada de forma soberana a **1%** da banca após Kelly, recovery e piso mínimo, sem waiver por PEND. A telemetria carrega `deploy_provisional` e `provisional_stake_cap_applied`; o modo pleno substitui o provisório assim que `deploy_ok=true`.
+
+Majority-collapse: o gate rejeita pred skew (`|pred-0.5|` / `|pred-label|` > **0.15**) ou label skew com `minority_recall < 0.40`. A telemetria permanece no checkpoint para auditoria.
 
 Checkpoint de treino restaura o pico de **maior val_acc** (sem veto por BCE nem por collapse no pico ACC). Ramo sharp maximiza nitidez entre epocas com ACC≥soft_min e sem `collapse_hit`. Anti-overfit SSOT: `focal_gamma` **1.0**, `weight_decay` **0.01**, `tcn.dropout` **0.25**, `label_smoothing` **0.0**, `lr_scheduler` **reduce_on_plateau**, `aux_regression_weight` **0.08**. Export sharpness: `min_oos_sharpness` **0.0** (assert no-op); temperature sharpen ainda roda se calibracao pedir.
 
 ## Meta — alvo e dados
 
 
-- Alvo preferencial: payoff assinado **cru** ate o split cronologico; winsorize 1%/99% e unit-scale O(1) usam **so o fold de treino** (`label_scale` = std do treino apos clip; `train_std` / `val_std` no bundle). Pontos brutos 1HZ75V nao entram no booster. Prefixo `|payoff|~0` e cortado quando possivel; split degenerado / gap MAE / z-IR fracos geram **WARNING** e o Optuna **exporta o melhor trial** (`META_EXPORT_MIN_ZSCORE` / `MIN_IR` **0.0**, `META_EXPORT_MAX_MAE_GAP` **1e9**). Snapshot **0** = mediana L1 (baseline); export forca iteracao ≥1 quando o gap legal nao aparece. Objetivo **regression_l1**; n grande: **80** rounds, early-stop **L1** patience **15**, `max_depth` **1**, `num_leaves` ate **4**, `bagging_fraction` ligado.
+- Alvo preferencial: payoff assinado **cru** ate o split cronologico; winsorize 1%/99% e unit-scale O(1) usam **so o fold de treino** (`label_scale` = std do treino apos clip; `train_std` / `val_std` no bundle). Pontos brutos 1HZ75V nao entram no booster. Prefixo `|payoff|~0` e cortado quando possivel; split degenerado, z-IR sem edge ou `val_mae/train_mae > 1.50` bloqueiam exportacao do meta. Os pisos sao z-score **0.01** e IR **0.05**. Objetivo **regression_l1**; n grande: **80** rounds, early-stop **L1** patience **15**, `max_depth` **1**, `num_leaves` ate **4**, `bagging_fraction` ligado.
 - Hydrate Docker = smoke (500/365). `launch-train` chama `ensure_timescale` (seed Deriv) antes do meta: piso micro **5000** / macro D1 **365**. Timescale smoke/curto/flat → INFO e Deriv (nao WARNING "rejeitado"); apos Deriv, seed no Timescale.
+- Qualidade OHLC antes do meta: timestamps estritamente sequenciais na granularidade M5, arrays alinhados, precos finitos e positivos, invariantes `low <= open/close <= high` e diversidade minima. Falha no Timescale busca Deriv; falha no Deriv aborta o treino.
 - Fit do calibrador: se std calibrado colapsa vs raw no holdout/val → persiste `identity`. Teacher meta: raw+expand em INFO se cal ainda esmagar.
 - `validate_target_variance` inclui `source`, `forward_var`, `close_nunique`, `label_scale`. Escala O(1) nao usa o y completo (lookahead no alvo e proibido).
 

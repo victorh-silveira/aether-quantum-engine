@@ -1,4 +1,3 @@
-import time
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -133,42 +132,3 @@ async def test_acquire_trading_cycle_lock_rejects_when_stop_win_reached(orch_rea
         "large_account_stop_win_pct": 4.0,
     }
     assert await acquire_trading_cycle_lock(orch) is False
-
-
-def test_trading_cycle_entry_blocked_by_session_pause(orch_ready):
-    orch = orch_ready
-    orch.config["deep_learning"]["session_pause_cycles"] = 2
-    orch._cooldown_until = 0.0
-    orch.logger = MagicMock()
-    paused_sym = str(orch.symbols[0]) if getattr(orch, "symbols", None) else "R_10"
-    orch._dl_session_pause = {paused_sym: 2}
-    orch._dl_session_pause_until = {paused_sym: time.time() + 600.0}
-    assert trading_cycle_entry_allowed(orch) is False
-    orch.logger = None
-    assert trading_cycle_entry_allowed(orch) is False
-    orch.logger = MagicMock()
-    orch.symbols = []
-    orch._dl_session_pause = {"X": 1}
-    orch._dl_session_pause_until = {"X": time.time() + 600.0}
-    assert trading_cycle_entry_allowed(orch) is False
-
-
-def test_trading_cycle_entry_releases_expired_session_pause(orch_ready):
-    orch = orch_ready
-    orch.config["deep_learning"]["session_pause_cycles"] = 2
-    orch._cooldown_until = 0.0
-    paused_sym = str(orch.symbols[0]) if getattr(orch, "symbols", None) else "R_10"
-    orch._dl_session_pause = {paused_sym: 2}
-    orch._dl_session_pause_until = {paused_sym: 1.0}
-    assert trading_cycle_entry_allowed(orch) is True
-    assert paused_sym not in orch._dl_session_pause
-    assert paused_sym not in orch._dl_session_pause_until
-    orch.symbols = []
-    orch._dl_session_pause = {"X": 2}
-    orch._dl_session_pause_until = {"X": 1.0}
-    assert trading_cycle_entry_allowed(orch) is True
-    assert "X" not in orch._dl_session_pause
-    assert "X" not in orch._dl_session_pause_until
-    orch._dl_session_pause = {"Y": 1}
-    orch._dl_session_pause_until = {}
-    assert trading_cycle_entry_allowed(orch) is False

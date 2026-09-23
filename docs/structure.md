@@ -183,7 +183,6 @@ presentation  →  application  →  domain
 | `orchestrator_state_restore.py` | Restore Redis no boot |
 | `orchestrator_state_session.py` | Restore de sessão e assinaturas Redis |
 | `post_settlement_cycle.py` | Agendamento pós-liquidação com fôlego |
-| `post_settlement_loss_cooldown.py` | Inércia temporal pós-LOSS |
 | `post_settlement_resilience.py` | Recovery transparente e timeouts resilientes |
 | `reconnect_cycle_release.py` | Libera ciclo apos reconexao WS |
 | `regime_freeze_yield.py` | Yield quando regime FREEZE suspende ciclo |
@@ -211,7 +210,7 @@ presentation  →  application  →  domain
 |--------|------------------|
 | `decision_bridge.py` | Ponte DL → Orquestrador |
 | `dl_bootstrap_train.py` | Treino inicial sequencial de todos os símbolos |
-| `dl_bridge_helpers.py` | Entradas de decisão, cooldown, reexportes |
+| `dl_bridge_helpers.py` | Entradas de decisão e reexportes |
 | `dl_calibration.py` | Calibração de probabilidades |
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
 | `dl_calibration_variance.py` | Guarda std calibrado vs raw → identity |
@@ -319,7 +318,6 @@ presentation  →  application  →  domain
 | `recovery_state_config.py` | Knobs de estado de recovery SSOT |
 | `risk_cluster.py` | Finalização de cluster |
 | `risk_contract_result.py` | `apply_contract_settlement_result` |
-| `risk_cooldown.py` | `RiskCooldownMixin` |
 | `risk_manager.py` | **`RiskManager`** — Kelly, cluster, recovery |
 | `risk_manager_restore.py` | Restore de snapshot |
 | `risk_policy.py` | `RiskPolicy` + `validate_engine_risk_config` no boot |
@@ -335,7 +333,6 @@ presentation  →  application  →  domain
 | `stake_target_proximity.py` | Amortecimento por proximidade da meta |
 | `stop_win_target.py` | `StopWinManager`, meta de lucro por sessão |
 | `super_concordance_kelly.py` | Expansão Kelly em super-consenso |
-| `symbol_loss_cooldown.py` | Cooldown por loss recente |
 
 ## Infrastructure (`infrastructure/`)
 

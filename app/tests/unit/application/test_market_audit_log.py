@@ -126,7 +126,7 @@ def test_format_settlement_audit_line():
     assert line == "[RESOLVED] || STATUS: WIN  | P&L:   +1.63 | RESET_LINEAR | PEND: n/a | LIN: n/a | MODE: n/a"
 
 
-def test_format_settlement_audit_line_loss_cooldown():
+def test_format_settlement_audit_line_loss_linear():
     line = format_settlement_audit_line(
         3,
         "LOSS",
@@ -136,13 +136,13 @@ def test_format_settlement_audit_line_loss_cooldown():
         -0.05,
         settlement_tag=resolve_settlement_tag(profit=-1.0, linear_before=0),
     )
-    assert line.startswith("[RESOLVED] || STATUS: LOSS | P&L:   -1.00 | COOLDOWN_L1")
-    assert resolve_settlement_tag(profit=-1.0, linear_before=2) == "COOLDOWN_L3"
+    assert line.startswith("[RESOLVED] || STATUS: LOSS | P&L:   -1.00 | LINEAR_L1")
+    assert resolve_settlement_tag(profit=-1.0, linear_before=2) == "LINEAR_L3"
 
 
 def test_format_settlement_audit_line_default_loss_tag():
     line = format_settlement_audit_line(4, "LOSS", -2.0, "PUT", "R_10", -0.2)
-    assert "COOLDOWN_L1" in line
+    assert "LINEAR_L1" in line
 
 
 def test_format_cluster_audit_line():

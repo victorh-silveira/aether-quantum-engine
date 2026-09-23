@@ -36,11 +36,11 @@ LGBM_REGRESSION_OBJECTIVE = "regression_l1"
 LGBM_METRIC = "l1"
 LGBM_N_ESTIMATORS_LARGE = 80
 LGBM_N_ESTIMATORS_CV = 200
-OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.0
-META_EXPORT_MIN_ZSCORE = 0.0
-META_EXPORT_MIN_IR = 0.0
+OPTUNA_OOS_PAYOFF_ZSCORE_MIN = 0.01
+META_EXPORT_MIN_ZSCORE = 0.01
+META_EXPORT_MIN_IR = 0.05
 OPTUNA_IR_TIEBREAK_WEIGHT = 0.01
-META_EXPORT_MAX_MAE_GAP = 1e9
+META_EXPORT_MAX_MAE_GAP = 1.50
 OPTUNA_OVERFIT_PENALTY = -1.0
 OPTUNA_NEGATIVE_EDGE_PENALTY = -1.0
 PURGED_SPLIT_EMBARGO = 32
@@ -50,9 +50,9 @@ LGBM_EARLY_STOPPING_ROUNDS = 15
 def _export_edge_ok(zscore: float, information_ratio: float) -> bool:
     if float(META_EXPORT_MIN_ZSCORE) <= 0.0 and float(META_EXPORT_MIN_IR) <= 0.0:
         return True
-    if float(zscore) + 1e-12 >= float(META_EXPORT_MIN_ZSCORE):
-        return True
-    return float(information_ratio) + 1e-12 >= float(META_EXPORT_MIN_IR)
+    return float(zscore) + 1e-12 >= float(META_EXPORT_MIN_ZSCORE) and float(information_ratio) + 1e-12 >= float(
+        META_EXPORT_MIN_IR
+    )
 
 
 def configure_meta_train_logging() -> None:
@@ -684,9 +684,7 @@ def assert_export_zscore_floor(
         return
     zscore = float(bundle_meta.get("oos_payoff_zscore_mean", 0.0))
     ir = float(bundle_meta.get("oos_information_ratio", 0.0) or 0.0)
-    if zscore + 1e-12 >= float(floor):
-        return
-    if ir + 1e-12 >= float(min_ir):
+    if zscore + 1e-12 >= float(floor) and ir + 1e-12 >= float(min_ir):
         return
     raise RuntimeError(
         f"Export meta bloqueado: oos_payoff_zscore_mean={zscore:.6f} < floor={float(floor):.6f} "

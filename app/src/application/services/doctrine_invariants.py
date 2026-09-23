@@ -7,7 +7,7 @@ from typing import Any
 from src.domain.config_knobs import load_settings_json, require_bool, require_float, require_int, require_keys
 
 
-_PRODUCTION_MIN_ACC = 0.53
+_PRODUCTION_MIN_ACC = 0.50
 _CACHE: dict[str, Any] = {"invariants": None}
 
 __all__ = (
@@ -158,6 +158,7 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
             "skip_scale_candle_discord",
             "skip_neg_edge",
             "skip_doji",
+            "counter_trend_min_edge",
         ),
         "orchestrator.execution",
     )
@@ -169,22 +170,6 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     dl = full.get("deep_learning")
     if not isinstance(dl, dict) or "online_training" not in dl:
         raise ValueError("deep_learning.online_training obrigatorio")
-    require_keys(
-        dl,
-        ("session_max_losses_in_window", "session_window_trades", "session_pause_cycles"),
-        "deep_learning",
-    )
-    require_keys(
-        execution.get("post_loss_cooldown") if isinstance(execution.get("post_loss_cooldown"), dict) else None,
-        (
-            "lin_min",
-            "delay_seconds_lin1",
-            "delay_seconds_lin2",
-            "delay_seconds_lin3",
-            "delay_seconds_lin4",
-        ),
-        "orchestrator.execution.post_loss_cooldown",
-    )
     cap, pct = _safe_stake(risk)
     resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
@@ -195,6 +180,7 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
         "skip_scale_candle_discord": require_bool(execution, "skip_scale_candle_discord"),
         "skip_neg_edge": require_bool(execution, "skip_neg_edge"),
         "skip_doji": require_bool(execution, "skip_doji"),
+        "counter_trend_min_edge": require_float(execution, "counter_trend_min_edge"),
         "online_training": require_bool(dl, "online_training"),
         "min_validation_accuracy_gate": require_float(risk, "min_validation_accuracy_gate"),
         "explore_stake_scale_floor": _explore_floor(execution),
@@ -276,11 +262,12 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
     _eq_float(inv, "loss_clf_flip_young_p_eff_floor", 0.58, "loss_classifier.flip_young_p_eff_floor deve ser 0.58")
     _eq_int(inv, "loss_clf_ready_n", 32, "loss_classifier.ready_n deve ser 32")
     _eq_int(inv, "loss_clf_retrain_min_n", 12, "loss_classifier.retrain_min_n deve ser 12")
-    _eq_int(inv, "loss_clf_retrain_on_loss_min_n", 4, "loss_classifier.retrain_on_loss_min_n deve ser 4")
+    _eq_int(inv, "loss_clf_retrain_on_loss_min_n", 12, "loss_classifier.retrain_on_loss_min_n deve ser 12")
     _eq_int(inv, "loss_clf_min_win_for_loss_retrain", 4, "loss_classifier.min_win_for_loss_retrain deve ser 4")
     _eq_int(inv, "watchdog_stale_tick_seconds", 300, "watchdog_stale_tick_seconds deve ser 300")
     _eq_int(inv, "settlement_tolerance_window_seconds", 600, "settlement_tolerance_window_seconds deve ser 600")
     _eq_int(inv, "post_settlement_is_trading_wait_seconds", 90, "post_settlement_is_trading_wait_seconds deve ser 90")
+    _eq_float(inv, "counter_trend_min_edge", 0.08, "counter_trend_min_edge deve ser 0.08")
     if int(inv["amort_cycles_min"]) != 1 or int(inv["amort_cycles_max"]) != 1:
         raise ValueError("amort_cycles_min/max devem ser 1 (cover_l0 zera PEND em 1 WIN sob L0)")
     _eq_float(inv, "max_safe_stake_pct", 0.035, "max_safe_stake_pct L0 deve ser 0.035 (cover amort<=1)")

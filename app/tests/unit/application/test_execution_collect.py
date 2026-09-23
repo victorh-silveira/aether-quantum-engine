@@ -31,7 +31,6 @@ def test_collect_cluster_orders_recovery_executes_best_available_signal():
             last_loss_symbol=ALT_SYMBOL,
             consecutive_losses=0,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=10,
     )

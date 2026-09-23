@@ -57,10 +57,6 @@ from src.application.services.market_audit_ops_window import (
     ops_window_stamped,
 )
 from src.application.services.orchestrator.execution_collect_helpers import log_execution_decision
-from src.application.services.orchestrator.post_settlement_loss_cooldown import (
-    log_trading_cycle_cooldown_skip,
-    post_loss_cooldown_blocks_trading_cycle,
-)
 from src.application.services.orchestrator.settlement_outcome import _feed_loss_classifier_learn
 from src.domain.config_knobs import load_settings_json
 from src.domain.models.market_data import Candle
@@ -452,27 +448,6 @@ def test_market_audit_ops_window_edge_cases():
     assert ops_window_candle_body({"ops_window_candle_body": -1.0}) is None
 
 
-@pytest.mark.asyncio
-async def test_await_post_loss_cooldown_sleeps():
-    from src.application.services.orchestrator.post_settlement_loss_cooldown import await_post_loss_cooldown
-
-    orch = SimpleNamespace(_cooldown_until=9999999999.0)
-    calls = {"n": 0}
-
-    async def _sleep(_seconds: float) -> None:
-        calls["n"] += 1
-        orch._cooldown_until = 0.0
-
-    with patch(
-        "src.application.services.orchestrator.post_settlement_loss_cooldown.asyncio.sleep",
-        side_effect=_sleep,
-    ) as sleep_mock:
-        rem = await await_post_loss_cooldown(orch)
-    assert rem > 0.0
-    assert calls["n"] == 1
-    sleep_mock.assert_awaited_once()
-
-
 def test_stake_and_soft_recovery_remaining_branches():
     soft_off = {"material_pending_min": 0.25, "pending_waives_scale_explore": False}
     assert pending_waives_scale_explore(1.0, soft_off) is False
@@ -587,26 +562,7 @@ def test_log_execution_decision_bad_cycle_id():
     assert exec_mgr.logger.info.call_count >= 1
 
 
-def test_post_settlement_cooldown_and_learn_success(caplog):
-    orch = SimpleNamespace(
-        logger=None,
-        _cooldown_until=9999999999.0,
-        config={
-            "orchestrator": {
-                "execution": {
-                    "post_loss_cooldown": {
-                        "lin_min": 1,
-                        "delay_seconds_lin1": 300,
-                        "delay_seconds_lin2": 300,
-                        "delay_seconds_lin3": 600,
-                        "delay_seconds_lin4": 900,
-                    }
-                }
-            }
-        },
-    )
-    log_trading_cycle_cooldown_skip(orch)
-    assert post_loss_cooldown_blocks_trading_cycle(orch) is True
+def test_post_settlement_learn_success(caplog):
     orch2 = MagicMock()
     orch2._loss_clf_vectors = {"cid:3": [0.1] * 24}
     orch2._loss_clf_flip_ctx = {"cid:3": {"flip": True, "young": True, "p_loss": 0.71, "p_eff": 0.5735, "n_train": 12}}

@@ -6,7 +6,8 @@ alwaysApply: true
 
 # Execution gates
 
-- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS / pausa de sessao
+- SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
+- Sinal contra a tendência exige `counter_trend_min_edge` **0.08**; FLIP e anti-trend-lock preservam a execução.
 - SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived com PEND ≥ `material_pending_min` (**0.5**); `acc_floor` so se `skip_below_soft_min_acc` **true** (ops **false**)
 - TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**
 - Anti-loss loss-clf: **FLIP** CALL↔PUT se `p_eff` >= piso — ancora TCN; **sem** `candle_holds`; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf

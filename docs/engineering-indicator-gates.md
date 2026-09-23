@@ -2,8 +2,8 @@
 
 Hot path vivo:
 
-1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE` / cooldown pos-LOSS (ladder LIN) / pausa de sessao (3 LOSS em janela 5, 2 ciclos M5)
-2. SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived somente com PEND ≥ `material_pending_min`; `acc_floor` so quando `skip_below_soft_min_acc` **true** (ops **false**); `trend_discord` (tendencia e vela M5 discordam simultaneamente em EXPLORE); confluencia de mercado senior (`skip_exhaustion`, `skip_chop_congestion`, `skip_directional_momentum_discord`, `skip_two_bar_counter_trend`) e salvaguardas de price action/fluxo (`skip_wick_rejection`, `skip_climactic_blowoff`, `skip_opposing_marubozu`, `skip_adverse_tick_flow`) bloqueiam a entrada: nunca escolhem CALL/PUT.
+1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
+2. SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived somente com PEND ≥ `material_pending_min`; `acc_floor` so quando `skip_below_soft_min_acc` **true** (ops **false**); `counter_trend_unconfirmed` quando o lado contraria a tendência sem edge ≥ **0.08** (FLIP e anti-trend-lock não são vetados); `trend_discord` (tendencia e vela M5 discordam simultaneamente em EXPLORE); confluencia de mercado senior (`skip_exhaustion`, `skip_chop_congestion`, `skip_directional_momentum_discord`, `skip_two_bar_counter_trend`) e salvaguardas de price action/fluxo (`skip_wick_rejection`, `skip_climactic_blowoff`, `skip_opposing_marubozu`, `skip_adverse_tick_flow`) bloqueiam a entrada: nunca escolhem CALL/PUT.
 3. TCN decide CALL/PUT (Cal ≥ 0.5 → CALL)
 4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 1` (young/mature 0.58; saida seed live N=2; ancora TCN) + **anti-trend-lock** ativo pos-loss
 5. SCALE adapt **off** (`adapt_retract_enabled` **false**); `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**

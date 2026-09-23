@@ -153,15 +153,7 @@ def pending_loss_total(orch) -> float:
     return sum(float(v) for v in pending.values())
 
 
-def apply_symbol_loss_cooldown(orch, symbol: str, entry: dict) -> dict:
-    """Retorna a entrada sem aplicar cooldown ou pausa (desativado)."""
-    _ = orch
-    _ = symbol
-    return entry
-
-
 __all__ = [
-    "apply_symbol_loss_cooldown",
     "build_decision_entry",
     "build_insufficient_data_entry",
     "guard_inference_price_history",

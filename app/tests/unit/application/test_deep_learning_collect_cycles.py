@@ -158,7 +158,7 @@ async def test_collect_candle_epoch_without_getter():
 
 
 @pytest.mark.asyncio
-async def test_collect_applies_symbol_loss_cooldown():
+async def test_collect_keeps_decision_without_loss_timer():
     prices = np.sin(np.linspace(0, 10, 80)) + 10.0
     orch = MockOrchestrator(["R_10"], prices)
     orch.config["deep_learning"]["min_val_accuracy"] = 0.0
@@ -167,7 +167,6 @@ async def test_collect_applies_symbol_loss_cooldown():
     orch.config["deep_learning"]["deploy_gate"] = {"enabled": False}
     orch.risk_manager = MagicMock()
     orch.risk_manager.pending_loss = {}
-    orch.risk_manager.is_symbol_on_loss_cooldown = MagicMock(return_value=True)
     stats = fit_norm_stats(np.zeros((2, 15, INPUT_DIM), dtype=np.float32))
     orch._dl_runtime = {
         "R_10": {

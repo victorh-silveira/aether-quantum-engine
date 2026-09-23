@@ -29,7 +29,7 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 ## Pre-trade (PlayBook)
 
 1. Setup: TCN + FLIP + SKIP `neg_edge` (EXPLORE; waived com PEND) + Kelly/cover_l0 amort **1**
-2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / cooldown / pausa / WSS); sinal? (`SKIP:neg_edge`) — com PEND material `neg_edge` nao trava recover (skips de vela/scale/doji desativados)
+2. Bloqueio tecnico? (`training`/`data`/`deploy`/`predict_error` / stop-win / WSS); sinal? (`SKIP:neg_edge` ou `SKIP:counter_trend_unconfirmed`) — com PEND material `neg_edge` nao trava recover (skips de vela/scale/doji desativados)
 3. Explore ou recover? Cover amort **1** → `min(max(PEND/payout, 1% banca), cap_L0)`; telemetria `cover_l0`
 4. Hipotese falsificavel se mudar knob; gate novo so via catalogo
 5. Alvo: stop-win **4,31%** — processo, nao “mao quente”

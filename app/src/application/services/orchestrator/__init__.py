@@ -163,7 +163,6 @@ class Orchestrator:
     def mark_cluster_cycle_complete(self) -> None:
         """Atualiza timestamp de fim do ultimo cluster."""
         self._last_cluster_cycle_end = time.time()
-        self.risk_manager.tick_symbol_loss_cycle_cooldowns()
 
     def schedule_trading_cycle_after_settlement(self) -> None:
         """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
@@ -202,7 +201,6 @@ class Orchestrator:
         _ = val_epoch
         if training_enabled(self):
             tick_bars_since_train(self, self.symbols)
-        self.risk_manager.tick_symbol_loss_cooldowns()
         self.risk_manager.decay_proposal_skip_cycles()
         if post_settlement_cycle_pending(self):
             return

@@ -150,7 +150,6 @@ def test_collect_cluster_orders_keeps_candidate_when_recovery_lacks_hurst_persis
             last_loss_symbol=PAIR,
             consecutive_losses=2,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=11,
     )

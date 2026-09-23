@@ -27,7 +27,7 @@ def _loss_cfg(**overrides: object) -> dict:
         "bootstrap_exit_n": 2,
         "ready_n": 32,
         "retrain_min_n": 12,
-        "retrain_on_loss_min_n": 4,
+        "retrain_on_loss_min_n": 12,
         "min_win_for_loss_retrain": 4,
         "max_buffer": 2000,
     }
@@ -46,7 +46,7 @@ def test_resolve_loss_classifier_config_from_ssot():
     assert resolved["flip_min_n_train"] == 1
     assert resolved["ready_n"] == 32
     assert resolved["retrain_min_n"] == 12
-    assert resolved["retrain_on_loss_min_n"] == 4
+    assert resolved["retrain_on_loss_min_n"] == 12
     assert resolved["min_win_for_loss_retrain"] == 4
     assert resolved["bootstrap_exit_n"] == 2
 

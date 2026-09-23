@@ -13,7 +13,7 @@ alwaysApply: true
 - Lock serializa inferencia, liquidacao e persistencia — nao bypassar
 - `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `skip_exec_vs_candle` / `skip_scale_candle_discord` / `skip_neg_edge` / `skip_doji` **true**; `skip_below_soft_min_acc` **false**; `online_training` **false**
 - EXEC_EMPTY pode ser processo correto; stop-win **4.31%** (Kelly Single-Strike) → `EXEC_PAUSE` (nao forcar trade)
-- Cooldown pos-LOSS SSOT: LIN>=**1** → 300s; L3 → 600s; L4+ → 900s. Pausa de sessao: 3 LOSS em janela 5 → 2 ciclos M5.
-- Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale/cooldown
+- Não há cooldown ou pausa de sessão pós-LOSS. A fronteira M5 continua obrigatória por integridade do contrato.
+- Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale e cadência técnica.
 - Pos-settlement wait **90 s**; tolerancia settle **600 s**; timeout ciclo pos-settle **1200 s**
 - Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

@@ -224,7 +224,7 @@ def test_resolve_execution_direction_force():
     assert "signal_status" not in metrics
 
 
-def test_resolve_execution_direction_skips_trend_discord():
+def test_resolve_execution_direction_skips_counter_trend_without_edge():
     entry = {
         "metrics": {
             "calibrated_prob": 0.55,
@@ -246,7 +246,7 @@ def test_resolve_execution_direction_skips_trend_discord():
         orch=orch,
     )
     assert res is None
-    assert entry["metrics"]["skip_reason"] == "trend_discord"
+    assert entry["metrics"]["skip_reason"] == "counter_trend_unconfirmed"
 
 
 def test_resolve_execution_direction_skips_on_exhaustion():

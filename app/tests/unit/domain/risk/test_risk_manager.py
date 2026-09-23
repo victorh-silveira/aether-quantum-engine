@@ -161,7 +161,6 @@ def test_risk_manager_consecutive_losses_reset_on_win(kelly_config):
     rm.active_contract_ids = [3]
     rm.register_result(15.0, 3, "R_10")
     assert rm.consecutive_losses_linear == 0
-    assert rm.is_on_cooldown(99) is False
 
 
 def test_risk_manager_consecutive_losses_fraction_reduction(kelly_config):
@@ -205,10 +204,8 @@ def test_risk_manager_get_state_exports(kelly_config):
     """Verifica se get_state exporta corretamente as novas métricas de perdas consecutivas."""
     rm = RiskManager(kelly_config)
     rm.consecutive_losses_linear = 3
-    rm.current_cooldown_ticks = 80
     state = rm.get_state()
     assert state["consecutive_losses_linear"] == 3
-    assert state["current_cooldown_ticks"] == 80
 
 
 def test_single_strike_stake_boost_toward_stop_win(kelly_config):

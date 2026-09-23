@@ -13,7 +13,7 @@ Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn
 
 ## Checklist (auditoria por ciclo)
 
-1. SKIP tecnico: treino/dados/deploy/predict/stop-win/cooldown/pausa; SKIP sinal: `neg_edge`
+1. SKIP tecnico: treino/dados/deploy/predict/stop-win; SKIP sinal: `neg_edge` e `counter_trend_unconfirmed` (edge mínimo **0.08** contra tendência; FLIP/anti-trend-lock preservados)
 2. CLUSTER → lado TCN (Cal≥0.5 CALL) + Edge EV
 3. `LOSS_CLF`: FLIP se pe no piso; `blocked=bootstrap|flip_min_n` → sem FLIP
 4. KELLY/EXEC lado = TCN(+FLIP); RESOLVED valida mercado

@@ -5,15 +5,12 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from src.application.services.deep_learning.dl_outcomes import is_symbol_session_paused
-from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_data_signature import (
     at_m5_open_window,
     seconds_until_next_signature_boundary,
 )
-from src.application.services.orchestrator.post_settlement_loss_cooldown import post_loss_cooldown_blocks_trading_cycle
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -111,58 +108,10 @@ def _stop_win_blocks_cycle(orch: Any) -> bool:
     return pnl >= target
 
 
-def _session_pause_blocks_cycle(orch: Any) -> bool:
-    """True quando pausa de sessao pos-streak bloqueia o ciclo (SKIP tecnico)."""
-    cfg = getattr(orch, "config", None)
-    if isinstance(cfg, dict):
-        dl_cfg = cfg.get("deep_learning")
-        if isinstance(dl_cfg, dict) and int(dl_cfg.get("session_pause_cycles", 0) or 0) <= 0:
-            return False
-    symbols = getattr(orch, "symbols", None) or []
-    if symbols:
-        paused = any(is_symbol_session_paused(orch, str(sym)) for sym in symbols)
-    else:
-        pauses = getattr(orch, "_dl_session_pause", None)
-        until_map = getattr(orch, "_dl_session_pause_until", None)
-        now = time.time()
-        paused = False
-        if isinstance(until_map, dict):
-            for sym, deadline in list(until_map.items()):
-                if float(deadline or 0.0) <= now:
-                    until_map.pop(sym, None)
-                    if isinstance(pauses, dict):
-                        pauses.pop(str(sym), None)
-                else:
-                    paused = True
-        if not paused and isinstance(pauses, dict):
-            paused = any(int(v or 0) > 0 for v in pauses.values())
-    if not paused:
-        return False
-    logger = getattr(orch, "logger", None)
-    if logger is not None:
-        cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
-        rem = 0.0
-        until_map = getattr(orch, "_dl_session_pause_until", None)
-        if isinstance(until_map, dict) and until_map:
-            rem = max(0.0, max(float(v or 0.0) for v in until_map.values()) - time.time())
-        log_info_if_changed(
-            orch,
-            logger,
-            "session_pause_skip",
-            f"{cid}:{int(rem)}",
-            "[%s] COOLDOWN || pausa tecnica de sessao pos-loss | restante=%.0fs | skip",
-            cid,
-            rem,
-        )
-    return True
-
-
 def _orchestrator_preconditions_block(orch: Any) -> bool:
-    """True quando reconciliacao, cooldown, manutencao ou persistencia bloqueiam o ciclo."""
+    """True quando reconciliacao, manutencao ou persistencia bloqueiam o ciclo."""
     return (
         getattr(orch, "_reconciliation_pending", False)
-        or post_loss_cooldown_blocks_trading_cycle(orch)
-        or _session_pause_blocks_cycle(orch)
         or api_maintenance_blocks_trading_cycle(orch)
         or session_persistence_blocks_trading_cycle(orch)
     )

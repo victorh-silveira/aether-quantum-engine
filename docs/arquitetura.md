@@ -338,7 +338,7 @@ flowchart LR
 
 Pós-liquidação (`post_settlement_cycle`): stop-win fast-path limpa Redis, cancela fila e `graceful_shutdown(fast_path=True)`; senão retry com teto e recovery transparente de deadlock.
 
-Portões neutralizados em modo mandatário (não bloqueiam ciclo): cooldown pós-LOSS, blackout API, Hurst recovery collect, freeze yield, stubs sniper.
+Portões neutralizados em modo mandatário (não bloqueiam ciclo): blackout API, Hurst recovery collect, freeze yield, stubs sniper. Não existe bloqueio temporal pós-LOSS.
 
 ---
 

@@ -16,6 +16,7 @@ from scripts.operations.train_meta_classifier import (
 from scripts.operations.train_meta_data import (
     META_TRAIN_MAX_BARS,
     OhlcBundle,
+    bundle_training_quality_error,
     meta_bars_meet_quality,
     resolve_meta_train_bars,
 )
@@ -91,6 +92,33 @@ def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0)
         epochs=epochs,
         source="test",
     )
+
+
+def test_bundle_training_quality_rejeita_lacuna_e_ohlc_invalido():
+    bundle = _synthetic_bundle()
+    assert bundle_training_quality_error(bundle) is None
+    gapped = OhlcBundle(
+        symbol=bundle.symbol,
+        granularity=bundle.granularity,
+        closes=bundle.closes,
+        open_=bundle.open_,
+        high=bundle.high,
+        low=bundle.low,
+        epochs=np.concatenate((bundle.epochs[:10], bundle.epochs[11:])),
+        source=bundle.source,
+    )
+    assert bundle_training_quality_error(gapped) == "arrays OHLC desalinhados"
+    invalid = OhlcBundle(
+        symbol=bundle.symbol,
+        granularity=bundle.granularity,
+        closes=bundle.closes,
+        open_=bundle.open_,
+        high=np.minimum(bundle.open_, bundle.closes) - 1.0,
+        low=bundle.low,
+        epochs=bundle.epochs,
+        source=bundle.source,
+    )
+    assert bundle_training_quality_error(invalid) == "high abaixo de open/close"
 
 
 def _decisive_teacher(n: int, *, seed: int = 0) -> np.ndarray:
@@ -308,10 +336,10 @@ def test_assert_export_zscore_floor_blocks_weak_models():
         floor=META_EXPORT_MIN_ZSCORE,
     )
     assert_export_zscore_floor(
-        {"oos_payoff_zscore_mean": 0.0, "oos_information_ratio": 0.0},
+        {"oos_payoff_zscore_mean": 0.02, "oos_information_ratio": 0.50},
         floor=META_EXPORT_MIN_ZSCORE,
     )
-    assert pytest.approx(0.0) == META_EXPORT_MIN_ZSCORE
+    assert pytest.approx(0.01) == META_EXPORT_MIN_ZSCORE
     with pytest.raises(RuntimeError, match="Export meta bloqueado"):
         assert_export_zscore_floor(
             {"oos_payoff_zscore_mean": 0.020, "oos_information_ratio": 0.50},
@@ -323,17 +351,19 @@ def test_assert_export_zscore_floor_blocks_weak_models():
         floor=0.04,
         min_ir=0.70,
     )
-    assert_export_zscore_floor(
-        {"oos_payoff_zscore_mean": 0.01, "oos_information_ratio": 0.80},
-        floor=0.04,
-        min_ir=0.70,
-    )
+    with pytest.raises(RuntimeError, match="Export meta bloqueado"):
+        assert_export_zscore_floor(
+            {"oos_payoff_zscore_mean": 0.01, "oos_information_ratio": 0.80},
+            floor=0.04,
+            min_ir=0.70,
+        )
 
 
 def test_assert_export_mae_gap_blocks_overfit():
-    assert_export_mae_gap(1.0, 1.85, max_gap=META_EXPORT_MAX_MAE_GAP)
-    assert_export_mae_gap(1.0, 2.10, max_gap=META_EXPORT_MAX_MAE_GAP)
-    assert pytest.approx(1e9) == META_EXPORT_MAX_MAE_GAP
+    assert_export_mae_gap(1.0, 1.40, max_gap=META_EXPORT_MAX_MAE_GAP)
+    assert pytest.approx(1.50) == META_EXPORT_MAX_MAE_GAP
+    with pytest.raises(RuntimeError, match="val_mae/train_mae"):
+        assert_export_mae_gap(1.0, 1.85, max_gap=META_EXPORT_MAX_MAE_GAP)
     assert_export_mae_gap(1.0, 1.85, max_gap=2.0)
     with pytest.raises(RuntimeError, match="val_mae/train_mae"):
         assert_export_mae_gap(1.0, 2.10, max_gap=2.0)
@@ -563,18 +593,17 @@ def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch, caplo
 
     monkeypatch.setattr("scripts.operations.train_meta_optuna.train_lgbm_candidate", fake_train)
     weights = teacher_sample_weights(np.linspace(0.2, 0.9, n).astype(np.float32))
-    with caplog.at_level(logging.WARNING, logger="AETH.meta"):
-        model, bundle_meta, train_mae, val_mae = run_optuna_study(
+    with (
+        caplog.at_level(logging.WARNING, logger="AETH.meta"),
+        pytest.raises(RuntimeError, match="Export meta bloqueado"),
+    ):
+        run_optuna_study(
             frame,
             y,
             trials=2,
             hygiene={"label_mode": 2},
             sample_weight=weights,
         )
-    assert model is not None
-    assert isinstance(bundle_meta, dict)
-    assert float(train_mae) >= 0.0
-    assert float(val_mae) >= 0.0
     assert captured["w"] is not None
     assert len(captured["w"]) > 0
     assert captured["rounds"] == LGBM_N_ESTIMATORS_LARGE
@@ -676,17 +705,14 @@ def test_assert_train_val_target_scale_rejects_quiet_train():
     _assert_train_val_target_scale(1.0, 1.4, null_mae_gap=1.9)
 
 
-def test_run_optuna_study_exports_degenerate_split():
+def test_run_optuna_study_rejeita_split_degenerado():
     columns = meta_classifier_column_names()
     n = 200
     rng = np.random.default_rng(2)
     frame = pl.DataFrame({name: rng.normal(size=n).astype(np.float32) for name in columns})
     y = np.concatenate([np.zeros(150), np.linspace(-2.0, 2.0, 50)]).astype(np.float32)
-    model, bundle_meta, train_mae, val_mae = run_optuna_study(frame, y, trials=2, hygiene={"label_mode": 2})
-    assert model is not None
-    assert isinstance(bundle_meta, dict)
-    assert float(train_mae) >= 0.0
-    assert float(val_mae) >= 0.0
+    with pytest.raises(RuntimeError, match="Export meta bloqueado"):
+        run_optuna_study(frame, y, trials=2, hygiene={"label_mode": 2})
 
 
 def test_predict_with_export_uses_label_location():
@@ -715,8 +741,8 @@ def test_select_gap_feasible_iteration_picks_best_legal_val():
     anchored_train = [0.677, 0.50, 0.45]
     anchored_val = [1.354, 1.30, 1.35]
     assert _select_gap_feasible_iteration(anchored_train, anchored_val, max_gap=2.0) == 1
-    assert _select_gap_feasible_iteration(only_null_train, only_null_val) == 1
-    assert pytest.approx(1e9) == META_EXPORT_MAX_MAE_GAP
+    assert _select_gap_feasible_iteration(only_null_train, only_null_val) is None
+    assert pytest.approx(1.50) == META_EXPORT_MAX_MAE_GAP
 
 
 def test_export_untrainable_flags_null_snapshot():

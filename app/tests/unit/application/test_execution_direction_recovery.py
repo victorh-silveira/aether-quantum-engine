@@ -18,12 +18,12 @@ def test_recovery_execution_eligible_rejects_predict_error():
     assert recovery_execution_eligible(entry) is False
 
 
-def test_recovery_execution_eligible_rejects_cooldown_gate():
+def test_recovery_execution_eligible_accepts_non_technical_gate():
     entry = {
         "direction": TradeDirection.CALL,
         "metrics": {
             "execute": False,
-            "gate_reason": "cooldown",
+            "gate_reason": "counter_trend_unconfirmed",
             "trade_score": 0.58,
             "val_accuracy": 0.55,
             "raw_prob": 0.58,

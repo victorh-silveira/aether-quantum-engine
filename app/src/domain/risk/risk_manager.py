@@ -8,7 +8,6 @@ from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recov
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
 from src.domain.risk.risk_cluster import finalize_risk_cluster
 from src.domain.risk.risk_contract_result import apply_contract_settlement_result
-from src.domain.risk.risk_cooldown import RiskCooldownMixin
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot, build_risk_state_snapshot
 from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
 from src.domain.risk.risk_recovery_state import (
@@ -21,10 +20,9 @@ from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
 from src.domain.risk.soft_recovery_policy import cointegration_valve_suppressed, resolve_soft_recovery_config
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 from src.domain.risk.stop_win_target import is_stop_win_reached, persisted_session_target, resolve_stop_win_target
-from src.domain.risk.symbol_loss_cooldown import SymbolLossCooldownMixin
 
 
-class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin):
+class RiskManager(ProposalSkipMixin):
     """Gerenciador de Risco que utiliza a fórmula de Kelly para dimensionamento de posição."""
 
     def __init__(self, config: dict[str, Any]):
@@ -46,9 +44,6 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.daily_stop_win_target = 0.0
         self.total_session_profit = 0.0
         self.last_result_tick = 0
-        self.base_cooldown = self.risk_params.get("entry_cooldown_ticks", 0)
-        self.current_cooldown_ticks = self.base_cooldown
-        self._last_entry_conviction = 0.0
         self.consecutive_losses_linear = 0
         self.dlambert_unit = 0.0
         self.pending_loss: dict[str, float] = {}
@@ -56,8 +51,8 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         self.proposal_skip_cycles: dict[str, int] = {}
         self.contract_stakes: dict[int, float] = {}
         self.contract_requested_stakes: dict[int, float] = {}
-        self.init_symbol_loss_cooldown()
-        self._candle_interval_seconds, self._cooldown_until_mono = 60, 0.0
+        self.last_loss_symbol: str | None = None
+        self.last_loss_direction: str | None = None
         self.active_contract_ids: list[int] = []
         self.contract_to_symbol: dict[int, str] = {}
         self.cluster_results: dict[int, float] = {}
@@ -95,7 +90,7 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         return micro_tail_stake_cap(bal if bal > 0.0 else 100.0)
 
     def set_candle_interval_seconds(self, seconds: int) -> None:
-        """Define duracao da vela ancora para cooldown em tempo real."""
+        """Define a duracao da vela ancora em tempo real."""
         self._candle_interval_seconds = max(1, int(seconds))
 
     def reset_session(self, bankroll: float, *, target: float = 0.0) -> None:
@@ -115,6 +110,12 @@ class RiskManager(RiskCooldownMixin, SymbolLossCooldownMixin, ProposalSkipMixin)
         cap = 100
         if len(lst) > cap:
             del lst[: len(lst) - cap]
+
+    def record_loss_context(self, symbol: str, *, direction: str | None = None) -> None:
+        """Registra o ultimo contexto de perda para telemetria e recovery."""
+        self.last_loss_symbol = str(symbol)
+        if direction:
+            self.last_loss_direction = str(direction)
 
     def get_wr_rolling_stats(self, symbol: str) -> tuple[float | None, int]:
         """Retorna o win rate atual do símbolo."""

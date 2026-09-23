@@ -28,8 +28,8 @@ def build_risk_state_snapshot(manager: Any) -> dict[str, Any]:
         "last_loss_stake": manager.last_loss_stake,
         "consecutive_losses_linear": manager.consecutive_losses_linear,
         "dlambert_unit": manager.dlambert_unit,
-        "current_cooldown_ticks": manager.current_cooldown_ticks,
-        **manager.symbol_cooldown_state(),
+        "last_loss_symbol": manager.last_loss_symbol,
+        "last_loss_direction": manager.last_loss_direction,
     }
 
 
@@ -43,7 +43,7 @@ def apply_risk_snapshot(manager: Any, data: dict[str, Any]) -> None:
         snapshot,
         ("initial_bankroll", "total_session_profit", "last_loss_stake", "dlambert_unit"),
     )
-    _apply_int_fields(manager, snapshot, ("last_result_tick", "consecutive_losses_linear", "current_cooldown_ticks"))
+    _apply_int_fields(manager, snapshot, ("last_result_tick", "consecutive_losses_linear"))
     if "consecutive_losses_linear" not in snapshot and "consecutive_losses" in snapshot:
         manager.consecutive_losses_linear = max(0, int(snapshot["consecutive_losses"]))
     rolling = snapshot.get("rolling_wins")

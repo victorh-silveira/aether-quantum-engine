@@ -131,7 +131,7 @@ async def test_breath_returns_when_wake_completes_before_timeout(orch_ready):
 
 
 @pytest.mark.asyncio
-async def test_run_post_settlement_awaits_active_cooldown(orch_ready):
+async def test_run_post_settlement_ignores_legacy_loss_timer(orch_ready):
     orch = orch_ready
     orch._cooldown_until = time.time() + 60.0
     breaths: list[float] = []
@@ -155,7 +155,7 @@ async def test_run_post_settlement_awaits_active_cooldown(orch_ready):
         ),
     ):
         await run_post_settlement_breath_and_cycle(orch)
-    assert any(b > 1.0 for b in breaths)
+    assert breaths == [float(orch.config["orchestrator"].get("post_settlement_breath_seconds", 8.0))]
 
 
 def test_schedule_skips_when_not_running(orch_ready):

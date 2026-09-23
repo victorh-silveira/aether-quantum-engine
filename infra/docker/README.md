@@ -25,8 +25,8 @@ Imagens S3: `pgsty/minio` + `pgsty/mc` (fork community; Hub `minio/*` sem pull p
 
 ## Loss-classifier (profile `ml`)
 
-- Env: `LOSS_READY_N` **32** (`veto_ready`/maduro), `LOSS_RETRAIN_MIN_N` **12**, `LOSS_BOOTSTRAP_EXIT_N` **4** (saida do seed / auto_learn; nao `READY_N`), `LOSS_MIN_WIN_FOR_LOSS_RETRAIN` **4**, `LOSS_VETO_P_LOSS_FLOOR` **0.58** (telemetria no sidecar; motor ignora para SKIP)
-- **FLIP** por `p_eff` (so apos auto_learn; young pe>=**0.55**; mature pe>=**0.58**; shrink N; tape telemetria; `LOSS_YOUNG_TEMP_N` **32** → T=2) vive no motor (`config/settings.json`); sem HARD SKIP/Soft Kelly
+- Env: `LOSS_READY_N` **32** (`veto_ready`/maduro), `LOSS_RETRAIN_MIN_N` **12**, `LOSS_BOOTSTRAP_EXIT_N` **2** (saida do seed; nao `READY_N`), `LOSS_MIN_WIN_FOR_LOSS_RETRAIN` **4**, `LOSS_VETO_P_LOSS_FLOOR` **0.70** (telemetria no sidecar; motor ignora para SKIP)
+- **FLIP** por `p_eff` apos auto_learn (young pe>=**0.58**; mature pe>=**0.70**; shrink N; tape telemetria; `LOSS_YOUNG_TEMP_N` **64** → T=2) vive no motor (`config/settings.json`); sem HARD SKIP/Soft Kelly
 - Apos mudar env: `docker compose ... up -d --force-recreate aether-loss-classifier`
 
 Profile `ml`: `.pkl` em `meta-models/` (`train_meta_*`); loss sobe sem pkl (telemetria; veto apos `/learn`+ready_n) ou bootstrap `train_loss_classifier.py`.

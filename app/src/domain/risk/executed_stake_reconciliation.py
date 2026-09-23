@@ -142,7 +142,7 @@ def apply_contract_settlement_result(
             loss_amt = abs(profit)
         rm.pending_loss[symbol] = rm.pending_loss.get(symbol, 0.0) + loss_amt
         rm.last_loss_stake = float(recorded_stake) if recorded_stake else loss_amt
-        rm.register_symbol_loss_cooldown(symbol, direction=direction)
+        rm.record_loss_context(symbol, direction=direction)
     else:
         recovery_profit = float(profit)
         if requested_stake is not None and recorded_stake is not None:

@@ -34,7 +34,6 @@ def test_collect_cluster_orders_recovery_picks_dl_put_after_call_loss():
             last_loss_symbol=LOW_SIDE_SYMBOL,
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=2,
     )
@@ -80,7 +79,6 @@ def test_collect_cluster_orders_mandatory_keeps_weak_recovery_candidate():
             last_loss_symbol=ANCHOR,
             consecutive_losses=1,
             recovery_symbol_loss_streak={},
-            symbol_loss_cooldown={},
         ),
         _active_cycle_id=15,
     )

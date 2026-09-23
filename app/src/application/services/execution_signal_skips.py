@@ -225,29 +225,36 @@ def should_skip_trend_discord(
     *,
     force: bool = False,
 ) -> bool:
-    """True quando a direcao EXEC discordar simultaneamente de trend_direction e candle M5 em EXPLORE."""
+    """True quando contra-tendencia nao apresentar edge direcional suficiente."""
     if force or not bool((exec_cfg or {}).get("skip_trend_discord", False)):
         return False
     if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = _closed_candle_dir(metrics)
-    if trend not in _VALID or candle not in _VALID:
+    if trend not in _VALID:
         return False
     exec_name = exec_dir.name
-    if exec_name not in (trend, candle):
-        raw_edge = metrics.get("cal_side_edge", metrics.get("edge", 0.0))
-        try:
-            edge = float(raw_edge or 0.0)
-        except (TypeError, ValueError):
-            edge = 0.0
-        if edge < 0.035:
-            _mark_skip(
-                metrics,
-                "trend_discord",
-                exec_pre_skip=exec_name,
-                trend_direction=trend,
-                candle_dir=candle,
-            )
-            return True
+    if exec_name == trend:
+        return False
+    raw_edge = metrics.get("cal_side_edge", metrics.get("edge", 0.0))
+    try:
+        edge = float(raw_edge or 0.0)
+    except (TypeError, ValueError):
+        edge = 0.0
+    try:
+        min_edge = float((exec_cfg or {}).get("counter_trend_min_edge", 0.08))
+    except (TypeError, ValueError):
+        min_edge = 0.08
+    if edge + 1e-12 < max(0.0, min_edge):
+        _mark_skip(
+            metrics,
+            "counter_trend_unconfirmed",
+            exec_pre_skip=exec_name,
+            trend_direction=trend,
+            candle_dir=candle,
+            counter_trend_edge=edge,
+            counter_trend_min_edge=max(0.0, min_edge),
+        )
+        return True
     return False

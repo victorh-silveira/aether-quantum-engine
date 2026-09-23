@@ -42,6 +42,7 @@ def _log_train_insufficient(symbol: str, runtime: dict, level: int, bar_count: i
     runtime["val_accuracy"] = 0.0
     runtime["val_brier"] = 1.0
     runtime["deploy_ok"] = False
+    runtime["deploy_provisional_ok"] = False
     runtime["session_trained"] = False
     runtime["export_ok"] = False
     logger.log(
@@ -86,6 +87,7 @@ def run_symbol_training(
     runtime["export_ok"] = False
     runtime["session_trained"] = False
     runtime["deploy_ok"] = False
+    runtime["deploy_provisional_ok"] = False
     gate_cfg = parse_deploy_gate_config(dl_config)
     level = logging.INFO
     started = time.monotonic()
@@ -187,6 +189,7 @@ def run_symbol_training(
     except Exception as e:
         logger.error("DL: Erro no treinamento walk-forward para %s: %s", symbol, e)
         runtime["deploy_ok"] = False
+        runtime["deploy_provisional_ok"] = False
         runtime["session_trained"] = False
         runtime["export_ok"] = False
         _clear_cuda_after_error(e)
