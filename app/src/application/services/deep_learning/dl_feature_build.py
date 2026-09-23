@@ -169,11 +169,11 @@ def precompute_price_series(
     bb_lower, bb_mid, bb_upper = bollinger(prices, int(win["bb_window"]), std_mult=float(mult["bb_std_mult"]))
     bb_w_raw = (bb_upper - bb_lower) / (bb_mid + 1e-10)
     bb_clip = float(norm["bb_width_z_clip"])
-    bb_width = np.clip((bb_w_raw - np.mean(bb_w_raw)) / (np.std(bb_w_raw) + 1e-10), -bb_clip, bb_clip)
+    bb_width = rolling_zscore_fast(bb_w_raw, window=int(win["bb_window"]), clip=bb_clip)
     bb_pct_b = (prices - bb_lower) / (bb_upper - bb_lower + 1e-10)
     atr_raw = atr_norm(h, low_px, close, int(win["atr_window"]))
     atr_clip = float(norm["atr_z_clip"])
-    atr = np.clip((atr_raw - np.mean(atr_raw)) / (np.std(atr_raw) + 1e-10), -atr_clip, atr_clip)
+    atr = rolling_zscore_fast(atr_raw, window=int(win["atr_window"]), clip=atr_clip)
     target_vol = symbol_vol_target(symbol)
     vol_vs_target = vol / (target_vol + 1e-10)
     hurst = hurst_exponent(

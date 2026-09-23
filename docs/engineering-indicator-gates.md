@@ -1,5 +1,37 @@
 # Catalogo de gates (SSOT minimo)
 
+## Politica ativa: quatro vetos de mercado
+
+`orchestrator.execution.four_market_vetoes=true` substitui a lista de gates
+de mercado legada abaixo. Sao quatro categorias, nao uma cota de quatro ciclos:
+
+| Veto | Confluencia na ultima vela fechada |
+|------|------------------------------------|
+| `call_top_rejection` | RSI >= 0.75, BB %B >= 1 e pavio superior >= 45% do range |
+| `call_down_continuation` | Corpo vendedor >= 80%, DI diff <= -0.15, tendencia e vela anterior PUT |
+| `put_bottom_rejection` | RSI <= 0.25, BB %B <= 0 e pavio inferior >= 45% do range |
+| `put_up_continuation` | Corpo comprador >= 80%, DI diff >= 0.15, tendencia e vela anterior CALL |
+
+RSI e DI diff sao normalizados; OHLC usa precos absolutos. Candle ausente ou
+invalido nao cria setup. Protecoes tecnicas de dados/deploy e caps permanecem
+externas. `neg_edge`/`min_edge` sao bloqueios economicos, nao um quinto veto de
+mercado. Os vetos extremos nao recebem waiver por PEND ou FLIP.
+
+`market_direction_trigger=true` reavalia o lado antes do gate economico.
+Um extremo contra o lado atual propoe o oposto, mas so o aceita se a
+probabilidade calibrada existente sustentar `EV > min_edge_execute` e nao
+houver extremo contrario ao candidato. EV = p(lado) * (1 + payout) - 1.
+Registra `market_trigger_status`, `market_trigger_candidate`, setup e edge.
+Nao estima uma nova probabilidade a partir do desenho do candle.
+
+Limitacao deliberada: um TCN CALL com P(CALL)=0.52 nao autoriza PUT; P(PUT)=0.48.
+Se o lado inicial ja e o argmax do TCN, o gatilho nao o inverte contra essa
+distribuicao. Pode reconciliar um lado previamente alterado com o modelo.
+Inversao independente de TCN exige outro estimador validado fora da amostra;
+essa vantagem ainda nao foi demonstrada. Ativacao funcional nao e validacao
+historica de rentabilidade. A lista abaixo descreve o fallback legado quando
+`four_market_vetoes=false`.
+
 Hot path vivo:
 
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`

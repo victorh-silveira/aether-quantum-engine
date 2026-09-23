@@ -6,12 +6,23 @@ import pytest
 
 from src.application.services.deep_learning.tf_sweep_config import load_tf_sweep_knobs
 from src.application.services.deep_learning.tf_sweep_score import (
+    _history_bars_for_settle,
+    checkpoint_settle_eligible,
     enrich_leaderboard_row,
     implied_breakeven,
     is_tf_eligible,
     pick_tf_winner,
     score_tf_row,
 )
+
+
+def test_settle_history_fallbacks_and_invalid_payload():
+    assert _history_bars_for_settle({"training_history_bars": 10}, None) == 10
+    assert _history_bars_for_settle({}, None) == 0
+    assert _history_bars_for_settle({}, {"deep_learning": {"training_history_bars": 9}}) == 9
+    assert _history_bars_for_settle({}, {"data_handler": {"micro_history_bars": 8}}) == 8
+    assert checkpoint_settle_eligible(None, {}) is False
+    assert checkpoint_settle_eligible({}, {}) is False
 
 
 def test_implied_breakeven_matches_live_logs():

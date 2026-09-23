@@ -62,7 +62,7 @@ def test_sequence_price_deltas_empty_when_insufficient_prices():
 
 def test_sequence_price_deltas_zero_base_price():
     prices = np.linspace(100.0, 110.0, 40, dtype=np.float64)
-    prices[4] = 0.0
+    prices[5] = 0.0
     deltas = sequence_price_deltas(prices, lookback=5, label_horizon_bars=1)
     assert deltas[0] == 0.0
 

@@ -153,3 +153,18 @@ Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (n
 - Soft Kelly no TCN / desligar `skip_neg_edge` para “passar” Edge mole
 
 Skill: `aether-dl-train`.
+# Contrato temporal dos indicadores
+
+As series de ATR e largura de Bollinger usam z-score rolling causal nas janelas
+configuradas de cada indicador. Acrescentar candles futuros nao pode modificar
+os valores ja calculados. RSI, ADX e Keltner mantem valores neutros durante seu
+warmup, sem preencher o passado com estatisticas de barras posteriores.
+
+`atr_raw` e ATR relativo ao fechamento; `atr_abs` e ATR em unidades de preco;
+`atr_norm` e z-score. Gates que comparam amplitude de candle usam `atr_abs`.
+O retorno auxiliar de treino parte do fechamento da mesma barra que encerra
+a sequencia e usa o horizonte e a suavizacao forward configurados no label.
+Nao ha interpolacao de precos futuros nessa montagem.
+
+Alteracoes destas transformacoes exigem retreino e revalidacao dos artefatos
+TCN/meta/loss afetados; manter 14 colunas nao garante compatibilidade semantica.

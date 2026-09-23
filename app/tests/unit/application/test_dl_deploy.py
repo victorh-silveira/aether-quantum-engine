@@ -289,6 +289,8 @@ def test_evaluate_mini_deploy_rejeita_label_quando_settlement_falha():
     assert "deploy_settlement_win_rate" in runtime
     assert wr >= 0.0
     assert brier >= 0.0
+
+
 def test_wilson_rejeita_confianca_invalida_e_zero_amostras():
     assert wilson_lower_bound(wins=0, trials=0, confidence=0.95) == 0.0
     with pytest.raises(ValueError, match="settlement_confidence"):

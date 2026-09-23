@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.execution_four_vetoes import apply_four_market_vetoes, resolve_four_vetoes_enabled
 from src.application.services.execution_market_confluence import (
     should_skip_chop_congestion,
     should_skip_directional_momentum_discord,
@@ -30,6 +31,9 @@ def apply_senior_execution_skips(
     force: bool = False,
 ) -> tuple[TradeDirection, bool]:
     """Bloqueia o ciclo quando uma salvaguarda ativa encontrar risco de sinal."""
+    if resolve_four_vetoes_enabled(exec_cfg):
+        blocked = apply_four_market_vetoes(exec_dir, metrics, orch=orch, symbol=symbol)
+        return exec_dir, blocked or should_skip_neg_edge(metrics, exec_cfg, force=force)
     skips = (
         lambda: should_skip_trend_discord(metrics, exec_dir, exec_cfg, force=force),
         lambda: should_skip_exhaustion(metrics, exec_dir, exec_cfg, force=force),

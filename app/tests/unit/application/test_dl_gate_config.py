@@ -33,13 +33,16 @@ def test_resolve_provisional_exige_anticolapso_e_habilitacao():
     assert resolve_provisional_deploy_ok(provisional_ok=True, val_accuracy=0.51, gate_cfg=cfg) is True
     assert resolve_provisional_deploy_ok(provisional_ok=False, val_accuracy=0.60, gate_cfg=cfg) is False
     assert resolve_provisional_deploy_ok(provisional_ok=True, val_accuracy=0.49, gate_cfg=cfg) is False
-    assert resolve_provisional_deploy_ok(
-        provisional_ok=True,
-        val_accuracy=0.60,
-        gate_cfg={**cfg, "reject_majority_collapse": True},
-        label_call_frac=0.9,
-        minority_recall=0.0,
-    ) is False
+    assert (
+        resolve_provisional_deploy_ok(
+            provisional_ok=True,
+            val_accuracy=0.60,
+            gate_cfg={**cfg, "reject_majority_collapse": True},
+            label_call_frac=0.9,
+            minority_recall=0.0,
+        )
+        is False
+    )
 
 
 def test_deploy_params_for_eval_relaxes_thresholds():

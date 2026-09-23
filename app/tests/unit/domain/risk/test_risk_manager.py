@@ -290,3 +290,28 @@ def test_recovery_allowed_rejects_weak_signal(kelly_config):
     rm.pending_loss["R_10"] = 10.0
     dl_metrics = {"deploy_ok": True, "val_accuracy": 0.55, "trade_score": 0.50, "raw_prob": 0.50}
     assert rm._recovery_allowed("R_10", 0.50, dl_metrics=dl_metrics) is False
+
+
+def test_risk_manager_registra_contexto_de_loss_e_limita_historico(kelly_config):
+    rm = RiskManager(kelly_config)
+    for _ in range(101):
+        rm.record_trade_outcome("R_10", won=True)
+    rm.record_loss_context("R_10", direction="PUT")
+    assert rm.last_loss_symbol == "R_10"
+    assert rm.last_loss_direction == "PUT"
+    assert rm.get_wr_rolling_stats("R_10") == (1.0, 100)
+
+
+def test_stake_block_reason_stop_win_e_banca_insuficiente(kelly_config):
+    rm = RiskManager(kelly_config)
+    rm.initial_bankroll = 100.0
+    rm.total_session_profit = 1_000.0
+    assert rm.stake_block_reason(100.0, "R_10") == "stop_win"
+    rm.total_session_profit = 0.0
+    assert rm.stake_block_reason(0.01, "R_10", apply_stop_win=False) == "bankroll_below_stake_min"
+
+
+def test_stake_block_reason_sem_motivo_quando_banca_atende_piso(kelly_config, monkeypatch):
+    rm = RiskManager(kelly_config)
+    monkeypatch.setattr(rm, "calculate_stake", lambda *args, **kwargs: 0.0)
+    assert rm.stake_block_reason(10.0, "R_10", apply_stop_win=False) is None

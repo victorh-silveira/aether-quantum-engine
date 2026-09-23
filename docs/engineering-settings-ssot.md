@@ -1,5 +1,11 @@
 # Settings SSOT (pos-purge + FLIP no piso)
 
+Politica de mercado atual: `orchestrator.execution.four_market_vetoes=true`
+substitui os knobs individuais legados de mercado; `market_direction_trigger=true`
+habilita reavaliacao anterior ao edge, sem alterar probabilidades do TCN.
+Ambos exigem booleano `true` (default desligado). Piso economico compartilhado:
+`min_edge_execute`. Contrato e limitacoes: [catalogo](engineering-indicator-gates.md).
+
 Leitura: `app/settings_io.py` + parsers em `domain/config_knobs.py`. Knob novo = settings + `resolve_*` + teste + doc se mudar semantica.
 
 ## Blocos vivos (execucao)

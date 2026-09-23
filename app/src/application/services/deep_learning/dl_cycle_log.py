@@ -7,6 +7,7 @@ from src.application.services.deep_learning.dl_cycle_brief import (
 )
 from src.application.services.deep_learning.dl_gating import resolve_edge
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
+from src.application.services.execution_payout import resolve_execution_payout
 from src.application.services.log_dedupe import log_info_if_changed
 from src.application.services.market_audit_log import format_cluster_audit_line, resolve_cluster_timeframe
 from src.domain.risk.stake_sizing import metric_float, raw_side_from_metrics
@@ -104,6 +105,12 @@ def log_dl_cycle_summary(
         recovery_active=recovery_active,
     )
     timeframe = resolve_cluster_timeframe(getattr(orch, "config", None) if orch is not None else None)
+    if orch is not None:
+        payout = resolve_execution_payout(orch)
+        decisions = {
+            symbol: {**entry, "metrics": {**(entry.get("metrics") or {}), "payout_assumed": payout}}
+            for symbol, entry in decisions.items()
+        }
     cluster_line = format_cluster_audit_line(decisions, timeframe=timeframe)
     if orch is None:
         logger.info(cluster_line)

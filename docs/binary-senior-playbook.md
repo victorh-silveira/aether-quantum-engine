@@ -1,5 +1,11 @@
 # Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
 
+Atualizacao operacional: com `four_market_vetoes=true`, a politica ativa e
+[quatro vetos extremos](engineering-indicator-gates.md), dois por lado.
+O gatilho `market_direction_trigger` pode reconciliar direcao com a probabilidade
+TCN existente, mas nao converte `neg_edge` em evidencia para inverter. As regras
+legadas de contra-tendencia descritas abaixo so valem no fallback desligado.
+
 Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **4**, `n_train>=4`). Young pe>=**0.58** / mature pe>=**0.70** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. Não há bloqueio temporal pós-LOSS; lado contra a tendência exige edge ≥ **0.08**, exceto FLIP/anti-trend-lock. SKIP tecnico = treino/dados/deploy/broker/stop-win. Sem `cal_soft_edge` / quality gate / Soft Kelly do loss-clf.
 
 Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).

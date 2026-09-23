@@ -13,6 +13,7 @@ from src.application.services.execution_direction_checks import (
     seed_direction_metrics,
     sync_entry_metrics,
 )
+from src.application.services.execution_four_vetoes import reevaluate_market_direction
 from src.application.services.execution_payout import resolve_execution_payout
 from src.application.services.execution_quality_gate_margin import ensure_direction_margin, sync_direction_margin
 from src.application.services.execution_scale_vision import compute_scale_directions
@@ -153,6 +154,7 @@ def _finalize_execution_metrics(
     if orch is not None and symbol:
         compute_scale_directions(orch, str(symbol), exec_dir, metrics)
     exec_dir = _apply_invert_exec_side(exec_dir, metrics, exec_cfg)
+    exec_dir = reevaluate_market_direction(exec_dir, metrics, exec_cfg, payout=payout, orch=orch, symbol=symbol)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     cal_prob = metrics.get("calibrated_prob")

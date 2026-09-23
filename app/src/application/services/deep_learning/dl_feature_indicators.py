@@ -48,16 +48,17 @@ __all__ = [
 
 def calculate_rsi(prices: np.ndarray, period: int) -> np.ndarray:
     """Calcula RSI por barra para a serie de precos informada."""
+    period = max(1, int(period))
     if len(prices) < period + 1:
-        return np.full_like(prices, 50.0)
+        return np.full(len(prices), 50.0, dtype=np.float64)
     deltas = np.diff(prices)
     seed = deltas[:period]
     up = seed[seed >= 0].sum() / period
     down = -seed[seed < 0].sum() / period
     rs = up / (down + 1e-10)
-    rsi = np.zeros_like(prices)
-    rsi[:period] = 100.0 - 100.0 / (1.0 + rs)
-    for i in range(period, len(prices)):
+    rsi = np.full(len(prices), 50.0, dtype=np.float64)
+    rsi[period] = 50.0 if up == down == 0.0 else 100.0 - 100.0 / (1.0 + rs)
+    for i in range(period + 1, len(prices)):
         delta = deltas[i - 1]
         if delta > 0:
             up_val = delta
@@ -68,7 +69,7 @@ def calculate_rsi(prices: np.ndarray, period: int) -> np.ndarray:
         up = (up * (period - 1) + up_val) / period
         down = (down * (period - 1) + down_val) / period
         rs = up / (down + 1e-10)
-        rsi[i] = 100.0 - 100.0 / (1.0 + rs)
+        rsi[i] = 50.0 if up == down == 0.0 else 100.0 - 100.0 / (1.0 + rs)
     return rsi
 
 

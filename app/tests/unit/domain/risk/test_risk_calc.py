@@ -134,3 +134,9 @@ def test_apply_contract_settlement_result_reconciles_fractional_win_residual(kel
     rm.begin_cluster(1)
     apply_contract_settlement_result(rm, 94.99, 901, "R_10")
     assert rm.pending_loss.get("R_10", 0.0) == pytest.approx(0.0)
+
+
+def test_apply_contract_settlement_ignores_unknown_contract(kelly_config):
+    rm = RiskManager(kelly_config)
+    apply_contract_settlement_result(rm, -1.0, 999, "R_10")
+    assert rm.cluster_results == {}

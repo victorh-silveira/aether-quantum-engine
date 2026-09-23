@@ -120,7 +120,7 @@ def test_should_skip_wick_rejection_balanced_passes():
 
 
 def test_should_skip_climactic_blowoff_disabled_or_force():
-    metrics = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0}
+    metrics = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr_abs": 10.0}
     cfg = {"skip_climactic_blowoff": False}
     assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is False
     assert (
@@ -132,13 +132,13 @@ def test_should_skip_climactic_blowoff_disabled_or_force():
 
 def test_should_skip_climactic_blowoff_protects_during_recovery_and_flips():
     cfg = {"skip_climactic_blowoff": True, "material_pending_min": 0.01}
-    m1 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "pending_loss_total": 20.0}
+    m1 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr_abs": 10.0, "pending_loss_total": 20.0}
     assert should_skip_climactic_blowoff(m1, TradeDirection.CALL, cfg) is True
-    m2 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "loss_clf_flip": True}
+    m2 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr_abs": 10.0, "loss_clf_flip": True}
     assert should_skip_climactic_blowoff(m2, TradeDirection.CALL, cfg) is False
-    m3 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "anti_trend_lock_flip": True}
+    m3 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr_abs": 10.0, "anti_trend_lock_flip": True}
     assert should_skip_climactic_blowoff(m3, TradeDirection.CALL, cfg) is False
-    m4 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr": 10.0, "senior_trader_flip": True}
+    m4 = {"closed_candle_ohlc": [100.0, 150.0, 95.0, 148.0], "atr_abs": 10.0, "senior_trader_flip": True}
     assert should_skip_climactic_blowoff(m4, TradeDirection.CALL, cfg) is True
 
 
@@ -151,14 +151,14 @@ def test_should_skip_climactic_blowoff_missing_atr_or_normal_range():
     )
     assert (
         should_skip_climactic_blowoff(
-            {"closed_candle_ohlc": [100.0, 110.0, 95.0, 105.0], "atr": 0.0}, TradeDirection.CALL, cfg
+            {"closed_candle_ohlc": [100.0, 110.0, 95.0, 105.0], "atr_abs": 0.0}, TradeDirection.CALL, cfg
         )
         is False
     )
     # Range = 15, ATR = 10 -> ratio = 1.5 <= 2.5
     assert (
         should_skip_climactic_blowoff(
-            {"closed_candle_ohlc": [100.0, 110.0, 95.0, 105.0], "atr": 10.0}, TradeDirection.CALL, cfg
+            {"closed_candle_ohlc": [100.0, 110.0, 95.0, 105.0], "atr_abs": 10.0}, TradeDirection.CALL, cfg
         )
         is False
     )
@@ -167,7 +167,7 @@ def test_should_skip_climactic_blowoff_missing_atr_or_normal_range():
 def test_should_skip_climactic_blowoff_call_triggers():
     cfg = {"skip_climactic_blowoff": True}
     # Range = 140 - 100 = 40. ATR = 10. Ratio = 4.0 > 2.5. Bullish (138 > 102).
-    metrics = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "indicators": {"atr_norm": 10.0}, "edge": 0.03}
+    metrics = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "indicators": {"atr_abs": 10.0}, "edge": 0.03}
     assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is True
     assert metrics["skip_reason"] == "climactic_blowoff_call"
     assert metrics["signal_status"] == "SKIP:climactic_blowoff_call"
@@ -177,7 +177,7 @@ def test_should_skip_climactic_blowoff_call_super_edge_passes():
     cfg = {"skip_climactic_blowoff": True}
     metrics = {
         "closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0],
-        "indicators": {"atr_raw": 10.0},
+        "indicators": {"atr_abs": 10.0},
         "cal_side_edge": 0.085,
     }
     assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is False
@@ -186,25 +186,25 @@ def test_should_skip_climactic_blowoff_call_super_edge_passes():
 def test_should_skip_climactic_blowoff_put_triggers():
     cfg = {"skip_climactic_blowoff": True}
     # Range = 140 - 100 = 40. ATR = 10. Ratio = 4.0 > 2.5. Bearish (105 < 138).
-    metrics = {"closed_candle_ohlc": [138.0, 140.0, 100.0, 105.0], "atr": 10.0, "edge": 0.02}
+    metrics = {"closed_candle_ohlc": [138.0, 140.0, 100.0, 105.0], "atr_abs": 10.0, "edge": 0.02}
     assert should_skip_climactic_blowoff(metrics, TradeDirection.PUT, cfg) is True
 
 
 def test_should_skip_climactic_blowoff_put_neutral_or_wrong_direction():
     cfg = {"skip_climactic_blowoff": True}
-    metrics = {"closed_candle_ohlc": [100.0, 140.0, 100.0, 100.0], "atr": 10.0}
+    metrics = {"closed_candle_ohlc": [100.0, 140.0, 100.0, 100.0], "atr_abs": 10.0}
     assert should_skip_climactic_blowoff(metrics, TradeDirection.PUT, cfg) is False
-    metrics2 = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "atr": 10.0, "edge": 0.02}
+    metrics2 = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "atr_abs": 10.0, "edge": 0.02}
     assert should_skip_climactic_blowoff(metrics2, TradeDirection.PUT, cfg) is False
 
 
 def test_should_skip_climactic_blowoff_opposite_candle_passes():
     cfg = {"skip_climactic_blowoff": True}
     # Bearish candle, but trade is CALL -> not a buying climax
-    metrics = {"closed_candle_ohlc": [138.0, 140.0, 100.0, 105.0], "atr": 10.0, "edge": 0.02}
+    metrics = {"closed_candle_ohlc": [138.0, 140.0, 100.0, 105.0], "atr_abs": 10.0, "edge": 0.02}
     assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is False
     # Bullish candle, but trade is PUT -> not a selling climax
-    metrics2 = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "atr": 10.0, "edge": 0.02}
+    metrics2 = {"closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0], "atr_abs": 10.0, "edge": 0.02}
     assert should_skip_climactic_blowoff(metrics2, TradeDirection.PUT, cfg) is False
 
 
@@ -367,14 +367,23 @@ def test_should_skip_opposing_marubozu_aligned_passes():
     assert should_skip_opposing_marubozu_flow(metrics2, TradeDirection.PUT, cfg) is False
 
 
-def test_should_skip_climactic_blowoff_low_atr_floor_scaling():
+def test_should_skip_climactic_blowoff_low_absolute_atr():
     cfg = {"skip_climactic_blowoff": True}
     metrics = {
         "closed_candle_ohlc": [100.0, 110.0, 100.0, 109.0],
-        "indicators": {"atr_raw": 0.05},
+        "indicators": {"atr_abs": 0.05},
         "edge": 0.02,
     }
     assert should_skip_climactic_blowoff(metrics, TradeDirection.CALL, cfg) is True
+
+
+def test_climactic_blowoff_ignores_standardized_atr():
+    metrics = {
+        "closed_candle_ohlc": [100.0, 140.0, 100.0, 138.0],
+        "indicators": {"atr_norm": 0.15, "atr_raw": 0.001},
+        "edge": 0.02,
+    }
+    assert not should_skip_climactic_blowoff(metrics, TradeDirection.CALL, {"skip_climactic_blowoff": True})
 
 
 def test_should_skip_opposing_marubozu_pullback_with_trend_passes():

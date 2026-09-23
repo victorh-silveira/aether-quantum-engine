@@ -56,7 +56,11 @@ def resolve_raw_predicted_edge(
         raw = float(metrics["raw_prob"])
     except (TypeError, ValueError):
         return 0.0
-    return resolve_predicted_edge({"calibrated_prob": raw}, direction=direction, payout=payout)
+    return resolve_predicted_edge(
+        {"calibrated_prob": raw, "payout_assumed": metrics.get("payout_assumed")},
+        direction=direction,
+        payout=payout,
+    )
 
 
 def resolve_edge_breakeven_p(payout: float | None = None) -> float:

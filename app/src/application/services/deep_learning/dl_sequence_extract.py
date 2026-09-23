@@ -90,10 +90,10 @@ def sequence_price_deltas(
     horizon = max(1, int(label_horizon_bars))
     deltas = np.zeros(count, dtype=np.float32)
     for offset, end_idx in enumerate(range(lookback, lookback + count)):
-        start_idx = end_idx - 1
-        future_idx = min(len(prices) - 1, end_idx + horizon - 1)
+        start_idx = end_idx
+        future_idx = end_idx + horizon
         base = float(prices[start_idx])
-        future = float(prices[future_idx])
+        future = float(np.mean(prices[future_idx : future_idx + max(1, int(label_smooth_bars))]))
         if abs(base) < 1e-12:
             deltas[offset] = 0.0
         else:

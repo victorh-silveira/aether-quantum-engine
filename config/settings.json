@@ -423,6 +423,8 @@
       },
       "force_trade_every_cycle": false,
       "invert_exec_side": false,
+      "four_market_vetoes": true,
+      "market_direction_trigger": true,
       "skip_exec_vs_candle": false,
       "skip_below_soft_min_acc": false,
       "skip_scale_candle_discord": false,

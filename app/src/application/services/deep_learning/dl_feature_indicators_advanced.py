@@ -56,6 +56,8 @@ def calculate_adx(
     )
     adx_out = df.select("adx").to_numpy().flatten() / 100.0
     di_diff_out = (df.select("plus_di").to_numpy().flatten() - df.select("minus_di").to_numpy().flatten()) / 100.0
+    adx_out[:period] = 0.0
+    di_diff_out[:period] = 0.0
     return np.nan_to_num(adx_out, nan=0.0, posinf=0.0, neginf=0.0), np.nan_to_num(
         di_diff_out, nan=0.0, posinf=0.0, neginf=0.0
     )
@@ -167,7 +169,7 @@ def calculate_keltner_channel_pct_b(
     upper = ema + mult * atr
     lower = ema - mult * atr
 
-    for i in range(n):
+    for i in range(max(period, atr_period) - 1, n):
         denom = upper[i] - lower[i]
         if denom > 1e-10:
             out[i] = (close[i] - lower[i]) / denom

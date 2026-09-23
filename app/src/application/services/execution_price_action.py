@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from src.application.services.execution_market_confluence import (
@@ -95,16 +96,9 @@ def should_skip_climactic_blowoff(
         return False
     open_px, high_px, low_px, close_px = ohlc
     range_px = high_px - low_px
-    atr = (
-        _extract_indicator_float(metrics, "atr_raw")
-        or _extract_indicator_float(metrics, "atr_abs")
-        or _extract_indicator_float(metrics, "atr")
-        or _extract_indicator_float(metrics, "atr_norm")
-    )
-    if atr is None or range_px <= 1e-12:
+    atr = _extract_indicator_float(metrics, "atr_abs")
+    if atr is None or not math.isfinite(atr) or atr <= 0.0 or range_px <= 1e-12:
         return False
-    if atr <= 0.5:
-        atr = max(1.0, open_px * 0.001)
     if (range_px / atr) <= 2.5:
         return False
     edge = _extract_edge_float(metrics)

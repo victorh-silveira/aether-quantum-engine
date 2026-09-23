@@ -1,5 +1,11 @@
 # Doutrina de trading para o LLM (Aether)
 
+Politica autorizada atual: quatro vetos extremos e reavaliacao direcional
+conforme [catalogo](engineering-indicator-gates.md). O gatilho nao cria vantagem
+estatistica nem modifica P(CALL); aceita candidato somente com EV suficiente
+na distribuicao existente. A descricao legada de confluencia e contra-tendencia
+abaixo fica subordinada a `four_market_vetoes` quando esse knob esta ativo.
+
 O LLM/Cursor e **copiloto de engenharia e auditoria**. Nao decide CALL/PUT em runtime.
 
 Decisao live: TCN (Cal vs 0.5) → **FLIP** loss-clf se auto_learn, `n_train>=4` e `p_eff` no piso (sem trava por vela) → `invert_exec_side` (**false**) → SKIP `neg_edge` em EXPLORE (**waive** somente com PEND ≥ `material_pending_min`) → Kelly / cover_l0 (META inerte / no-op no sizing). Confluencia de indicadores e telemetria: nao sobrescreve o lado. O edge usa o payout configurado ate a primeira proposta valida e a taxa liquida efetivamente cotada na sessao depois disso. Não há pausa temporal pós-LOSS; sinal contra a tendência só passa com edge de pelo menos **0.08**, exceto FLIP/anti-trend-lock. SKIP tecnico: treino/dados/deploy/predict/stop-win. `acc_floor` so se knob `skip_below_soft_min_acc` **true** (ops **false**). Sem `cal_soft_edge` / quality gate amplo / skips de vela/scale/doji.

@@ -13,6 +13,11 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
+- Politica de mercado vigente: `four_market_vetoes=true` e
+  `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.
+  Substitui os gates individuais de mercado legados. Nao altera P(CALL), nao
+  elimina bloqueios tecnicos/economicos nem demonstra vantagem historica de inversao.
+
 - Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
 - Relogio: micro/MINI **300 s** (M5, `training_history_bars` **2000**); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **30** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **quantum_multi_barrier** (barreiras assimetricas + expiry; alternativa `triple_barrier`).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`

@@ -372,7 +372,7 @@ def test_resolve_execution_direction_skips_on_climactic_blowoff():
             "calibrated_prob": 0.55,
             "deploy_ok": True,
             "closed_candle_ohlc": [102.0, 140.0, 100.0, 138.0],
-            "indicators": {"atr": 10.0},
+            "indicators": {"atr_abs": 10.0},
             "cal_side_edge": 0.02,
         }
     }

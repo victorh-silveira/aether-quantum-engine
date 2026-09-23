@@ -20,6 +20,7 @@ def indicators_from_series(series: dict) -> dict[str, float]:
         "bb_width": _series_last(series, "bb_width"),
         "bb_width_raw": _series_last(series, "bb_width_raw"),
         "atr_norm": _series_last(series, "atr_norm"),
+        "atr_abs": _series_last(series, "atr_raw") * _series_last(series, "close"),
         "cmo": _series_last(series, "cmo"),
         "keltner": _series_last(series, "keltner_pct_b"),
         "bb_pct_b": _series_last(series, "bb_pct_b", 0.5),

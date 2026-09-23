@@ -61,4 +61,9 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
             skip = reason
     elif reason:
         skip = reason
-    return f"[GATES] || LOSS_CLF: {loss_tok} | skip={skip}{verdict_tok}"
+    trigger = str(metrics.get("market_trigger_status") or "")
+    trigger_tok = ""
+    if trigger:
+        candidate = str(metrics.get("market_trigger_candidate") or "-")
+        trigger_tok = f" | trigger={trigger} candidate={candidate}"
+    return f"[GATES] || LOSS_CLF: {loss_tok} | skip={skip}{verdict_tok}{trigger_tok}"
