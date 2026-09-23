@@ -1,3 +1,14 @@
+## [2.70.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.3...v2.70.4) (2026-09-23)
+
+### Correcoes de Bug
+
+* **engine:** alinha indicadores e consolida vetos de mercado ([9fe8fea](https://github.com/victorh-silveira/aether-quantum-engine/commit/9fe8feac04ccf495f1f059b9aba095527f4df619))
+
+### Refatoracoes Tecnicas
+
+* **all:** fortalece treino e elimina espera pós-perda ([fd6c026](https://github.com/victorh-silveira/aether-quantum-engine/commit/fd6c026b917cadf2ff24be58225f1006bf928323))
+* **engine:** remove logica morta e endurece gates de qualidade ([93d26ee](https://github.com/victorh-silveira/aether-quantum-engine/commit/93d26eedb357fae6e0c8671f274b8d24f95132ef))
+
 ## [2.70.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.2...v2.70.3) (2026-09-21)
 
 ### Correcoes de Bug
