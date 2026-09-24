@@ -5,6 +5,7 @@ import contextlib
 import time
 from typing import Any
 
+from src.application.services.micro_hedge_monitor import start_micro_hedge_monitor_worker
 from src.application.services.orchestrator.engine_supervisor import spawn_background
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
 from src.application.services.orchestrator.orchestrator_data_signature import (
@@ -145,6 +146,7 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
     await await_stream_warm_up_gate(orch)
     await start_settlement_worker(orch)
     await start_ingestion_watchdog(orch)
+    spawn_background(orch, start_micro_hedge_monitor_worker(orch), name="aether-micro-hedge-monitor")
     await orch._run_trading_cycle_if_ready()
     align_exec_empty_recovery_signature_cooldown(orch)
     reconcile_counter = 0

@@ -221,3 +221,63 @@ def test_contract_duration_seconds_units():
     assert _contract_duration_seconds({"duration": 10, "duration_unit": "t"}) == 20
     assert _contract_duration_seconds({"duration": 1, "duration_unit": "d"}) == 86400
     assert _contract_duration_seconds({"duration": 5, "duration_unit": "invalid"}) == 300
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_fetch_proposal_payout_success(trade_handler, mock_ws):
+    mock_ws.send.return_value = {
+        "proposal": {
+            "id": "prop_test",
+            "ask_price": "10.00",
+            "payout": "18.50",
+        }
+    }
+    rate = await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0)
+    assert rate == pytest.approx(0.85)
+    assert trade_handler.latest_payout_rate == pytest.approx(0.85)
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_fetch_proposal_payout_failures(trade_handler, mock_ws):
+    mock_ws.send.return_value = {"error": {"message": "Invalid symbol"}}
+    rate = await trade_handler.fetch_proposal_payout("INVALID", TradeDirection.CALL, 10.0)
+    assert rate is None
+
+    mock_ws.send.return_value = {"proposal": "invalid"}
+    rate2 = await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0)
+    assert rate2 is None
+
+    mock_ws.send.side_effect = ConnectionError("WS dropped")
+    rate3 = await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0)
+    assert rate3 is None
+
+
+def test_resolve_api_contract_type_barrier():
+    """Verifica resolucao de tipos de contratos de barreira."""
+    assert resolve_api_contract_type(TradeDirection.CALL, {"contract_type": "ONETOUCH"}) == "ONETOUCH"
+    assert resolve_api_contract_type(TradeDirection.PUT, {"contract_type": "NOTOUCH"}) == "NOTOUCH"
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_buy_with_parameters_barrier_fallback(trade_handler, mock_ws):
+    """Verifica fallback para Rise/Fall quando a corretora rejeita proposta de barreira."""
+    mock_ws.send.side_effect = [
+        {"error": {"message": "Barrier not allowed"}},
+        {
+            "proposal": {
+                "id": "prop_fallback",
+                "ask_price": 5.0,
+                "payout": 9.25,
+                "date_expiry": 1500,
+            }
+        },
+        {"buy": {"contract_id": 999, "buy_price": 5.0, "payout": 9.25}},
+    ]
+    contract = await trade_handler.buy_with_parameters(
+        "1HZ75V",
+        TradeDirection.CALL,
+        5.0,
+        params={"contract_type": "ONETOUCH", "barrier": "+1.20", "duration": 5, "duration_unit": "m"},
+    )
+    assert contract.contract_id == 999
+    assert mock_ws.send.call_count == 3

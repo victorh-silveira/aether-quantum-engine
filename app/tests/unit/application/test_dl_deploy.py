@@ -26,7 +26,8 @@ def test_parse_deploy_gate_config_defaults():
     assert cfg["enabled"] is True
     assert cfg["force_ok"] is True
     assert cfg["max_brier"] == 0.26
-    assert cfg["max_eval_steps"] == 300
+    assert cfg["max_eval_steps"] == 0
+    assert cfg["mini_bars"] == 0
     assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.50)
     assert float(cfg["settlement_confidence"]) == pytest.approx(0.90)
 
@@ -254,6 +255,7 @@ def test_evaluate_mini_deploy_passes_with_mock_predict():
                 "min_trades": 5,
                 "max_brier": 0.5,
                 "min_win_rate": 0.4,
+                "max_eval_steps": 10,
             },
         )
     assert ok is True
@@ -297,6 +299,7 @@ def test_evaluate_mini_deploy_skips_non_execute_and_put_label():
                 "min_trades": 100,
                 "max_brier": 0.5,
                 "min_win_rate": 0.0,
+                "max_eval_steps": 10,
             },
         )
     assert ok is False
@@ -449,3 +452,136 @@ def test_score_deploy_bar_meta_filter():
         )
         assert res_fail is not None
         assert res_fail[0] in (True, False)
+
+
+def test_evaluate_mini_deploy_logs_settlement_progress():
+    prices = np.linspace(100.0, 110.0, 60)
+    open_ = prices.copy()
+    high = prices + 0.1
+    low = prices - 0.1
+    micro = {"tick_count": np.ones(60, dtype=np.float32)}
+
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+            return_value={"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.8}},
+        ),
+        patch("src.application.services.deep_learning.dl_deploy_eval.logger.info") as log_mock,
+    ):
+        evaluate_mini_deploy(
+            SimpleNamespace(),
+            "1HZ75V",
+            model=None,
+            prices=prices,
+            norm_stats=None,
+            runtime={"lookback": 10},
+            params={"lookback": 10},
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 20,
+                "max_eval_steps": 5,
+                "min_trades": 1,
+                "min_win_rate": 0.5,
+                "max_brier": 0.5,
+            },
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+        )
+        assert log_mock.call_count >= 2
+        messages = [call[0][0] for call in log_mock.call_args_list]
+        assert any("SETTLE | Iniciando avaliacao OOS" in m for m in messages)
+        assert any("SETTLE | progresso=" in m for m in messages)
+
+
+def test_evaluate_mini_deploy_skips_when_max_eval_steps_zero():
+    prices = np.linspace(100.0, 110.0, 60)
+    runtime = {"lookback": 10, "val_accuracy": 0.55, "val_brier": 0.22}
+    gate_cfg = {
+        "enabled": True,
+        "enforce_settle_gate": False,
+        "max_eval_steps": 0,
+        "mini_bars": 20,
+        "min_trades": 5,
+        "min_win_rate": 0.55,
+        "max_brier": 0.25,
+        "force_ok": False,
+    }
+    ok, wr, brier = evaluate_mini_deploy(
+        SimpleNamespace(),
+        "1HZ75V",
+        model=None,
+        prices=prices,
+        norm_stats=None,
+        runtime=runtime,
+        params={"lookback": 10},
+        gate_cfg=gate_cfg,
+    )
+    assert ok is True
+    assert wr == 0.55
+    assert brier == 0.22
+    assert runtime["deploy_settlement_n"] == 0
+    assert runtime["deploy_provisional_ok"] is True
+
+
+def test_evaluate_mini_deploy_waives_settle_gate_when_enforce_false():
+    prices = np.linspace(100.0, 110.0, 60)
+    runtime = {"lookback": 10, "val_accuracy": 0.56, "val_brier": 0.23}
+    gate_cfg = {
+        "enabled": True,
+        "enforce_settle_gate": False,
+        "max_eval_steps": 2,
+        "mini_bars": 20,
+        "min_trades": 10,
+        "min_win_rate": 0.60,
+        "max_brier": 0.20,
+        "require_broker_settlement": True,
+    }
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={"direction": None, "metrics": {"execute": False}},
+    ):
+        ok, wr, brier = evaluate_mini_deploy(
+            SimpleNamespace(),
+            "1HZ75V",
+            model=None,
+            prices=prices,
+            norm_stats=None,
+            runtime=runtime,
+            params={"lookback": 10},
+            gate_cfg=gate_cfg,
+        )
+    assert ok is True
+    assert runtime["deploy_provisional_ok"] is True
+
+
+def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false():
+    prices = np.linspace(100.0, 110.0, 60)
+    runtime = {"lookback": 10, "val_accuracy": 0.56, "val_brier": 0.23}
+    gate_cfg = {
+        "enabled": True,
+        "enforce_settle_gate": False,
+        "max_eval_steps": 2,
+        "mini_bars": 20,
+        "min_trades": 1,
+        "min_win_rate": 0.99,
+        "max_brier": 0.01,
+        "require_broker_settlement": True,
+    }
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.8}},
+    ):
+        ok, wr, brier = evaluate_mini_deploy(
+            SimpleNamespace(),
+            "1HZ75V",
+            model=None,
+            prices=prices,
+            norm_stats=None,
+            runtime=runtime,
+            params={"lookback": 10},
+            gate_cfg=gate_cfg,
+        )
+    assert ok is True
+    assert runtime["deploy_provisional_ok"] is True

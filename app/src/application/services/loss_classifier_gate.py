@@ -44,6 +44,9 @@ def apply_loss_classifier_gate(
     if str(metrics.get("gate_reason") or "").strip():
         return False
     config = getattr(orch, "config", None)
+    exec_cfg = (config.get("orchestrator", {}) if isinstance(config, dict) else {}).get("execution", {})
+    if not bool(exec_cfg.get("allow_direction_flip", True)):
+        return False
     if not loss_classifier_enabled(config if isinstance(config, dict) else None):
         return False
     cfg = resolve_loss_classifier_config(None)

@@ -5,6 +5,7 @@ import time
 from typing import Any
 
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
+from src.domain.risk.payout_observation import contract_profit_rate
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
 from src.infrastructure.market.contract_audit import open_audit_row
@@ -32,11 +33,35 @@ class TradeHandler:
         self.market_writer = market_writer
         self.trading_transport = "ws"
         self.deriv_account_id = ""
+        self.latest_payout_rate: float | None = None
         self.logger = logging.getLogger("AETH")
 
     def schedule_profit_table_audit(self, orch: Any, *, reason: str = "broker_unavailable") -> None:
         """Agenda auditoria profit_table em background com backoff exponencial."""
         schedule_profit_table_audit(orch, reason=reason)
+
+    async def fetch_proposal_payout(
+        self, symbol: str, direction: TradeDirection, stake: float = 1.0, params: dict | None = None
+    ) -> float | None:
+        """Consulta cotacao real de payout via proposal na API Deriv sem executar ordem."""
+        p_cfg = params if params is not None else self.config.get("risk_management", {}).get("params", {})
+        proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
+        timeout = int(self.ws.request_timeout)
+        try:
+            proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
+            if not isinstance(proposal_resp, dict) or "error" in proposal_resp:
+                return None
+            proposal = proposal_resp.get("proposal")
+            if not isinstance(proposal, dict):
+                return None
+            ask_price = float(proposal.get("ask_price") or stake)
+            payout_val = float(proposal.get("payout") or 0.0)
+            rate = contract_profit_rate(payout_val, ask_price)
+            if rate is not None:
+                self.latest_payout_rate = rate
+            return rate
+        except Exception:
+            return None
 
     async def buy_with_parameters(
         self, symbol: str, direction: TradeDirection, stake: float, params: dict | None = None
@@ -54,6 +79,19 @@ class TradeHandler:
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
         proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
+        if "error" in proposal_resp and str(p_cfg.get("contract_type") or "").upper() in {
+            "ONETOUCH",
+            "NOTOUCH",
+            "TOUCH",
+        }:
+            self.logger.warning(
+                "PROPOSAL: Broker rejeitou %s; fallback para %s",
+                p_cfg.get("contract_type"),
+                direction.value,
+            )
+            fallback_cfg = {k: v for k, v in p_cfg.items() if k not in {"contract_type", "barrier"}}
+            proposal_req = build_proposal_request(symbol, direction, stake, fallback_cfg)
+            proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
         if "error" in proposal_resp:
             msg = proposal_resp["error"].get("message", "Erro desconhecido")
             raise RuntimeError(f"Erro na proposta: {msg}")
@@ -67,6 +105,10 @@ class TradeHandler:
             raise RuntimeError("Erro na proposta: id ausente")
 
         ask_price = float(proposal.get("ask_price") or stake)
+        payout_val = float(proposal.get("payout") or 0.0)
+        rate = contract_profit_rate(payout_val, ask_price)
+        if rate is not None:
+            self.latest_payout_rate = rate
         request_epoch_ms = time.time_ns() // 1_000_000
         buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
         ack_epoch_ms = time.time_ns() // 1_000_000
@@ -163,8 +205,11 @@ class TradeHandler:
 
 def resolve_api_contract_type(direction: TradeDirection, p_cfg: dict[str, Any]) -> str:
     """Mapeia direcao do motor para contract_type aceito na API Deriv."""
-    if p_cfg.get("contract_type") == "MULTIPLIER":
+    raw_type = str(p_cfg.get("contract_type") or "").upper()
+    if raw_type == "MULTIPLIER":
         return "MULTUP" if direction == TradeDirection.CALL else "MULTDOWN"
+    if raw_type in {"ONETOUCH", "NOTOUCH", "TOUCH", "EXPIRYRANGE", "EXPIRYMISS"}:
+        return raw_type
     return direction.value
 
 

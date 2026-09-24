@@ -141,3 +141,109 @@ def test_resolve_execution_direction_sync_pending_loss_error_handling():
     )
     resolve_execution_direction(entry2, orch=orch2, exec_cfg={"skip_neg_edge": False})
     assert entry2["metrics"].get("pending_loss_total") == 0.0
+
+
+def test_resolve_execution_direction_ou_exhaustion_flip():
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.60,
+            "calibrated_prob": 0.60,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 2.8,
+            "cal_side_edge": 0.05,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics.get("anti_trend_lock_flip") is True
+    assert metrics.get("anti_trend_lock_reason") == "OU_ELASTIC_EXHAUSTION"
+
+
+def test_resolve_execution_direction_anti_trend_lock_disabled():
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.60,
+            "calibrated_prob": 0.60,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 2.8,
+            "cal_side_edge": 0.05,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "anti_trend_lock": False}
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics.get("anti_trend_lock_flip") is not True
+
+    entry2 = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.60,
+            "calibrated_prob": 0.60,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 2.8,
+            "cal_side_edge": 0.05,
+        },
+    }
+    res2 = resolve_execution_direction(
+        entry2, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "allow_direction_flip": False}
+    )
+    assert res2 is not None
+    direction2, metrics2 = res2
+    assert direction2 == TradeDirection.CALL
+    assert metrics2.get("anti_trend_lock_flip") is not True
+
+
+def test_resolve_execution_direction_alpha_flip_active():
+    """Verifica aplicacao de Alpha Flip ativo em resolve_execution_direction."""
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.60,
+            "calibrated_prob": 0.60,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "cal_side_edge": 0.05,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+        _pending_alpha_reversal={
+            "1HZ75V": {
+                "brier": 0.4225,
+                "residual": -0.65,
+                "from_dir": "CALL",
+                "target_dir": "PUT",
+            }
+        },
+    )
+    res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics["alpha_flip_applied"] is True
+    assert metrics["direction_origin"] == "FLIP_ERROR_DRIVEN_ALPHA"

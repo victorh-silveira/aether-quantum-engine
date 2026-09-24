@@ -199,3 +199,10 @@ def test_record_direction_outcome_resets_opposite_direction():
     record_direction_outcome("1HZ75V", "CALL", won=False)
     assert consecutive_direction_losses("1HZ75V", "CALL") == 1
     assert consecutive_direction_losses("1HZ75V", "PUT") == 0
+
+
+def test_should_anti_trend_lock_flip_elastic_zeta():
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, elastic_zeta=2.5) is True
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, elastic_zeta=1.8) is False
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, elastic_zeta=-2.5) is True
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, elastic_zeta=-1.5) is False

@@ -116,6 +116,29 @@ def should_skip_doji(
     return True
 
 
+def _two_stage_meta_override(metrics: dict[str, Any], edge: float) -> bool:
+    """True quando Meta-Learner qualificado anula veto neg_edge moderado."""
+    if edge < -0.10 or edge > 0.0:
+        return False
+    meta_edge_val = metrics.get("predicted_payoff_edge")
+    if meta_edge_val is None:
+        meta_edge_val = metrics.get("meta_edge")
+    if isinstance(meta_edge_val, (int, float)) and not isinstance(meta_edge_val, bool):
+        m_edge = float(meta_edge_val)
+        if m_edge >= 0.010:
+            metrics["neg_edge_waived_by_meta"] = True
+            metrics["meta_override_edge"] = m_edge
+            return True
+    z_val = metrics.get("meta_payoff_edge_zscore", metrics.get("edge_zscore"))
+    if isinstance(z_val, (int, float)) and not isinstance(z_val, bool):
+        z_score = float(z_val)
+        if z_score >= 0.010 and bool(metrics.get("meta_applied")):
+            metrics["neg_edge_waived_by_meta"] = True
+            metrics["meta_override_zscore"] = z_score
+            return True
+    return False
+
+
 def should_skip_neg_edge(
     metrics: dict[str, Any],
     exec_cfg: dict[str, Any] | None,
@@ -141,11 +164,16 @@ def should_skip_neg_edge(
     min_edge = 0.0
     if isinstance(exec_cfg, dict):
         try:
-            min_edge = max(0.0, float(exec_cfg.get("min_edge_execute", 0.0) or 0.0))
+            raw_min = exec_cfg.get("min_edge_execute")
+            if raw_min is None:
+                raw_min = exec_cfg.get("min_edge", 0.0)
+            min_edge = float(raw_min) if raw_min is not None else 0.0
         except (TypeError, ValueError):
             min_edge = 0.0
-    floor = max(0.0, min_edge)
+    floor = min_edge
     if edge > floor:
+        return False
+    if _two_stage_meta_override(metrics, edge):
         return False
     _mark_skip(metrics, "neg_edge", skip_cal_side_edge=float(edge), min_edge_floor=float(floor))
     return True

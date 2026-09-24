@@ -2,6 +2,7 @@
 setlocal EnableExtensions
 set "PYTHONASYNCIODEBUG="
 set "PYTHONDEVMODE="
+set "PYTHONUNBUFFERED=1"
 pushd "%~dp0..\..\.."
 set "REPO_ROOT=%CD%"
 popd
@@ -26,7 +27,7 @@ if not exist "%PYTHON_EXE%" (
 )
 cd /d "%REPO_ROOT%"
 echo [AETHER] Meta-classificador trials=%META_TRIALS% source=auto bars=5000
-"%PYTHON_EXE%" app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 5000 --source auto --candidate-on-low-quality
+"%PYTHON_EXE%" -u app/scripts/operations/train_meta_classifier.py --trials %META_TRIALS% --bars 5000 --source auto --candidate-on-low-quality
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" (
     echo.

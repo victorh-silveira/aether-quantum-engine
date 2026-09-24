@@ -75,9 +75,11 @@ services:
       - ./004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
       - ./005_timescale_crags.sql:/docker-entrypoint-initdb.d/005_timescale_crags.sql:ro
       - ./006_contract_executions.sql:/docker-entrypoint-initdb.d/006_contract_executions.sql:ro
+      - ./007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
       - ./004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
       - ./005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
       - ./006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
+      - ./007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
     mem_limit: 1g
     mem_swappiness: 0
     cpus: 1.0

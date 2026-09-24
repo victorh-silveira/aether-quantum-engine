@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.deep_learning.dl_gating import resolve_side_edge
+from src.application.services.direction_error_reversal import apply_error_reversal_to_direction
 from src.application.services.direction_loss_tracker import should_anti_trend_lock_flip
 from src.application.services.execution_direction_checks import (
     infer_dl_direction,
@@ -130,19 +131,33 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
-    if not bool(metrics.get("loss_clf_flip")):
+    allow_flip = bool((exec_cfg or {}).get("allow_direction_flip", True))
+    anti_trend_active = bool((exec_cfg or {}).get("anti_trend_lock", (exec_cfg or {}).get("enable_anti_trend", True)))
+    if allow_flip and anti_trend_active and not bool(metrics.get("loss_clf_flip")):
         pend = float(metrics.get("pending_loss_total", 0.0) or 0.0)
         trend = str(metrics.get("trend_direction") or "").strip().upper()
         curr_edge = float(metrics.get("cal_side_edge", predicted_edge) or 0.0)
+        zeta = float(metrics.get("elastic_distance_ou", 0.0) or 0.0)
         if should_anti_trend_lock_flip(
-            symbol, exec_dir, pending_loss_total=pend, edge=curr_edge, prob=prob, trend_direction=trend
+            symbol,
+            exec_dir,
+            pending_loss_total=pend,
+            edge=curr_edge,
+            prob=prob,
+            trend_direction=trend,
+            elastic_zeta=zeta,
         ):
             flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
             metrics["anti_trend_lock_flip"] = True
             metrics["anti_trend_lock_from"] = exec_dir.name
             metrics["anti_trend_lock_to"] = flipped.name
+            if (exec_dir == TradeDirection.CALL and zeta > 2.0) or (exec_dir == TradeDirection.PUT and zeta < -2.0):
+                metrics["anti_trend_lock_reason"] = "OU_ELASTIC_EXHAUSTION"
             exec_dir = flipped
-    if bool(metrics.get("loss_clf_flip")):
+    exec_dir, _ = apply_error_reversal_to_direction(orch, str(symbol or ""), exec_dir, metrics, exec_cfg=exec_cfg)
+    if bool(metrics.get("alpha_flip_applied")):
+        metrics["direction_origin"] = "FLIP_ERROR_DRIVEN_ALPHA"
+    elif bool(metrics.get("loss_clf_flip")):
         metrics["direction_origin"] = "FLIP_LOSS_CLF"
     elif bool(metrics.get("anti_trend_lock_flip")):
         metrics["direction_origin"] = "FLIP_ANTI_TREND_LOCK"
@@ -163,7 +178,7 @@ def _finalize_execution_metrics(
             if bool(metrics.get("loss_clf_flip")):
                 p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
                 metrics["cal_side_edge"] = float((p_eff * (1.0 + payout)) - 1.0)
-            elif bool(metrics.get("anti_trend_lock_flip")):
+            elif bool(metrics.get("anti_trend_lock_flip")) or bool(metrics.get("alpha_flip_applied")):
                 conv = float(metrics.get("conviction") or metrics.get("trade_score") or 0.58)
                 p_dir = max(0.55, conv)
                 metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)

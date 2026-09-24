@@ -58,6 +58,20 @@ def test_production_deploy_gate_armed():
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "signal_skip" not in settings["orchestrator"]["execution"]
     assert settings["orchestrator"]["execution"]["invert_exec_side"] is False
+    assert settings["orchestrator"]["execution"]["anti_trend_lock"] is False
+    assert settings["orchestrator"]["execution"]["allow_direction_flip"] is False
+    assert settings["orchestrator"]["execution"]["error_driven_reversal"]["enabled"] is True
+    assert float(settings["orchestrator"]["execution"]["error_driven_reversal"]["brier_threshold"]) == pytest.approx(
+        0.40
+    )
+    assert settings["orchestrator"]["execution"]["micro_hedging"]["enabled"] is False
+    assert float(settings["orchestrator"]["execution"]["micro_hedging"]["target_midpoint_seconds"]) == pytest.approx(
+        150.0
+    )
+    assert settings["risk_management"]["barrier_contracts"]["enabled"] is False
+    assert settings["risk_management"]["barrier_contracts"]["default_type"] == "ONETOUCH"
+    assert dl["calibration"]["sharpening_enabled"] is True
+    assert float(dl["calibration"]["sharpening_tau"]) == pytest.approx(0.40)
     assert settings["orchestrator"]["execution"]["skip_exec_vs_candle"] is False
     assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False
     assert settings["orchestrator"]["execution"]["skip_scale_candle_discord"] is False
@@ -131,8 +145,8 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
-    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.57)
-    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.43)
+    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.51)
+    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.49)
     cal = dl["calibration"]
     assert cal["calibration_neutral_drift"] == [0.45, 0.55]
     assert float(cal["neutral_half_width"]) == pytest.approx(0.05)

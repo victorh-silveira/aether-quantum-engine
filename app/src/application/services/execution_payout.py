@@ -17,4 +17,9 @@ def resolve_execution_payout(orch: Any | None) -> float:
                 return payout
         except (TypeError, ValueError):
             pass
+    th = getattr(orch, "trade_handler", None)
+    if th is not None:
+        rate = getattr(th, "latest_payout_rate", None)
+        if isinstance(rate, (int, float)) and not isinstance(rate, bool) and rate > 0.0:
+            return float(rate)
     return MARKET_PAYOUT_SSOT

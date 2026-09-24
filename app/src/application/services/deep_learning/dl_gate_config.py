@@ -8,6 +8,7 @@ from src.domain.config_knobs import merge_settings_block, require_bool, require_
 _DEPLOY_GATE_KEYS = (
     "enabled",
     "force_ok",
+    "enforce_settle_gate",
     "max_brier",
     "min_win_rate",
     "provisional_enabled",
@@ -45,6 +46,7 @@ def parse_deploy_gate_config(dl_config: dict) -> dict[str, Any]:
     return {
         "enabled": require_bool(block, "enabled"),
         "force_ok": require_bool(block, "force_ok"),
+        "enforce_settle_gate": require_bool(block, "enforce_settle_gate"),
         "max_brier": require_float(block, "max_brier"),
         "min_win_rate": require_float(block, "min_win_rate"),
         "provisional_enabled": require_bool(block, "provisional_enabled"),
@@ -151,6 +153,8 @@ def resolve_deploy_ok(
     ):
         return False
     _ = (val_brier, soft_brier)
+    if not bool(gate_cfg.get("enforce_settle_gate", True)):
+        return True
     return bool(mini_ok) or not bool(gate_cfg.get("enabled", True))
 
 
@@ -175,6 +179,8 @@ def resolve_provisional_deploy_ok(
         minority_recall=minority_recall,
     ):
         return False
+    if not bool(gate_cfg.get("enforce_settle_gate", True)):
+        return True
     return bool(provisional_ok)
 
 

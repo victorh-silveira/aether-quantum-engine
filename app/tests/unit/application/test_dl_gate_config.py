@@ -225,3 +225,19 @@ def test_describe_deploy_block_remaining_branches():
         )
         is False
     )
+
+
+def test_resolve_deploy_ok_when_enforce_settle_gate_is_false():
+    cfg = parse_deploy_gate_config({"deploy_gate": {"enforce_settle_gate": False}})
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.55, val_brier=0.25, gate_cfg=cfg) is True
+    assert resolve_deploy_ok(mini_ok=False, val_accuracy=0.45, val_brier=0.25, gate_cfg=cfg) is False
+
+
+def test_resolve_provisional_deploy_ok_when_enforce_settle_gate_is_false():
+    cfg = parse_deploy_gate_config({"deploy_gate": {"provisional_enabled": True, "enforce_settle_gate": False}})
+    assert resolve_provisional_deploy_ok(provisional_ok=False, val_accuracy=0.55, gate_cfg=cfg) is True
+    assert resolve_provisional_deploy_ok(provisional_ok=False, val_accuracy=0.45, gate_cfg=cfg) is False
+    assert (
+        resolve_provisional_deploy_ok(provisional_ok=True, val_accuracy=0.60, gate_cfg={"provisional_enabled": False})
+        is False
+    )

@@ -10,9 +10,7 @@ from src.application.services.deep_learning.dl_calibration import (
     calibrate_trade_score,
     clamp_calibrated_call_to_raw_band,
 )
-from src.application.services.deep_learning.dl_calibration_tolerance import (
-    apply_calibration_neutral_tolerance,
-)
+from src.application.services.deep_learning.dl_calibration_tolerance import apply_calibration_neutral_tolerance
 from src.application.services.deep_learning.dl_congestion import (
     series_last as _series_last,
     squeeze_congestion_active,
@@ -26,10 +24,7 @@ from src.application.services.deep_learning.dl_gating import (
 )
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
-from src.application.services.deep_learning.dl_predict_metrics import (
-    attach_dynamic_metrics,
-    indicators_from_series,
-)
+from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics, indicators_from_series
 from src.application.services.deep_learning.dl_predict_telemetry import (
     prepare_meta_classifier_cross_symbol_bundle,
     stamp_micro_frame_telemetry,
@@ -39,6 +34,8 @@ from src.application.services.deep_learning.dl_trend import calculate_trend_dire
 from src.application.services.deep_learning.model import predict_next_direction
 from src.application.services.execution_sniper_gates import resolve_calibration_neutral_band
 from src.application.services.execution_volatility_threshold import resolve_dynamic_threshold_bundle
+from src.domain.math.logit_sharpen import sharpen_logit_temperature
+from src.domain.math.ornstein_uhlenbeck import compute_elastic_distance_ou
 from src.domain.models.trade import TradeDirection
 
 
@@ -81,23 +78,21 @@ def build_prediction_context(
     dynamic_cfg = parse_dynamic_threshold_config(exec_cfg if isinstance(exec_cfg, dict) else {})
     base_call, base_put = resolve_confidence_thresholds(params)
     base_edge = float(params.get("min_edge_execute", 0.04))
-    bb_width = _series_last(series, "bb_width")
-    atr_norm = _series_last(series, "atr_norm")
-    adx = _series_last(series, "adx")
-    vol_ratio = _series_last(series, "vol_ratio_short_long")
-    implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
+    bb_w, atr_n = _series_last(series, "bb_width"), _series_last(series, "atr_norm")
+    adx, vol_r = _series_last(series, "adx"), _series_last(series, "vol_ratio_short_long")
+    imp_r = _series_last(series, "implied_vol_ratio", 1.0)
     dynamic = resolve_dynamic_threshold_bundle(
         base_call=base_call,
         base_put=base_put,
         base_edge=base_edge,
-        bb_width=bb_width,
-        atr_norm=atr_norm,
+        bb_width=bb_w,
+        atr_norm=atr_n,
         adx=adx,
-        vol_ratio=vol_ratio,
+        vol_ratio=vol_r,
         bb_width_history=_series_tail("bb_width", series),
         atr_norm_history=_series_tail("atr_norm", series),
         symbol=str(symbol),
-        implied_vol_ratio=implied_vol_ratio,
+        implied_vol_ratio=imp_r,
         cfg={
             **dynamic_cfg,
             "call_base": dynamic_cfg.get("call_base", base_call),
@@ -173,8 +168,7 @@ def build_prediction_entry(
     val_accuracy: float,
 ) -> dict:
     """Monta dict de decisao a partir de probabilidades e series de indicadores."""
-    bb_width = _series_last(series, "bb_width")
-    vol_ratio = _series_last(series, "vol_ratio_short_long")
+    bb_width, vol_ratio = _series_last(series, "bb_width"), _series_last(series, "vol_ratio_short_long")
     implied_vol_ratio = _series_last(series, "implied_vol_ratio", 1.0)
     trend_dir, trend_type, trend_period, call_votes, put_votes = calculate_trend_direction(prices, series, exec_cfg)
     indicators_data = indicators_from_series(series)
@@ -185,13 +179,12 @@ def build_prediction_entry(
     clamped_prob, cal_capped, cal_raw_gap = clamp_calibrated_call_to_raw_band(raw_prob, float(prob), max_gap)
     neutral_lo, neutral_hi = resolve_calibration_neutral_band(cal_cfg if cal_cfg else None)
     calibrated_prob, resolved_dir, calibration_mode = apply_calibration_neutral_tolerance(
-        clamped_prob,
-        raw_prob,
-        direction,
-        pivot=pivot,
-        neutral_lo=neutral_lo,
-        neutral_hi=neutral_hi,
+        clamped_prob, raw_prob, direction, pivot=pivot, neutral_lo=neutral_lo, neutral_hi=neutral_hi
     )
+    if bool(cal_cfg.get("sharpening_enabled", False)) and abs(float(calibrated_prob) - 0.5) > 1e-4:
+        calibrated_prob = float(
+            sharpen_logit_temperature(float(calibrated_prob), float(cal_cfg.get("sharpening_tau", 0.40)))
+        )
     horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
     calibrated_edge = resolve_calibrated_edge(calibrated_prob, raw_prob=raw_prob, horizon_bars=horizon_bars)
     cal_side_edge = (
@@ -208,15 +201,17 @@ def build_prediction_entry(
         deploy_ok=runtime.get("deploy_ok", True),
         is_put=resolved_dir == TradeDirection.PUT if resolved_dir is not None else False,
     )
-    indicator_cfg = params.get("indicators")
-    if not isinstance(indicator_cfg, dict) or "windows" not in indicator_cfg:
-        indicator_cfg = load_indicator_config_from_settings()
+    ind_cfg = (
+        params.get("indicators")
+        if isinstance(params.get("indicators"), dict)
+        else load_indicator_config_from_settings()
+    )
     squeeze_congestion = squeeze_congestion_active(
         prices,
         series,
-        bb_window=int(indicator_cfg["windows"]["bb_window"]),
-        bb_std_mult=float(indicator_cfg["multipliers"]["bb_std_mult"]),
-        congestion=indicator_cfg["congestion"],
+        bb_window=int(ind_cfg["windows"]["bb_window"]),
+        bb_std_mult=float(ind_cfg["multipliers"]["bb_std_mult"]),
+        congestion=ind_cfg["congestion"],
     )
     if squeeze_congestion:
         side_score = 0.51
@@ -233,31 +228,44 @@ def build_prediction_entry(
         val_ece=float(runtime.get("val_ece", 1.0)),
         contract_duration=int(params.get("contract_duration", 180)),
     )
-    entry["metrics"]["gate_reason"] = None
-    entry["metrics"]["micro_chop_congestion"] = bool(squeeze_congestion)
-    entry["metrics"]["edge_expectancy"] = None
-    entry["metrics"]["calibrated_prob"] = calibrated_prob
-    entry["metrics"]["calibration_mode"] = calibration_mode
-    entry["metrics"]["calibrated_edge"] = calibrated_edge
-    entry["metrics"]["cal_side_edge"] = float(cal_side_edge)
-    entry["metrics"]["cal_raw_gap_capped"] = bool(cal_capped)
-    entry["metrics"]["cal_raw_gap"] = float(cal_raw_gap)
-    entry["metrics"]["raw_margin"] = abs(raw_prob - 0.5)
-    entry["metrics"]["cal_margin"] = abs(float(calibrated_prob) - 0.5)
-    entry["metrics"]["direction_margin"] = abs(float(calibrated_prob) - 0.5)
+    entry["metrics"].update(
+        {
+            "gate_reason": None,
+            "micro_chop_congestion": bool(squeeze_congestion),
+            "edge_expectancy": None,
+            "calibrated_prob": calibrated_prob,
+            "calibration_mode": calibration_mode,
+            "calibrated_edge": calibrated_edge,
+            "cal_side_edge": float(cal_side_edge),
+            "cal_raw_gap_capped": bool(cal_capped),
+            "cal_raw_gap": float(cal_raw_gap),
+            "raw_margin": abs(raw_prob - 0.5),
+            "cal_margin": abs(float(calibrated_prob) - 0.5),
+            "direction_margin": abs(float(calibrated_prob) - 0.5),
+        }
+    )
     if calibrator is not None:
-        entry["metrics"]["calibrator_method"] = str(getattr(calibrator, "method", "") or "")
-        entry["metrics"]["calibrator_temperature"] = float(getattr(calibrator, "temperature", 1.0) or 1.0)
-        entry["metrics"]["calibrator_platt_a"] = float(getattr(calibrator, "platt_a", 1.0) or 1.0)
-        entry["metrics"]["calibrator_platt_b"] = float(getattr(calibrator, "platt_b", 0.0) or 0.0)
+        entry["metrics"].update(
+            {
+                "calibrator_method": str(getattr(calibrator, "method", "") or ""),
+                "calibrator_temperature": float(getattr(calibrator, "temperature", 1.0) or 1.0),
+                "calibrator_platt_a": float(getattr(calibrator, "platt_a", 1.0) or 1.0),
+                "calibrator_platt_b": float(getattr(calibrator, "platt_b", 0.0) or 0.0),
+            }
+        )
     entry["metrics"]["calibration_collapsed"] = bool(
         abs(raw_prob - 0.5) + 1e-12 >= 0.03 and abs(float(calibrated_prob) - 0.5) + 1e-12 < 0.03
     )
-    entry["metrics"]["trend_direction"] = trend_dir.name
-    entry["metrics"]["trend_type"] = trend_type
-    entry["metrics"]["trend_period"] = trend_period
-    entry["metrics"]["call_votes"] = call_votes
-    entry["metrics"]["put_votes"] = put_votes
+    entry["metrics"].update(
+        {
+            "trend_direction": trend_dir.name,
+            "trend_type": trend_type,
+            "trend_period": trend_period,
+            "call_votes": call_votes,
+            "put_votes": put_votes,
+            "elastic_distance_ou": float(compute_elastic_distance_ou(prices)),
+        }
+    )
     entry["metrics"]["indicators"] = indicators_data
     if len(series.get("log_return", [])) > 0:
         idx = len(series["log_return"]) - 1
@@ -285,6 +293,8 @@ __all__ = (
     "build_prediction_context",
     "build_prediction_entry",
     "eager_local_predict",
+    "guard_symbol_model",
+    "predict_next_direction",
     "prepare_meta_classifier_cross_symbol_bundle",
     "stamp_micro_frame_telemetry",
 )

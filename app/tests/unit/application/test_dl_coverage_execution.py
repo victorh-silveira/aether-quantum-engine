@@ -192,7 +192,14 @@ def test_evaluate_mini_deploy_micro_slice_runs():
             "lookback": 48,
             "confidence_call_threshold": 0.75,
             "confidence_put_threshold": 0.25,
-            "deploy_gate": {"enabled": True, "mini_bars": 120, "min_trades": 1, "max_brier": 0.99, "min_win_rate": 0.0},
+            "deploy_gate": {
+                "enabled": True,
+                "mini_bars": 120,
+                "min_trades": 1,
+                "max_brier": 0.99,
+                "min_win_rate": 0.0,
+                "max_eval_steps": 10,
+            },
         },
         {},
     )

@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic
+from src.domain.math.logit_sharpen import sharpen_logit_temperature
 
 
 def _calib_bounds() -> dict[str, float]:
@@ -137,6 +138,8 @@ def apply_calibrator_stable(
     calibrator: CalibratorState | None,
     *,
     margin_floor: float | None = None,
+    sharpen: bool = False,
+    sharpening_tau: float = 0.40,
 ) -> float:
     """Aplica calibrador; se raw for mais nitido que Cal, devolve raw."""
     raw = float(prob)
@@ -156,13 +159,15 @@ def apply_calibrator_stable(
     floor = float(margin_floor) if margin_floor is not None else _margin_floor_from_settings()
     raw_margin = abs(raw - 0.5)
     cal_margin = abs(calibrated - 0.5)
-    if cal_margin + 1e-12 < floor <= raw_margin:
-        return raw
-    if raw_margin > cal_margin + 1e-12:
-        return raw
-    if cal_margin + 1e-12 < floor and raw_margin + 1e-12 < floor:
-        return raw if raw_margin + 1e-12 >= cal_margin else calibrated
-    return calibrated
+    if cal_margin + 1e-12 < floor <= raw_margin or raw_margin > cal_margin + 1e-12:
+        res = raw
+    elif cal_margin + 1e-12 < floor and raw_margin + 1e-12 < floor:
+        res = raw if raw_margin + 1e-12 >= cal_margin else calibrated
+    else:
+        res = calibrated
+    if sharpen and abs(res - 0.5) > 1e-4:
+        return sharpen_logit_temperature(res, sharpening_tau)
+    return res
 
 
 def raw_side_conviction(raw_prob: float) -> float:

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import io
 import logging
 import sys
 import time
@@ -10,6 +12,14 @@ from pathlib import Path
 
 from src.presentation.terminal.log_context import format_log_context_prefix
 from src.presentation.terminal.settle_log import extract_settle_channel
+
+
+def configure_stream_unbuffered(stream: object) -> None:
+    """Configura line buffering e write through no stream se disponivel."""
+    reconfig = getattr(stream, "reconfigure", None)
+    if callable(reconfig):
+        with contextlib.suppress(io.UnsupportedOperation, AttributeError, ValueError):
+            reconfig(line_buffering=True, write_through=True)
 
 
 class _FlushStreamHandler(logging.StreamHandler):
@@ -117,6 +127,8 @@ def setup_logger(
     quiet_channels: tuple[str, ...] | list[str] | None = None,
 ):
     """Configura logger Aether de forma idempotente (handlers nao duplicam)."""
+    configure_stream_unbuffered(sys.stdout)
+
     logger = logging.getLogger(name)
     logger.setLevel(level)
     logger.quiet_channels = tuple(quiet_channels or ())

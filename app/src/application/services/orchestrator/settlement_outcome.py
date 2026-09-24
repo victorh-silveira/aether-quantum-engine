@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from src.application.services.deep_learning.dl_outcomes import record_symbol_outcome
+from src.application.services.direction_error_reversal import record_error_reversal_on_settlement
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
 from src.application.services.loss_classifier_vectors import pop_loss_feature_vector, pop_loss_flip_ctx
@@ -166,6 +167,13 @@ def process_contract_outcome(
     )
     if dir_name:
         record_direction_outcome(sym, dir_name, won=profit >= 0.0)
+    record_error_reversal_on_settlement(
+        orch,
+        str(sym),
+        won=profit >= 0.0,
+        raw_prob=audit_raw_prob,
+        direction=dir_name or audit_direction,
+    )
     _feed_loss_classifier_learn(orch, str(sym), won=profit >= 0.0, contract_id=int(c_id))
     _feed_meta_classifier_learn(
         orch,

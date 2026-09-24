@@ -380,3 +380,69 @@ def test_should_skip_neg_edge_min_edge_execute():
 
     m_rec = {"cal_side_edge": 0.017, "pending_loss_total": 50.0}
     assert should_skip_neg_edge(m_rec, cfg) is False
+
+
+def test_should_skip_neg_edge_permissive_negative_min_edge():
+    cfg = {"skip_neg_edge": True, "min_edge_execute": -0.060}
+    m_pass = {"cal_side_edge": -0.048, "pending_loss_total": 0.0}
+    assert should_skip_neg_edge(m_pass, cfg) is False
+
+    m_fail = {"cal_side_edge": -0.070, "pending_loss_total": 0.0}
+    assert should_skip_neg_edge(m_fail, cfg) is True
+    assert m_fail["skip_reason"] == "neg_edge"
+
+    cfg_alias = {"skip_neg_edge": True, "min_edge": -0.050}
+    m_pass2 = {"cal_side_edge": -0.043, "pending_loss_total": 0.0}
+    assert should_skip_neg_edge(m_pass2, cfg_alias) is False
+
+
+def test_should_skip_neg_edge_two_stage_meta_override():
+    cfg = {"skip_neg_edge": True, "min_edge_execute": 0.020}
+    m_override = {
+        "cal_side_edge": -0.045,
+        "predicted_payoff_edge": 0.015,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_override, cfg) is False
+    assert m_override.get("neg_edge_waived_by_meta") is True
+    assert m_override.get("meta_override_edge") == 0.015
+
+    m_zscore = {
+        "cal_side_edge": -0.030,
+        "meta_applied": True,
+        "meta_payoff_edge_zscore": 0.025,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_zscore, cfg) is False
+    assert m_zscore.get("neg_edge_waived_by_meta") is True
+
+    m_too_negative = {
+        "cal_side_edge": -0.15,
+        "predicted_payoff_edge": 0.05,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_too_negative, cfg) is True
+
+    m_low_meta = {
+        "cal_side_edge": -0.045,
+        "predicted_payoff_edge": 0.005,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_low_meta, cfg) is True
+
+    m_alias_edge = {
+        "cal_side_edge": -0.045,
+        "meta_edge": 0.020,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_alias_edge, cfg) is False
+    assert m_alias_edge.get("neg_edge_waived_by_meta") is True
+
+    m_alias_z = {
+        "cal_side_edge": -0.045,
+        "meta_applied": True,
+        "edge_zscore": 0.020,
+        "pending_loss_total": 0.0,
+    }
+    assert should_skip_neg_edge(m_alias_z, cfg) is False
+    assert m_alias_z.get("neg_edge_waived_by_meta") is True

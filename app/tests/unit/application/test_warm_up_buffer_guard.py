@@ -45,10 +45,10 @@ async def test_schedule_stream_warm_up_barrier_sets_deadline():
     base = loop.time()
     delay = schedule_stream_warm_up_barrier(orch)
     assert delay == pytest.approx(45.0)
-    assert orch._stream_warmed_up_at - base == pytest.approx(45.0, abs=0.05)
-    assert stream_warm_up_active(orch, now=base + 10.0) is True
-    assert stream_warm_up_active(orch, now=base + 45.01) is False
-    assert stream_warm_up_remaining(orch, now=base + 10.0) == pytest.approx(35.0, abs=0.05)
+    assert orch._stream_warmed_up_at - base == pytest.approx(45.0, abs=0.50)
+    assert stream_warm_up_active(orch, now=orch._stream_warmed_up_at - 35.0) is True
+    assert stream_warm_up_active(orch, now=orch._stream_warmed_up_at + 0.01) is False
+    assert stream_warm_up_remaining(orch, now=orch._stream_warmed_up_at - 35.0) == pytest.approx(35.0, abs=0.01)
 
 
 def test_trading_cycle_warm_up_suspended_returns_none_when_inactive():

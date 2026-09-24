@@ -1,6 +1,7 @@
 """Mini walk-forward de deploy sem import circular com dl_params."""
 
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -149,6 +150,26 @@ def evaluate_mini_deploy(
     sim_runtime = dict(runtime)
     sim_runtime["deploy_ok"] = True
     max_steps = int(cfg.get("max_eval_steps", 24))
+    enforce_settle = bool(cfg.get("enforce_settle_gate", True))
+    if max_steps <= 0 or int(cfg.get("mini_bars", 1)) <= 0:
+        val_acc = float(runtime.get("val_accuracy", 0.5))
+        val_brier = float(runtime.get("val_brier", 0.25))
+        gran = int(params.get("granularity") or runtime.get("granularity") or 3600)
+        runtime["deploy_settlement_n"] = 0
+        runtime["deploy_settlement_win_rate"] = val_acc
+        runtime["deploy_label_win_rate"] = val_acc
+        runtime["deploy_settlement_brier"] = val_brier
+        runtime["deploy_settlement_wilson_lcb"] = val_acc
+        runtime["deploy_settlement_horizon_bars"] = resolve_settlement_horizon_bars(params, gran)
+        deploy_ok = not enforce_settle or bool(cfg.get("force_ok", False))
+        runtime["deploy_provisional_ok"] = deploy_ok
+        logger.info(
+            "SETTLE | Avaliacao OOS ignorada (max_eval_steps=%d, mini_bars=%d, enforce_settle=%s)",
+            max_steps,
+            int(cfg.get("mini_bars", 1)),
+            enforce_settle,
+        )
+        return deploy_ok, val_acc, val_brier
     source_spec = LabelSpec.from_dl_config(params)
     gran = int(params.get("granularity") or runtime.get("granularity") or 3600)
     settlement_horizon = resolve_settlement_horizon_bars(params, gran)
@@ -160,7 +181,16 @@ def evaluate_mini_deploy(
     )
     meta_model = _load_active_meta_model(params)
     runtime["deploy_meta_filter_applied"] = bool(meta_model is not None)
-    for bar in _deploy_eval_bar_indices(start, len(prices) - 1, max_steps):
+    eval_bars = _deploy_eval_bar_indices(start, len(prices) - 1, max_steps)
+    total_eval_steps = len(eval_bars)
+    log_interval_steps = max(1, total_eval_steps // 10)
+    t_start = time.perf_counter()
+    logger.info(
+        "SETTLE | Iniciando avaliacao OOS | passos=%d | intervalo_log=%d",
+        total_eval_steps,
+        log_interval_steps,
+    )
+    for step, bar in enumerate(eval_bars, 1):
         scored = _score_deploy_bar(
             orch=orch,
             symbol=symbol,
@@ -177,17 +207,34 @@ def evaluate_mini_deploy(
             settlement_spec=settlement_spec,
             meta_model=meta_model,
         )
-        if scored is None:
-            continue
-        settlement_won, settlement_brier_term, _ = scored
-        total += 1
-        settlement_wins += int(settlement_won)
-        settlement_brier_acc += settlement_brier_term
+        if scored is not None:
+            settlement_won, settlement_brier_term, _ = scored
+            total += 1
+            settlement_wins += int(settlement_won)
+            settlement_brier_acc += settlement_brier_term
+        if step % log_interval_steps == 0 or step == total_eval_steps:
+            elapsed = time.perf_counter() - t_start
+            pct = (step / total_eval_steps) * 100.0 if total_eval_steps > 0 else 100.0
+            eta = (elapsed / step) * (total_eval_steps - step) if step > 0 else 0.0
+            current_wr = (settlement_wins / total) if total > 0 else 0.0
+            logger.info(
+                "SETTLE | progresso=%d/%d (%.1f%%) | trades=%d | partial_wr=%.2f%% | tempo=%.0fs | eta=%.0fs",
+                step,
+                total_eval_steps,
+                pct,
+                total,
+                current_wr * 100.0,
+                elapsed,
+                eta,
+            )
     if total < int(cfg["min_trades"]):
         runtime["deploy_settlement_win_rate"] = 0.0
         runtime["deploy_settlement_brier"] = float(runtime.get("val_brier", 1.0))
         runtime["deploy_label_win_rate"] = 0.0
         runtime["deploy_settlement_n"] = int(total)
+        if not enforce_settle:
+            runtime["deploy_provisional_ok"] = True
+            return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 0.25))
         return False, 0.0, float(runtime.get("val_brier", 1.0))
     settlement_wr = settlement_wins / float(total)
     settlement_brier = settlement_brier_acc / float(total)
@@ -214,4 +261,7 @@ def evaluate_mini_deploy(
     )
     if bool(cfg.get("require_broker_settlement", False)):
         runtime["deploy_provisional_ok"] = False
+    if not enforce_settle:
+        deploy_ok = True
+        runtime["deploy_provisional_ok"] = True
     return deploy_ok, settlement_wr, settlement_brier

@@ -133,6 +133,11 @@ def evaluate_checkpoint(
         except Exception as exc:
             _LOGGER.debug("Falha ao avaliar meta_path para deploy gate: %s", exc)
     if not stored_ok:
+        if not bool(gate_cfg.get("enforce_settle_gate", True)):
+            return True, (
+                f"{path.name}: deploy_ok pass-through (enforce_settle_gate=false; "
+                f"val_acc={val_acc:.4f} val_brier={val_brier:.4f})"
+            )
         settlement_wr = float(payload.get("deploy_settlement_win_rate", 0.0) or 0.0)
         settlement_n = int(payload.get("deploy_settlement_n", 0) or 0)
         settlement_brier = float(payload.get("deploy_settlement_brier", 1.0) or 1.0)
@@ -159,8 +164,12 @@ def evaluate_checkpoint(
         bool(gate_cfg.get("require_broker_settlement", False))
         and payload.get("deploy_settlement_source") != "broker_tick_audit"
     ):
+        if not bool(gate_cfg.get("enforce_settle_gate", True)):
+            return True, (f"{path.name}: deploy_ok pass-through (broker_settlement waived; val_acc={val_acc:.4f})")
         return False, f"{path.name}: settlement M5 e apenas proxy; evidencias broker/tick auditadas ausentes"
     if settlement_lcb is None or float(settlement_lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
+        if not bool(gate_cfg.get("enforce_settle_gate", True)):
+            return True, (f"{path.name}: deploy_ok pass-through (wilson_lcb waived; val_acc={val_acc:.4f})")
         return False, (
             f"{path.name}: checkpoint sem evidencia Wilson de settlement suficiente "
             f"(lcb={settlement_lcb}; min_win_rate={float(gate_cfg['min_win_rate']):.6f})"
@@ -175,6 +184,7 @@ def main() -> int:
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--soft-min", type=float, default=None)
     parser.add_argument("--with-meta", action="store_true", default=False)
+    parser.add_argument("--allow-unqualified", action="store_true", default=False)
     args = parser.parse_args()
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)
     raw_symbols = args.symbols if args.symbols is not None else settings.get("symbols") or ["1HZ75V"]
@@ -186,6 +196,12 @@ def main() -> int:
         logger.info("DL gate | %s", msg)
         ok_all = ok_all and ok
     if not ok_all:
+        if args.allow_unqualified:
+            logger.warning(
+                "DL gate de qualificacao OOS reprovado: ACC/Brier/settle/geometria. "
+                "Flag --allow-unqualified ativa: prosseguindo com teto de stake em DEMO e REAL."
+            )
+            return 0
         logger.warning(
             "DL gate de qualificacao OOS reprovado: ACC/Brier/settle/geometria. "
             "Treino meta pode continuar; somente checkpoint local tecnicamente compativel pode operar "

@@ -317,3 +317,61 @@ def test_main_with_meta_flag(monkeypatch, tmp_path: Path):
         from scripts.operations.check_dl_deploy_gate import main
 
         assert main() == 0
+
+
+def test_evaluate_checkpoint_allows_unqualified_when_enforce_settle_false(tmp_path: Path):
+    path = tmp_path / "1HZ75V.pth"
+    path.write_bytes(b"x")
+    settings = {"deep_learning": {"deploy_gate": {**_STRICT_GATE, "enforce_settle_gate": False}}}
+    with patch(
+        "torch.load",
+        return_value={"val_accuracy": 0.55, "deploy_ok": False, **_COLLAPSE_OK},
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings)
+    assert ok is True
+    assert "enforce_settle_gate=false" in msg
+
+
+def test_evaluate_checkpoint_waives_broker_and_wilson_when_enforce_settle_false(tmp_path: Path):
+    path = tmp_path / "1HZ75V.pth"
+    path.write_bytes(b"x")
+    settings = {
+        "deep_learning": {
+            "deploy_gate": {
+                **_STRICT_GATE,
+                "enforce_settle_gate": False,
+                "require_broker_settlement": True,
+            }
+        }
+    }
+    with patch(
+        "torch.load",
+        return_value={
+            "val_accuracy": 0.55,
+            "deploy_ok": True,
+            "deploy_settlement_source": "m5_close_proxy",
+            "deploy_settlement_wilson_lcb": 0.10,
+            **_COLLAPSE_OK,
+        },
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings)
+    assert ok is True
+    assert "broker_settlement waived" in msg
+
+
+def test_main_with_allow_unqualified_flag(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["check_dl_deploy_gate.py", "--symbols", "1HZ75V", "--allow-unqualified"],
+    )
+    ckpt = tmp_path / "1HZ75V.pth"
+    ckpt.write_bytes(b"x")
+    with (
+        patch("scripts.operations.check_dl_deploy_gate._checkpoint_paths", return_value=[ckpt]),
+        patch("scripts.operations.check_dl_deploy_gate._load_settings", return_value={}),
+        patch("scripts.operations.check_dl_deploy_gate._soft_min_acc", return_value=0.50),
+        patch("scripts.operations.check_dl_deploy_gate.evaluate_checkpoint", return_value=(False, "falha")),
+    ):
+        from scripts.operations.check_dl_deploy_gate import main
+
+        assert main() == 0

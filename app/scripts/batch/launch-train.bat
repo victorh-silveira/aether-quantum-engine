@@ -2,6 +2,7 @@
 TITLE Aether Engine - Treino Deep Learning + Meta-Classificador
 set PYTHONASYNCIODEBUG=
 set PYTHONDEVMODE=
+set PYTHONUNBUFFERED=1
 
 pushd "%~dp0..\..\.."
 SET REPO_ROOT=%CD%
@@ -23,30 +24,30 @@ if "%CONDA_ACTIVATE%"=="" exit /b 1
 echo [AETHER] launch-train: sanitize -^> treino DL 5m -^> gate -^> meta -^> rebuild
 echo [AETHER] 0/5 sanitize run anterior...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/sanitize_fresh_run.py
+"%PYTHON_EXE%" -u app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 
 echo [AETHER] 0b/5 loss-classifier bootstrap...
 cd /d "%REPO_ROOT%\app"
-"%PYTHON_EXE%" -m scripts.operations.train_loss_classifier
+"%PYTHON_EXE%" -u -m scripts.operations.train_loss_classifier
 if errorlevel 1 goto :loss_bootstrap_fail
 cd /d "%REPO_ROOT%"
 
 echo [AETHER] 1/5 treino TCN direto (contrato M5 fixo)...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
+"%PYTHON_EXE%" -u app/scripts/operations/run_launch_train_tf_pipeline.py %*
 if errorlevel 1 goto :horizon_fail
 
 echo [AETHER] 1b/5 gate preliminar TCN (feature extractor)...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py
+"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --allow-unqualified
 if errorlevel 1 (
     echo [AVISO] Checkpoint TCN treinado como feature extractor; avaliacao conjunta dependente do meta.
 )
 
 echo [AETHER] 2/5 Timescale seed meta-ready (Deriv se smoke/curto)...
 cd /d "%REPO_ROOT%"
-"%PYTHON_EXE%" app/scripts/operations/ensure_timescale.py
+"%PYTHON_EXE%" -u app/scripts/operations/ensure_timescale.py
 if errorlevel 1 echo [AVISO] Timescale seed falhou; meta usara API Deriv.
 
 echo [AETHER] 3/5 meta LightGBM...
@@ -58,7 +59,7 @@ if not exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" set "META_READ
 echo [AETHER] 4/5 gate deploy conjunto Two-Stage Stacking (TCN + Meta)...
 cd /d "%REPO_ROOT%"
 set "DEPLOY_READY=1"
-"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --with-meta
+"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta
 if errorlevel 1 (
     set "DEPLOY_READY=0"
     echo [AVISO] Gate conjunto Two-Stage Stacking reprovado; operando em modo protegido.

@@ -11,7 +11,23 @@ from src.application.services.deep_learning.dl_calibration import (
     temperature_bounds,
 )
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness
+from src.domain.math.logit_sharpen import (
+    apply_dynamic_temperature_sharpening,
+    logit,
+    resolve_sharpening_tau,
+    sharpen_logit_temperature,
+    sigmoid,
+)
 
+
+__all__ = (
+    "apply_dynamic_temperature_sharpening",
+    "logit",
+    "maybe_temperature_sharpen_for_export",
+    "resolve_sharpening_tau",
+    "sharpen_logit_temperature",
+    "sigmoid",
+)
 
 logger = logging.getLogger("AETH")
 

@@ -3,6 +3,7 @@
 import asyncio
 import logging
 
+from src.application.services.contract_barrier_selector import resolve_contract_barrier_structure
 from src.application.services.market_audit_log import (
     emit_audit_info,
     format_execution_ticket_line,
@@ -12,6 +13,7 @@ from src.application.services.market_audit_log import (
     resolve_stake_audit_context,
     store_contract_audit,
 )
+from src.application.services.micro_hedge_monitor import register_contract_for_hedge
 from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -94,6 +96,13 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     cid = f"C{int(executor.orch._active_cycle_id):04d}"
     logger = logging.getLogger("AETH")
     params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
+    params = resolve_contract_barrier_structure(
+        params,
+        metrics if isinstance(metrics, dict) else {},
+        symbol,
+        direction,
+        config=executor.orch.config,
+    )
     if duration:
         params["duration"] = duration
     if params.get("contract_type") == "MULTIPLIER":
@@ -184,4 +193,18 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
                 cid=cid,
             )
         )
+    dur_sec = (
+        int(params.get("duration", 5)) * 60
+        if str(params.get("duration_unit", "m")).lower() == "m"
+        else int(params.get("duration", 300))
+    )
+    register_contract_for_hedge(
+        executor.orch,
+        int(contract.contract_id),
+        symbol=str(symbol),
+        direction=direction,
+        entry_spot=float(getattr(contract, "buy_price", 0.0) or 0.0),
+        stake=float(contract.stake),
+        duration=dur_sec,
+    )
     return contract

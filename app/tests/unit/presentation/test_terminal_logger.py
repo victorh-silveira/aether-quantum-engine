@@ -11,6 +11,7 @@ from src.presentation.terminal.logger import (
     BlankLineSquasher,
     SettlementSpamFilter,
     _FlushStreamHandler,
+    configure_stream_unbuffered,
     get_logger,
     setup_logger,
 )
@@ -43,6 +44,20 @@ def test_flush_stream_handler_flushes_after_emit():
     with patch.object(handler.stream, "flush") as flush_mock:
         handler.emit(record)
     assert flush_mock.call_count >= 1
+
+
+def test_configure_stream_unbuffered_scenarios():
+    from unittest.mock import MagicMock
+
+    mock_stream = MagicMock()
+    configure_stream_unbuffered(mock_stream)
+    mock_stream.reconfigure.assert_called_once_with(line_buffering=True, write_through=True)
+
+    mock_stream_err = MagicMock()
+    mock_stream_err.reconfigure.side_effect = io.UnsupportedOperation("unsupported")
+    configure_stream_unbuffered(mock_stream_err)
+
+    configure_stream_unbuffered(object())
 
 
 def test_setup_logger_writes_to_stdout_with_flush_handler():

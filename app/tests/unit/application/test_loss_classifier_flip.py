@@ -285,3 +285,16 @@ def test_stamp_flip_ctx_persists_on_gate(monkeypatch):
     ctx = orch._loss_clf_flip_ctx["1HZ75V"]
     assert ctx["flip"] is True
     assert ctx["p_eff"] == pytest.approx(0.72)
+
+
+def test_apply_loss_classifier_gate_disabled_when_allow_direction_flip_false():
+    orch = SimpleNamespace(
+        config={
+            "infra": {"loss_classifier": {"enabled": True}},
+            "orchestrator": {"execution": {"allow_direction_flip": False}},
+        },
+        _active_cycle_id=1,
+    )
+    metrics = {"tcn_direction": "CALL", "exec_direction": "CALL"}
+    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch) is False
+    assert metrics.get("loss_clf_flip") is not True
