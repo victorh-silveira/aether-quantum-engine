@@ -1,3 +1,9 @@
+## [2.71.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.4...v2.71.0) (2026-09-24)
+
+### Funcionalidades
+
+* **engine:** acopla gate de deploy ao meta-learner e estabiliza pipeline ([bcf7b02](https://github.com/victorh-silveira/aether-quantum-engine/commit/bcf7b02df69dcd7662a4b594bb13ff8d0e104969))
+
 ## [2.70.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.3...v2.70.4) (2026-09-23)
 
 ### Correcoes de Bug
