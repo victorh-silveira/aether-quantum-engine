@@ -61,11 +61,14 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             audit=audit,
         ),
     )
+    barrier_type = metrics_dict.get("barrier_contract_type")
+    barrier_offset = metrics_dict.get("barrier_offset")
+    ticket_dir = f"{barrier_type} (BARRIER: {barrier_offset})" if barrier_type and barrier_offset else direction.name
     emit_audit_info(
         logger,
         format_execution_ticket_line(
             cycle_id,
-            direction=direction.name,
+            direction=ticket_dir,
             symbol=str(symbol),
             stake=float(stake),
             mode_tag=mode_tag,
@@ -122,7 +125,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
     if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
-        cap_pct = min(0.001, max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0))))
+        cap_pct = min(0.01, max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0))))
         cap = float(executor.orch.state.balance) * cap_pct
         if cap + 1e-9 < stake_min:
             raise RuntimeError("Checkpoint nao qualificado: stake minimo excede teto")

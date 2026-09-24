@@ -68,7 +68,7 @@ def test_production_deploy_gate_armed():
     assert float(settings["orchestrator"]["execution"]["micro_hedging"]["target_midpoint_seconds"]) == pytest.approx(
         150.0
     )
-    assert settings["risk_management"]["barrier_contracts"]["enabled"] is False
+    assert settings["risk_management"]["barrier_contracts"]["enabled"] is True
     assert settings["risk_management"]["barrier_contracts"]["default_type"] == "ONETOUCH"
     assert dl["calibration"]["sharpening_enabled"] is True
     assert float(dl["calibration"]["sharpening_tau"]) == pytest.approx(0.40)

@@ -55,7 +55,7 @@ async def test_collect_allows_capped_checkpoint_when_deploy_not_qualified():
         decisions = await collect_deep_learning_decisions(orch)
     assert decisions["R_10"]["metrics"]["execute"] is True
     assert decisions["R_10"]["metrics"]["checkpoint_exploration"] is True
-    assert decisions["R_10"]["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
+    assert decisions["R_10"]["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.01)
 
 
 @pytest.mark.asyncio

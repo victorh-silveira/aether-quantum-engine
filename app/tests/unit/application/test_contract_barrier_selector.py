@@ -42,6 +42,7 @@ def test_resolve_barrier_offset():
     assert resolve_barrier_offset(1.20, TradeDirection.PUT, multiplier=0.80) == "-0.96"
     assert resolve_barrier_offset(1.20, TradeDirection.MULTDOWN, multiplier=0.80) == "-0.96"
     assert resolve_barrier_offset(0.0, TradeDirection.CALL, multiplier=0.0) == "+0.00"
+    assert resolve_barrier_offset(0.0, TradeDirection.CALL, multiplier=0.80, spot_price=5000.0) == "+10.00"
 
 
 def test_should_transition_to_barrier_contract():
@@ -54,6 +55,9 @@ def test_should_transition_to_barrier_contract():
     assert should_transition_to_barrier_contract({"atr": 0.50, "regime": "vol_explosion_high"}, active_cfg) is True
     assert should_transition_to_barrier_contract({"atr": 0.50, "regime": "calm"}, active_cfg) is False
     assert should_transition_to_barrier_contract({"atr": "invalid"}, active_cfg) is False
+
+    all_regime_cfg = BarrierContractConfig(enabled=True, min_atr=0.0, target_regimes=("all",))
+    assert should_transition_to_barrier_contract({}, all_regime_cfg) is True
 
 
 def test_resolve_contract_barrier_structure():

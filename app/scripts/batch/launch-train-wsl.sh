@@ -28,6 +28,10 @@ if ! "$PY" -u app/scripts/operations/ensure_timescale.py; then
 fi
 echo "[AETHER] 3/5 meta LightGBM"
 "$PY" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality
+if [ ! -f infra/docker/meta-models/meta_lgbm.pkl ] && [ -f data/dl/meta_candidate.joblib ]; then
+  cp data/dl/meta_candidate.joblib infra/docker/meta-models/meta_lgbm.pkl
+  echo "[AVISO] Modelo meta candidato promovido como baseline local em meta-models/meta_lgbm.pkl."
+fi
 if [ "$DEPLOY_READY" -eq 1 ] && [ -f infra/docker/meta-models/meta_lgbm.pkl ]; then
   echo "[SUCESSO] launch-train OK (TCN + meta; deploy aprovado)."
 elif [ "$DEPLOY_READY" -eq 1 ]; then

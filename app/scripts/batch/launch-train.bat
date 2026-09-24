@@ -54,7 +54,14 @@ echo [AETHER] 3/5 meta LightGBM...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
 set "META_READY=1"
-if not exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" set "META_READY=0"
+if not exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" (
+    if exist "%REPO_ROOT%\data\dl\meta_candidate.joblib" (
+        copy /y "%REPO_ROOT%\data\dl\meta_candidate.joblib" "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" > nul
+        echo [AVISO] Modelo meta candidato promovido como baseline local em meta-models/meta_lgbm.pkl.
+    ) else (
+        set "META_READY=0"
+    )
+)
 
 echo [AETHER] 4/5 gate deploy conjunto Two-Stage Stacking (TCN + Meta)...
 cd /d "%REPO_ROOT%"

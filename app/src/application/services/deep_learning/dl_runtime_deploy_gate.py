@@ -25,7 +25,7 @@ def apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict, orch=None) ->
     metrics["checkpoint_exploration"] = exploration
     metrics["deploy_provisional"] = provisional or exploration
     if exploration:
-        metrics["provisional_max_stake_pct"] = min(0.001, max(0.0, float(gate_cfg["unqualified_max_stake_pct"])))
+        metrics["provisional_max_stake_pct"] = min(0.01, max(0.0, float(gate_cfg["unqualified_max_stake_pct"])))
     elif provisional:
         metrics["provisional_max_stake_pct"] = float(gate_cfg["provisional_max_stake_pct"])
     return entry

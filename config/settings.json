@@ -104,7 +104,7 @@
       "require_broker_settlement": true,
       "max_label_call_frac_bias": 0.15,
       "min_minority_recall": 0.40,
-      "unqualified_max_stake_pct": 0.001
+      "unqualified_max_stake_pct": 0.01
     },
     "early_stopping_patience": 12,
     "min_epochs": 15,
@@ -647,11 +647,14 @@
   },
   "risk_management": {
     "barrier_contracts": {
-      "enabled": false,
-      "min_atr": 1.20,
+      "enabled": true,
+      "min_atr": 0.0,
       "target_regimes": [
         "explosion",
-        "expansion"
+        "expansion",
+        "chop",
+        "trend",
+        "all"
       ],
       "barrier_multiplier": 0.80,
       "default_type": "ONETOUCH"
@@ -737,7 +740,7 @@
     "params": {
       "compounding_enabled": true,
       "compounding_rate_daily": 0.0431,
-      "contract_type": "RISE_FALL",
+      "contract_type": "ONETOUCH",
       "duration": 5,
       "duration_unit": "m",
       "payout_estimate": 0.85,

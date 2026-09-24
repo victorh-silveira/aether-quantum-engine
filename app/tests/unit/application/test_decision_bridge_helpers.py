@@ -92,7 +92,7 @@ def test_apply_deploy_gate_unqualified_checkpoint_same_for_both_accounts(mode):
     assert out["metrics"]["model_deploy_qualified"] is False
     assert out["metrics"]["checkpoint_exploration"] is True
     assert out["metrics"]["deploy_provisional"] is True
-    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
+    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.01)
 
 
 @pytest.mark.parametrize(
@@ -120,7 +120,7 @@ def test_unqualified_stake_cap_never_exceeds_hard_limit():
         {"deploy_ok": False, "checkpoint_loaded": True, "session_trained": True},
         {"deploy_gate": {"unqualified_max_stake_pct": 0.5}},
     )
-    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
+    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.01)
 
 
 def test_log_retrain_batch_empty_and_nonempty(caplog):

@@ -313,7 +313,14 @@ async def predict_meta(payload: PredictMetaRequest) -> MetaPredictResult:
     _maybe_hot_reload()
     bundle = _model_bundle
     if bundle is None:
-        raise HTTPException(status_code=503, detail=_regressor_unavailable_detail())
+        logger.warning("Meta-regressor indisponivel: %s", _regressor_unavailable_detail())
+        return MetaPredictResult(
+            predicted_payoff_edge=None,
+            meta_applied=False,
+            edge_expectancy="LOSS_EXPECTED",
+            model_version=_model_version(),
+            source=_model_source(),
+        )
     model = bundle["model"]
     try:
         input_features_dataframe = _build_feature_dataframe(bundle, payload.feature_vector)
