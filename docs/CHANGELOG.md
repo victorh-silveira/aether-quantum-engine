@@ -1,3 +1,9 @@
+## [2.72.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.71.0...v2.72.0) (2026-09-24)
+
+### Funcionalidades
+
+* **engine:** implementa alpha flip, contratos de barreira e micro-hedging ([f743b04](https://github.com/victorh-silveira/aether-quantum-engine/commit/f743b0428b0bf189449fc48a23694c1292eb6243))
+
 ## [2.71.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.70.4...v2.71.0) (2026-09-24)
 
 ### Funcionalidades
