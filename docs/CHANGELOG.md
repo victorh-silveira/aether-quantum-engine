@@ -1,3 +1,9 @@
+## [2.73.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.72.0...v2.73.0) (2026-09-24)
+
+### Funcionalidades
+
+* **risk:** ativa contratos touch e eleva stake obrigatorio para 1% da banca ([357cb74](https://github.com/victorh-silveira/aether-quantum-engine/commit/357cb74cef1ac9dbbed8e97815794c1ac5f19ca9))
+
 ## [2.72.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.71.0...v2.72.0) (2026-09-24)
 
 ### Funcionalidades
