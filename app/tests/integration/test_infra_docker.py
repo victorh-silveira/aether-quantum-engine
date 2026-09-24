@@ -84,6 +84,8 @@ def test_docker_hydrate_uses_1hz75v_m5_d1():
     assert "R_10" not in script
     assert "7200" not in script
     assert "granularity=60" not in script
+    assert "INSERT INTO ohlc_bars" not in script
+    assert "generate_series" not in script
 
 
 def test_timescale_lifecycle_ohlc_segmentby_includes_granularity():

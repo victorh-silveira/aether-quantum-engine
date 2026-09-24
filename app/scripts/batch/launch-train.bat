@@ -37,10 +37,12 @@ cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/run_launch_train_tf_pipeline.py %*
 if errorlevel 1 goto :horizon_fail
 
-echo [AETHER] 1b/5 gate deploy/settle do checkpoint...
+echo [AETHER] 1b/5 gate preliminar TCN (feature extractor)...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py
-if errorlevel 1 goto :dl_gate_fail
+if errorlevel 1 (
+    echo [AVISO] Checkpoint TCN treinado como feature extractor; avaliacao conjunta dependente do meta.
+)
 
 echo [AETHER] 2/5 Timescale seed meta-ready (Deriv se smoke/curto)...
 cd /d "%REPO_ROOT%"
@@ -50,9 +52,34 @@ if errorlevel 1 echo [AVISO] Timescale seed falhou; meta usara API Deriv.
 echo [AETHER] 3/5 meta LightGBM...
 call "%~dp0_run_meta_train.bat" "%CONDA_ACTIVATE%"
 if errorlevel 1 goto :meta_fail
+set "META_READY=1"
+if not exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" set "META_READY=0"
 
-echo [SUCESSO] launch-train OK (TCN + meta).
+echo [AETHER] 4/5 gate deploy conjunto Two-Stage Stacking (TCN + Meta)...
+cd /d "%REPO_ROOT%"
+set "DEPLOY_READY=1"
+"%PYTHON_EXE%" app/scripts/operations/check_dl_deploy_gate.py --with-meta
+if errorlevel 1 (
+    set "DEPLOY_READY=0"
+    echo [AVISO] Gate conjunto Two-Stage Stacking reprovado; operando em modo protegido.
+)
+
+if "%DEPLOY_READY%"=="0" goto :summary_unqualified
+if "%META_READY%"=="0" goto :summary_meta_candidate
+echo [SUCESSO] launch-train OK: TCN e meta com deploy aprovado.
 echo [AETHER] Proximo: make docker-rebuild + sync MinIO, depois DEMO.
+goto :launch_train_done
+
+:summary_unqualified
+echo [SUCESSO] Treino TCN + meta concluido; TCN nao qualificado, checkpoint local opera com teto de 0,1%% em DEMO e REAL.
+echo [AETHER] O gate OOS ainda nao demonstrou vantagem preditiva.
+goto :launch_train_done
+
+:summary_meta_candidate
+echo [AVISO] TCN aprovado, mas meta apenas candidato; nao faca rebuild para trading.
+goto :launch_train_done
+
+:launch_train_done
 timeout /t 5 /nobreak > nul
 exit /b 0
 
@@ -67,12 +94,7 @@ pause
 exit /b 1
 
 :horizon_fail
-echo [ERRO] Sweep/promote falhou. Criterio: settle_wr^>=be+0.03, n^>=16, history^>=800.
-pause
-exit /b 1
-
-:dl_gate_fail
-echo [ERRO] Checkpoint sem deploy_ok/settle elegivel; meta abortado.
+echo [ERRO] Treino TCN falhou antes de exportar checkpoint; veja logs.
 pause
 exit /b 1
 

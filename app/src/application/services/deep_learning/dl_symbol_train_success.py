@@ -184,28 +184,32 @@ def apply_successful_symbol_train(
         deploy_settlement_brier=float(runtime.get("deploy_settlement_brier", runtime.get("val_brier", 1.0))),
         deploy_settlement_n=int(runtime.get("deploy_settlement_n", 0) or 0),
         deploy_settlement_wilson_lcb=float(runtime.get("deploy_settlement_wilson_lcb", 0.0)),
+        deploy_settlement_source=str(runtime.get("deploy_settlement_source", "m5_close_proxy")),
         oos_sharpness=float(runtime.get("oos_sharpness", 0.0)),
         granularity=granularity,
         training_history_bars=int(params.get("training_history_bars") or 0) or None,
         label_horizon_bars=max(1, int(params.get("label_horizon_bars", 1))),
+        label_mode=str(params.get("label_mode", "spot_forward")),
         label_call_frac=float(runtime.get("label_call_frac", 0.5)),
         pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
         minority_recall=float(runtime.get("minority_recall", 1.0)),
     )
-    schedule_model_upload(
-        orch,
-        symbol,
-        path,
-        arch=str(params["arch"]),
-        metadata={
-            "val_accuracy": runtime["val_accuracy"],
-            "calibrated_entropy": runtime.get("calibrated_entropy"),
-            "entropy_violation": runtime.get("entropy_violation"),
-        },
-    )
     deployable = bool(runtime.get("deploy_ok", False)) or bool(runtime.get("deploy_provisional_ok", False))
-    runtime["session_trained"] = deployable
-    runtime["export_ok"] = deployable
+    if deployable:
+        schedule_model_upload(
+            orch,
+            symbol,
+            path,
+            arch=str(params["arch"]),
+            metadata={
+                "val_accuracy": runtime["val_accuracy"],
+                "calibrated_entropy": runtime.get("calibrated_entropy"),
+                "entropy_violation": runtime.get("entropy_violation"),
+            },
+        )
+    runtime["checkpoint_loaded"] = True
+    runtime["session_trained"] = float(runtime.get("val_brier", 1.0)) + 1e-9 < 0.99
+    runtime["export_ok"] = True
     runtime["checkpoint_preserved"] = False
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
@@ -246,7 +250,7 @@ def apply_successful_symbol_train(
             minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
         logger.warning(
-            "DL TREINO | %s | deploy_ok=false (%s; settle_wr=%.4f lcb90=%.4f min=%.4f) — retreinar; nao iniciar meta",
+            "DL TREINO | %s | deploy_ok=false (%s; settle_wr=%.4f lcb90=%.4f min=%.4f) — meta pode treinar; checkpoint local com stake limitada",
             symbol,
             reason,
             float(runtime.get("deploy_settlement_win_rate", 0.0)),

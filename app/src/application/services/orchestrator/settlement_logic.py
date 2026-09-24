@@ -20,6 +20,7 @@ from src.application.services.orchestrator.session_persistence_barrier import (
     consume_linear_reset_flag,
     run_linear_reset_persistence_barrier,
 )
+from src.application.services.orchestrator.settlement_audit import record_settlement_audit
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
 from src.application.services.orchestrator.settlement_outcome import (
     check_session_limits_before_post_settlement,
@@ -221,6 +222,7 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     outcome = api_settlement_label((c.get("status") or "").strip(), profit)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
+    await record_settlement_audit(orch, c, contract, str(sym), signal_prob=raw_prob)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     async with orchestrator_atomic_state_context(orch):

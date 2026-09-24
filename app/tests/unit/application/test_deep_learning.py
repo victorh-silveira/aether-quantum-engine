@@ -17,7 +17,7 @@ from src.application.services.deep_learning.dl_features import (
     precompute_price_series,
 )
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
-from src.application.services.deep_learning.dl_splits import purged_temporal_splits
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits, settlement_train_sample_count
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
 from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
 from src.application.services.deep_learning.model import (
@@ -73,6 +73,34 @@ def test_sequence_price_deltas_aligns_with_labels():
     seqs, _, masks = extract_sequences(prices, 20, label_horizon_bars=1)
     assert len(deltas) == len(seqs) == len(masks)
     assert deltas.dtype == np.float32
+
+
+def test_training_reserves_untouched_settlement_window():
+    prices = 100.0 + np.sin(np.linspace(0, 20, 180))
+    model = create_direction_model(arch="tcn")
+    sample_count = len(extract_sequences(prices, 18, label_horizon_bars=1)[0])
+    original_split = purged_temporal_splits
+    with patch(
+        "src.application.services.deep_learning.dl_training.purged_temporal_splits",
+        wraps=original_split,
+    ) as split_spy:
+        result = train_model_walkforward(
+            model,
+            prices,
+            lookback=18,
+            epochs=1,
+            lr=0.001,
+            validation_bars=14,
+            dl_config={"deploy_gate": {"enabled": True, "mini_bars": 24}},
+        )
+    assert result is not None
+    assert split_spy.call_args.args[0] == sample_count - 27
+
+
+def test_settlement_holdout_reservation_disabled_or_missing():
+    assert settlement_train_sample_count(100, 1, None) == 100
+    assert settlement_train_sample_count(100, 1, {"enabled": False, "mini_bars": 24}) == 100
+    assert settlement_train_sample_count(100, 1, {"enabled": True}) == 100
 
 
 def test_sanitize_feature_batch_replaces_non_finite():
@@ -219,10 +247,12 @@ def test_checkpoint_save_load():
             arch="tcn",
             granularity=60,
             label_horizon_bars=3,
+            deploy_settlement_source="m5_close_proxy",
         )
         payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)
         assert payload["granularity"] == 60
         assert payload["label_horizon_bars"] == 3
+        assert payload["deploy_settlement_source"] == "m5_close_proxy"
         loaded = load_model_checkpoint(path)
         assert loaded is not None
         m2, s2, epoch, cal, lookback, val_acc, val_brier, val_ece, deploy_ok, deploy_wr = loaded

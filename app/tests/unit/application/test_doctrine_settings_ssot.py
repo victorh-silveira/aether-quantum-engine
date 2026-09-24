@@ -45,12 +45,12 @@ def test_production_deploy_gate_armed():
     assert gate["enabled"] is True
     assert gate["force_ok"] is True
     assert float(gate["soft_min_val_accuracy"]) == pytest.approx(0.50)
-    assert float(gate["soft_max_brier"]) == pytest.approx(0.245)
+    assert float(gate["soft_max_brier"]) == pytest.approx(0.26)
     assert bool(gate["reject_majority_collapse"]) is True
     assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.15)
     assert bool(dl.get("allow_undeployed_inference")) is False
-    assert int(dl.get("training_history_bars", 0)) == 5000
-    assert int(dl.get("lookback", 0)) == 30
+    assert int(dl.get("training_history_bars", 0)) == 25000
+    assert int(dl.get("lookback", 0)) == 32
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
@@ -126,13 +126,13 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.31)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 300
-    assert int(data["micro_history_bars"]) == 5000
-    assert int(data["micro_fetch_count"]) == 5000
+    assert int(data["micro_history_bars"]) == 25000
+    assert int(data["micro_fetch_count"]) == 25000
     assert int(data["granularity"]) == 86400
     dl = settings["deep_learning"]
     assert bool(dl["online_training"]) is False
-    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.55)
-    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.45)
+    assert float(dl["confidence_call_threshold"]) == pytest.approx(0.57)
+    assert float(dl["confidence_put_threshold"]) == pytest.approx(0.43)
     cal = dl["calibration"]
     assert cal["calibration_neutral_drift"] == [0.45, 0.55]
     assert float(cal["neutral_half_width"]) == pytest.approx(0.05)

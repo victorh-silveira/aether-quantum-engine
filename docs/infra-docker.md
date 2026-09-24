@@ -65,7 +65,7 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.me
 ## Redis / Timescale / MinIO
 
 - Redis AOF `appendfsync everysec` (`redis.conf`); health com `start_period`
-- Timescale: init `003_*.sql` + lifecycle `004_*.sql` (`ohlc_bars` compress `segmentby=symbol,granularity`, `orderby=time DESC, epoch DESC`); hydrate sintetico `1HZ75V` M5(300s)×500 e D1(86400s)×365 se micro&lt;400 ou macro&lt;200 (**smoke only** — treino meta: `launch-train` → `ensure_timescale` seed Deriv **M5×5000 + D1×365**, timeout **900s**, persist em lote)
+- Timescale: init `003_*.sql` + lifecycle `004_*.sql` (`ohlc_bars` compress `segmentby=symbol,granularity`, `orderby=time DESC, epoch DESC`); `docker-hydrate.sh` apenas verifica a quantidade de OHLC alinhado e nunca fabrica velas. Para popular dados reais: `launch-train` → `ensure_timescale.py` → seed Deriv **M5×5000 + D1×365** (timeout **900s**).
 - `make docker-logs`: default servicos **running** (exclui `minio-init` oneshot); `DOCKER_SERVICE=minio-init` para oneshot; `DOCKER_LOGS_TAIL` default **200**
 - Volume Timescale ja inicializado nao reaplica `002`/`004` no boot: `make docker-timescale-lifecycle` reaplica compress/CRAG; first-init limpo apos `docker-reset` / volume novo
 - MinIO: bucket `dl-models`; health live + `start_period`

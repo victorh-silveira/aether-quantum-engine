@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
@@ -58,7 +59,7 @@ def test_apply_deploy_gate_blocks_when_not_ok():
     runtime = {"deploy_ok": False}
     out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True, "force_ok": False}})
     assert out["metrics"]["execute"] is False
-    assert out["metrics"]["gate_reason"] == "deploy"
+    assert out["metrics"]["gate_reason"] == "model_unavailable"
     assert out["metrics"]["deploy_ok"] is False
 
 
@@ -68,16 +69,58 @@ def test_apply_deploy_gate_force_ok_nao_libera_execucao():
     out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"enabled": True, "force_ok": True}})
     assert out["metrics"]["execute"] is False
     assert out["metrics"]["deploy_ok"] is False
-    assert out["metrics"].get("gate_reason") == "deploy"
+    assert out["metrics"].get("gate_reason") == "model_unavailable"
 
 
 def test_apply_deploy_gate_provisorio_limita_stake():
     entry = {"metrics": {"execute": True}}
-    runtime = {"deploy_ok": False, "deploy_provisional_ok": True}
+    runtime = {"deploy_ok": False, "deploy_provisional_ok": True, "checkpoint_loaded": True, "session_trained": True}
     out = _apply_deploy_gate(entry, runtime, {"deploy_gate": {"provisional_enabled": True}})
     assert out["metrics"]["execute"] is True
     assert out["metrics"]["deploy_provisional"] is True
     assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.01)
+
+
+@pytest.mark.parametrize("mode", ["demo", "live"])
+def test_apply_deploy_gate_unqualified_checkpoint_same_for_both_accounts(mode):
+    orch = SimpleNamespace(auth=SimpleNamespace(mode=mode))
+    runtime = {"deploy_ok": False, "checkpoint_loaded": True, "session_trained": True}
+    entry = {"metrics": {"execute": True}}
+    out = _apply_deploy_gate(entry, runtime, {}, orch=orch)
+    assert out["metrics"]["execute"] is True
+    assert out["metrics"]["deploy_ok"] is True
+    assert out["metrics"]["model_deploy_qualified"] is False
+    assert out["metrics"]["checkpoint_exploration"] is True
+    assert out["metrics"]["deploy_provisional"] is True
+    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
+
+
+@pytest.mark.parametrize(
+    ("loaded", "trained"),
+    [
+        (False, True),
+        (True, False),
+    ],
+)
+def test_apply_deploy_gate_missing_or_invalid_checkpoint_fail_closed(loaded, trained):
+    runtime = {"deploy_ok": False, "checkpoint_loaded": loaded, "session_trained": trained}
+    out = _apply_deploy_gate(
+        {"metrics": {"execute": True}},
+        runtime,
+        {},
+    )
+    assert out["metrics"]["execute"] is False
+    assert out["metrics"]["gate_reason"] == "model_unavailable"
+    assert out["metrics"]["checkpoint_exploration"] is False
+
+
+def test_unqualified_stake_cap_never_exceeds_hard_limit():
+    out = _apply_deploy_gate(
+        {"metrics": {"execute": True}},
+        {"deploy_ok": False, "checkpoint_loaded": True, "session_trained": True},
+        {"deploy_gate": {"unqualified_max_stake_pct": 0.5}},
+    )
+    assert out["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
 
 
 def test_log_retrain_batch_empty_and_nonempty(caplog):

@@ -181,6 +181,7 @@ async def test_collect_keeps_decision_without_loss_timer():
             "deploy_ok": True,
             "deploy_win_rate": 0.6,
             "session_trained": True,
+            "checkpoint_loaded": True,
         }
     }
     with (

@@ -25,3 +25,9 @@ def test_load_model_checkpoint_rejects_incompatible_architecture():
             path,
         )
         assert load_model_checkpoint(path) is None
+
+
+def test_load_model_checkpoint_rejects_incompatible_state_dict(tmp_path):
+    path = tmp_path / "broken_state.pth"
+    torch.save({"feature_dim": FEATURE_DIM, "state_dict": {"wrong_weight": torch.ones(1)}}, path)
+    assert load_model_checkpoint(path) is None

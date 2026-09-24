@@ -27,8 +27,10 @@ _DEPLOY_GATE_KEYS = (
     "eval_call_threshold_default",
     "eval_put_threshold_default",
     "reject_majority_collapse",
+    "require_broker_settlement",
     "max_label_call_frac_bias",
     "min_minority_recall",
+    "unqualified_max_stake_pct",
 )
 
 
@@ -62,8 +64,10 @@ def parse_deploy_gate_config(dl_config: dict) -> dict[str, Any]:
         "eval_call_threshold_default": require_float(block, "eval_call_threshold_default"),
         "eval_put_threshold_default": require_float(block, "eval_put_threshold_default"),
         "reject_majority_collapse": require_bool(block, "reject_majority_collapse"),
+        "require_broker_settlement": require_bool(block, "require_broker_settlement"),
         "max_label_call_frac_bias": require_float(block, "max_label_call_frac_bias"),
         "min_minority_recall": require_float(block, "min_minority_recall"),
+        "unqualified_max_stake_pct": require_float(block, "unqualified_max_stake_pct"),
     }
 
 

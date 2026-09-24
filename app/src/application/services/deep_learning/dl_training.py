@@ -35,7 +35,7 @@ from src.application.services.deep_learning.dl_sample_weighting import (
 )
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness, resolve_calibration_sharpness_cfg
-from src.application.services.deep_learning.dl_splits import purged_temporal_splits
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits, settlement_train_sample_count
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
     TrainResult,
@@ -95,8 +95,10 @@ def train_model_walkforward(
         low=low,
         micro=micro,
     )
+    gate_cfg = (dl_config or {}).get("deploy_gate") if isinstance(dl_config, dict) else None
+    split_count = settlement_train_sample_count(len(x_all), label_horizon_bars, gate_cfg)
     splits = purged_temporal_splits(
-        len(x_all),
+        split_count,
         validation_bars,
         calib_ratio=calib_ratio,
         embargo=max(1, int(label_horizon_bars) + int(label_smooth_bars) - 1),
@@ -105,7 +107,7 @@ def train_model_walkforward(
     if splits is None:
         logger.debug(
             "DL_TRAIN: amostras insuficientes para split (n=%d lookback=%d val=%d).",
-            len(x_all),
+            split_count,
             lookback,
             validation_bars,
         )

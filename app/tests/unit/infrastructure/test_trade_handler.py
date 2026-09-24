@@ -116,6 +116,31 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
 
 
 @pytest.mark.asyncio
+async def test_trade_handler_purchase_audit_does_not_retry_confirmed_buy(mock_ws, caplog):
+    mock_ws.request_timeout = 30
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "p", "ask_price": 10}},
+        {"buy": {"contract_id": 9, "transaction_id": 11, "start_time": 100, "buy_price": 10, "payout": 19}},
+    ]
+    writer = MagicMock()
+    writer.enqueue_contract_audit = AsyncMock()
+    handler = TradeHandler(
+        mock_ws,
+        {"trading": {"mode": "real"}, "risk_management": {"params": {}}},
+        market_writer=writer,
+    )
+    contract = await handler.buy_with_parameters("1HZ75V", TradeDirection.PUT, 10)
+    assert contract.contract_id == 9
+    row = writer.enqueue_contract_audit.call_args.args[0]
+    assert row["transaction_buy_id"] == "11"
+    assert row["account_mode"] == "real"
+    assert row["request_epoch_ms"] <= row["ack_epoch_ms"]
+    writer.enqueue_contract_audit.side_effect = RuntimeError("db down")
+    await handler._record_purchase_audit({"contract_id": 9}, "1HZ75V", TradeDirection.PUT, 1, 2)
+    assert "sem captura" in caplog.text
+
+
+@pytest.mark.asyncio
 async def test_trade_handler_buy_uses_date_expiry_from_api(trade_handler, mock_ws):
     mock_ws.send.side_effect = [
         {"proposal": {"id": "p1", "ask_price": 2.34, "date_expiry": 1900000000}},

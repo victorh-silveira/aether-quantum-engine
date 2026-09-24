@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.application.services.deep_learning.dl_model_checkpoint import _scripted_path
+from src.application.services.deep_learning.dl_model_checkpoint import _scripted_path, load_model_checkpoint
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 
@@ -36,6 +36,8 @@ async def ensure_local_model_checkpoint(orch, symbol: str, dl_config: dict, para
     infra = getattr(orch, "infra", None)
     if infra is None or not infra.enabled:
         return path
+    if path.is_file() and load_model_checkpoint(path, params=params) is not None:
+        return path
     arch = str(params.get("arch", dl_config.get("arch", "tcn")))
     ok = await orch.model_store.download_latest(symbol, arch=arch, dest=path)
     if ok:
@@ -57,15 +59,18 @@ async def _validate_symbol_torchscripts(
     sanity_ok: list[str] = []
     for symbol in orch.symbols:
         sym = str(symbol)
+        local_valid = (local_path := resolve_dl_model_path(dl_config, sym)).is_file() and load_model_checkpoint(
+            local_path, params=params
+        ) is not None
         path = await ensure_local_model_checkpoint(orch, sym, dl_config, params)
         ts_path = _scripted_path(path)
         download_ts = getattr(store, "download_torchscript", None)
-        if callable(download_ts):
+        if callable(download_ts) and not local_valid:
             await download_ts(sym, arch=arch, dest=ts_path)
         sanity = getattr(store, "sanity_check_torchscript", None)
         load_manifest = getattr(store, "load_manifest", None)
         manifest: dict[str, Any] = {}
-        if callable(load_manifest) and iscoroutinefunction(load_manifest):
+        if callable(load_manifest) and iscoroutinefunction(load_manifest) and not local_valid:
             manifest = await load_manifest(sym, arch=arch)
         if ts_path.is_file() and callable(sanity):
             await sanity(
@@ -119,20 +124,6 @@ async def upload_model_checkpoint(
     if infra is None or not infra.enabled:
         return
     await orch.model_store.upload(symbol, local_path, arch=arch, metadata=metadata)
-
-
-async def upload_all_symbol_checkpoints(orch) -> None:
-    """Upload de todos os simbolos configurados apos sessao de treino."""
-    dl_config = orch.config.get("deep_learning") or {}
-    params_chunk = orch.config.get("data_handler") or {}
-    risk_params = (orch.config.get("risk_management") or {}).get("params") or {}
-    params = parse_dl_params(dl_config, params_chunk, risk_params)
-    arch = str(params.get("arch", dl_config.get("arch", "tcn")))
-    for symbol in orch.symbols:
-        path = resolve_dl_model_path(dl_config, str(symbol))
-        if not path.is_file():
-            continue
-        await upload_model_checkpoint(orch, str(symbol), path, arch=arch, metadata={"symbol": symbol})
 
 
 def schedule_model_upload(

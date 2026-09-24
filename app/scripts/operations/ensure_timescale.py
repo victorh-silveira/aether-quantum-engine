@@ -98,7 +98,7 @@ async def _data_ok(
             """
             SELECT symbol, granularity, COUNT(*)::int AS total
             FROM ohlc_bars
-            WHERE symbol = ANY($1::text[])
+            WHERE symbol = ANY($1::text[]) AND epoch % granularity = 0
             GROUP BY symbol, granularity
             """,
             symbols,

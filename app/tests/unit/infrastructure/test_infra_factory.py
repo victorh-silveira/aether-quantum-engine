@@ -9,6 +9,7 @@ from src.infrastructure.factories.infra_factory import (
     create_infra_services,
     validate_infra_services,
 )
+from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 from src.infrastructure.storage.local_model_store import LocalModelStore
 from src.infrastructure.storage.minio_model_store import MinioModelStore
 
@@ -17,6 +18,19 @@ from src.infrastructure.storage.minio_model_store import MinioModelStore
 async def test_create_infra_disabled():
     services = create_infra_services({"infra": {"enabled": False}})
     assert services.enabled is False
+    await validate_infra_services(services, {})
+
+
+@pytest.mark.asyncio
+async def test_market_capture_without_redis_minio():
+    services = create_infra_services({"infra": {"enabled": False, "timescale": {"capture_enabled": True}}})
+    assert isinstance(services.market_writer, TimescaleMarketWriter)
+    services.market_writer.ping = AsyncMock(return_value=True)
+    await validate_infra_services(services, {})
+    services.market_writer.ping = AsyncMock(return_value=False)
+    with pytest.raises(ConnectionError, match="TimescaleDB"):
+        await validate_infra_services(services, {})
+    services.fail_fast = False
     await validate_infra_services(services, {})
 
 

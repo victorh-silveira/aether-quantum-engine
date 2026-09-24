@@ -12,7 +12,7 @@ from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
 
 @pytest.mark.asyncio
-async def test_collect_blocks_execute_when_deploy_not_ok():
+async def test_collect_allows_capped_checkpoint_when_deploy_not_qualified():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
     orch = MockOrchestrator(["R_10"], prices)
     orch.symbols = ["R_10"]
@@ -47,13 +47,15 @@ async def test_collect_blocks_execute_when_deploy_not_ok():
             "calibrator": None,
             "lookback": 32,
             "deploy_ok": False,
+            "checkpoint_loaded": True,
             "deploy_win_rate": 0.0,
             "last_candle_epoch": 0,
             "session_trained": True,
         }
         decisions = await collect_deep_learning_decisions(orch)
-    assert decisions["R_10"]["metrics"]["execute"] is False
-    assert decisions["R_10"]["metrics"]["gate_reason"] == "deploy"
+    assert decisions["R_10"]["metrics"]["execute"] is True
+    assert decisions["R_10"]["metrics"]["checkpoint_exploration"] is True
+    assert decisions["R_10"]["metrics"]["provisional_max_stake_pct"] == pytest.approx(0.001)
 
 
 @pytest.mark.asyncio

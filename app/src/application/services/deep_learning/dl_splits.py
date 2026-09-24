@@ -1,6 +1,14 @@
 """Splits temporais purged com embargo para treino walk-forward."""
 
 
+def settlement_train_sample_count(sample_count: int, horizon_bars: int, gate_cfg: dict | None) -> int:
+    """Reserva janela final intocada para avaliar o vencimento do contrato."""
+    if not isinstance(gate_cfg, dict) or not gate_cfg.get("enabled", True):
+        return sample_count
+    eval_bars = max(0, int(gate_cfg.get("mini_bars", 0)))
+    return sample_count - eval_bars - max(1, int(horizon_bars)) - 2 if eval_bars else sample_count
+
+
 def splits_valid(val_end: int, val_start: int, calib_end: int, calib_start: int) -> bool:
     """Indica se fatias de validacao e calibracao tem comprimento positivo."""
     return calib_end > calib_start and val_end > val_start

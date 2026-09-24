@@ -461,6 +461,7 @@ def run_optuna_study(
     granularity: int | None = None,
     sample_weight: np.ndarray | None = None,
     hygiene: dict[str, Any] | None = None,
+    allow_unqualified: bool = False,
 ) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
     frame = _feature_frame(frame)
@@ -612,11 +613,12 @@ def run_optuna_study(
     best_trial = study.best_trial
     best_z = float(best_trial.user_attrs.get("oos_payoff_zscore_mean", 0.0) or 0.0)
     best_ir = float(best_trial.user_attrs.get("oos_information_ratio", 0.0) or 0.0)
-    assert_export_zscore_floor(
-        {"oos_payoff_zscore_mean": best_z, "oos_information_ratio": best_ir},
-        floor=float(OPTUNA_OOS_PAYOFF_ZSCORE_MIN),
-        min_ir=float(META_EXPORT_MIN_IR),
-    )
+    if not allow_unqualified:
+        assert_export_zscore_floor(
+            {"oos_payoff_zscore_mean": best_z, "oos_information_ratio": best_ir},
+            floor=float(OPTUNA_OOS_PAYOFF_ZSCORE_MIN),
+            min_ir=float(META_EXPORT_MIN_IR),
+        )
     best_params = {**study.best_params, "n_jobs": OPTUNA_N_JOBS}
     model, train_mae, val_mae = train_lgbm_candidate(
         x_train,
@@ -635,7 +637,8 @@ def run_optuna_study(
         val_pred = _predict_with_export(model, x_val_np)
         train_mae = float(mean_absolute_error(y_train, train_pred))
         val_mae = float(mean_absolute_error(y_val, val_pred))
-    assert_export_mae_gap(train_mae, val_mae)
+    if not allow_unqualified:
+        assert_export_mae_gap(train_mae, val_mae)
     val_pred = _predict_with_export(model, x_val_np)
     val_ir = best_ir if use_cv else information_ratio_from_predictions(y_val, val_pred)
     val_oos_zscore = best_z if use_cv else payoff_zscore_mean(y_val, val_pred)

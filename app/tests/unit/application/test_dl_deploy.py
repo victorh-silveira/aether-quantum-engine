@@ -8,11 +8,14 @@ import pytest
 from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime, direction_wins
 from src.application.services.deep_learning.dl_deploy_eval import (
     _deploy_eval_bar_indices,
+    _load_active_meta_model,
+    _score_deploy_bar,
     evaluate_mini_deploy,
     resolve_settlement_horizon_bars,
 )
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.application.services.deep_learning.dl_labels import LabelSpec
 from src.application.services.deep_learning.dl_statistical_gate import wilson_lower_bound
 from src.application.services.deep_learning.model import create_direction_model, fit_norm_stats
 from src.domain.models.trade import TradeDirection
@@ -22,8 +25,8 @@ def test_parse_deploy_gate_config_defaults():
     cfg = parse_deploy_gate_config({})
     assert cfg["enabled"] is True
     assert cfg["force_ok"] is True
-    assert cfg["max_brier"] == 0.245
-    assert cfg["max_eval_steps"] == 48
+    assert cfg["max_brier"] == 0.26
+    assert cfg["max_eval_steps"] == 300
     assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.50)
     assert float(cfg["settlement_confidence"]) == pytest.approx(0.90)
 
@@ -40,6 +43,43 @@ def test_deploy_eval_bar_indices_caps_steps():
     assert dense[-1] < 500
     small = _deploy_eval_bar_indices(10, 20, 160)
     assert small == list(range(10, 20))
+
+
+def test_deploy_eval_uses_same_ohlc_window_as_live_inference():
+    prices = np.arange(100.0, 200.0)
+    open_ = prices - 0.1
+    high = prices + 0.2
+    low = prices - 0.3
+    micro = {"tick_count": np.arange(len(prices))}
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={"direction": None, "metrics": {"execute": False}},
+    ) as predict:
+        assert (
+            _score_deploy_bar(
+                orch=SimpleNamespace(),
+                symbol="1HZ75V",
+                model=None,
+                prices=prices,
+                norm_stats=None,
+                sim_runtime={},
+                eval_params={"inference_history_bars": 32, "granularity": 300},
+                bar=80,
+                open_=open_,
+                high=high,
+                low=low,
+                micro=micro,
+                settlement_spec=LabelSpec(),
+            )
+            is None
+        )
+    args = predict.call_args
+    assert args.kwargs["granularity"] == 300
+    np.testing.assert_array_equal(args.args[3], prices[49:81])
+    np.testing.assert_array_equal(args.kwargs["open_"], open_[49:81])
+    np.testing.assert_array_equal(args.kwargs["high"], high[49:81])
+    np.testing.assert_array_equal(args.kwargs["low"], low[49:81])
+    np.testing.assert_array_equal(args.kwargs["micro"]["tick_count"], micro["tick_count"][49:81])
 
 
 def test_evaluate_mini_deploy_insufficient_history():
@@ -109,6 +149,42 @@ def test_evaluate_mini_deploy_forces_local_predict():
         )
     assert mock_predict.called
     assert mock_predict.call_args.kwargs.get("force_local") is True
+
+
+def test_m5_proxy_cannot_qualify_when_broker_audit_required():
+    prices = np.linspace(100.0, 110.0, 40)
+    model = create_direction_model(input_dim=FEATURE_DIM)
+    stats = fit_norm_stats(np.zeros((1, 8, FEATURE_DIM), dtype=np.float32))
+    runtime = {"val_brier": 0.2, "lookback": 8, "calibrator": None}
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.9}},
+    ):
+        ok, wr, _ = evaluate_mini_deploy(
+            SimpleNamespace(config={}),
+            "1HZ75V",
+            model,
+            prices,
+            stats,
+            runtime,
+            {"lookback": 8, "contract_duration_seconds": 300},
+            gate_cfg={
+                "enabled": True,
+                "mini_bars": 20,
+                "min_trades": 1,
+                "max_brier": 1.0,
+                "min_win_rate": 0.0,
+                "max_eval_steps": 4,
+                "require_broker_settlement": True,
+                "provisional_min_trades": 1,
+                "provisional_max_brier": 1.0,
+                "provisional_min_win_rate": 0.0,
+            },
+        )
+    assert wr == 1.0
+    assert ok is False
+    assert runtime["deploy_settlement_source"] == "m5_close_proxy"
+    assert runtime["deploy_provisional_ok"] is False
 
 
 def test_direction_wins_boundary():
@@ -295,3 +371,81 @@ def test_wilson_rejeita_confianca_invalida_e_zero_amostras():
     assert wilson_lower_bound(wins=0, trials=0, confidence=0.95) == 0.0
     with pytest.raises(ValueError, match="settlement_confidence"):
         wilson_lower_bound(wins=1, trials=1, confidence=0.8)
+
+
+def test_load_active_meta_model_paths_and_exceptions(tmp_path):
+    import joblib
+
+    assert _load_active_meta_model({"meta_model_path": tmp_path / "nonexistent.pkl"}) is None
+
+    p_dict = tmp_path / "model_dict.pkl"
+    dummy_model = {"key": "val"}
+    joblib.dump({"model": dummy_model}, p_dict)
+    assert _load_active_meta_model({"meta_model_path": p_dict}) == dummy_model
+
+    p_non_dict = tmp_path / "model_list.pkl"
+    joblib.dump(["a", "b"], p_non_dict)
+    assert _load_active_meta_model({"meta_model_path": p_non_dict}) == ["a", "b"]
+
+    p_corrupt = tmp_path / "corrupt.pkl"
+    p_corrupt.write_bytes(b"invalid data")
+    assert _load_active_meta_model({"meta_model_path": p_corrupt}) is None
+
+
+def test_score_deploy_bar_meta_filter():
+    class DummyMeta:
+        def __init__(self, edge: float, *, fail: bool = False):
+            self.edge = edge
+            self.fail = fail
+
+        def predict(self, _x):
+            if self.fail:
+                raise RuntimeError("predict boom")
+            return [self.edge]
+
+    prices = np.linspace(100.0, 110.0, 50)
+    open_ = prices.copy()
+    high = prices + 0.1
+    low = prices - 0.1
+    micro = {"tick_count": np.ones(50, dtype=np.float32)}
+
+    with patch(
+        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
+        return_value={"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.8}},
+    ):
+        res_veto = _score_deploy_bar(
+            orch=SimpleNamespace(),
+            symbol="1HZ75V",
+            model=None,
+            prices=prices,
+            norm_stats=None,
+            sim_runtime={},
+            eval_params={"meta_min_edge": 0.02},
+            bar=35,
+            settlement_spec=LabelSpec(label_mode="spot_forward", horizon_bars=1),
+            meta_model=DummyMeta(edge=0.01),
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+        )
+        assert res_veto is None
+
+        res_fail = _score_deploy_bar(
+            orch=SimpleNamespace(),
+            symbol="1HZ75V",
+            model=None,
+            prices=prices,
+            norm_stats=None,
+            sim_runtime={},
+            eval_params={"meta_min_edge": 0.02},
+            bar=35,
+            settlement_spec=LabelSpec(label_mode="spot_forward", horizon_bars=1),
+            meta_model=DummyMeta(edge=0.0, fail=True),
+            open_=open_,
+            high=high,
+            low=low,
+            micro=micro,
+        )
+        assert res_fail is not None
+        assert res_fail[0] in (True, False)

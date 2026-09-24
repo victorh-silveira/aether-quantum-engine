@@ -38,6 +38,16 @@ def test_evaluate_checkpoint_rejects_low_acc(tmp_path: Path):
     assert "val_acc" in msg
 
 
+def test_evaluate_checkpoint_rejects_old_label_contract(tmp_path: Path):
+    path = tmp_path / "1HZ75V.pth"
+    path.write_bytes(b"x")
+    settings = {"deep_learning": {"label_mode": "spot_forward", "deploy_gate": dict(_STRICT_GATE)}}
+    with patch("torch.load", return_value={"label_mode": "quantum_multi_barrier", "deploy_ok": True}):
+        ok, reason = evaluate_checkpoint(path, soft_min=0.0, settings=settings)
+    assert ok is False
+    assert "label_mode" in reason
+
+
 def test_evaluate_checkpoint_rejeita_acc_abaixo_do_piso_anticolapso(tmp_path: Path):
     path = tmp_path / "R_10.pth"
     path.write_bytes(b"x")
@@ -117,12 +127,32 @@ def test_evaluate_checkpoint_accepts_senior(tmp_path: Path):
             "val_accuracy": 0.55,
             "deploy_ok": True,
             "deploy_settlement_wilson_lcb": 0.60,
+            "deploy_settlement_source": "broker_tick_audit",
             **_COLLAPSE_OK,
         },
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is True
     assert "deploy_ok=true" in msg
+
+
+def test_evaluate_checkpoint_rejects_m5_proxy_even_with_high_lcb(tmp_path: Path):
+    path = tmp_path / "R_10.pth"
+    path.write_bytes(b"x")
+    settings = {"deep_learning": {"deploy_gate": dict(_STRICT_GATE)}}
+    with patch(
+        "torch.load",
+        return_value={
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "deploy_settlement_wilson_lcb": 0.70,
+            "deploy_settlement_source": "m5_close_proxy",
+            **_COLLAPSE_OK,
+        },
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
+    assert ok is False
+    assert "apenas proxy" in msg
 
 
 def test_evaluate_checkpoint_rejects_stale_geometry(tmp_path: Path):
@@ -236,3 +266,54 @@ def test_main_fails_when_checkpoint_missing(monkeypatch, tmp_path: Path):
         from scripts.operations.check_dl_deploy_gate import main
 
         assert main() == 1
+
+
+def test_evaluate_checkpoint_with_meta_path_qualifies(tmp_path: Path):
+    path = tmp_path / "1HZ75V.pth"
+    path.write_bytes(b"x")
+    meta_path = tmp_path / "meta_lgbm.pkl"
+    meta_path.write_bytes(b"meta_bytes")
+
+    settings = {"deep_learning": {"deploy_gate": dict(_STRICT_GATE)}}
+    meta_bundle = {
+        "deploy_qualified": True,
+        "oos_information_ratio": 1.57,
+        "oos_payoff_zscore_mean": 0.045,
+    }
+    with (
+        patch("torch.load", return_value={"val_accuracy": 0.55, "deploy_ok": False, **_COLLAPSE_OK}),
+        patch("joblib.load", return_value=meta_bundle),
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings, meta_path=meta_path)
+    assert ok is True
+    assert "Two-Stage Stacking qualificado" in msg
+
+
+def test_evaluate_checkpoint_with_meta_path_load_error(tmp_path: Path):
+    path = tmp_path / "1HZ75V.pth"
+    path.write_bytes(b"x")
+    meta_path = tmp_path / "corrupt_meta.pkl"
+    meta_path.write_bytes(b"bad")
+
+    settings = {"deep_learning": {"deploy_gate": dict(_STRICT_GATE)}}
+    with (
+        patch("torch.load", return_value={"val_accuracy": 0.55, "deploy_ok": False, **_COLLAPSE_OK}),
+        patch("joblib.load", side_effect=RuntimeError("load fail")),
+    ):
+        ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings, meta_path=meta_path)
+    assert ok is False
+
+
+def test_main_with_meta_flag(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("sys.argv", ["check_dl_deploy_gate.py", "--symbols", "1HZ75V", "--with-meta"])
+    ckpt = tmp_path / "1HZ75V.pth"
+    ckpt.write_bytes(b"x")
+    with (
+        patch("scripts.operations.check_dl_deploy_gate._checkpoint_paths", return_value=[ckpt]),
+        patch("scripts.operations.check_dl_deploy_gate._load_settings", return_value={}),
+        patch("scripts.operations.check_dl_deploy_gate._soft_min_acc", return_value=0.50),
+        patch("scripts.operations.check_dl_deploy_gate.evaluate_checkpoint", return_value=(True, "ok")),
+    ):
+        from scripts.operations.check_dl_deploy_gate import main
+
+        assert main() == 0

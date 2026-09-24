@@ -50,6 +50,7 @@ from src.presentation.terminal.logger import setup_logger
 logger = logging.getLogger("AETH.meta")
 DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
 DEFAULT_OUTPUT = REPO_ROOT / "infra" / "docker" / "meta-models" / "meta_lgbm.pkl"
+DEFAULT_CANDIDATE_OUTPUT = REPO_ROOT / "data" / "dl" / "meta_candidate.joblib"
 MIN_TARGET_VARIANCE = 1e-12
 DEFAULT_META_TRIALS = 96
 
@@ -122,6 +123,7 @@ def build_training_summary(
         "train_mae": float(train_mae),
         "target_variance": target_variance(y),
         "output": str(output_path),
+        "deploy_qualified": bool(bundle_meta.get("deploy_qualified", True)),
         "symbols": symbols,
         "granularity": int(bundles[0].granularity),
         "data_source": bundles[0].source,
@@ -184,6 +186,7 @@ async def train_meta_classifier(
     output_path: Path,
     source: str,
     export_min_zscore: float = META_EXPORT_MIN_ZSCORE,
+    candidate_on_low_quality: bool = False,
 ) -> dict[str, Any]:
     required_gran = int(granularity)
     dl = settings.get("deep_learning") if isinstance(settings.get("deep_learning"), dict) else {}
@@ -218,17 +221,29 @@ async def train_meta_classifier(
         granularity=required_gran,
         hygiene=hygiene,
         sample_weight=teacher_sample_weights(_proxy),
+        allow_unqualified=candidate_on_low_quality,
     )
-    assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
-    assert_export_mae_gap(train_mae, val_mae)
-    _export_model(model, bundle_meta, output_path)
+    qualified = True
+    try:
+        assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
+        assert_export_mae_gap(train_mae, val_mae)
+    except RuntimeError as exc:
+        if not candidate_on_low_quality:
+            raise
+        qualified = False
+        logger.warning("[META] candidato sem qualificacao OOS: %s", exc)
+    bundle_meta["deploy_qualified"] = qualified
+    export_path = output_path if qualified else DEFAULT_CANDIDATE_OUTPUT
+    _export_model(model, bundle_meta, export_path)
+    if not qualified:
+        logger.warning("[META] salvo para diagnostico em %s; sidecar nao carrega este candidato", export_path)
     return build_training_summary(
         frame=frame,
         y=y,
         train_mae=train_mae,
         val_mae=val_mae,
         bundle_meta=bundle_meta,
-        output_path=output_path,
+        output_path=export_path,
         symbols=symbols,
         bundles=bundles,
     )
@@ -244,6 +259,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--source", choices=("auto", "timescale", "deriv"), default="auto")
     parser.add_argument("--export-min-zscore", type=float, default=META_EXPORT_MIN_ZSCORE)
+    parser.add_argument("--candidate-on-low-quality", action="store_true")
     return parser.parse_args()
 
 
@@ -270,6 +286,7 @@ def main() -> None:
             output_path=Path(args.output),
             source=str(args.source),
             export_min_zscore=float(args.export_min_zscore),
+            candidate_on_low_quality=bool(args.candidate_on_low_quality),
         )
     )
     out_path = Path(str(summary.get("output") or args.output))

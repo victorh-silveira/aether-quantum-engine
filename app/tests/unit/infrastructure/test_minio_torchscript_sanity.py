@@ -114,6 +114,41 @@ async def test_bootstrap_and_validate_models_runs_sanity_when_ts_present(tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_boot_does_not_replace_local_torchscript_with_remote(tmp_path):
+    orch = MagicMock()
+    orch.symbols = ["R_10"]
+    orch.config = {
+        "deep_learning": {
+            "use_torchscript": True,
+            "arch": "tcn",
+            "lookback": 48,
+            "model_path_template": str(tmp_path / "{symbol}.pth"),
+        },
+        "data_handler": {},
+        "risk_management": {"params": {}},
+    }
+    ckpt = tmp_path / "R_10.pth"
+    ckpt.write_bytes(b"local")
+    ts_path = tmp_path / "R_10_ts.pt"
+    ts_path.write_bytes(b"local-ts")
+    orch.model_store.download_torchscript = AsyncMock()
+    orch.model_store.load_manifest = AsyncMock()
+    orch.model_store.sanity_check_torchscript = AsyncMock()
+    with (
+        patch(
+            "src.application.services.deep_learning.dl_model_artifacts.ensure_local_model_checkpoint",
+            new=AsyncMock(return_value=ckpt),
+        ),
+        patch("src.application.services.deep_learning.dl_model_artifacts._scripted_path", return_value=ts_path),
+        patch("src.application.services.deep_learning.dl_model_artifacts.load_model_checkpoint", return_value=object()),
+    ):
+        await bootstrap_and_validate_models(orch)
+    orch.model_store.download_torchscript.assert_not_awaited()
+    orch.model_store.load_manifest.assert_not_awaited()
+    orch.model_store.sanity_check_torchscript.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_loads_manifest_before_sanity(tmp_path):
     orch = MagicMock()
     orch.symbols = ["R_10"]

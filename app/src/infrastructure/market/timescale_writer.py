@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 from datetime import UTC, datetime
 from typing import Any
@@ -17,6 +16,53 @@ _BAR_SQL = (
     "tick_count, mean_inter_tick_ms, price_velocity) "
     "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) "
     "ON CONFLICT DO NOTHING"
+)
+_CONTRACT_SQL = (
+    "INSERT INTO contract_executions (contract_id, symbol, account_mode, direction, transaction_buy_id, "
+    "request_epoch_ms, ack_epoch_ms, date_start, date_expiry, entry_tick, entry_tick_time, exit_tick, "
+    "exit_tick_time, buy_price, payout, signal_prob, profit, status, settlement_source) "
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) "
+    "ON CONFLICT (contract_id) DO UPDATE SET "
+    "transaction_buy_id=COALESCE(EXCLUDED.transaction_buy_id, contract_executions.transaction_buy_id), "
+    "request_epoch_ms=COALESCE(EXCLUDED.request_epoch_ms, contract_executions.request_epoch_ms), "
+    "ack_epoch_ms=COALESCE(EXCLUDED.ack_epoch_ms, contract_executions.ack_epoch_ms), "
+    "date_start=COALESCE(EXCLUDED.date_start, contract_executions.date_start), "
+    "date_expiry=COALESCE(EXCLUDED.date_expiry, contract_executions.date_expiry), "
+    "entry_tick=COALESCE(EXCLUDED.entry_tick, contract_executions.entry_tick), "
+    "entry_tick_time=COALESCE(EXCLUDED.entry_tick_time, contract_executions.entry_tick_time), "
+    "exit_tick=COALESCE(EXCLUDED.exit_tick, contract_executions.exit_tick), "
+    "exit_tick_time=COALESCE(EXCLUDED.exit_tick_time, contract_executions.exit_tick_time), "
+    "buy_price=COALESCE(EXCLUDED.buy_price, contract_executions.buy_price), "
+    "payout=COALESCE(EXCLUDED.payout, contract_executions.payout), "
+    "signal_prob=COALESCE(EXCLUDED.signal_prob, contract_executions.signal_prob), "
+    "profit=CASE WHEN EXCLUDED.settlement_source='broker' OR contract_executions.profit IS NULL "
+    "THEN EXCLUDED.profit ELSE contract_executions.profit END, "
+    "status=CASE WHEN EXCLUDED.settlement_source='broker' OR contract_executions.status IS NULL "
+    "THEN EXCLUDED.status ELSE contract_executions.status END, "
+    "settlement_source=CASE WHEN EXCLUDED.settlement_source='broker' THEN 'broker' "
+    "WHEN contract_executions.settlement_source='broker' THEN 'broker' "
+    "ELSE EXCLUDED.settlement_source END, updated_at=now()"
+)
+_CONTRACT_FIELDS = (
+    "contract_id",
+    "symbol",
+    "account_mode",
+    "direction",
+    "transaction_buy_id",
+    "request_epoch_ms",
+    "ack_epoch_ms",
+    "date_start",
+    "date_expiry",
+    "entry_tick",
+    "entry_tick_time",
+    "exit_tick",
+    "exit_tick_time",
+    "buy_price",
+    "payout",
+    "signal_prob",
+    "profit",
+    "status",
+    "settlement_source",
 )
 
 
@@ -86,14 +132,22 @@ class TimescaleMarketWriter:
         self._queue.put_nowait(("bar", row))
         self._ensure_worker()
 
+    async def enqueue_contract_audit(self, row: dict[str, Any]) -> None:
+        """Enfileira dados confirmados de compra/liquidacao sem inventar spots."""
+        if self._closed:
+            return
+        self._queue.put_nowait(("contract", tuple(row.get(key) for key in _CONTRACT_FIELDS)))
+        self._ensure_worker()
+
     async def _run_worker(self) -> None:
         """Consome fila e faz flush em lotes por intervalo ou tamanho."""
         tick_batch: list[tuple[Any, ...]] = []
         bar_batch: list[tuple[Any, ...]] = []
+        contract_batch: list[tuple[Any, ...]] = []
         try:
             while not self._closed or not self._queue.empty():
                 deadline = asyncio.get_running_loop().time() + self._flush_interval
-                while len(tick_batch) + len(bar_batch) < self._batch_limit:
+                while len(tick_batch) + len(bar_batch) + len(contract_batch) < self._batch_limit:
                     timeout = max(0.0, deadline - asyncio.get_running_loop().time())
                     if timeout <= 0:
                         break
@@ -103,12 +157,15 @@ class TimescaleMarketWriter:
                         break
                     if kind == "tick":
                         tick_batch.append(row)
+                    elif kind == "contract":
+                        contract_batch.append(row)
                     else:
                         bar_batch.append(row)
-                if tick_batch or bar_batch:
-                    await self._flush_batches(tick_batch, bar_batch)
+                if tick_batch or bar_batch or contract_batch:
+                    await self._flush_batches(tick_batch, bar_batch, contract_batch)
                     tick_batch.clear()
                     bar_batch.clear()
+                    contract_batch.clear()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
@@ -118,6 +175,7 @@ class TimescaleMarketWriter:
         self,
         tick_batch: list[tuple[Any, ...]],
         bar_batch: list[tuple[Any, ...]],
+        contract_batch: list[tuple[Any, ...]] | None = None,
     ) -> None:
         """Executa batch insert de ticks e barras no TimescaleDB."""
         pool = await self._ensure_pool()
@@ -126,6 +184,8 @@ class TimescaleMarketWriter:
                 await conn.executemany(_TICK_SQL, tick_batch)
             if bar_batch:
                 await conn.executemany(_BAR_SQL, bar_batch)
+            if contract_batch:
+                await conn.executemany(_CONTRACT_SQL, contract_batch)
 
     async def flush(self) -> None:
         """Esvazia fila pendente e grava imediatamente."""
@@ -133,14 +193,17 @@ class TimescaleMarketWriter:
             await asyncio.sleep(self._flush_interval * 1.5)
         tick_batch: list[tuple[Any, ...]] = []
         bar_batch: list[tuple[Any, ...]] = []
+        contract_batch: list[tuple[Any, ...]] = []
         while not self._queue.empty():
             kind, row = self._queue.get_nowait()
             if kind == "tick":
                 tick_batch.append(row)
+            elif kind == "contract":
+                contract_batch.append(row)
             else:
                 bar_batch.append(row)
-        if tick_batch or bar_batch:
-            await self._flush_batches(tick_batch, bar_batch)
+        if tick_batch or bar_batch or contract_batch:
+            await self._flush_batches(tick_batch, bar_batch, contract_batch)
 
     async def ping(self) -> bool:
         """Valida conectividade com SELECT 1."""
@@ -150,12 +213,10 @@ class TimescaleMarketWriter:
         return int(val) == 1
 
     async def close(self) -> None:
-        """Cancela worker, faz flush final e fecha pool."""
+        """Aguarda ultimo batch antes de fechar o pool, sem cancelar a gravacao."""
         self._closed = True
         if self._worker is not None:
-            self._worker.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._worker
+            await self._worker
         await self.flush()
         if self._pool is not None:
             await self._pool.close()

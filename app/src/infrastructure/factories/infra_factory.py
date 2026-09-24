@@ -38,11 +38,17 @@ def create_infra_services(config: dict[str, Any]) -> InfraServices:
     enabled = bool(cfg.get("enabled", False))
     fail_fast = bool(cfg.get("fail_fast", True))
     if not enabled:
+        ts_cfg = cfg.get("timescale") if isinstance(cfg.get("timescale"), dict) else {}
+        capture = bool(ts_cfg.get("capture_enabled", False))
         return InfraServices(
             enabled=False,
-            fail_fast=False,
+            fail_fast=capture and fail_fast,
             state_store=JsonStateStore(),
-            market_writer=NullMarketWriter(),
+            market_writer=(
+                TimescaleMarketWriter(dsn=str(ts_cfg.get("dsn", "postgresql://aether:aether@localhost:5432/aether")))
+                if capture
+                else NullMarketWriter()
+            ),
             model_store=LocalModelStore(),
         )
     redis_cfg = cfg.get("redis") if isinstance(cfg.get("redis"), dict) else {}
@@ -77,6 +83,13 @@ async def validate_infra_services(services: InfraServices, config: dict[str, Any
     """Valida conectividade Redis, Timescale e MinIO antes do startup."""
     logger = logging.getLogger("AETH")
     if not services.enabled:
+        if isinstance(services.market_writer, NullMarketWriter):
+            return
+        ok = await services.market_writer.ping()
+        if not ok and services.fail_fast:
+            raise ConnectionError("INFRA: TimescaleDB indisponivel para captura auditada")
+        if not ok:
+            logger.warning("INFRA: TimescaleDB indisponivel para captura auditada")
         return
     cfg = _infra_cfg(config)
     fail_fast = bool(cfg.get("fail_fast", True)) and services.fail_fast

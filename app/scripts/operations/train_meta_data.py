@@ -145,6 +145,7 @@ async def _fetch_timescale_rows(
                 SELECT close, open, high, low, epoch
                 FROM ohlc_bars
                 WHERE symbol = $1 AND granularity = $2 AND close IS NOT NULL
+                  AND epoch % $2 = 0
                 ORDER BY epoch DESC
                 LIMIT $3
             ) recent
@@ -159,6 +160,7 @@ async def _fetch_timescale_rows(
         SELECT close, open, high, low, epoch
         FROM ohlc_bars
         WHERE symbol = $1 AND granularity = $2 AND close IS NOT NULL
+          AND epoch % $2 = 0
         ORDER BY epoch ASC
         """,
         symbol,
@@ -467,12 +469,14 @@ async def resolve_training_bundles(
                 invalid = [b for b in bundles if bundle_training_quality_error(b) is not None]
                 flat = [b for b in bundles if bundle_forward_is_flat(b)]
                 if short or flat or invalid:
+                    invalid_reasons = [f"{b.symbol}: {bundle_training_quality_error(b)}" for b in invalid]
                     logger.info(
-                        "META_TRAIN: Timescale smoke/flat/invalido (curto=%d flat=%d invalido=%d floor=%d); buscando Deriv.",
+                        "META_TRAIN: Timescale smoke/flat/invalido (curto=%d flat=%d invalido=%d floor=%d motivos=%s); buscando Deriv.",
                         len(short),
                         len(flat),
                         len(invalid),
                         quality_floor,
+                        invalid_reasons,
                     )
                     bundles = []
                     timescale_skip_logged = True

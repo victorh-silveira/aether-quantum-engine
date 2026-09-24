@@ -62,6 +62,7 @@ def test_effective_deploy_ok_exige_lcb_e_piso_anticolapso():
         "deploy_settlement_win_rate": 0.6774,
         "deploy_settlement_n": 31,
         "deploy_settlement_wilson_lcb": 0.61,
+        "deploy_settlement_source": "broker_tick_audit",
         "training_history_bars": 1333,
         "label_call_frac": 0.48,
         "pred_call_frac": 0.50,
@@ -80,6 +81,26 @@ def test_effective_deploy_ok_exige_lcb_e_piso_anticolapso():
             settings=settings,
         )
         is True
+    )
+    assert (
+        _effective_deploy_ok(
+            stored_ok=True,
+            val_accuracy=0.54,
+            val_brier=0.252,
+            dl_config=dl,
+            checkpoint_payload={**payload, "deploy_settlement_source": "m5_close_proxy"},
+        )
+        is False
+    )
+    assert (
+        _effective_deploy_ok(
+            stored_ok=True,
+            val_accuracy=0.54,
+            val_brier=0.252,
+            dl_config=dl,
+            checkpoint_payload={**payload, "deploy_settlement_wilson_lcb": 0.1},
+        )
+        is False
     )
     assert (
         _effective_deploy_ok(

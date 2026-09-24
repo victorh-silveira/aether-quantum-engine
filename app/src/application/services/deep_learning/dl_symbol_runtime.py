@@ -41,6 +41,11 @@ def _effective_deploy_ok(
     _ = settings
     if not bool(stored_ok) or not isinstance(checkpoint_payload, dict):
         return False
+    if (
+        bool(gate_cfg.get("require_broker_settlement", False))
+        and checkpoint_payload.get("deploy_settlement_source") != "broker_tick_audit"
+    ):
+        return False
     lcb = checkpoint_payload.get("deploy_settlement_wilson_lcb")
     if lcb is None or float(lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
         return False
@@ -144,10 +149,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 checkpoint_granularity = expected_granularity
         if loaded is not None:
             lookback = int(ckpt_lookback)
-            if bool(dl_config.get("online_training", False)):
-                session_trained = bool(deploy_ok) and float(val_brier) + 1e-9 < 0.99
-            else:
-                session_trained = float(val_brier) + 1e-9 < 0.99
+            session_trained = float(val_brier) + 1e-9 < 0.99
             stored_ok = bool(deploy_ok)
             collapse_meta: dict = {}
             if path.is_file():
@@ -204,6 +206,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "val_ece": val_ece,
             "lookback": lookback,
             "deploy_ok": deploy_ok,
+            "checkpoint_loaded": loaded is not None,
             "deploy_provisional_ok": deploy_provisional_ok,
             "deploy_win_rate": deploy_win_rate,
             "session_trained": session_trained,

@@ -1,6 +1,10 @@
 """Mini walk-forward de deploy sem import circular com dl_params."""
 
+import logging
+from pathlib import Path
 from typing import Any
+
+import joblib
 
 from src.application.services.deep_learning.dl_deploy import call_target_label, direction_wins
 from src.application.services.deep_learning.dl_gate_config import deploy_params_for_eval, parse_deploy_gate_config
@@ -8,6 +12,27 @@ from src.application.services.deep_learning.dl_horizon import contract_duration_
 from src.application.services.deep_learning.dl_labels import LABEL_MODE_SPOT, LabelSpec
 from src.application.services.deep_learning.dl_predict import predict_symbol_decision
 from src.application.services.deep_learning.dl_statistical_gate import wilson_lower_bound
+from src.application.services.meta_classifier_features import extract_meta_feature_vector
+
+
+logger = logging.getLogger("AETH")
+
+
+def _load_active_meta_model(params: dict[str, Any] | None = None) -> Any:
+    """Carrega modelo Meta-Learner ativo para filtragem conjunta OOS."""
+    meta_path = Path("infra/docker/meta-models/meta_lgbm.pkl")
+    if params and isinstance(params.get("meta_model_path"), (str, Path)):
+        meta_path = Path(params["meta_model_path"])
+    if not meta_path.is_file():
+        return None
+    try:
+        payload = joblib.load(meta_path)
+        if isinstance(payload, dict):
+            return payload.get("model")
+        return payload
+    except Exception as exc:
+        logger.debug("Erro ao carregar meta model: %s", exc)
+        return None
 
 
 def _deploy_eval_bar_indices(start: int, end: int, max_steps: int) -> list[int]:
@@ -46,13 +71,16 @@ def _score_deploy_bar(
     low,
     micro,
     settlement_spec: LabelSpec,
+    meta_model: Any = None,
 ) -> tuple[bool, float, float] | None:
-    """Avalia um bar de deploy e retorna settlement e Brier operacional."""
-    window = prices[: bar + 1]
-    win_open = open_[: bar + 1] if open_ is not None else None
-    win_high = high[: bar + 1] if high is not None else None
-    win_low = low[: bar + 1] if low is not None else None
-    win_micro = {k: v[: bar + 1] for k, v in micro.items()} if micro else None
+    """Avalia um bar de deploy e retorna settlement e Brier operacional com filtro meta."""
+    infer_bars = int(eval_params.get("inference_history_bars", bar + 1))
+    start = max(0, bar + 1 - max(1, infer_bars))
+    window = prices[start : bar + 1]
+    win_open = open_[start : bar + 1] if open_ is not None else None
+    win_high = high[start : bar + 1] if high is not None else None
+    win_low = low[start : bar + 1] if low is not None else None
+    win_micro = {k: v[start : bar + 1] for k, v in micro.items()} if micro else None
     entry = predict_symbol_decision(
         orch,
         symbol,
@@ -62,6 +90,7 @@ def _score_deploy_bar(
         sim_runtime,
         eval_params,
         None,
+        granularity=int(eval_params.get("granularity") or sim_runtime.get("trained_granularity") or 60),
         open_=win_open,
         high=win_high,
         low=win_low,
@@ -70,6 +99,15 @@ def _score_deploy_bar(
     )
     if not entry["metrics"].get("execute") or entry["direction"] is None:
         return None
+    if meta_model is not None:
+        vector = extract_meta_feature_vector(entry["metrics"])
+        try:
+            pred_edge = float(meta_model.predict([vector])[0])
+            min_edge = float(eval_params.get("meta_min_edge", 0.0))
+            if pred_edge < min_edge:
+                return None
+        except Exception as exc:
+            logger.debug("Falha na inferencia do meta_model: %s", exc)
     direction = entry["direction"]
     settlement_won = direction_wins(direction, prices, bar, label_spec=settlement_spec)
     score = float(entry["metrics"].get("raw_prob", 0.5))
@@ -94,6 +132,7 @@ def evaluate_mini_deploy(
 ) -> tuple[bool, float, float]:
     """Simula ultimas barras com gating atual e retorna deploy_ok, win_rate, brier."""
     cfg = gate_cfg or parse_deploy_gate_config(params if "deploy_gate" in params else {})
+    runtime["deploy_settlement_source"] = "m5_close_proxy"
     if not cfg.get("enabled", True):
         runtime["deploy_settlement_n"] = 0
         return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 1.0))
@@ -119,6 +158,8 @@ def evaluate_mini_deploy(
         label_mode=LABEL_MODE_SPOT,
         ma_window=source_spec.ma_window,
     )
+    meta_model = _load_active_meta_model(params)
+    runtime["deploy_meta_filter_applied"] = bool(meta_model is not None)
     for bar in _deploy_eval_bar_indices(start, len(prices) - 1, max_steps):
         scored = _score_deploy_bar(
             orch=orch,
@@ -134,6 +175,7 @@ def evaluate_mini_deploy(
             low=low,
             micro=micro,
             settlement_spec=settlement_spec,
+            meta_model=meta_model,
         )
         if scored is None:
             continue
@@ -163,9 +205,13 @@ def evaluate_mini_deploy(
     min_wr = float(cfg["min_win_rate"])
     max_brier = float(cfg["max_brier"])
     deploy_ok = settlement_brier + 1e-9 < max_brier and settlement_lcb + 1e-9 >= min_wr
+    if bool(cfg.get("require_broker_settlement", False)):
+        deploy_ok = False
     runtime["deploy_provisional_ok"] = bool(
         total >= int(cfg.get("provisional_min_trades", 48))
         and settlement_brier + 1e-9 < float(cfg.get("provisional_max_brier", max_brier))
         and settlement_wr + 1e-9 >= float(cfg.get("provisional_min_win_rate", min_wr))
     )
+    if bool(cfg.get("require_broker_settlement", False)):
+        runtime["deploy_provisional_ok"] = False
     return deploy_ok, settlement_wr, settlement_brier

@@ -70,3 +70,15 @@ async def test_persist_bundles_uses_executemany():
     sql, records = conn.executemany.await_args.args
     assert "ON CONFLICT DO NOTHING" in sql
     assert len(records) == 2
+
+
+@pytest.mark.asyncio
+async def test_timescale_inventory_ignores_unaligned_bars():
+    from scripts.operations import ensure_timescale as mod
+
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[{"symbol": "1HZ75V", "granularity": 300, "total": 5000}])
+    conn.close = AsyncMock()
+    with patch("asyncpg.connect", new=AsyncMock(return_value=conn)):
+        assert await mod._data_ok("unused", ["1HZ75V"], [300]) is True
+    assert "epoch % granularity = 0" in conn.fetch.await_args.args[0]

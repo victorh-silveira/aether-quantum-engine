@@ -112,6 +112,16 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
+    if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
+        cap_pct = min(0.001, max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0))))
+        cap = float(executor.orch.state.balance) * cap_pct
+        if cap + 1e-9 < stake_min:
+            raise RuntimeError("Checkpoint nao qualificado: stake minimo excede teto")
+        attempts = [
+            attempt
+            for attempt in proposal_stake_attempts(min(float(stake), cap), stake_min, proposal_retry_scales(exec_cfg))
+            if attempt <= cap + 1e-9
+        ]
     contract = None
     last_error: Exception | None = None
     for attempt_stake in attempts:

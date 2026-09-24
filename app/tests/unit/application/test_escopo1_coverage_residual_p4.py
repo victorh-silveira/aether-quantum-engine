@@ -12,6 +12,40 @@ from src.domain.models.trade import TradeDirection
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("mode", "cap_pct", "expected_stake"),
+    [("demo", 0.001, 1.0), ("live", 0.001, 1.0), ("demo", 0.0001, None)],
+)
+async def test_unqualified_checkpoint_executes_only_inside_stake_cap(mode, cap_pct, expected_stake):
+    executor = MagicMock()
+    executor.orch = SimpleNamespace(
+        _active_cycle_id=1,
+        auth=SimpleNamespace(mode=mode),
+        config={"deep_learning": {}, "risk_management": {"params": {"stake_min": 1.0}}},
+        risk_manager=SimpleNamespace(
+            kelly_config={},
+            pending_loss={},
+            calculate_stake=MagicMock(return_value=10.0),
+        ),
+    )
+    executor._mandatory_trade_each_cycle = MagicMock(return_value=False)
+    executor._place_order = AsyncMock(return_value=None)
+    with patch(
+        "src.application.services.orchestrator.execution_manager_execute.force_trade_from_orch", return_value=False
+    ):
+        await execute_cluster_orders(
+            executor,
+            [("R_10", TradeDirection.CALL, {"checkpoint_exploration": True, "provisional_max_stake_pct": cap_pct})],
+            0.0,
+            1000.0,
+        )
+    if expected_stake is None:
+        executor._place_order.assert_not_awaited()
+    else:
+        assert executor._place_order.await_args.args[2] == pytest.approx(expected_stake)
+
+
+@pytest.mark.asyncio
 async def test_execute_cluster_orders_force_and_reversal_stake():
     executor = MagicMock()
     executor.orch = SimpleNamespace(

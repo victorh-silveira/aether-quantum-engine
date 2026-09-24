@@ -7,6 +7,7 @@ from typing import Any
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
+from src.infrastructure.market.contract_audit import open_audit_row
 
 
 class TradeHandler:
@@ -16,17 +17,19 @@ class TradeHandler:
     compras de opções binárias. Em fallback REST usa bulk-purchase (PAT).
     """
 
-    def __init__(self, ws_manager: WebSocketManager, config: dict, auth: Any | None = None):
+    def __init__(self, ws_manager: WebSocketManager, config: dict, auth: Any | None = None, market_writer=None):
         """Inicializa o manipulador com um gerenciador de conexão e configuração.
 
         Args:
             ws_manager (WebSocketManager): O gerenciador de conexão WebSocket.
             config (dict): Configuração da API e estratégia.
             auth: AuthManager opcional para compras REST (bulk-purchase).
+            market_writer: Captura Timescale opcional para auditoria de contratos.
         """
         self.ws = ws_manager
         self.config = config
         self.auth = auth
+        self.market_writer = market_writer
         self.trading_transport = "ws"
         self.deriv_account_id = ""
         self.logger = logging.getLogger("AETH")
@@ -64,12 +67,15 @@ class TradeHandler:
             raise RuntimeError("Erro na proposta: id ausente")
 
         ask_price = float(proposal.get("ask_price") or stake)
+        request_epoch_ms = time.time_ns() // 1_000_000
         buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
+        ack_epoch_ms = time.time_ns() // 1_000_000
         if "error" in buy_resp:
             msg = buy_resp["error"].get("message", "Erro desconhecido")
             raise RuntimeError(f"Erro na compra direta: {msg}")
 
         b = buy_resp["buy"]
+        await self._record_purchase_audit(b, symbol, direction, request_epoch_ms, ack_epoch_ms)
         expiry = int(proposal.get("date_expiry") or b.get("date_expiry") or 0)
         if expiry <= 0:
             expiry = int(time.time()) + _contract_duration_seconds(proposal_req)
@@ -102,12 +108,15 @@ class TradeHandler:
         if not account_id:
             raise RuntimeError("deriv_account_id ausente para bulk-purchase")
         client = self.auth.rest_client()
+        request_epoch_ms = time.time_ns() // 1_000_000
         tx = await client.bulk_purchase(
             mode=str(self.auth.mode),
             account_id=account_id,
             pat_token=pat,
             contract_parameters=contract_parameters,
         )
+        ack_epoch_ms = time.time_ns() // 1_000_000
+        await self._record_purchase_audit(tx, symbol, direction, request_epoch_ms, ack_epoch_ms)
         buy_price = float(tx.get("buy_price") or stake)
         payout = float(tx.get("payout") or 0.0)
         purchase_time = int(tx.get("purchase_time") or time.time())
@@ -126,6 +135,30 @@ class TradeHandler:
             expiry_time=expiry,
             longcode=shortcode,
         )
+
+    async def _record_purchase_audit(
+        self,
+        payload: dict,
+        symbol: str,
+        direction: TradeDirection,
+        request_ms: int,
+        ack_ms: int,
+    ) -> None:
+        """Auditoria nao pode transformar compra confirmada em erro/recompra."""
+        if self.market_writer is None:
+            return
+        try:
+            row = open_audit_row(
+                payload,
+                symbol=symbol,
+                mode=str(self.config.get("trading", {}).get("mode", "demo")),
+                direction=direction.value,
+                request_epoch_ms=request_ms,
+                ack_epoch_ms=ack_ms,
+            )
+            await self.market_writer.enqueue_contract_audit(row)
+        except Exception as exc:
+            self.logger.error("AUDIT: compra confirmada sem captura cid=%s erro=%s", payload.get("contract_id"), exc)
 
 
 def resolve_api_contract_type(direction: TradeDirection, p_cfg: dict[str, Any]) -> str:

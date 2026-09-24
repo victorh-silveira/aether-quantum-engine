@@ -66,8 +66,9 @@ def test_apply_successful_symbol_train_deploy_warning(tmp_path):
             started=0.0,
         )
     assert runtime.get("checkpoint_preserved") is False
-    assert runtime.get("session_trained") is False
-    assert runtime.get("export_ok") is False
+    assert runtime.get("session_trained") is True
+    assert runtime.get("checkpoint_loaded") is True
+    assert runtime.get("export_ok") is True
     assert save_ckpt.called
     assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
 
@@ -135,7 +136,7 @@ def test_apply_successful_symbol_train_overwrites_previous_checkpoint(tmp_path):
             started=0.0,
         )
     assert runtime.get("checkpoint_preserved") is False
-    assert runtime.get("export_ok") is False
+    assert runtime.get("export_ok") is True
     assert save_ckpt.called
     assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
 
@@ -218,8 +219,9 @@ def test_apply_successful_symbol_train_nao_promove_atalho_do_sweep(tmp_path):
             started=0.0,
         )
     assert runtime.get("deploy_ok") is False
-    assert runtime.get("export_ok") is False
-    assert runtime.get("session_trained") is False
+    assert runtime.get("export_ok") is True
+    assert runtime.get("session_trained") is True
+    assert runtime.get("checkpoint_loaded") is True
     assert save_ckpt.called
     assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
 

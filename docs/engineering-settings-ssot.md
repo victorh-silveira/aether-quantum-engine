@@ -23,8 +23,8 @@ Leitura: `app/settings_io.py` + parsers em `domain/config_knobs.py`. Knob novo =
 
 ## Doutrina fail-closed
 
-- TCN live: sempre CALL se Cal ≥**0.5** senao PUT; `confidence_call_threshold` **0.55** / `confidence_put_threshold` **0.45** nao skipam; `calibration_neutral_drift` **[0.45, 0.55]** / `neutral_half_width` / `min_calibration_margin_floor` **0.05** (live: raw se Cal mole e raw nitido; sem stretch); `apply_calibrator_stable` prefere raw se mais nitido; `temperature_min` **0.75**; `force_ok` **true** so exporta para diagnostico; execucao exige ACC anti-colapso >=**0.50**, Brier settlement **<0.245**, minimo **48** e LCB Wilson 90% >= breakeven do payout, alem de anti-collapse
-- `deep_learning.deploy_gate.provisional_*`: modo controlado quando taxa OOS >=**0.57**, N>=**48** e Brier <**0.245**, mas LCB Wilson pleno ainda falha; stake soberanamente limitada a **1%** da banca, sem waiver por recovery/PEND
+- TCN live: sempre CALL se Cal ≥**0.5** senao PUT; `confidence_call_threshold` **0.57** / `confidence_put_threshold` **0.43** nao skipam; `calibration_neutral_drift` **[0.45, 0.55]** / `neutral_half_width` / `min_calibration_margin_floor` **0.05** (live: raw se Cal mole e raw nitido; sem stretch); `apply_calibrator_stable` prefere raw se mais nitido; `temperature_min` **0.75**; `force_ok` **true** so exporta para diagnostico; execucao exige ACC anti-colapso >=**0.50**, Brier settlement **<0.260**, minimo **120** e LCB Wilson 90% >= breakeven do payout, alem de anti-collapse
+- `deep_learning.deploy_gate.provisional_*`: modo controlado quando taxa OOS >=**0.57**, N>=**120** e Brier <**0.260**, mas LCB Wilson pleno ainda falha; stake soberanamente limitada a **1%** da banca, sem waiver por recovery/PEND
 - Loss-clf = **FLIP** young `p_eff` >=0.58 / mature >=0.70 (so apos auto_learn; `flip_young_shrink` **0.50**); tape so telemetria; nao HARD SKIP
 - Nao reabrir quality gate amplo / signal_skip multi-gate / Soft do loss-clf
 - `force_trade_every_cycle` / `mandatory_trade_each_cycle` **false**

@@ -95,10 +95,12 @@ def save_model_checkpoint(
     deploy_settlement_brier: float | None = None,
     deploy_settlement_n: int | None = None,
     deploy_settlement_wilson_lcb: float | None = None,
+    deploy_settlement_source: str | None = None,
     oos_sharpness: float | None = None,
     granularity: int | None = None,
     training_history_bars: int | None = None,
     label_horizon_bars: int | None = None,
+    label_mode: str | None = None,
     label_call_frac: float | None = None,
     pred_call_frac: float | None = None,
     minority_recall: float | None = None,
@@ -138,6 +140,8 @@ def save_model_checkpoint(
         payload["deploy_settlement_n"] = int(deploy_settlement_n)
     if deploy_settlement_wilson_lcb is not None:
         payload["deploy_settlement_wilson_lcb"] = float(deploy_settlement_wilson_lcb)
+    if deploy_settlement_source is not None:
+        payload["deploy_settlement_source"] = str(deploy_settlement_source)
     if oos_sharpness is not None:
         payload["oos_sharpness"] = float(oos_sharpness)
     if granularity is not None:
@@ -146,6 +150,8 @@ def save_model_checkpoint(
         payload["training_history_bars"] = int(training_history_bars)
     if label_horizon_bars is not None:
         payload["label_horizon_bars"] = max(1, int(label_horizon_bars))
+    if label_mode is not None:
+        payload["label_mode"] = str(label_mode)
     if label_call_frac is not None:
         payload["label_call_frac"] = float(label_call_frac)
     if pred_call_frac is not None:
@@ -170,6 +176,10 @@ def load_model_checkpoint(
         logger.debug("DL: Checkpoint corrompido em %s; sera reiniciado. Erro: %s", path, exc)
         return None
     if not isinstance(payload, dict) or "state_dict" not in payload:
+        return None
+    expected_label = (params or {}).get("label_mode")
+    if expected_label is not None and str(payload.get("label_mode") or "") != str(expected_label):
+        logger.info("DL: Checkpoint %s com label_mode incompativel; retreino necessario.", path)
         return None
     feature_dim = int(payload.get("feature_dim", payload.get("input_dim", FEATURE_DIM)))
     if feature_dim != FEATURE_DIM:

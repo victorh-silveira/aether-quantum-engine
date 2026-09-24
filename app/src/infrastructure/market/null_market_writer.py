@@ -16,6 +16,10 @@ class NullMarketWriter:
         """Ignora barra recebida."""
         _ = (symbol, bar)
 
+    async def enqueue_contract_audit(self, row: dict[str, Any]) -> None:
+        """Ignora auditoria quando a captura esta desligada."""
+        _ = row
+
     async def flush(self) -> None:
         """Nao possui buffer pendente."""
         return

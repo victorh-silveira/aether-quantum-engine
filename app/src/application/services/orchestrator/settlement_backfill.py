@@ -29,6 +29,7 @@ def settlement_payload_from_profit_row(c_id: int, row: dict) -> dict:
     return {
         "proposal_open_contract": {
             "contract_id": c_id,
+            "audit_source": "profit_table",
             "is_settled": 1,
             "status": api_status,
             "profit": profit,

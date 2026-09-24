@@ -211,4 +211,5 @@ def test_evaluate_mini_deploy_micro_slice_runs():
             micro=micro,
         )
     assert mock_predict.called
-    assert ok is True
+    assert ok is False
+    assert runtime["deploy_settlement_source"] == "m5_close_proxy"

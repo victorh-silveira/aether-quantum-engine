@@ -21,6 +21,7 @@ def _synthetic_poc(*, contract_id: int, won: bool, buy_price: float, payout: flo
     return {
         "proposal_open_contract": {
             "contract_id": int(contract_id),
+            "audit_source": "inferred_rest",
             "is_sold": 1,
             "status": "won" if won else "lost",
             "profit": profit,

@@ -4,22 +4,104 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Runtime atual (SSOT settings)
 
+O `launch-train` separa treino de deploy. Checkpoint TCN exportado com
+`deploy_ok=false` alimenta o treino meta e pode ser carregado localmente para
+operacao limitada em qualquer tipo de conta, mas nao e enviado ao MinIO. O
+gate de qualificacao continua avaliando ACC, Brier e Wilson OOS, mas o
+proxy M5 nao concede qualificacao sem evidencia broker/tick.
+O meta sem qualificacao OOS fica em `data/dl/meta_candidate.joblib`; o sidecar
+usa somente `infra/docker/meta-models/meta_lgbm.pkl`. Falhas de dados, geometria,
+treino ou exportacao continuam encerrando o script com erro. A mudanca para
+`spot_forward` invalida checkpoints anteriores quando o label diverge.
+Um checkpoint local tecnicamente valido que reprovou o gate pode gerar ordens
+em DEMO e REAL pelo mesmo caminho de decisao e abertura. O teto soberano por
+ordem e 0,1% da banca; `model_deploy_qualified=false` permanece na telemetria.
+Checkpoint ausente ou incompativel continua bloqueado. Esse modo nao comprova
+vantagem preditiva nem deve ser confundido com promocao estatistica.
+As ultimas `deploy_gate.mini_bars` velas ficam fora do ajuste TCN, da selecao
+de epoca e da calibracao; sao usadas apenas na simulacao de settlement. O
+teste de settlement reconstrói indicadores com as mesmas
+`inference_history_bars` velas do runtime (384 no SSOT), sem olhar o futuro. O
+carregamento Timescale para meta filtra epochs nao alinhados a M5 antes de
+selecionar as 5000 velas, evitando misturar candles parciais do motor.
+
+O experimento TCN de 1HZ75V usa 25 mil M5 e lookback 64; a feature Hurst
+passou a estimar o expoente pela inclinacao log-MSD nas escalas 1/2/4/8, em
+janela causal de 100 barras. Ela e uma **feature**, nao uma licenca para
+operar: no historico anterior, o MSD global deu H≈0,495, e H>0,55 teve
+apenas 124 casos recentes com 55,6% de acerto direcional simples. Nao ha
+veto arbitrario de entropia/Hurst nem promocao automatica com base nessa
+estatistica. O label continua sendo o close no vencimento M5; triple barrier
+de primeira colisao nao representa o payoff Rise/Fall deste contrato.
+
+No ensaio local de 23/09/2026 com 25.000 velas M5 e lookback 64, o TCN
+encerrou com `val_acc=0.5156`, `val_brier=0.2500`, `settle_wr=19/48=0.3958`,
+`settle_lcb90=0.2883` e `settle_brier=0.253`: **nao qualificou para deploy**.
+O meta treinou (`OOS IR=0.45`, `z=0.013`), sem alterar o resultado OOS do TCN.
+Esse ensaio unico nao isola causalmente o efeito de historico, lookback e
+Hurst; nao se deve inferir vantagem nem relaxar o gate a partir dele.
+
+### Auditoria de entrada e settlement (1HZ75V)
+
+`infra.timescale.capture_enabled=true` liga apenas o writer Timescale, mesmo
+com `infra.enabled=false`; nao liga Redis/MinIO. O stream existente assina
+ticks de 1HZ75V e os grava em `ticks` enquanto o motor estiver ligado. Nao
+existe backfill automatico de 1 milhao de ticks; a retencao atual e 30 dias.
+Para coletar sem abrir trades, use
+`python app/scripts/operations/collect_public_ticks.py` (WSS publico, sem
+token, reconexao automatica; Ctrl+C encerra). O smoke
+`--max-ticks 3 --max-retries 3` gravou 3 ticks reais em 23/09/2026; isso nao
+constitui base historica suficiente para o gate.
+`contract_executions` registra compra e settlement, separando `broker`,
+`profit_table` e `inferred_rest`. Spots ausentes ficam `NULL`, nunca sao
+preenchidos pelo close M5 ou pelo spot de proposta. A view
+`contract_label_audit` cruza somente contratos `broker` com spots, tempos,
+lucro e velas M5 disponiveis. Exemplo de consulta somente leitura:
+
+```sql
+SELECT count(*) AS n,
+       avg((m5_win <> broker_win)::int) AS disagreement,
+       avg(broker_win::int) AS broker_wr,
+       avg((spot_win <> broker_win)::int) AS spot_vs_profit_disagreement,
+       avg(broker_brier) AS broker_brier
+FROM contract_label_audit WHERE symbol='1HZ75V';
+```
+
+A view esta vazia ate haver contratos auditados. O backtest TCN por close M5
+agora e explicitamente `m5_close_proxy`: continua diagnostico, mas
+`deploy_gate.require_broker_settlement=true` impede que ele ou um checkpoint
+antigo sem fonte auditada sejam promovidos. A view nao promove modelo nem
+estima latencia artificialmente; falta integrar amostras auditadas suficientes
+ao avaliador OOS antes de voltar a qualificar qualquer TCN.
+Antes de substituir o gate e necessario coletar ticks completos, verificar
+o alinhamento de timestamps e payout efetivo, e repetir OOS purgado. `DEMO`
+e `REAL` passam pelo mesmo codigo de captura; a fonte `inferred_rest` nunca
+conta como observacao de spot confirmado.
+
+Em uma serie binaria, a Lei dos Grandes Numeros converge para a probabilidade
+verdadeira de CALL, nao necessariamente para 50%. Mesmo com labels 50/50,
+predizer sempre um lado nao gera vantagem. Para payout liquido de 0.85, o
+breakeven de Rise/Fall e `1 / (1 + 0.85) = 0.54054`; 50% implica retorno
+esperado de `0.5 * 0.85 - 0.5 = -0.075` por unidade apostada. A janela de
+previsao do modelo e uma vela M5, igual ao vencimento do contrato; trocar a
+janela altera o evento alvo e requer validacao e contrato operacional novos.
+
 | Item | Valor tipico |
 |------|----------------|
 | Simbolo | **1HZ75V** (Volatility 75 (1s)) |
 | Arch | TCN |
-| Lookback | **30** → tensor `[1, 30, 14]` |
+| Lookback | **64** → tensor `[1, 64, 14]` |
 | MACRO OHLC | **86400 s** (D1, 365 velas de treino, `data_handler.granularity`) |
-| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **5000**; inferencia live >= `causal_norm_window` **288** + lookback **30** + 16) |
-| Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`quantum_multi_barrier`) |
+| MICRO OHLC | **300 s** (M5, `training_history_bars` / `micro_history_bars` **25000** no treino; inferencia live >= `causal_norm_window` **288** + lookback **64** + 16) |
+| Contrato | **5 m** RISE_FALL (ops fixo M5); label TCN **N=1** vela M5 (`spot_forward`) |
 | MINI OHLC | **300 s** (`mini_granularity`) |
 | Bootstrap wait | `bootstrap_history_wait_cap_seconds` **30** (nao dorme a granularidade inteira entre retries) |
 | MILI | Tick flow (nao OHLC) |
 | Features | **14D** (`FEATURE_DIM`) |
-| Label | `quantum_multi_barrier` (SSOT settings; alt. `triple_barrier` / Log-Vol Barriers + Expiry) |
-| Fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **5000** velas reais e alinhadas (nao smoke/flat) |
+| Label | `spot_forward` (SSOT settings; CALL se close M5 seguinte > close atual; proxy do settlement, nao spot executado) |
+| Fetch treino micro | `max(fetch_count, micro_fetch_count, training_history_bars)` → **25000** velas reais e alinhadas (nao smoke/flat); disponibilidade confirmada no WSS publico |
 | Online training | **false** (DEMO usa checkpoint do `launch-train`) |
-| ACC / deploy | `force_ok=true` exporta apenas para diagnostico; promocao exige ACC anti-colapso >=**0.50**, ausencia de collapse e mini walk-forward com **48** settlements, Brier **<0.245** e limite inferior de Wilson unilateral a 90% >= breakeven do payout (**0.540541** para payout 0.85); `allow_undeployed_inference` **false** |
+| ACC / deploy | `force_ok=true` exporta apenas para diagnostico; mini walk-forward M5 e proxy e nao promove com `require_broker_settlement=true`; futura evidencia auditada exige ACC anti-colapso >=**0.50**, Brier **<0.260** e Wilson 90% >= breakeven (**0.540541** para payout 0.85) |
 | Limiares live | TCN sempre CALL se Cal ≥**0.5** senao PUT; `apply_calibrator_stable` prefere raw se mais nitido; clamp `[raw±0.05]`; `temperature_min` **0.75**; `min_oos_sharpness` / `min_calibration_sharpness` **0.0** (sem piso de export); banda `[0.45, 0.55]` so telemetria/`raw_extreme` |
 | Rodadas | uma tentativa por conjunto de dados; reprova e aguarda dados novos, sem retreinar aleatoriamente sobre o mesmo historico |
 | Early stop | `min_epochs` **15**, `early_stopping_patience` **12** |
@@ -81,11 +163,14 @@ Telemetria de treino: `TrainResult.label_call_frac`, `pred_call_frac`, `minority
 
 ## Deploy gate (senior)
 
-`force_ok=true` conserva a exportacao para diagnostico, mas nunca e sinal de qualidade. A acuracia global e somente piso anti-colapso (**0.50**): em uma serie binaria balanceada ela nao prova vantagem. `resolve_deploy_ok` exige que o mini walk-forward de settlement tenha pelo menos **48** operacoes, Brier < **0.245** e limite inferior unilateral de Wilson a **90%** acima do breakeven do payout (**0.540541** com payout 0.85), alem da ausencia de colapso direcional. O checkpoint grava esse limite (`deploy_settlement_wilson_lcb`); `check_dl_deploy_gate` rejeita checkpoints antigos ou sem a evidencia. Com `allow_undeployed_inference=false`, checkpoint reprovado nao opera em DEMO. Treino **sempre sobrescreve** o `.pth` anterior, mas um checkpoint fraco nao pode ser promovido nem servir de professor para o meta.
+`force_ok=true` conserva a exportacao para diagnostico, mas nunca e sinal de qualidade. A acuracia global e somente piso anti-colapso (**0.50**): em uma serie binaria balanceada ela nao prova vantagem. O mini walk-forward de 48 pontos continua calculando Brier e Wilson para diagnostico, mas usa closes M5 e carimba `deploy_settlement_source=m5_close_proxy`. Com `require_broker_settlement=true`, `deploy_ok` e `deploy_provisional_ok` ficam falsos: nao ha promocao baseada nesses numeros. O checker e o runtime tambem rejeitam checkpoints antigos sem fonte `broker_tick_audit`. Ate integrar avaliacao OOS realmente auditada, **nenhum TCN pode qualificar**. O runtime exige checkpoint local tecnicamente compativel em DEMO e REAL; modelo nao qualificado carrega `model_deploy_qualified=false` e teto de stake de **0,1%** da banca. Isso permite observacao operacional, mas nao demonstra vantagem nem elimina perdas. Treino sobrescreve o `.pth` anterior; um checkpoint fraco nao e promovido para MinIO/sidecar, mas pode fornecer probabilidades ao treino meta.
 
 ### Modo provisório de observação com capital
 
-`deploy_provisional=true` e distinto de `deploy_ok=true`. Ele permite observação ao vivo somente quando o mini-settlement tem pelo menos **48** operações, Brier < **0.245**, taxa bruta >=**0.57** e anti-colapso intacto, mas o LCB Wilson 90% ainda não superou o breakeven. A stake fica limitada de forma soberana a **1%** da banca após Kelly, recovery e piso mínimo, sem waiver por PEND. A telemetria carrega `deploy_provisional` e `provisional_stake_cap_applied`; o modo pleno substitui o provisório assim que `deploy_ok=true`.
+`deploy_provisional=true` e distinto de `deploy_ok=true`, mas o modo esta
+inacessivel enquanto `require_broker_settlement=true` e o avaliador dispuser
+apenas de closes M5. O criterio legado de **120** observacoes, Brier < **0.260**
+e taxa bruta >=**0.57** nao autoriza promocao com labels proxy.
 
 Majority-collapse: o gate rejeita pred skew (`|pred-0.5|` / `|pred-label|` > **0.15**) ou label skew com `minority_recall < 0.40`. A telemetria permanece no checkpoint para auditoria.
 
@@ -121,7 +206,7 @@ Modo legado `tcn_macro_override` foi substituido por `raw_extreme` em `dl_calibr
 
 Ate la, `EXEC_EMPTY` + `SKIP:neg_edge` com Cal~0.52 continua correto (`skip_neg_edge` intacto). **Proibido** Soft Kelly no TCN ou desligar `skip_neg_edge` para “passar” trade.
 
-Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.05**) **antes** de `apply_calibration_neutral_tolerance`, para CLUSTER e Kelly usarem o mesmo Cal. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.05** (= half-width) e fallback; o restore principal e margem relativa raw vs Cal. Lado live: CALL se Cal ≥**0.5**, PUT se Cal <**0.5** (sem `SKIP:NEUTRAL_ZONE`). Limiares `confidence_call_threshold` **0.55** / `confidence_put_threshold` **0.45** nao skipam. Banda `calibration_neutral_drift` **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (lado raw quando Cal mole). Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/Kelly (nao so `trade_score`). `temperature_min` **0.75** permite T&lt;1 no fit.
+Live: `clamp_calibrated_call_to_raw_band` clipa **p_call** em `[raw±max_calibrated_raw_gap]` (**0.05**) **antes** de `apply_calibration_neutral_tolerance`, para CLUSTER e Kelly usarem o mesmo Cal. PUT espelha `1-p_call`. `min_calibration_margin_floor` **0.05** (= half-width) e fallback; o restore principal e margem relativa raw vs Cal. Lado live: CALL se Cal ≥**0.5**, PUT se Cal <**0.5** (sem `SKIP:NEUTRAL_ZONE`). Limiares `confidence_call_threshold` **0.57** / `confidence_put_threshold` **0.43** nao skipam. Banda `calibration_neutral_drift` **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (lado raw quando Cal mole). Metricas: `cal_raw_gap_capped` / `cal_raw_gap`. Isso alimenta Edge/Kelly (nao so `trade_score`). `temperature_min` **0.75** permite T&lt;1 no fit.
 
 Fusao: `why=tcn_pos_edge` exige Cal **e** raw_edge ≥ `fusion_min_edge_execute` (**0.04**). Sintoma de regressao: CLUSTER Prob≈BE + `p_put`≫0.70 + `why=tcn_pos_edge` com `raw_edge`~0.
 
@@ -130,8 +215,8 @@ Visao multi-escala (MACRO/MICRO/MINI/MILI) e soft Kelly ficam fora do pacote DL 
 ## Pos-migrate hibrido (legado → SSOT atual M5)
 
 1. Invalidar checkpoints `data/dl/*.pth` e TorchScript MinIO com `granularity`/`lookback` ≠ settings (ex.: legado **180**/7200 M3, **120**/3600 ou lookback **720** / M1 **60**/7200).
-2. Re-hydrate Timescale (`docker-hydrate.sh` / `ensure_timescale`) para OHLC micro/MINI **300** / macro **86400**.
-3. Retreinar com **`launch-train.bat`** (TCN `lookback=30`, micro **300**, label N promovido; contrato ops **5 m**) + meta — **nao** via `launch-all-demo`.
+2. Verificar Timescale com `docker-hydrate.sh` e popular OHLC **real** com `ensure_timescale.py` para micro/MINI **300** / macro **86400**.
+3. Retreinar com **`launch-train.bat`** (TCN `lookback=64`, micro **300**, label `spot_forward` N=1; contrato ops **5 m**) + meta — **nao** via `launch-all-demo`.
 4. So depois: `launch-all-demo.bat`; validar CFG live `ohlc=300s`, `macro=86400s`, `contrato=5 m`, `label_horizon_bars=1`.
 
 Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (nem settle nem rolling); usa o checkpoint do `launch-train`. Para reativar, `online_training=true` + `rolling_retrain_bars` / `retrain_min_bars` (sem `mark_force_retrain` no settle). Meta e loss-clf fazem `/v1/learn` a cada trade.

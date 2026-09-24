@@ -155,8 +155,8 @@ Perfil em `config/settings.json` (settings atuais):
 |-----------|-------|--------|
 | `calibration.method` | auto | auto + piso sharpness; fallback `identity` se cal colapsar |
 | `calibration.neutral_half_width` | 0.05 | Banda **[0.45, 0.55]** so telemetria e ramo `raw_extreme` (nao skipa) |
-| `confidence_call_threshold` | 0.55 | Threshold CALL (piso Kelly / BE + margem) |
-| `confidence_put_threshold` | 0.45 | Threshold PUT |
+| `confidence_call_threshold` | 0.57 | Threshold CALL (piso Kelly / BE + margem) |
+| `confidence_put_threshold` | 0.43 | Threshold PUT |
 | `dynamic_threshold.enabled` | false | Thresholds flutuantes por volatilidade **desligados** |
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | — | Sem piso hard nos settings atuais |

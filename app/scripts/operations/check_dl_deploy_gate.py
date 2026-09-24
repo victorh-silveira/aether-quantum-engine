@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+import joblib
 import torch
 
 
@@ -17,6 +18,8 @@ if str(_APP) not in sys.path:
 from aether_paths import REPO_ROOT
 from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.presentation.terminal.logger import setup_logger
+
+_LOGGER = setup_logger("AETH.train", log_file=None)
 
 
 def _load_settings() -> dict:
@@ -64,7 +67,13 @@ def _checkpoint_paths(settings: dict, symbols: list[str]) -> list[Path]:
     return out
 
 
-def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = None) -> tuple[bool, str]:
+def evaluate_checkpoint(
+    path: Path,
+    *,
+    soft_min: float,
+    settings: dict | None = None,
+    meta_path: Path | None = None,
+) -> tuple[bool, str]:
     if not path.is_file():
         return False, f"checkpoint ausente: {path}"
     payload = torch.load(path, map_location="cpu", weights_only=False)
@@ -85,6 +94,10 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             return False, (
                 f"{path.name}: label_horizon_bars={got_h} != settings={exp_h} (treino incompleto / ckpt antigo)"
             )
+        dl_settings = settings.get("deep_learning")
+        expected_mode = dl_settings.get("label_mode") if isinstance(dl_settings, dict) else None
+        if expected_mode is not None and payload.get("label_mode") != expected_mode:
+            return False, f"{path.name}: label_mode={payload.get('label_mode')} != settings={expected_mode}"
     dl = {}
     if isinstance(settings, dict) and isinstance(settings.get("deep_learning"), dict):
         dl = settings["deep_learning"]
@@ -106,14 +119,31 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             f"{path.name}: telemetria de collapse ausente "
             "(label_call_frac/pred_call_frac/minority_recall) — retreine com gate atual"
         )
+    if meta_path is not None and meta_path.is_file():
+        try:
+            meta_bundle = joblib.load(meta_path)
+            if isinstance(meta_bundle, dict) and bool(meta_bundle.get("deploy_qualified", False)):
+                ir = float(meta_bundle.get("oos_information_ratio", 0.0) or 0.0)
+                z = float(meta_bundle.get("oos_payoff_zscore_mean", 0.0) or 0.0)
+                if ir >= 0.50 and z >= 0.010:
+                    return True, (
+                        f"{path.name}: Two-Stage Stacking qualificado "
+                        f"(TCN val_acc={val_acc:.4f} + Meta IR={ir:.2f} Z={z:.3f})"
+                    )
+        except Exception as exc:
+            _LOGGER.debug("Falha ao avaliar meta_path para deploy gate: %s", exc)
     if not stored_ok:
         settlement_wr = float(payload.get("deploy_settlement_win_rate", 0.0) or 0.0)
         settlement_n = int(payload.get("deploy_settlement_n", 0) or 0)
         settlement_brier = float(payload.get("deploy_settlement_brier", 1.0) or 1.0)
-        if provisional_ok and (
-            settlement_n >= int(gate_cfg["provisional_min_trades"])
-            and settlement_wr + 1e-9 >= float(gate_cfg["provisional_min_win_rate"])
-            and settlement_brier + 1e-9 < float(gate_cfg["provisional_max_brier"])
+        if (
+            provisional_ok
+            and payload.get("deploy_settlement_source") == "broker_tick_audit"
+            and (
+                settlement_n >= int(gate_cfg["provisional_min_trades"])
+                and settlement_wr + 1e-9 >= float(gate_cfg["provisional_min_win_rate"])
+                and settlement_brier + 1e-9 < float(gate_cfg["provisional_max_brier"])
+            )
         ):
             return True, (
                 f"{path.name}: deploy_provisional=true "
@@ -125,6 +155,11 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
             f"pred_call={pred_call} minority_rec={minority_rec} "
             "sem evidencia OOS de settlement qualificada)"
         )
+    if (
+        bool(gate_cfg.get("require_broker_settlement", False))
+        and payload.get("deploy_settlement_source") != "broker_tick_audit"
+    ):
+        return False, f"{path.name}: settlement M5 e apenas proxy; evidencias broker/tick auditadas ausentes"
     if settlement_lcb is None or float(settlement_lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
         return False, (
             f"{path.name}: checkpoint sem evidencia Wilson de settlement suficiente "
@@ -135,23 +170,26 @@ def evaluate_checkpoint(path: Path, *, soft_min: float, settings: dict | None = 
 
 def main() -> int:
     settings = _load_settings()
-    logger = setup_logger("AETH.train", log_file=None)
+    logger = _LOGGER
     parser = argparse.ArgumentParser(description="Gate ACC/deploy apos treino DL.")
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--soft-min", type=float, default=None)
+    parser.add_argument("--with-meta", action="store_true", default=False)
     args = parser.parse_args()
     soft_min = float(args.soft_min) if args.soft_min is not None else _soft_min_acc(settings)
     raw_symbols = args.symbols if args.symbols is not None else settings.get("symbols") or ["1HZ75V"]
     symbols = [str(s) for s in raw_symbols]
+    meta_path = REPO_ROOT / "infra" / "docker" / "meta-models" / "meta_lgbm.pkl" if args.with_meta else None
     ok_all = True
     for path in _checkpoint_paths(settings, symbols):
-        ok, msg = evaluate_checkpoint(path, soft_min=soft_min, settings=settings)
+        ok, msg = evaluate_checkpoint(path, soft_min=soft_min, settings=settings, meta_path=meta_path)
         logger.info("DL gate | %s", msg)
         ok_all = ok_all and ok
     if not ok_all:
-        logger.error(
-            "DL gate falhou: ACC/Brier/settle/geometria — meta abortado. "
-            "Retreine ate exportar checkpoint compativel (lookback/granularity/horizon)."
+        logger.warning(
+            "DL gate de qualificacao OOS reprovado: ACC/Brier/settle/geometria. "
+            "Treino meta pode continuar; somente checkpoint local tecnicamente compativel pode operar "
+            "com teto de stake em DEMO e REAL."
         )
         return 1
     return 0

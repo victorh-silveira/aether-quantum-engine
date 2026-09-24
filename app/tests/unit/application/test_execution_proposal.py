@@ -73,6 +73,38 @@ async def test_place_order_retries_lower_stake(orch_config):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["demo", "live"])
+async def test_unqualified_checkpoint_order_never_exceeds_cap(orch_config, mode):
+    orch = MagicMock()
+    orch._active_cycle_id = 1
+    orch.config = orch_config
+    orch.auth.mode = mode
+    orch.state.balance = 1000.0
+    orch.trade_handler.buy_with_parameters = AsyncMock(return_value=MagicMock(contract_id=1))
+    executor = MagicMock(orch=orch)
+    metrics = {"checkpoint_exploration": True, "provisional_max_stake_pct": 0.001}
+    with patch("src.application.services.orchestrator.execution_orders.subscribe_open_contract", AsyncMock()):
+        await place_order(executor, "R_10", TradeDirection.CALL, 10.0, metrics=metrics)
+    assert orch.trade_handler.buy_with_parameters.await_args.args[2] <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_unqualified_checkpoint_rejects_minimum_above_cap(orch_config):
+    orch = MagicMock()
+    orch.config = orch_config
+    orch.state.balance = 100.0
+    executor = MagicMock(orch=orch)
+    with pytest.raises(RuntimeError, match="stake minimo excede teto"):
+        await place_order(
+            executor,
+            "R_10",
+            TradeDirection.CALL,
+            10.0,
+            metrics={"checkpoint_exploration": True, "provisional_max_stake_pct": 0.001},
+        )
+
+
+@pytest.mark.asyncio
 async def test_place_order_raises_after_all_retries(orch_config):
     orch = MagicMock()
     orch._active_cycle_id = 15

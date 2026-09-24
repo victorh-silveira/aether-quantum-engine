@@ -12,7 +12,6 @@ from src.application.services.deep_learning.dl_calibration_fit import (
 from src.application.services.deep_learning.dl_model_artifacts import (
     ensure_local_model_checkpoint,
     schedule_model_upload,
-    upload_all_symbol_checkpoints,
     upload_model_checkpoint,
 )
 from src.application.services.execution_volatility_bb import _percentile_p10
@@ -151,7 +150,7 @@ async def test_model_artifacts_upload_and_schedule(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_ensure_local_and_upload_all(tmp_path):
+async def test_ensure_local_checkpoint(tmp_path):
     orch = MagicMock()
     orch.infra = MagicMock(enabled=True)
     orch.model_store.download_latest = AsyncMock(return_value=True)
@@ -163,6 +162,20 @@ async def test_ensure_local_and_upload_all(tmp_path):
         "risk_management": {"params": {}},
     }
     await ensure_local_model_checkpoint(orch, "R_10", orch.config["deep_learning"], {"arch": "tcn"})
-    file_path = tmp_path / "R_10.pth"
-    file_path.write_bytes(b"z")
-    await upload_all_symbol_checkpoints(orch)
+    orch.model_store.download_latest.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_boot_prefers_compatible_local_checkpoint(tmp_path):
+    orch = MagicMock()
+    orch.infra.enabled = True
+    orch.model_store.download_latest = AsyncMock(return_value=True)
+    dl_config = {"model_path_template": str(tmp_path / "{symbol}.pth"), "arch": "tcn"}
+    path = tmp_path / "R_10.pth"
+    path.write_bytes(b"local")
+    with patch(
+        "src.application.services.deep_learning.dl_model_artifacts.load_model_checkpoint",
+        return_value=object(),
+    ):
+        assert await ensure_local_model_checkpoint(orch, "R_10", dl_config, {"arch": "tcn"}) == path
+    orch.model_store.download_latest.assert_not_awaited()

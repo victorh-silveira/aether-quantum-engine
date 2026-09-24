@@ -43,7 +43,7 @@ def test_get_symbol_runtime_requires_settlement_evidence_for_deploy():
     assert runtime["deploy_ok"] is False
 
 
-def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
+def test_get_symbol_runtime_separates_training_from_deploy_quality():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
@@ -58,7 +58,9 @@ def test_get_symbol_runtime_keeps_session_untrained_without_deploy_ok():
         patch("pathlib.Path.exists", return_value=False),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
-    assert runtime["session_trained"] is False
+    assert runtime["session_trained"] is True
+    assert runtime["checkpoint_loaded"] is True
+    assert runtime["deploy_ok"] is False
 
 
 def test_get_symbol_runtime_reuses_checkpoint_when_online_training_disabled():
@@ -122,6 +124,32 @@ def test_get_symbol_runtime_torch_load_failure_rejects_deploy():
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["trained_granularity"] == 60
     assert runtime["deploy_ok"] is False
+
+
+def test_get_symbol_runtime_checks_settlement_payload_from_file():
+    orch = MagicMock()
+    orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
+    orch._dl_runtime = {}
+    dl_config = {"model_path_template": "data/dl/{symbol}.pth"}
+    params = {"lookback": 48, "arch": "tcn"}
+    payload = {
+        "deploy_settlement_wilson_lcb": 0.8,
+        "deploy_settlement_source": "broker_tick_audit",
+        "label_call_frac": 0.5,
+        "pred_call_frac": 0.5,
+        "minority_recall": 0.8,
+    }
+    with (
+        patch("pathlib.Path.exists", return_value=False),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("src.application.services.deep_learning.dl_symbol_runtime.torch.load", return_value=payload),
+        patch(
+            "src.application.services.deep_learning.dl_symbol_runtime.load_model_checkpoint",
+            return_value=_loaded_checkpoint(deploy_ok=True),
+        ),
+    ):
+        runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
+    assert runtime["deploy_ok"] is True
 
 
 def test_get_symbol_runtime_discards_lookback_mismatch():

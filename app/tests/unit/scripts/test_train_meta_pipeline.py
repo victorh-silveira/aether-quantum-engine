@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import lightgbm as lgb
 import numpy as np
@@ -16,6 +16,7 @@ from scripts.operations.train_meta_classifier import (
 from scripts.operations.train_meta_data import (
     META_TRAIN_MAX_BARS,
     OhlcBundle,
+    _fetch_timescale_rows,
     bundle_training_quality_error,
     meta_bars_meet_quality,
     resolve_meta_train_bars,
@@ -70,6 +71,18 @@ from src.application.services.meta_classifier_features import meta_classifier_co
 
 
 GRAY_KEEP_FLOOR = 96
+
+
+@pytest.mark.asyncio
+async def test_timescale_history_ignores_unaligned_live_candles():
+    conn = MagicMock()
+    conn.fetch = AsyncMock(return_value=[])
+    await _fetch_timescale_rows(conn, "1HZ75V", 300, 5000)
+    query = conn.fetch.await_args.args[0]
+    assert "epoch % $2 = 0" in query
+    assert conn.fetch.await_args.args[1:] == ("1HZ75V", 300, 5000)
+    await _fetch_timescale_rows(conn, "1HZ75V", 300)
+    assert "epoch % $2 = 0" in conn.fetch.await_args.args[0]
 
 
 def _synthetic_bundle(symbol: str = "R_10", *, n: int = 280, phase: float = 0.0) -> OhlcBundle:
@@ -326,6 +339,7 @@ def test_build_training_summary_includes_continuous_telemetry():
     assert summary["best_val_mae"] == pytest.approx(0.11)
     assert summary["target_variance"] == pytest.approx(target_variance(y))
     assert summary["model_type"] == "regressor"
+    assert summary["deploy_qualified"] is True
     assert summary["oos_payoff_zscore_mean"] == pytest.approx(0.31)
     assert "class_balance_ratio" not in summary
 

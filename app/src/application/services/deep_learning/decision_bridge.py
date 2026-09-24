@@ -13,7 +13,6 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
 )
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_live_bar_patch import (
     patch_forming_bar_microstructure,
     patch_forming_bar_with_live_tick,
@@ -24,6 +23,7 @@ from src.application.services.deep_learning.dl_params import slice_dl_ohlc_windo
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
 from src.application.services.deep_learning.dl_predict_build import prepare_meta_classifier_cross_symbol_bundle
 from src.application.services.deep_learning.dl_retrain import should_retrain_symbol
+from src.application.services.deep_learning.dl_runtime_deploy_gate import apply_deploy_gate as _apply_deploy_gate
 from src.application.services.deep_learning.dl_symbol_runtime import (
     candle_epoch,
     get_symbol_runtime,
@@ -53,22 +53,6 @@ _get_symbol_runtime = get_symbol_runtime
 _candle_epoch = candle_epoch
 _granularity_seconds = granularity_seconds
 _run_symbol_training = run_symbol_training
-
-
-def _apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict) -> dict:
-    """Aplica bloqueio de execucao quando o mini-deploy gate reprova o modelo."""
-    gate_cfg = parse_deploy_gate_config(dl_config)
-    enabled = gate_cfg.get("enabled", True)
-    provisional = bool(runtime.get("deploy_provisional_ok", False)) and bool(gate_cfg.get("provisional_enabled", False))
-    deploy_ok = bool(runtime.get("deploy_ok", False)) or provisional or (not enabled)
-    if not deploy_ok and enabled and entry["metrics"].get("execute"):
-        entry["metrics"]["execute"] = False
-        entry["metrics"]["gate_reason"] = "deploy"
-    entry["metrics"]["deploy_ok"] = bool(deploy_ok)
-    entry["metrics"]["deploy_provisional"] = bool(provisional and deploy_ok)
-    if provisional and deploy_ok:
-        entry["metrics"]["provisional_max_stake_pct"] = float(gate_cfg["provisional_max_stake_pct"])
-    return entry
 
 
 def _apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
@@ -241,7 +225,7 @@ async def _collect_symbol_decision(
         low=low_inf,
         micro=micro_inf,
     )
-    entry = _apply_deploy_gate(entry, runtime, dl_config)
+    entry = _apply_deploy_gate(entry, runtime, dl_config, orch=orch)
     entry = _apply_training_gate(entry, runtime, params)
     return entry, train_reason
 
