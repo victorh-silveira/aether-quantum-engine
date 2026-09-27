@@ -54,7 +54,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["skip_exec_vs_candle"] is False
     assert inv["skip_below_soft_min_acc"] is False
     assert inv["skip_scale_candle_discord"] is False
-    assert inv["skip_neg_edge"] is True
+    assert inv["skip_neg_edge"] is False
     assert inv["skip_doji"] is False
     assert inv["amort_cycles_min"] == 1
     assert inv["amort_cycles_max"] == 1
@@ -93,9 +93,9 @@ def test_assert_production_doctrine_rejects_skip_scale_candle_discord_on():
         assert_production_doctrine(settings)
 
 
-def test_assert_production_doctrine_rejects_skip_neg_edge_off():
+def test_assert_production_doctrine_rejects_skip_neg_edge_on():
     settings = copy.deepcopy(load_settings_json())
-    settings["orchestrator"]["execution"]["skip_neg_edge"] = False
+    settings["orchestrator"]["execution"]["skip_neg_edge"] = True
     reset_doctrine_invariants_cache()
     with pytest.raises(ValueError, match="skip_neg_edge"):
         assert_production_doctrine(settings)

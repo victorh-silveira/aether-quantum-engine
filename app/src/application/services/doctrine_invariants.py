@@ -246,10 +246,10 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         ("skip_exec_vs_candle", "skip_exec_vs_candle deve ser false (vela nao decide lado)"),
         ("skip_scale_candle_discord", "skip_scale_candle_discord deve ser false (sem SCALE adapt)"),
         ("skip_doji", "skip_doji deve ser false (vela nao decide lado)"),
+        ("skip_neg_edge", "skip_neg_edge deve ser false na doutrina de producao"),
     ):
         _eq_bool(inv, key, expected=False, msg=msg)
     for key, msg in (
-        ("skip_neg_edge", "skip_neg_edge deve ser true na doutrina de producao"),
         ("loss_clf_enabled", "loss_classifier.enabled deve ser true"),
         ("cover_enabled", "cover_enabled deve ser true (cover soft capped)"),
     ):
