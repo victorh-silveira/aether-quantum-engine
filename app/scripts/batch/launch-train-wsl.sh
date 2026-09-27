@@ -10,6 +10,14 @@ LOG="$LOG_DIR/launch-train.log"
 exec > >(tee "$LOG") 2>&1
 
 echo "[AETHER] launch-train WSL | python=$PY | root=$REPO_ROOT"
+if "$PY" -u app/scripts/operations/train_touch_classifier.py --if-enabled; then
+  exit 0
+else
+  TOUCH_STATUS=$?
+  if [ "$TOUCH_STATUS" -ne 3 ]; then
+    exit "$TOUCH_STATUS"
+  fi
+fi
 echo "[AETHER] 0/5 sanitize"
 "$PY" -u app/scripts/operations/sanitize_fresh_run.py
 echo "[AETHER] 0b/5 loss-classifier bootstrap"

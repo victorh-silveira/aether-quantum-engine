@@ -119,6 +119,11 @@ def evaluate_checkpoint(
             f"{path.name}: telemetria de collapse ausente "
             "(label_call_frac/pred_call_frac/minority_recall) — retreine com gate atual"
         )
+    if (
+        bool(gate_cfg.get("require_broker_settlement", False))
+        and payload.get("deploy_settlement_source") != "broker_tick_audit"
+    ):
+        return False, f"{path.name}: settlement auditado ausente; meta nao substitui evidencia do contrato"
     if meta_path is not None and meta_path.is_file():
         try:
             meta_bundle = joblib.load(meta_path)
@@ -126,8 +131,8 @@ def evaluate_checkpoint(
                 ir = float(meta_bundle.get("oos_information_ratio", 0.0) or 0.0)
                 z = float(meta_bundle.get("oos_payoff_zscore_mean", 0.0) or 0.0)
                 if ir >= 0.50 and z >= 0.010:
-                    return True, (
-                        f"{path.name}: Two-Stage Stacking qualificado "
+                    _LOGGER.info(
+                        f"{path.name}: metricas meta favoraveis; qualificacao do contrato ainda obrigatoria "
                         f"(TCN val_acc={val_acc:.4f} + Meta IR={ir:.2f} Z={z:.3f})"
                     )
         except Exception as exc:
@@ -160,13 +165,6 @@ def evaluate_checkpoint(
             f"pred_call={pred_call} minority_rec={minority_rec} "
             "sem evidencia OOS de settlement qualificada)"
         )
-    if (
-        bool(gate_cfg.get("require_broker_settlement", False))
-        and payload.get("deploy_settlement_source") != "broker_tick_audit"
-    ):
-        if not bool(gate_cfg.get("enforce_settle_gate", True)):
-            return True, (f"{path.name}: deploy_ok pass-through (broker_settlement waived; val_acc={val_acc:.4f})")
-        return False, f"{path.name}: settlement M5 e apenas proxy; evidencias broker/tick auditadas ausentes"
     if settlement_lcb is None or float(settlement_lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
         if not bool(gate_cfg.get("enforce_settle_gate", True)):
             return True, (f"{path.name}: deploy_ok pass-through (wilson_lcb waived; val_acc={val_acc:.4f})")

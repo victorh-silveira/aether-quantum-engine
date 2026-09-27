@@ -33,6 +33,7 @@ class TickBuffer:
         self._max_bars = max(64, int(max_bars))
         self.symbols = list(symbols)
         self._live: dict[str, deque[tuple[int, float]]] = {s: deque(maxlen=self._max_ticks) for s in symbols}
+        self._history: dict[str, deque[tuple[int, float]]] = {s: deque(maxlen=self._max_ticks) for s in symbols}
         self._bar_stats: dict[str, deque[BarMicrostructure]] = {s: deque(maxlen=self._max_bars) for s in symbols}
         self._current_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_tick_monotonic: float = 0.0
@@ -40,6 +41,7 @@ class TickBuffer:
     def reset_live_accumulators(self) -> None:
         """Limpa ticks ao vivo apos queda do socket para forcar repopulacao estocastica."""
         for symbol in self.symbols:
+            self._history[symbol].clear()
             bucket = self._live.get(symbol)
             if bucket is not None:
                 bucket.clear()
@@ -80,7 +82,12 @@ class TickBuffer:
         if symbol not in self._live:
             return
         self._live[symbol].append((int(epoch_ms), float(price)))
+        self._history[symbol].append((int(epoch_ms), float(price)))
         self.touch_activity()
+
+    def recent_ticks(self, symbol: str) -> list[tuple[int, float]]:
+        """Snapshot causal que sobrevive ao fechamento M5; reconexao limpa a janela."""
+        return list(self._history.get(symbol, ()))
 
     def on_bar_close(self, symbol: str, bar_epoch: int) -> BarMicrostructure:
         """Finaliza stats da barra e reinicia acumulador para a proxima."""

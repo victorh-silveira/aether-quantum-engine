@@ -1,10 +1,57 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import torch
 
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import INPUT_DIM, create_direction_model
+
+
+def test_sharp_only_improvement_resets_early_stopping_patience():
+    """Melhora apenas de sharpness reinicia paciencia, independentemente do treino aleatorio."""
+    from src.application.services.deep_learning import dl_training_epochs as epochs
+
+    model = torch.nn.Linear(1, 1)
+    state = model.state_dict()
+    unchanged = (0.6, 0.55, 0.56, 0.61, 0.1, None, None)
+    checkpoints = [
+        (*unchanged[:5], state, None),
+        unchanged,
+        (*unchanged[:5], None, state),
+        unchanged,
+        unchanged,
+        unchanged,
+    ]
+    x, y, mask = np.zeros((2, 1), dtype=np.float32), np.array([0.0, 1.0]), np.ones(2)
+    with (
+        patch.object(epochs, "_mean_epoch_loss", return_value=(0.6, 1)),
+        patch.object(epochs, "_validation_loss", return_value=0.6),
+        patch.object(epochs, "val_collapse_hit", return_value=(0.55, 0.1, False)),
+        patch.object(epochs, "checkpoint_if_improved", side_effect=checkpoints) as checkpoint,
+        patch.object(epochs, "_build_lr_scheduler", return_value=("cosine", MagicMock())),
+    ):
+        loss, chosen, ran = fit_training_epochs(
+            model,
+            x,
+            y,
+            mask,
+            [1.0, 1.0],
+            x,
+            y,
+            mask,
+            torch.device("cpu"),
+            epochs=10,
+            batch_size=2,
+            lr=0.001,
+            weight_decay=0.0,
+            label_smoothing=0.0,
+            focal_gamma=0.0,
+            early_stopping_patience=3,
+            min_val_accuracy=0.53,
+        )
+    assert ran == checkpoint.call_count == 6
+    assert abs(loss - 0.6) < 1e-9
+    assert chosen is state
 
 
 def test_fit_training_epochs_val_loss_uses_plain_bce_not_focal():

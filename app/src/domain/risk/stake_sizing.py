@@ -107,6 +107,9 @@ def clamp_kelly_stake(
     ceiling_pct = min(float(max_pct), float(bankroll_cap)) if bankroll_cap > 0 else float(max_pct)
     if ceiling_pct > 0.0:
         bounded = min(bounded, float(bankroll) * ceiling_pct)
+    max_stake = float(kelly_config.get("max_stake", 0.0) or 0.0)
+    if max_stake > 0.0:
+        bounded = min(bounded, max_stake)
     return bounded if bounded > 0 else 0.0
 
 
@@ -240,15 +243,23 @@ def enforce_min_stake_pct(
     safe_cap: float = 0.0,
     metrics: dict[str, Any] | None = None,
 ) -> float:
-    """Eleva stake ao piso percentual da banca; re-cap no safe_cap de recovery."""
+    """Eleva stake ao piso percentual da banca; re-cap no safe_cap de recovery e max_stake absoluto."""
     if float(final_stake) <= 0.0:
         return 0.0
     min_pct = float(kelly_config.get("min_stake_pct", 0.0) or 0.0)
+    max_stake = float(kelly_config.get("max_stake", 0.0) or 0.0)
     if min_pct <= 0.0 or float(bankroll) <= 0.0:
-        return float(final_stake)
+        out = float(final_stake)
+        return min(out, max_stake) if max_stake > 0.0 else out
     floor = float(bankroll) * min_pct
+    if max_stake > 0.0:
+        floor = min(floor, max_stake)
     lifted = max(float(final_stake), floor)
+    if max_stake > 0.0:
+        lifted = min(lifted, max_stake)
     out = min(lifted, float(safe_cap)) if float(safe_cap) > 0.0 else lifted
+    if max_stake > 0.0:
+        out = min(out, max_stake)
     if isinstance(metrics, dict) and lifted + 1e-12 > float(final_stake):
         metrics["min_stake_pct_floor_applied"] = True
         metrics["min_stake_pct_floor"] = float(floor)

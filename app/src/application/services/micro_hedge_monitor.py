@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -61,7 +62,7 @@ def register_contract_for_hedge(
     entry_time: float | None = None,
 ) -> None:
     """Registra contrato primario ativo para monitoramento de hedging aos 150s."""
-    if orch is None:
+    if orch is None or not math.isfinite(entry_spot) or entry_spot <= 0.0 or entry_time is None:
         return
     watch = getattr(orch, "_active_hedge_watch", None)
     if watch is None:

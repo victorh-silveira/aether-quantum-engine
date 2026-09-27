@@ -26,26 +26,31 @@ def load_barrier_config(config: dict[str, Any] | None) -> BarrierContractConfig:
         enabled=bool(raw.get("enabled", True)),
         min_atr=float(raw.get("min_atr", 0.0)),
         target_regimes=regimes_tuple or ("all",),
-        barrier_multiplier=float(raw.get("barrier_multiplier", 0.80)),
+        barrier_multiplier=float(raw.get("barrier_multiplier", 0.45)),
         default_type=str(raw.get("default_type", "ONETOUCH")).upper(),
+        adx_notouch_threshold=float(raw.get("adx_notouch_threshold", 0.15)),
     )
 
 
 def resolve_barrier_offset(
     atr: float,
     direction: TradeDirection,
-    multiplier: float = 0.80,
+    multiplier: float = 0.45,
     spot_price: float = 0.0,
+    *,
+    is_notouch: bool = False,
 ) -> str:
     """Calcula string de offset relativo da barreira (+X.XX ou -X.XX)."""
     if atr > 0.0:
         distance = round(float(atr) * float(multiplier), 2)
     elif spot_price > 10.0:
-        distance = round(float(spot_price) * 0.0025 * float(multiplier), 2)
+        distance = round(float(spot_price) * 0.0012 * float(multiplier), 2)
     else:
-        distance = round(12.50 * float(multiplier), 2)
+        distance = round(6.00 * float(multiplier), 2)
+    if multiplier > 0.0:
+        distance = max(0.50, distance)
     is_up = direction in {TradeDirection.CALL, TradeDirection.MULTUP}
-    prefix = "+" if is_up else "-"
+    prefix = "+" if is_up != is_notouch else "-"
     return f"{prefix}{distance:.2f}"
 
 
@@ -70,20 +75,34 @@ def resolve_contract_barrier_structure(
     direction: TradeDirection,
     config: dict[str, Any] | None = None,
 ) -> dict:
-    """Atualiza parametros de proposta para ONETOUCH se a condicao de volatilidade for atendida."""
+    """Atualiza parametros de proposta para ONETOUCH ou NOTOUCH conforme ADX e regime."""
     cfg = load_barrier_config(config)
+    if isinstance(config, dict) and config.get("deep_learning", {}).get("label_mode") == "spot_forward":
+        directional_params = dict(params)
+        directional_params["contract_type"] = direction.value
+        directional_params.pop("barrier", None)
+        return directional_params
     if not should_transition_to_barrier_contract(metrics, cfg):
         return params
 
-    raw_atr = metrics.get("raw_atr") or metrics.get("atr_raw")
+    raw_atr = metrics.get("atr_abs")
     atr = (
         float(raw_atr)
         if isinstance(raw_atr, (int, float)) and float(raw_atr) > 0.0
         else float(metrics.get("atr") or 0.0)
     )
     spot = float(metrics.get("current_price") or metrics.get("spot") or metrics.get("close") or 5640.0)
-    barrier_str = resolve_barrier_offset(atr, direction, multiplier=cfg.barrier_multiplier, spot_price=spot)
-    contract_type = cfg.default_type
+    adx_val = float(metrics.get("adx") or metrics.get("adx_14") or 0.0)
+    regime = str(metrics.get("volatility_regime") or metrics.get("regime") or "").lower()
+    is_low_adx = 0.0 < adx_val < cfg.adx_notouch_threshold
+    is_calm_regime = any(r in regime for r in ("chop", "retraction", "calm", "neutral"))
+
+    contract_type = "NOTOUCH" if is_low_adx or (is_calm_regime and adx_val < 0.20) else cfg.default_type
+
+    is_notouch = contract_type == "NOTOUCH"
+    barrier_str = resolve_barrier_offset(
+        atr, direction, multiplier=cfg.barrier_multiplier, spot_price=spot, is_notouch=is_notouch
+    )
     new_params = dict(params)
     new_params["contract_type"] = contract_type
     new_params["barrier"] = barrier_str
@@ -91,13 +110,15 @@ def resolve_contract_barrier_structure(
     metrics["barrier_contract_selected"] = True
     metrics["barrier_contract_type"] = contract_type
     metrics["barrier_offset"] = barrier_str
+    metrics["barrier_is_notouch"] = is_notouch
 
     logger.info(
-        "BARRIER_OPT || Selecionado %s para %s (dir=%s barreira=%s ATR=%.2f)",
+        "BARRIER_OPT || Selecionado %s para %s (dir=%s barreira=%s ATR=%.2f ADX=%.3f)",
         contract_type,
         symbol,
         direction.name,
         barrier_str,
         atr,
+        adx_val,
     )
     return new_params

@@ -39,6 +39,21 @@
     "mini_history_bars": 500,
     "mini_fetch_count": 500
   },
+  "touch": {
+    "enabled": true,
+    "symbol": "1HZ75V",
+    "duration_seconds": 300,
+    "history_seconds": 300,
+    "max_tick_gap_ms": 1500,
+    "latency_ms": [0, 1000, 2000],
+    "barrier_sigma": [1.0, 1.5],
+    "min_edge": 0.03,
+    "min_oos_trades": 120,
+    "min_train_groups": 600,
+    "max_quote_age_ms": 2000,
+    "max_stake_pct": 0.001,
+    "model_max_age_days": 7
+  },
   "deep_learning": {
     "arch": "tcn",
     "aux_regression_weight": 0.08,
@@ -67,7 +82,7 @@
       "platt_b_default": 0.0,
       "tcn_macro_call_override": 0.82,
       "tcn_macro_put_override": 0.18,
-      "sharpening_enabled": true,
+      "sharpening_enabled": false,
       "sharpening_tau": 0.40,
       "temperature_default": 1.25,
       "temperature_max": 2.8,
@@ -88,7 +103,7 @@
       "eval_relaxed_gating": true,
       "force_ok": true,
       "max_brier": 0.26,
-      "max_eval_steps": 0,
+      "max_eval_steps": 240,
       "min_trades": 120,
       "min_win_rate": 0.540541,
       "provisional_enabled": true,
@@ -96,7 +111,7 @@
       "provisional_max_stake_pct": 0.01,
       "provisional_min_trades": 120,
       "provisional_min_win_rate": 0.57,
-      "mini_bars": 0,
+      "mini_bars": 512,
       "soft_max_brier": 0.26,
       "soft_min_val_accuracy": 0.50,
       "settlement_confidence": 0.90,
@@ -433,7 +448,7 @@
       "enable_anti_trend": false,
       "allow_direction_flip": false,
       "error_driven_reversal": {
-        "enabled": true,
+        "enabled": false,
         "brier_threshold": 0.40,
         "min_conviction": 0.60
       },
@@ -647,19 +662,23 @@
   },
   "risk_management": {
     "barrier_contracts": {
-      "enabled": true,
+      "enabled": false,
       "min_atr": 0.0,
       "target_regimes": [
         "explosion",
         "expansion",
         "chop",
+        "retraction",
         "trend",
         "all"
       ],
-      "barrier_multiplier": 0.80,
-      "default_type": "ONETOUCH"
+      "barrier_multiplier": 0.45,
+      "default_type": "ONETOUCH",
+      "adx_notouch_threshold": 0.15
     },
     "kelly": {
+      "kelly_fraction": 0.25,
+      "max_stake": 15.0,
       "adaptive_recovery_factor_cap": 2.5,
       "base_win_rate": 0.55,
       "consensus_cmo_weight": 0.3,
@@ -740,11 +759,12 @@
     "params": {
       "compounding_enabled": true,
       "compounding_rate_daily": 0.0431,
-      "contract_type": "ONETOUCH",
+      "contract_type": "RISE_FALL",
       "duration": 5,
       "duration_unit": "m",
       "payout_estimate": 0.85,
       "stake_min": 1.0,
+      "max_stake": 15.0,
       "stop_win_target_tolerance_ratio": 0.95
     },
     "recovery_state": {

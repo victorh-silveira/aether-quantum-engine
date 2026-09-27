@@ -134,9 +134,11 @@ def evaluate_mini_deploy(
     """Simula ultimas barras com gating atual e retorna deploy_ok, win_rate, brier."""
     cfg = gate_cfg or parse_deploy_gate_config(params if "deploy_gate" in params else {})
     runtime["deploy_settlement_source"] = "m5_close_proxy"
+    runtime["deploy_provisional_ok"] = False
+    requires_audit = bool(cfg.get("require_broker_settlement", False))
     if not cfg.get("enabled", True):
         runtime["deploy_settlement_n"] = 0
-        return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 1.0))
+        return not requires_audit, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 1.0))
     lookback = int(runtime.get("lookback", params["lookback"]))
     mini = max(lookback + 5, int(cfg["mini_bars"]))
     if len(prices) < mini + 2:
@@ -159,9 +161,9 @@ def evaluate_mini_deploy(
         runtime["deploy_settlement_win_rate"] = val_acc
         runtime["deploy_label_win_rate"] = val_acc
         runtime["deploy_settlement_brier"] = val_brier
-        runtime["deploy_settlement_wilson_lcb"] = val_acc
+        runtime["deploy_settlement_wilson_lcb"] = 0.0
         runtime["deploy_settlement_horizon_bars"] = resolve_settlement_horizon_bars(params, gran)
-        deploy_ok = not enforce_settle or bool(cfg.get("force_ok", False))
+        deploy_ok = False
         runtime["deploy_provisional_ok"] = deploy_ok
         logger.info(
             "SETTLE | Avaliacao OOS ignorada (max_eval_steps=%d, mini_bars=%d, enforce_settle=%s)",
@@ -232,7 +234,7 @@ def evaluate_mini_deploy(
         runtime["deploy_settlement_brier"] = float(runtime.get("val_brier", 1.0))
         runtime["deploy_label_win_rate"] = 0.0
         runtime["deploy_settlement_n"] = int(total)
-        if not enforce_settle:
+        if not enforce_settle and not requires_audit:
             runtime["deploy_provisional_ok"] = True
             return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 0.25))
         return False, 0.0, float(runtime.get("val_brier", 1.0))
@@ -261,7 +263,7 @@ def evaluate_mini_deploy(
     )
     if bool(cfg.get("require_broker_settlement", False)):
         runtime["deploy_provisional_ok"] = False
-    if not enforce_settle:
+    if not enforce_settle and not requires_audit:
         deploy_ok = True
         runtime["deploy_provisional_ok"] = True
     return deploy_ok, settlement_wr, settlement_brier

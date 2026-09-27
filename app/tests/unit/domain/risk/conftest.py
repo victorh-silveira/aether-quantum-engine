@@ -21,6 +21,7 @@ def _full_kelly() -> dict:
 
 @pytest.fixture
 def kelly_config():
+    """Isola formulas percentuais; teto absoluto e Kelly fracionario possuem testes proprios."""
     soft = _full_soft_recovery()
     kelly = _full_kelly()
     kelly.update(
@@ -29,6 +30,8 @@ def kelly_config():
             "dynamic_win_rate": True,
             "dynamic_min_samples": 5,
             "fraction": 0.1,
+            "kelly_fraction": 1.0,
+            "max_stake": 0.0,
             "max_stake_pct": 0.05,
             "recovery_sizing_conviction": 0.60,
             "recovery_min_conviction": 0.58,

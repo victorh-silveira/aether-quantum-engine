@@ -19,10 +19,11 @@ class BarrierContractConfig:
     """Configuracao de transicao para contratos de barreira."""
 
     enabled: bool = False
-    min_atr: float = 1.20
-    target_regimes: tuple[str, ...] = ("explosion", "expansion")
-    barrier_multiplier: float = 0.80
+    min_atr: float = 0.0
+    target_regimes: tuple[str, ...] = ("all",)
+    barrier_multiplier: float = 0.45
     default_type: str = "ONETOUCH"
+    adx_notouch_threshold: float = 0.15
 
 
 @dataclass(slots=True)

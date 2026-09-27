@@ -50,8 +50,13 @@ def calculate_kelly_fraction(
         metrics["kelly_side_p"] = float(p)
         metrics["kelly_p_floored"] = True
         metrics["trade_score"] = float(p)
-        metrics["conviction"] = float(p)
     kelly_f = (b * p - (1.0 - p)) / b if b > 0 else 0.0
+    kelly_mult = float(rm.kelly_config.get("kelly_fraction", 1.0) or 1.0)
+    if 0.0 < kelly_mult < 1.0:
+        if metrics is not None:
+            metrics["kelly_fraction_raw"] = float(kelly_f)
+            metrics["kelly_fraction_multiplier"] = float(kelly_mult)
+        kelly_f = kelly_f * kelly_mult
     return max(0.0, float(kelly_f)), b, p
 
 

@@ -60,7 +60,7 @@ def test_production_deploy_gate_armed():
     assert settings["orchestrator"]["execution"]["invert_exec_side"] is False
     assert settings["orchestrator"]["execution"]["anti_trend_lock"] is False
     assert settings["orchestrator"]["execution"]["allow_direction_flip"] is False
-    assert settings["orchestrator"]["execution"]["error_driven_reversal"]["enabled"] is True
+    assert settings["orchestrator"]["execution"]["error_driven_reversal"]["enabled"] is False
     assert float(settings["orchestrator"]["execution"]["error_driven_reversal"]["brier_threshold"]) == pytest.approx(
         0.40
     )
@@ -68,9 +68,12 @@ def test_production_deploy_gate_armed():
     assert float(settings["orchestrator"]["execution"]["micro_hedging"]["target_midpoint_seconds"]) == pytest.approx(
         150.0
     )
-    assert settings["risk_management"]["barrier_contracts"]["enabled"] is True
+    assert settings["risk_management"]["barrier_contracts"]["enabled"] is False
+    assert settings["risk_management"]["params"]["contract_type"] == "RISE_FALL"
     assert settings["risk_management"]["barrier_contracts"]["default_type"] == "ONETOUCH"
-    assert dl["calibration"]["sharpening_enabled"] is True
+    assert dl["calibration"]["sharpening_enabled"] is False
+    assert gate["max_eval_steps"] >= gate["min_trades"]
+    assert gate["mini_bars"] > gate["max_eval_steps"]
     assert float(dl["calibration"]["sharpening_tau"]) == pytest.approx(0.40)
     assert settings["orchestrator"]["execution"]["skip_exec_vs_candle"] is False
     assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False

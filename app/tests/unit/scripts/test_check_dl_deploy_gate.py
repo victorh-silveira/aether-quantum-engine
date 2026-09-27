@@ -91,7 +91,7 @@ def test_evaluate_checkpoint_rejects_deploy_false(tmp_path: Path):
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is False
-    assert "deploy_ok=false" in msg
+    assert "settlement auditado ausente" in msg
 
 
 def test_evaluate_checkpoint_rejects_missing_collapse_telemetry(tmp_path: Path):
@@ -112,7 +112,7 @@ def test_evaluate_checkpoint_rejeita_soft_fallback_sem_settlement(tmp_path: Path
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is False
-    assert "sem evidencia OOS" in msg
+    assert "settlement auditado ausente" in msg
     save_mock.assert_not_called()
     assert payload["deploy_ok"] is False
 
@@ -152,7 +152,7 @@ def test_evaluate_checkpoint_rejects_m5_proxy_even_with_high_lcb(tmp_path: Path)
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.53, settings=settings)
     assert ok is False
-    assert "apenas proxy" in msg
+    assert "settlement auditado ausente" in msg
 
 
 def test_evaluate_checkpoint_rejects_stale_geometry(tmp_path: Path):
@@ -221,7 +221,7 @@ def test_evaluate_checkpoint_force_ok_nao_promove_modelo_fraco(tmp_path: Path):
     with patch("torch.load", return_value=payload), patch("torch.save") as save_mock:
         ok, msg = evaluate_checkpoint(path, soft_min=0.0, settings=settings)
     assert ok is False
-    assert "sem evidencia OOS" in msg
+    assert "settlement auditado ausente" in msg
     save_mock.assert_not_called()
     assert payload["deploy_ok"] is False
 
@@ -268,7 +268,7 @@ def test_main_fails_when_checkpoint_missing(monkeypatch, tmp_path: Path):
         assert main() == 1
 
 
-def test_evaluate_checkpoint_with_meta_path_qualifies(tmp_path: Path):
+def test_evaluate_checkpoint_meta_cannot_replace_contract_audit(tmp_path: Path):
     path = tmp_path / "1HZ75V.pth"
     path.write_bytes(b"x")
     meta_path = tmp_path / "meta_lgbm.pkl"
@@ -285,8 +285,8 @@ def test_evaluate_checkpoint_with_meta_path_qualifies(tmp_path: Path):
         patch("joblib.load", return_value=meta_bundle),
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings, meta_path=meta_path)
-    assert ok is True
-    assert "Two-Stage Stacking qualificado" in msg
+    assert ok is False
+    assert "settlement auditado ausente" in msg
 
 
 def test_evaluate_checkpoint_with_meta_path_load_error(tmp_path: Path):
@@ -328,8 +328,8 @@ def test_evaluate_checkpoint_allows_unqualified_when_enforce_settle_false(tmp_pa
         return_value={"val_accuracy": 0.55, "deploy_ok": False, **_COLLAPSE_OK},
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings)
-    assert ok is True
-    assert "enforce_settle_gate=false" in msg
+    assert ok is False
+    assert "settlement auditado ausente" in msg
 
 
 def test_evaluate_checkpoint_waives_broker_and_wilson_when_enforce_settle_false(tmp_path: Path):
@@ -355,8 +355,8 @@ def test_evaluate_checkpoint_waives_broker_and_wilson_when_enforce_settle_false(
         },
     ):
         ok, msg = evaluate_checkpoint(path, soft_min=0.50, settings=settings)
-    assert ok is True
-    assert "broker_settlement waived" in msg
+    assert ok is False
+    assert "settlement auditado ausente" in msg
 
 
 def test_main_with_allow_unqualified_flag(monkeypatch, tmp_path: Path):

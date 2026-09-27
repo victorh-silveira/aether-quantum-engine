@@ -19,7 +19,7 @@ if str(_APP) not in sys.path:
 from aether_paths import REPO_ROOT
 
 
-PRESERVE_DATA_DIRS = frozenset({"deriv"})
+PRESERVE_DATA_DIRS = frozenset({"deriv", "touch"})
 DL_GLOBS = ("*.pth", "*_ts.pt", "*.pt")
 MODEL_GLOBS = ("*.pkl", "*.joblib")
 META_BUNDLE_NAMES = frozenset({"meta_lgbm.pkl"})

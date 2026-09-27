@@ -18,9 +18,9 @@ def test_barrier_contract_config_defaults():
     """Verifica instanciacao e defaults de BarrierContractConfig."""
     cfg = BarrierContractConfig()
     assert cfg.enabled is False
-    assert cfg.min_atr == 1.20
-    assert "explosion" in cfg.target_regimes
-    assert cfg.barrier_multiplier == 0.80
+    assert cfg.min_atr == 0.0
+    assert "all" in cfg.target_regimes
+    assert cfg.barrier_multiplier == 0.45
     assert cfg.default_type == "ONETOUCH"
 
 

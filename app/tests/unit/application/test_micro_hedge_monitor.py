@@ -16,6 +16,22 @@ from src.application.services.micro_hedge_monitor import (
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 
 
+@pytest.mark.parametrize("spot,epoch", [(0.0, 1000.0), (float("nan"), 1000.0), (100.0, None)])
+def test_hedge_requires_confirmed_entry(spot, epoch):
+    """Nao usa custo da opcao nem relogio local como spot/tempo confirmado."""
+    orch = SimpleNamespace()
+    register_contract_for_hedge(
+        orch,
+        1,
+        symbol="1HZ75V",
+        direction=TradeDirection.CALL,
+        entry_spot=spot,
+        entry_time=epoch,
+        stake=2.0,
+    )
+    assert not hasattr(orch, "_active_hedge_watch")
+
+
 def test_load_micro_hedge_config():
     """Verifica carregamento de configuracao de micro-hedging."""
     assert load_micro_hedge_config(None).enabled is False

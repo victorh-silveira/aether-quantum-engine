@@ -20,9 +20,12 @@ _BAR_SQL = (
 _CONTRACT_SQL = (
     "INSERT INTO contract_executions (contract_id, symbol, account_mode, direction, transaction_buy_id, "
     "request_epoch_ms, ack_epoch_ms, date_start, date_expiry, entry_tick, entry_tick_time, exit_tick, "
-    "exit_tick_time, buy_price, payout, signal_prob, profit, status, settlement_source) "
-    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) "
+    "exit_tick_time, buy_price, payout, signal_prob, profit, status, settlement_source, proposal_id, contract_type, barrier) "
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) "
     "ON CONFLICT (contract_id) DO UPDATE SET "
+    "proposal_id=COALESCE(EXCLUDED.proposal_id, contract_executions.proposal_id), "
+    "contract_type=COALESCE(EXCLUDED.contract_type, contract_executions.contract_type), "
+    "barrier=COALESCE(EXCLUDED.barrier, contract_executions.barrier), "
     "transaction_buy_id=COALESCE(EXCLUDED.transaction_buy_id, contract_executions.transaction_buy_id), "
     "request_epoch_ms=COALESCE(EXCLUDED.request_epoch_ms, contract_executions.request_epoch_ms), "
     "ack_epoch_ms=COALESCE(EXCLUDED.ack_epoch_ms, contract_executions.ack_epoch_ms), "
@@ -63,6 +66,9 @@ _CONTRACT_FIELDS = (
     "profit",
     "status",
     "settlement_source",
+    "proposal_id",
+    "contract_type",
+    "barrier",
 )
 
 

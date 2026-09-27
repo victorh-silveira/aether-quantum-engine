@@ -4,6 +4,11 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Runtime atual (SSOT settings)
 
+Com `touch.enabled=true`, o launcher e o motor usam o pipeline dedicado
+[Touch/No Touch](engineering-touch-no-touch.md). As descricoes TCN/meta
+direcionais a seguir se aplicam apenas ao caminho legado desativado.
+Artefatos CALL/PUT nao qualificam contratos de toque.
+
 O `launch-train` separa treino de deploy. Checkpoint TCN exportado com
 `deploy_ok=false` alimenta o treino meta e pode ser carregado localmente para
 operacao limitada em qualquer tipo de conta, mas nao e enviado ao MinIO. O
@@ -238,6 +243,27 @@ Com `online_training=false` (SSOT), a DEMO nao agenda retreino TCN em runtime (n
 - Soft Kelly no TCN / desligar `skip_neg_edge` para “passar” Edge mole
 
 Skill: `aether-dl-train`.
+## Adequacao de contrato e qualificacao (27/09/2026)
+
+O SSOT atual usa lookback 32 e label `spot_forward`, mantendo Rise/Fall M5.
+Touch/No Touch esta desativado; o seletor tambem impede conversao quando o
+label configurado e `spot_forward`. Validar direcao no fechamento nao valida
+primeiro toque. ATR de barreira usa `atr_abs`, em unidades de preco.
+Sharpening fixo e Alpha Flip estao desativados por falta de validacao OOS
+compativel. Micro-hedging permanece desativado e exige spot/tempo de entrada
+confirmados; custo de compra da opcao nunca representa spot do indice.
+
+O diagnostico reserva 512 barras e avalia ate 240 pontos. Zero passos nao
+qualifica e nao recebe LCB igual a acuracia. `force_ok` conserva artefatos,
+nao evidencia. `require_broker_settlement` prevalece sobre waiver de settlement
+e qualificacao isolada do meta. O avaliador por closes permanece proxy:
+a integracao de um avaliador OOS por ticks auditados ainda esta pendente.
+
+O teto configurado para checkpoint nao qualificado e 1% (nao 0,1% descrito
+nas secoes historicas acima), sujeito ao teto absoluto de 15 na compra.
+Kelly fracionario configurado em 0,25 nao remove esse teto nem demonstra edge.
+Estas alteracoes nao retreinam modelos nem reiniciam processos em execucao.
+
 # Contrato temporal dos indicadores
 
 As series de ATR e largura de Bollinger usam z-score rolling causal nas janelas

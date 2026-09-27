@@ -20,6 +20,20 @@ def test_proposal_stake_attempts_descending():
     assert all(stake >= 1.0 for stake in attempts)
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["demo", "live"])
+async def test_purchase_respects_absolute_cap(orch_config, mode):
+    """A compra respeita teto absoluto mesmo com stake calculada maior."""
+    orch = MagicMock()
+    orch.config = orch_config
+    orch.config["risk_management"]["kelly"] = {"max_stake": 15.0}
+    orch.auth.mode = mode
+    orch.trade_handler.buy_with_parameters = AsyncMock(return_value=MagicMock(contract_id=1))
+    with patch("src.application.services.orchestrator.execution_orders.subscribe_open_contract", AsyncMock()):
+        await place_order(MagicMock(orch=orch), "1HZ75V", TradeDirection.CALL, 100.0)
+    assert orch.trade_handler.buy_with_parameters.await_args.args[2] == 15.0
+
+
 def test_proposal_retry_scales_defaults():
     assert proposal_retry_scales({}) == [0.85, 0.70, 0.55, 0.40]
 

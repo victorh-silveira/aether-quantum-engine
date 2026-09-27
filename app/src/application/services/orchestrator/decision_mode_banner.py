@@ -10,6 +10,7 @@ from src.application.services.deep_learning.dl_params_timeframe import (
     resolve_dl_granularity,
     resolve_train_timeframe,
 )
+from src.domain.models.touch_policy import resolve_touch_policy, touch_enabled
 
 
 def emit_decision_engine_banner(
@@ -19,6 +20,14 @@ def emit_decision_engine_banner(
     decision_mode: str,
 ) -> None:
     """Emite uma linha CFG informando o modo de decisao ativo no ciclo."""
+    if touch_enabled(config):
+        policy = resolve_touch_policy(config)
+        logger.info(
+            "CFG | TOUCH/NOTOUCH | %s | ticks | contrato=%ss | modelo=touch_ticks_v1 | sem fallback CALL/PUT",
+            policy.symbol,
+            policy.duration_seconds,
+        )
+        return
     dl_cfg = config.get("deep_learning") or {}
     if decision_mode == "deep_learning":
         risk_params = (config.get("risk_management") or {}).get("params") or {}

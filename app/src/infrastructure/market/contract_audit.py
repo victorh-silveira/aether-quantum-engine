@@ -43,6 +43,9 @@ def open_audit_row(
         "buy_price": _number(payload, "buy_price"),
         "payout": _number(payload, "payout"),
         "settlement_source": "pending",
+        "proposal_id": payload.get("proposal_id"),
+        "contract_type": payload.get("contract_type"),
+        "barrier": _number(payload, "barrier"),
     }
 
 
@@ -75,4 +78,7 @@ def settlement_audit_row(
         "profit": _number(payload, "profit"),
         "status": str(payload["status"]) if payload.get("status") is not None else None,
         "settlement_source": source,
+        "proposal_id": payload.get("proposal_id"),
+        "contract_type": payload.get("contract_type"),
+        "barrier": _number(payload, "barrier"),
     }

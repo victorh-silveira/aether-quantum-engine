@@ -21,9 +21,15 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] launch-train: sanitize -^> treino DL 5m -^> gate -^> meta -^> rebuild
-echo [AETHER] 0/5 sanitize run anterior...
+echo [AETHER] launch-train: selecionando pipeline conforme settings...
 cd /d "%REPO_ROOT%"
+"%PYTHON_EXE%" -u app/scripts/operations/train_touch_classifier.py --if-enabled
+if errorlevel 4 exit /b 1
+if errorlevel 3 goto :legacy_train
+if errorlevel 1 exit /b 1
+exit /b 0
+:legacy_train
+echo [AETHER] 0/5 sanitize run anterior (pipeline direcional legado)...
 "%PYTHON_EXE%" -u app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 

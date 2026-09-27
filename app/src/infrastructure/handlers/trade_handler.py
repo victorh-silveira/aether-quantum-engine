@@ -132,6 +132,8 @@ class TradeHandler:
             stake=stake,
             expiry_time=expiry,
             longcode=str(b.get("longcode") or proposal.get("longcode") or ""),
+            entry_spot=b.get("entry_tick") or b.get("entry_spot"),
+            entry_time=b.get("entry_tick_time") or b.get("entry_spot_time"),
         )
 
     async def _buy_via_bulk_purchase(
@@ -176,6 +178,8 @@ class TradeHandler:
             stake=stake,
             expiry_time=expiry,
             longcode=shortcode,
+            entry_spot=tx.get("entry_tick") or tx.get("entry_spot"),
+            entry_time=tx.get("entry_tick_time") or tx.get("entry_spot_time"),
         )
 
     async def _record_purchase_audit(

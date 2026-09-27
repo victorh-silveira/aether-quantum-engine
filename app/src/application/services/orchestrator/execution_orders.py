@@ -122,6 +122,12 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             lo.pop("stop_loss", None)
             params["limit_order"] = lo
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
+    rm_cfg = executor.orch.config.get("risk_management", {})
+    max_stake_cap = float(
+        rm_cfg.get("kelly", {}).get("max_stake", 0.0) or rm_cfg.get("params", {}).get("max_stake", 0.0)
+    )
+    if max_stake_cap > 0.0:
+        stake = min(float(stake), max_stake_cap)
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
     if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
@@ -206,7 +212,8 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         int(contract.contract_id),
         symbol=str(symbol),
         direction=direction,
-        entry_spot=float(getattr(contract, "buy_price", 0.0) or 0.0),
+        entry_spot=float(getattr(contract, "entry_spot", 0.0) or 0.0),
+        entry_time=getattr(contract, "entry_time", None),
         stake=float(contract.stake),
         duration=dur_sec,
     )

@@ -105,6 +105,9 @@ def cap_final_stake(
         max_pct = float(rm.kelly_config.get("max_stake_pct_high_conviction", max_pct) or max_pct)
     pct_cap = max(0.0, float(bankroll) * max_pct)
     capped = min(final_stake, safe_cap) if recovery_stress else min(final_stake, safe_cap, pct_cap)
+    max_stake = float(rm.kelly_config.get("max_stake", 0.0) or 0.0)
+    if max_stake > 0.0:
+        capped = min(capped, max_stake)
     return capped, safe_cap
 
 

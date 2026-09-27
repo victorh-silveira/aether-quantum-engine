@@ -13,6 +13,19 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
+Touch/No Touch e o fluxo ativo quando `touch.enabled=true` (SSOT atual).
+Prevalece [`docs/engineering-touch-no-touch.md`](docs/engineering-touch-no-touch.md)
+sobre as descricoes direcionais legadas abaixo. Usa 1HZ75V, 300 segundos,
+ticks e propostas reais; nao converte P(CALL) em P(toque). DEMO/REAL compartilham
+qualificacao, decisao e limites. Nao operar sem artefato Touch qualificado.
+
+Atualizacao 27/09/2026: prevalecem `settings.json` e a secao "Adequacao de
+contrato e qualificacao" de `docs/engineering-deep-learning.md` sobre os
+valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras/sharpening/
+Alpha Flip/micro-hedging desativados. Gate proxy nao qualifica por force_ok,
+zero passos ou meta isolado. Teto nao qualificado configurado em 1%, com
+max_stake absoluto de 15; Kelly fracionario 0,25. Nao confundir com aprovacao OOS.
+
 - Politica de mercado vigente: `four_market_vetoes=true` e
   `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.
   Substitui os gates individuais de mercado legados. Nao altera P(CALL), nao

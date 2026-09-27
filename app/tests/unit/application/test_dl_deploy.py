@@ -26,8 +26,8 @@ def test_parse_deploy_gate_config_defaults():
     assert cfg["enabled"] is True
     assert cfg["force_ok"] is True
     assert cfg["max_brier"] == 0.26
-    assert cfg["max_eval_steps"] == 0
-    assert cfg["mini_bars"] == 0
+    assert cfg["max_eval_steps"] == 240
+    assert cfg["mini_bars"] == 512
     assert float(cfg["soft_min_val_accuracy"]) == pytest.approx(0.50)
     assert float(cfg["settlement_confidence"]) == pytest.approx(0.90)
 
@@ -518,14 +518,15 @@ def test_evaluate_mini_deploy_skips_when_max_eval_steps_zero():
         params={"lookback": 10},
         gate_cfg=gate_cfg,
     )
-    assert ok is True
+    assert ok is False
     assert wr == 0.55
     assert brier == 0.22
     assert runtime["deploy_settlement_n"] == 0
-    assert runtime["deploy_provisional_ok"] is True
+    assert runtime["deploy_provisional_ok"] is False
 
 
-def test_evaluate_mini_deploy_waives_settle_gate_when_enforce_false():
+@pytest.mark.parametrize("requires_audit", [True, False])
+def test_evaluate_mini_deploy_requires_audit_even_when_enforce_false(requires_audit):
     prices = np.linspace(100.0, 110.0, 60)
     runtime = {"lookback": 10, "val_accuracy": 0.56, "val_brier": 0.23}
     gate_cfg = {
@@ -536,7 +537,7 @@ def test_evaluate_mini_deploy_waives_settle_gate_when_enforce_false():
         "min_trades": 10,
         "min_win_rate": 0.60,
         "max_brier": 0.20,
-        "require_broker_settlement": True,
+        "require_broker_settlement": requires_audit,
     }
     with patch(
         "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
@@ -552,11 +553,12 @@ def test_evaluate_mini_deploy_waives_settle_gate_when_enforce_false():
             params={"lookback": 10},
             gate_cfg=gate_cfg,
         )
-    assert ok is True
-    assert runtime["deploy_provisional_ok"] is True
+    assert ok is not requires_audit
+    assert runtime["deploy_provisional_ok"] is not requires_audit
 
 
-def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false():
+@pytest.mark.parametrize("requires_audit", [True, False])
+def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false(requires_audit):
     prices = np.linspace(100.0, 110.0, 60)
     runtime = {"lookback": 10, "val_accuracy": 0.56, "val_brier": 0.23}
     gate_cfg = {
@@ -567,7 +569,7 @@ def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false():
         "min_trades": 1,
         "min_win_rate": 0.99,
         "max_brier": 0.01,
-        "require_broker_settlement": True,
+        "require_broker_settlement": requires_audit,
     }
     with patch(
         "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
@@ -583,5 +585,5 @@ def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false():
             params={"lookback": 10},
             gate_cfg=gate_cfg,
         )
-    assert ok is True
-    assert runtime["deploy_provisional_ok"] is True
+    assert ok is not requires_audit
+    assert runtime["deploy_provisional_ok"] is not requires_audit

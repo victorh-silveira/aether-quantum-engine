@@ -11,6 +11,8 @@ class TradeDirection(Enum):
     PUT = "PUT"
     MULTUP = "MULTUP"
     MULTDOWN = "MULTDOWN"
+    ONETOUCH = "ONETOUCH"
+    NOTOUCH = "NOTOUCH"
 
 
 class TradeStatus(Enum):
@@ -59,6 +61,8 @@ class Contract:
     expiry_time: int
     profit: float | None = None
     longcode: str | None = None
+    entry_spot: float | None = None
+    entry_time: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
