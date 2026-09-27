@@ -1,3 +1,9 @@
+## [2.74.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.0...v2.74.1) (2026-09-27)
+
+### Correcoes de Bug
+
+* **infra:** amplia timeout e resiliencia de pip-audit e alinha pipeline de treino ([db2e3cc](https://github.com/victorh-silveira/aether-quantum-engine/commit/db2e3cc0898847470a4e83fe6b0d077cac663cdc))
+
 ## [2.74.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.73.0...v2.74.0) (2026-09-27)
 
 ### Funcionalidades
