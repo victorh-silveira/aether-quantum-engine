@@ -8,6 +8,7 @@ from src.infrastructure.handlers.trade_handler import (
     _contract_duration_seconds,
     build_proposal_request,
     resolve_api_contract_type,
+    resolve_contract_trade_direction,
 )
 
 
@@ -256,6 +257,16 @@ def test_resolve_api_contract_type_barrier():
     """Verifica resolucao de tipos de contratos de barreira."""
     assert resolve_api_contract_type(TradeDirection.CALL, {"contract_type": "ONETOUCH"}) == "ONETOUCH"
     assert resolve_api_contract_type(TradeDirection.PUT, {"contract_type": "NOTOUCH"}) == "NOTOUCH"
+
+
+def test_resolve_contract_trade_direction():
+    """Verifica mapeamento de direcao do contrato para ONETOUCH e NOTOUCH."""
+    assert (
+        resolve_contract_trade_direction(TradeDirection.CALL, {"contract_type": "ONETOUCH"}) == TradeDirection.ONETOUCH
+    )
+    assert resolve_contract_trade_direction(TradeDirection.PUT, {"contract_type": "NOTOUCH"}) == TradeDirection.NOTOUCH
+    assert resolve_contract_trade_direction(TradeDirection.CALL, {"contract_type": "RISE_FALL"}) == TradeDirection.CALL
+    assert resolve_contract_trade_direction(TradeDirection.PUT, {}) == TradeDirection.PUT
 
 
 @pytest.mark.asyncio

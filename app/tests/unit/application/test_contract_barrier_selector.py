@@ -10,18 +10,39 @@ from src.domain.models.contract_barrier_types import BarrierContractConfig
 from src.domain.models.trade import TradeDirection
 
 
-def test_directional_label_cannot_select_barrier_contract():
-    """Configuracao de barreira nao altera o evento previsto pelo TCN."""
-    params = {"duration": 5, "contract_type": "ONETOUCH", "barrier": "+1.0"}
+def test_barrier_disabled_keeps_directional_contract():
+    """Configuracao de barreira desativada mantem contrato direcional original."""
+    params = {"duration": 5, "contract_type": "CALL"}
     config = {
         "deep_learning": {"label_mode": "spot_forward"},
-        "risk_management": {"barrier_contracts": {"enabled": True}},
+        "risk_management": {"barrier_contracts": {"enabled": False}},
     }
     metrics = {"atr_abs": 10.0, "adx": 0.1}
     result = resolve_contract_barrier_structure(params, metrics, "1HZ75V", TradeDirection.CALL, config)
     assert result == {"duration": 5, "contract_type": "CALL"}
-    assert params["contract_type"] == "ONETOUCH"
     assert "barrier_contract_selected" not in metrics
+
+
+def test_barrier_enabled_selects_barrier_contract():
+    """Configuracao de barreira ativada seleciona contrato de barreira conforme metricas."""
+    params = {"duration": 5, "contract_type": "CALL"}
+    config = {
+        "deep_learning": {"label_mode": "spot_forward"},
+        "risk_management": {
+            "barrier_contracts": {
+                "enabled": True,
+                "min_atr": 0.0,
+                "barrier_multiplier": 0.45,
+                "default_type": "ONETOUCH",
+                "adx_notouch_threshold": 0.15,
+            }
+        },
+    }
+    metrics = {"atr_abs": 10.0, "adx": 0.25}
+    result = resolve_contract_barrier_structure(params, metrics, "1HZ75V", TradeDirection.CALL, config)
+    assert result["contract_type"] == "ONETOUCH"
+    assert result["barrier"] == "+4.50"
+    assert metrics["barrier_contract_selected"] is True
 
 
 def test_barrier_distance_uses_price_units():

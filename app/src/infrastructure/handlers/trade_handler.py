@@ -117,7 +117,8 @@ class TradeHandler:
             raise RuntimeError(f"Erro na compra direta: {msg}")
 
         b = buy_resp["buy"]
-        await self._record_purchase_audit(b, symbol, direction, request_epoch_ms, ack_epoch_ms)
+        eff_dir = resolve_contract_trade_direction(direction, p_cfg)
+        await self._record_purchase_audit(b, symbol, eff_dir, request_epoch_ms, ack_epoch_ms)
         expiry = int(proposal.get("date_expiry") or b.get("date_expiry") or 0)
         if expiry <= 0:
             expiry = int(time.time()) + _contract_duration_seconds(proposal_req)
@@ -128,7 +129,7 @@ class TradeHandler:
             buy_price=float(b.get("buy_price") or ask_price),
             payout=float(b.get("payout") or proposal.get("payout") or 0.0),
             symbol=symbol,
-            direction=direction,
+            direction=eff_dir,
             stake=stake,
             expiry_time=expiry,
             longcode=str(b.get("longcode") or proposal.get("longcode") or ""),
@@ -160,7 +161,8 @@ class TradeHandler:
             contract_parameters=contract_parameters,
         )
         ack_epoch_ms = time.time_ns() // 1_000_000
-        await self._record_purchase_audit(tx, symbol, direction, request_epoch_ms, ack_epoch_ms)
+        eff_dir = resolve_contract_trade_direction(direction, p_cfg)
+        await self._record_purchase_audit(tx, symbol, eff_dir, request_epoch_ms, ack_epoch_ms)
         buy_price = float(tx.get("buy_price") or stake)
         payout = float(tx.get("payout") or 0.0)
         purchase_time = int(tx.get("purchase_time") or time.time())
@@ -174,7 +176,7 @@ class TradeHandler:
             buy_price=buy_price,
             payout=payout,
             symbol=symbol,
-            direction=direction,
+            direction=eff_dir,
             stake=stake,
             expiry_time=expiry,
             longcode=shortcode,
@@ -215,6 +217,16 @@ def resolve_api_contract_type(direction: TradeDirection, p_cfg: dict[str, Any]) 
     if raw_type in {"ONETOUCH", "NOTOUCH", "TOUCH", "EXPIRYRANGE", "EXPIRYMISS"}:
         return raw_type
     return direction.value
+
+
+def resolve_contract_trade_direction(direction: TradeDirection, p_cfg: dict[str, Any]) -> TradeDirection:
+    """Resolve direcao do objeto Contract para auditoria e settlement."""
+    raw_type = str(p_cfg.get("contract_type") or "").upper()
+    if raw_type == "ONETOUCH":
+        return TradeDirection.ONETOUCH
+    if raw_type == "NOTOUCH":
+        return TradeDirection.NOTOUCH
+    return direction
 
 
 def build_proposal_request(

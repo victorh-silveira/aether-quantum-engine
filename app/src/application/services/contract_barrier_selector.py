@@ -77,11 +77,6 @@ def resolve_contract_barrier_structure(
 ) -> dict:
     """Atualiza parametros de proposta para ONETOUCH ou NOTOUCH conforme ADX e regime."""
     cfg = load_barrier_config(config)
-    if isinstance(config, dict) and config.get("deep_learning", {}).get("label_mode") == "spot_forward":
-        directional_params = dict(params)
-        directional_params["contract_type"] = direction.value
-        directional_params.pop("barrier", None)
-        return directional_params
     if not should_transition_to_barrier_contract(metrics, cfg):
         return params
 
