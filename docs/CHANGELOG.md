@@ -1,3 +1,9 @@
+## [2.75.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.1...v2.75.0) (2026-09-27)
+
+### Funcionalidades
+
+* **risk:** ativa execucao de contratos touch e no touch no motor ([af8e8da](https://github.com/victorh-silveira/aether-quantum-engine/commit/af8e8dac28402fd56ca9f892ea2fbdd1c3a08870))
+
 ## [2.74.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.0...v2.74.1) (2026-09-27)
 
 ### Correcoes de Bug
