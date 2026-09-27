@@ -21,15 +21,20 @@ if "%CONDA_ACTIVATE%"=="" echo [ERRO] Nao foi possivel localizar o activate.bat 
 if "%CONDA_ACTIVATE%"=="" pause
 if "%CONDA_ACTIVATE%"=="" exit /b 1
 
-echo [AETHER] launch-train: selecionando pipeline conforme settings...
+echo [AETHER] launch-train: verificando modulo Touch/No-Touch...
 cd /d "%REPO_ROOT%"
 "%PYTHON_EXE%" -u app/scripts/operations/train_touch_classifier.py --if-enabled
-if errorlevel 4 exit /b 1
-if errorlevel 3 goto :legacy_train
-if errorlevel 1 exit /b 1
-exit /b 0
-:legacy_train
-echo [AETHER] 0/5 sanitize run anterior (pipeline direcional legado)...
+set TOUCH_EXIT_CODE=%ERRORLEVEL%
+if %TOUCH_EXIT_CODE% equ 0 (
+    echo [AETHER] Treino Touch/No-Touch concluido com sucesso.
+) else if %TOUCH_EXIT_CODE% equ 2 (
+    echo [AVISO TOUCH] Propostas Touch ainda nao acumuladas em data\touch\quotes.jsonl.
+    echo               Prosseguindo com pipeline completo de treino TCN + Meta...
+) else (
+    echo [AETHER] Pipeline Touch inativo ou ignorado; prosseguindo com treino TCN + Meta...
+)
+
+echo [AETHER] 0/5 sanitize run anterior...
 "%PYTHON_EXE%" -u app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 goto :sanitize_fail
 

@@ -27,9 +27,19 @@ async def main() -> int:
         return 3
     try:
         policy = resolve_touch_policy(settings)
-        quotes = read_touch_quotes()
+        try:
+            quotes = read_touch_quotes()
+        except FileNotFoundError:
+            raise FileNotFoundError(
+                "data/touch/quotes.jsonl ausente. Execute 'python app/scripts/operations/collect_touch_dataset.py' "
+                "para coletar cotacoes e ticks antes do treino Touch (ou defina touch.enabled=false em "
+                "config/settings.json para rodar o pipeline TCN legado)"
+            ) from None
         if not quotes:
-            raise ValueError("Journal sem propostas; colete cotacoes e ticks antes do treino")
+            raise ValueError(
+                "Journal sem propostas em data/touch/quotes.jsonl; colete cotacoes e ticks via "
+                "'python app/scripts/operations/collect_touch_dataset.py' antes do treino"
+            )
         start = min(q["group_ms"] for q in quotes) - 2000
         end = max(q["decision_ms"] for q in quotes) + policy.duration_seconds * 1000 + max(policy.latency_ms) + 2000
         ticks = await read_touch_ticks(settings["infra"]["timescale"]["dsn"], policy.symbol, start, end)

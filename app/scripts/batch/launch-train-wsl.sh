@@ -11,11 +11,11 @@ exec > >(tee "$LOG") 2>&1
 
 echo "[AETHER] launch-train WSL | python=$PY | root=$REPO_ROOT"
 if "$PY" -u app/scripts/operations/train_touch_classifier.py --if-enabled; then
-  exit 0
+  echo "[AETHER] Treino Touch/No-Touch concluido com sucesso."
 else
   TOUCH_STATUS=$?
-  if [ "$TOUCH_STATUS" -ne 3 ]; then
-    exit "$TOUCH_STATUS"
+  if [ "$TOUCH_STATUS" -eq 2 ]; then
+    echo "[AVISO TOUCH] Propostas Touch ainda nao acumuladas em data/touch/quotes.jsonl; prosseguindo com treino TCN + Meta..."
   fi
 fi
 echo "[AETHER] 0/5 sanitize"

@@ -40,7 +40,7 @@
     "mini_fetch_count": 500
   },
   "touch": {
-    "enabled": true,
+    "enabled": false,
     "symbol": "1HZ75V",
     "duration_seconds": 300,
     "history_seconds": 300,
