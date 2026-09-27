@@ -1,3 +1,9 @@
+## [2.74.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.73.0...v2.74.0) (2026-09-27)
+
+### Funcionalidades
+
+* **engine:** implementa pipeline dedicado touch e no touch ([0c1c5a9](https://github.com/victorh-silveira/aether-quantum-engine/commit/0c1c5a9acd4b5eb359f0f00dc60db43e206ccf9b))
+
 ## [2.73.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.72.0...v2.73.0) (2026-09-24)
 
 ### Funcionalidades
