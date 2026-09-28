@@ -1,3 +1,9 @@
+## [2.77.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.76.0...v2.77.0) (2026-09-28)
+
+### Funcionalidades
+
+* **risk:** define stake fixo em 1% da banca sem teto de 15 usd ([93bdf01](https://github.com/victorh-silveira/aether-quantum-engine/commit/93bdf01b28cab3998faaa667bf16873b8fc7fe7b))
+
 ## [2.76.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.75.0...v2.76.0) (2026-09-28)
 
 ### Funcionalidades
