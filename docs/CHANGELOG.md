@@ -1,3 +1,9 @@
+## [2.76.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.75.0...v2.76.0) (2026-09-28)
+
+### Funcionalidades
+
+* **risk:** desativa skips de neg_edge por completo no motor ([223c6c4](https://github.com/victorh-silveira/aether-quantum-engine/commit/223c6c4dcaad018dd683aecf6c244cc1fb22f92b))
+
 ## [2.75.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.1...v2.75.0) (2026-09-27)
 
 ### Funcionalidades
