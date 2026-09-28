@@ -51,7 +51,7 @@
     "min_oos_trades": 120,
     "min_train_groups": 600,
     "max_quote_age_ms": 2000,
-    "max_stake_pct": 0.001,
+    "max_stake_pct": 0.01,
     "model_max_age_days": 7
   },
   "deep_learning": {
@@ -678,7 +678,7 @@
     },
     "kelly": {
       "kelly_fraction": 0.25,
-      "max_stake": 15.0,
+      "max_stake": 0.0,
       "adaptive_recovery_factor_cap": 2.5,
       "base_win_rate": 0.55,
       "consensus_cmo_weight": 0.3,
@@ -764,7 +764,7 @@
       "duration_unit": "m",
       "payout_estimate": 0.85,
       "stake_min": 1.0,
-      "max_stake": 15.0,
+      "max_stake": 0.0,
       "stop_win_target_tolerance_ratio": 0.95
     },
     "recovery_state": {
