@@ -1,3 +1,9 @@
+## [2.79.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.78.0...v2.79.0) (2026-09-29)
+
+### Funcionalidades
+
+* **engine:** atribui versoes de modelo e refina cotacoes ([19c81ec](https://github.com/victorh-silveira/aether-quantum-engine/commit/19c81ec8bb58c46b5559aec0ae32c266cacfcac9))
+
 ## [2.78.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.77.0...v2.78.0) (2026-09-29)
 
 ### Funcionalidades
