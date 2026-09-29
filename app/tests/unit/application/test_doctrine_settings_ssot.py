@@ -68,9 +68,9 @@ def test_production_deploy_gate_armed():
     assert float(settings["orchestrator"]["execution"]["micro_hedging"]["target_midpoint_seconds"]) == pytest.approx(
         150.0
     )
-    assert settings["risk_management"]["barrier_contracts"]["enabled"] is True
-    assert settings["risk_management"]["params"]["contract_type"] == "ONETOUCH"
-    assert settings["risk_management"]["barrier_contracts"]["default_type"] == "ONETOUCH"
+    assert settings["risk_management"]["params"]["contract_type"] == "CALL"
+    assert "barrier_contracts" not in settings["risk_management"]
+    assert "touch" not in settings
     assert dl["calibration"]["sharpening_enabled"] is False
     assert gate["max_eval_steps"] >= gate["min_trades"]
     assert gate["mini_bars"] > gate["max_eval_steps"]
@@ -79,6 +79,7 @@ def test_production_deploy_gate_armed():
     assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False
     assert settings["orchestrator"]["execution"]["skip_scale_candle_discord"] is False
     assert settings["orchestrator"]["execution"]["skip_neg_edge"] is False
+    assert settings["orchestrator"]["execution"]["min_edge_execute"] >= 0.0
     assert settings["orchestrator"]["execution"]["skip_doji"] is False
     assert settings["risk_management"]["soft_recovery"]["amort_cycles_min"] == 1
     assert settings["risk_management"]["soft_recovery"]["amort_cycles_max"] == 1

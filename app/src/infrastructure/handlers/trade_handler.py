@@ -54,8 +54,8 @@ class TradeHandler:
             proposal = proposal_resp.get("proposal")
             if not isinstance(proposal, dict):
                 return None
-            ask_price = float(proposal.get("ask_price") or stake)
-            payout_val = float(proposal.get("payout") or 0.0)
+            ask_price = float(proposal["ask_price"])
+            payout_val = float(proposal["payout"])
             rate = contract_profit_rate(payout_val, ask_price)
             if rate is not None:
                 self.latest_payout_rate = rate
@@ -68,6 +68,11 @@ class TradeHandler:
     ) -> Contract:
         """Compra um contrato via proposal/buy (WS) ou bulk-purchase (REST)."""
         if str(self.trading_transport).lower() == "rest":
+            exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
+            if bool(exec_cfg.get("require_quote_edge", False)) or (
+                isinstance(params, dict) and "_quote_guard_side_probability" in params
+            ):
+                raise RuntimeError("Rise/Fall REST sem cotacao final verificavel; compra bloqueada")
             return await self._buy_via_bulk_purchase(symbol, direction, stake, params)
         return await self._buy_via_websocket(symbol, direction, stake, params)
 
@@ -79,19 +84,6 @@ class TradeHandler:
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
         proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
-        if "error" in proposal_resp and str(p_cfg.get("contract_type") or "").upper() in {
-            "ONETOUCH",
-            "NOTOUCH",
-            "TOUCH",
-        }:
-            self.logger.warning(
-                "PROPOSAL: Broker rejeitou %s; fallback para %s",
-                p_cfg.get("contract_type"),
-                direction.value,
-            )
-            fallback_cfg = {k: v for k, v in p_cfg.items() if k not in {"contract_type", "barrier"}}
-            proposal_req = build_proposal_request(symbol, direction, stake, fallback_cfg)
-            proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
         if "error" in proposal_resp:
             msg = proposal_resp["error"].get("message", "Erro desconhecido")
             raise RuntimeError(f"Erro na proposta: {msg}")
@@ -104,11 +96,20 @@ class TradeHandler:
         if not prop_id:
             raise RuntimeError("Erro na proposta: id ausente")
 
+        if "_quote_guard_side_probability" in p_cfg and (
+            proposal.get("ask_price") is None or proposal.get("payout") is None
+        ):
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout; compra bloqueada")
         ask_price = float(proposal.get("ask_price") or stake)
         payout_val = float(proposal.get("payout") or 0.0)
         rate = contract_profit_rate(payout_val, ask_price)
         if rate is not None:
             self.latest_payout_rate = rate
+        if "_quote_guard_side_probability" in p_cfg:
+            p_side = float(p_cfg["_quote_guard_side_probability"])
+            min_edge = float(p_cfg["_quote_guard_min_edge"])
+            if rate is None or p_side * (1.0 + rate) - 1.0 <= min_edge:
+                raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
         request_epoch_ms = time.time_ns() // 1_000_000
         buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
         ack_epoch_ms = time.time_ns() // 1_000_000
@@ -117,8 +118,7 @@ class TradeHandler:
             raise RuntimeError(f"Erro na compra direta: {msg}")
 
         b = buy_resp["buy"]
-        eff_dir = resolve_contract_trade_direction(direction, p_cfg)
-        await self._record_purchase_audit(b, symbol, eff_dir, request_epoch_ms, ack_epoch_ms)
+        await self._record_purchase_audit(b, symbol, direction, request_epoch_ms, ack_epoch_ms)
         expiry = int(proposal.get("date_expiry") or b.get("date_expiry") or 0)
         if expiry <= 0:
             expiry = int(time.time()) + _contract_duration_seconds(proposal_req)
@@ -129,7 +129,7 @@ class TradeHandler:
             buy_price=float(b.get("buy_price") or ask_price),
             payout=float(b.get("payout") or proposal.get("payout") or 0.0),
             symbol=symbol,
-            direction=eff_dir,
+            direction=direction,
             stake=stake,
             expiry_time=expiry,
             longcode=str(b.get("longcode") or proposal.get("longcode") or ""),
@@ -161,8 +161,7 @@ class TradeHandler:
             contract_parameters=contract_parameters,
         )
         ack_epoch_ms = time.time_ns() // 1_000_000
-        eff_dir = resolve_contract_trade_direction(direction, p_cfg)
-        await self._record_purchase_audit(tx, symbol, eff_dir, request_epoch_ms, ack_epoch_ms)
+        await self._record_purchase_audit(tx, symbol, direction, request_epoch_ms, ack_epoch_ms)
         buy_price = float(tx.get("buy_price") or stake)
         payout = float(tx.get("payout") or 0.0)
         purchase_time = int(tx.get("purchase_time") or time.time())
@@ -176,7 +175,7 @@ class TradeHandler:
             buy_price=buy_price,
             payout=payout,
             symbol=symbol,
-            direction=eff_dir,
+            direction=direction,
             stake=stake,
             expiry_time=expiry,
             longcode=shortcode,
@@ -214,19 +213,7 @@ def resolve_api_contract_type(direction: TradeDirection, p_cfg: dict[str, Any]) 
     raw_type = str(p_cfg.get("contract_type") or "").upper()
     if raw_type == "MULTIPLIER":
         return "MULTUP" if direction == TradeDirection.CALL else "MULTDOWN"
-    if raw_type in {"ONETOUCH", "NOTOUCH", "TOUCH", "EXPIRYRANGE", "EXPIRYMISS"}:
-        return raw_type
     return direction.value
-
-
-def resolve_contract_trade_direction(direction: TradeDirection, p_cfg: dict[str, Any]) -> TradeDirection:
-    """Resolve direcao do objeto Contract para auditoria e settlement."""
-    raw_type = str(p_cfg.get("contract_type") or "").upper()
-    if raw_type == "ONETOUCH":
-        return TradeDirection.ONETOUCH
-    if raw_type == "NOTOUCH":
-        return TradeDirection.NOTOUCH
-    return direction
 
 
 def build_proposal_request(
@@ -245,6 +232,8 @@ def build_proposal_request(
 
     if is_multiplier:
         request["multiplier"] = p_cfg.get("multiplier", 100)
+        if "barrier" in p_cfg:
+            request["barrier"] = p_cfg["barrier"]
         if "cancellation" in p_cfg:
             request["cancellation"] = p_cfg["cancellation"]
         if "limit_order" in p_cfg:
@@ -252,9 +241,6 @@ def build_proposal_request(
     else:
         request["duration"] = p_cfg.get("duration", 5)
         request["duration_unit"] = p_cfg.get("duration_unit", "m")
-
-    if "barrier" in p_cfg:
-        request["barrier"] = p_cfg["barrier"]
 
     return request
 

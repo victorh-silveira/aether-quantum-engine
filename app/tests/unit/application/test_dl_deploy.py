@@ -182,10 +182,12 @@ def test_m5_proxy_cannot_qualify_when_broker_audit_required():
                 "provisional_min_win_rate": 0.0,
             },
         )
-    assert wr == 1.0
+    assert wr == 0.5
     assert ok is False
-    assert runtime["deploy_settlement_source"] == "m5_close_proxy"
+    assert runtime["deploy_settlement_source"] == "broker_audit_required"
     assert runtime["deploy_provisional_ok"] is False
+    assert runtime["deploy_settlement_n"] == 0
+    assert runtime["deploy_settlement_wilson_lcb"] == 0.0
 
 
 def test_direction_wins_boundary():

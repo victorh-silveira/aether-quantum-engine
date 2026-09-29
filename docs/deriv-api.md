@@ -1159,8 +1159,6 @@ Contract types are dynamic and may change over time. Use the `contracts_list` en
 | DIGITODD | Digits | Win if last digit is odd |
 | DIGITMATCH | Digits | Win if last digit matches specified |
 | DIGITDIFF | Digits | Win if last digit differs from specified |
-| ONETOUCH | Touch | Win if market touches barrier |
-| NOTOUCH | Touch | Win if market never touches barrier |
 | MULTUP | Multipliers | Multiplier Up |
 | MULTDOWN | Multipliers | Multiplier Down |
 | ACCU | Accumulators | Accumulator contract |

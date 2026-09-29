@@ -114,7 +114,9 @@ async def _complete_contract_settlement(
             resolved_meta.get("direction"),
             str(resolved_meta.get("symbol") or ""),
             float(resolved_meta.get("edge") or 0.0),
-            settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
+            settlement_tag=resolve_settlement_tag(
+                profit=profit, linear_before=linear_before, pending_after=float(stake_audit.get("pending", 0.0))
+            ),
             pending=float(stake_audit.get("pending", 0.0)),
             linear=linear_after,
             mode_tag=str(stake_audit.get("mode_tag") or ""),
@@ -195,7 +197,9 @@ async def process_late_settlement_from_payload(orch: Any, poc: dict) -> None:
                 direction,
                 str(sym),
                 edge,
-                settlement_tag=resolve_settlement_tag(profit=profit, linear_before=linear_before),
+                settlement_tag=resolve_settlement_tag(
+                    profit=profit, linear_before=linear_before, pending_after=float(stake_audit.get("pending", 0.0))
+                ),
                 pending=float(stake_audit.get("pending", 0.0)),
                 linear=linear_after,
                 mode_tag=str(stake_audit.get("mode_tag") or ""),

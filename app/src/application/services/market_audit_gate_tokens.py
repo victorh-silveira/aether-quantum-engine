@@ -43,7 +43,7 @@ def format_gates_audit_line(metrics: dict[str, Any]) -> str:
             loss_tok = f"OK auto={auto_learn} p={p_loss:.5f}{pe_tok}{blocked_tok} ready={ready} n={n_train} ver={ver}"
         skip = "-"
     else:
-        loss_tok = "OFF"
+        loss_tok = "OBSERVE" if metrics.get("loss_clf_observe_only") else "OFF"
         skip = "-"
     reason = str(metrics.get("gate_reason") or "").strip()
     if reason == "neg_edge":

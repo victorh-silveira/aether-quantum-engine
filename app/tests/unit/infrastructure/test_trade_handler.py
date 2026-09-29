@@ -8,7 +8,6 @@ from src.infrastructure.handlers.trade_handler import (
     _contract_duration_seconds,
     build_proposal_request,
     resolve_api_contract_type,
-    resolve_contract_trade_direction,
 )
 
 
@@ -52,6 +51,32 @@ async def test_trade_handler_buy_via_bulk_purchase_rest(mock_ws):
     assert contract.expiry_time == 1120
     assert contract.payout == pytest.approx(0.66)
     mock_ws.send.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_rest_rejects_guarded_purchase_before_bulk_call(mock_ws):
+    auth = MagicMock()
+    handler = TradeHandler(mock_ws, {"risk_management": {"params": {}}}, auth=auth)
+    handler.trading_transport = "rest"
+    with pytest.raises(RuntimeError, match="REST sem cotacao final"):
+        await handler.buy_with_parameters(
+            "1HZ75V", TradeDirection.PUT, 10.0, params={"_quote_guard_side_probability": 0.65}
+        )
+    auth.rest_client.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_trade_handler_rest_rejects_quote_guard_from_config_without_private_params(mock_ws):
+    auth = MagicMock()
+    handler = TradeHandler(
+        mock_ws,
+        {"orchestrator": {"execution": {"require_quote_edge": True}}, "risk_management": {"params": {}}},
+        auth=auth,
+    )
+    handler.trading_transport = "rest"
+    with pytest.raises(RuntimeError, match="REST sem cotacao final"):
+        await handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0)
+    auth.rest_client.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -239,6 +264,37 @@ async def test_trade_handler_fetch_proposal_payout_success(trade_handler, mock_w
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("payout", ["18.00", "0.00"])
+async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws, payout):
+    mock_ws.send.return_value = {"proposal": {"id": "new_quote", "ask_price": "10.00", "payout": payout}}
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "_quote_guard_side_probability": 0.55,
+        "_quote_guard_min_edge": 0.01,
+    }
+    with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall perdeu vantagem"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "proposal",
+    [
+        {"id": "new_quote"},
+        {"id": "new_quote", "ask_price": "10.00"},
+    ],
+)
+async def test_final_buy_proposal_requires_explicit_price_and_payout(trade_handler, mock_ws, proposal):
+    mock_ws.send.return_value = {"proposal": proposal}
+    params = {"_quote_guard_side_probability": 0.62, "_quote_guard_min_edge": 0.01}
+    with pytest.raises(RuntimeError, match="sem preco ou payout"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_trade_handler_fetch_proposal_payout_failures(trade_handler, mock_ws):
     mock_ws.send.return_value = {"error": {"message": "Invalid symbol"}}
     rate = await trade_handler.fetch_proposal_payout("INVALID", TradeDirection.CALL, 10.0)
@@ -248,47 +304,22 @@ async def test_trade_handler_fetch_proposal_payout_failures(trade_handler, mock_
     rate2 = await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0)
     assert rate2 is None
 
+    mock_ws.send.return_value = {"proposal": {"id": "no_price", "payout": "18.50"}}
+    assert await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0) is None
+
+    mock_ws.send.return_value = {"proposal": {"id": "nan_price", "ask_price": "nan", "payout": "18.50"}}
+    assert await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0) is None
+
     mock_ws.send.side_effect = ConnectionError("WS dropped")
     rate3 = await trade_handler.fetch_proposal_payout("1HZ75V", TradeDirection.CALL, 10.0)
     assert rate3 is None
 
 
-def test_resolve_api_contract_type_barrier():
-    """Verifica resolucao de tipos de contratos de barreira."""
-    assert resolve_api_contract_type(TradeDirection.CALL, {"contract_type": "ONETOUCH"}) == "ONETOUCH"
-    assert resolve_api_contract_type(TradeDirection.PUT, {"contract_type": "NOTOUCH"}) == "NOTOUCH"
-
-
-def test_resolve_contract_trade_direction():
-    """Verifica mapeamento de direcao do contrato para ONETOUCH e NOTOUCH."""
-    assert (
-        resolve_contract_trade_direction(TradeDirection.CALL, {"contract_type": "ONETOUCH"}) == TradeDirection.ONETOUCH
+def test_rise_fall_contract_type_ignores_removed_barrier_settings():
+    assert resolve_api_contract_type(TradeDirection.CALL, {"contract_type": "CALL"}) == "CALL"
+    assert resolve_api_contract_type(TradeDirection.PUT, {"contract_type": "CALL"}) == "PUT"
+    request = build_proposal_request(
+        "1HZ75V", TradeDirection.CALL, 5.0, {"contract_type": "CALL", "barrier": "+1.20", "duration": 5}
     )
-    assert resolve_contract_trade_direction(TradeDirection.PUT, {"contract_type": "NOTOUCH"}) == TradeDirection.NOTOUCH
-    assert resolve_contract_trade_direction(TradeDirection.CALL, {"contract_type": "RISE_FALL"}) == TradeDirection.CALL
-    assert resolve_contract_trade_direction(TradeDirection.PUT, {}) == TradeDirection.PUT
-
-
-@pytest.mark.asyncio
-async def test_trade_handler_buy_with_parameters_barrier_fallback(trade_handler, mock_ws):
-    """Verifica fallback para Rise/Fall quando a corretora rejeita proposta de barreira."""
-    mock_ws.send.side_effect = [
-        {"error": {"message": "Barrier not allowed"}},
-        {
-            "proposal": {
-                "id": "prop_fallback",
-                "ask_price": 5.0,
-                "payout": 9.25,
-                "date_expiry": 1500,
-            }
-        },
-        {"buy": {"contract_id": 999, "buy_price": 5.0, "payout": 9.25}},
-    ]
-    contract = await trade_handler.buy_with_parameters(
-        "1HZ75V",
-        TradeDirection.CALL,
-        5.0,
-        params={"contract_type": "ONETOUCH", "barrier": "+1.20", "duration": 5, "duration_unit": "m"},
-    )
-    assert contract.contract_id == 999
-    assert mock_ws.send.call_count == 3
+    assert request["contract_type"] == "CALL"
+    assert "barrier" not in request

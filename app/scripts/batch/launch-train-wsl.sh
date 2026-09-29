@@ -9,42 +9,23 @@ mkdir -p "$LOG_DIR"
 LOG="$LOG_DIR/launch-train.log"
 exec > >(tee "$LOG") 2>&1
 
-echo "[AETHER] launch-train WSL | python=$PY | root=$REPO_ROOT"
-if "$PY" -u app/scripts/operations/train_touch_classifier.py --if-enabled; then
-  echo "[AETHER] Treino Touch/No-Touch concluido com sucesso."
+echo "[AETHER] launch-train Rise/Fall | TCN M5 + meta LightGBM | python=$PY"
+"$PY" -u app/scripts/operations/sanitize_fresh_run.py
+(cd app && "$PY" -u -m scripts.operations.train_loss_classifier)
+"$PY" -u app/scripts/operations/run_launch_train_tf_pipeline.py "$@"
+if ! "$PY" -u app/scripts/operations/check_dl_deploy_gate.py --allow-unqualified; then
+  echo "[AVISO] TCN sem qualificacao de deploy; checkpoint local permanece sujeito ao teto de risco."
+fi
+if ! "$PY" -u app/scripts/operations/ensure_timescale.py; then
+  echo "[AVISO] Timescale seed indisponivel; meta tentara API Deriv."
+fi
+"$PY" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality
+if "$PY" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta; then
+  echo "[AETHER] TCN + meta Rise/Fall qualificados."
 else
-  TOUCH_STATUS=$?
-  if [ "$TOUCH_STATUS" -eq 2 ]; then
-    echo "[AVISO TOUCH] Propostas Touch ainda nao acumuladas em data/touch/quotes.jsonl; prosseguindo com treino TCN + Meta..."
+  if [[ -f "$REPO_ROOT/infra/docker/meta-models/meta_lgbm.pkl" ]]; then
+    echo "[AVISO] Meta exportado em meta-models, mas gate conjunto TCN + meta nao qualificado."
+  else
+    echo "[AVISO] Meta nao exportado; somente candidato diagnostico. Gate conjunto TCN + meta nao qualificado."
   fi
 fi
-echo "[AETHER] 0/5 sanitize"
-"$PY" -u app/scripts/operations/sanitize_fresh_run.py
-echo "[AETHER] 0b/5 loss-classifier bootstrap"
-(cd app && "$PY" -u -m scripts.operations.train_loss_classifier)
-echo "[AETHER] 1/5 treino TCN (horizon_sweep off -> app/train.py)"
-"$PY" -u app/scripts/operations/run_launch_train_tf_pipeline.py
-echo "[AETHER] 1b/5 gate deploy/settle"
-DEPLOY_READY=1
-if ! "$PY" -u app/scripts/operations/check_dl_deploy_gate.py --allow-unqualified; then
-  DEPLOY_READY=0
-  echo "[AVISO] Checkpoint TCN sem qualificacao OOS; runtime local sujeito a teto de stake."
-fi
-echo "[AETHER] 2/5 Timescale seed"
-if ! "$PY" -u app/scripts/operations/ensure_timescale.py; then
-  echo "[AVISO] Timescale seed falhou; meta usara API Deriv."
-fi
-echo "[AETHER] 3/5 meta LightGBM"
-"$PY" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality
-if [ ! -f infra/docker/meta-models/meta_lgbm.pkl ] && [ -f data/dl/meta_candidate.joblib ]; then
-  cp data/dl/meta_candidate.joblib infra/docker/meta-models/meta_lgbm.pkl
-  echo "[AVISO] Modelo meta candidato promovido como baseline local em meta-models/meta_lgbm.pkl."
-fi
-if [ "$DEPLOY_READY" -eq 1 ] && [ -f infra/docker/meta-models/meta_lgbm.pkl ]; then
-  echo "[SUCESSO] launch-train OK (TCN + meta; deploy aprovado)."
-elif [ "$DEPLOY_READY" -eq 1 ]; then
-  echo "[AVISO] TCN aprovado, mas meta apenas candidato; nao faca rebuild para trading."
-else
-  echo "[SUCESSO] Treino TCN + meta concluido; TCN nao qualificado, checkpoint local opera com teto de 0,1% em DEMO e REAL."
-fi
-echo "EXIT:0"

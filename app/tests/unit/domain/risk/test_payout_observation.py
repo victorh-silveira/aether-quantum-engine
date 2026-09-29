@@ -9,6 +9,8 @@ def test_contract_profit_rate_uses_gross_payout_minus_stake():
     assert contract_profit_rate(178.40, 100.00) == pytest.approx(0.784)
     assert contract_profit_rate(100.00, 100.00) is None
     assert contract_profit_rate(1.00, 0.00) is None
+    assert contract_profit_rate(float("nan"), 10.0) is None
+    assert contract_profit_rate(18.0, float("inf")) is None
 
 
 def test_record_observed_payout_updates_only_after_valid_quote():

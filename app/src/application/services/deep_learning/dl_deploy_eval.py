@@ -139,6 +139,22 @@ def evaluate_mini_deploy(
     if not cfg.get("enabled", True):
         runtime["deploy_settlement_n"] = 0
         return not requires_audit, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 1.0))
+    if requires_audit:
+        val_acc = float(runtime.get("val_accuracy", 0.5))
+        val_brier = float(runtime.get("val_brier", 1.0))
+        gran = int(params.get("granularity") or runtime.get("granularity") or 3600)
+        runtime["deploy_settlement_source"] = "broker_audit_required"
+        runtime["deploy_settlement_n"] = 0
+        runtime["deploy_settlement_win_rate"] = 0.0
+        runtime["deploy_label_win_rate"] = 0.0
+        runtime["deploy_settlement_brier"] = val_brier
+        runtime["deploy_settlement_wilson_lcb"] = 0.0
+        runtime["deploy_settlement_horizon_bars"] = resolve_settlement_horizon_bars(params, gran)
+        logger.warning(
+            "SETTLE | proxy M5 omitido: require_broker_settlement=true; "
+            "somente contratos liquidados auditados podem qualificar deploy"
+        )
+        return False, val_acc, val_brier
     lookback = int(runtime.get("lookback", params["lookback"]))
     mini = max(lookback + 5, int(cfg["mini_bars"]))
     if len(prices) < mini + 2:
@@ -234,7 +250,7 @@ def evaluate_mini_deploy(
         runtime["deploy_settlement_brier"] = float(runtime.get("val_brier", 1.0))
         runtime["deploy_label_win_rate"] = 0.0
         runtime["deploy_settlement_n"] = int(total)
-        if not enforce_settle and not requires_audit:
+        if not enforce_settle:
             runtime["deploy_provisional_ok"] = True
             return True, float(runtime.get("val_accuracy", 0.5)), float(runtime.get("val_brier", 0.25))
         return False, 0.0, float(runtime.get("val_brier", 1.0))
@@ -254,16 +270,12 @@ def evaluate_mini_deploy(
     min_wr = float(cfg["min_win_rate"])
     max_brier = float(cfg["max_brier"])
     deploy_ok = settlement_brier + 1e-9 < max_brier and settlement_lcb + 1e-9 >= min_wr
-    if bool(cfg.get("require_broker_settlement", False)):
-        deploy_ok = False
     runtime["deploy_provisional_ok"] = bool(
         total >= int(cfg.get("provisional_min_trades", 48))
         and settlement_brier + 1e-9 < float(cfg.get("provisional_max_brier", max_brier))
         and settlement_wr + 1e-9 >= float(cfg.get("provisional_min_win_rate", min_wr))
     )
-    if bool(cfg.get("require_broker_settlement", False)):
-        runtime["deploy_provisional_ok"] = False
-    if not enforce_settle and not requires_audit:
+    if not enforce_settle:
         deploy_ok = True
         runtime["deploy_provisional_ok"] = True
     return deploy_ok, settlement_wr, settlement_brier

@@ -64,7 +64,7 @@ def _build_reconnect_mocks(
     stream._on_tick = MagicMock()
     stream.tick_buffer = MagicMock()
     stream.tick_buffer.reset_live_accumulators = MagicMock()
-    stream.tick_buffer.touch_activity = MagicMock()
+    stream.tick_buffer.mark_activity = MagicMock()
     orch.config = {"orchestrator": {"stream_warm_up_delay_seconds": 45}}
     return orch, stream
 
@@ -121,7 +121,7 @@ async def test_execute_stream_reconnect_success():
     orch.ws.close.assert_awaited_once()
     stream.ws.send.assert_awaited()
     stream.tick_buffer.reset_live_accumulators.assert_called_once()
-    stream.tick_buffer.touch_activity.assert_called_once()
+    stream.tick_buffer.mark_activity.assert_called_once()
     assert orch._stream_warmed_up_at > 0.0
 
 

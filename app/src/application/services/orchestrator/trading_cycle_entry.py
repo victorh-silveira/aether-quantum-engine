@@ -26,8 +26,6 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
 from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.application.services.strategy.decision_mode import resolve_decision_mode
-from src.application.services.touch_runtime import run_touch_cycle
-from src.domain.models.touch_policy import touch_enabled
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
 from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
@@ -50,7 +48,7 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     orch._signature_invalidation_logged_key = ""
     orch.running = True
     orch._trading_slot_poll_task = None
-    orch._dl_bootstrap_completed = True if touch_enabled(orch.config) else prepare_inference_run_loop(orch)
+    orch._dl_bootstrap_completed = prepare_inference_run_loop(orch)
     mode = resolve_decision_mode(orch.config)
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
     start_correlation_worker(orch)
@@ -82,8 +80,6 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
-    if touch_enabled(orch.config):
-        return await run_touch_cycle(orch)
     orch.logger.debug(
         "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
         orch._active_cycle_id,

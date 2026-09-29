@@ -10,29 +10,11 @@
 
 * **risk:** desativa skips de neg_edge por completo no motor ([223c6c4](https://github.com/victorh-silveira/aether-quantum-engine/commit/223c6c4dcaad018dd683aecf6c244cc1fb22f92b))
 
-## [2.75.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.1...v2.75.0) (2026-09-27)
-
-### Funcionalidades
-
-* **risk:** ativa execucao de contratos touch e no touch no motor ([af8e8da](https://github.com/victorh-silveira/aether-quantum-engine/commit/af8e8dac28402fd56ca9f892ea2fbdd1c3a08870))
-
 ## [2.74.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.74.0...v2.74.1) (2026-09-27)
 
 ### Correcoes de Bug
 
 * **infra:** amplia timeout e resiliencia de pip-audit e alinha pipeline de treino ([db2e3cc](https://github.com/victorh-silveira/aether-quantum-engine/commit/db2e3cc0898847470a4e83fe6b0d077cac663cdc))
-
-## [2.74.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.73.0...v2.74.0) (2026-09-27)
-
-### Funcionalidades
-
-* **engine:** implementa pipeline dedicado touch e no touch ([0c1c5a9](https://github.com/victorh-silveira/aether-quantum-engine/commit/0c1c5a9acd4b5eb359f0f00dc60db43e206ccf9b))
-
-## [2.73.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.72.0...v2.73.0) (2026-09-24)
-
-### Funcionalidades
-
-* **risk:** ativa contratos touch e eleva stake obrigatorio para 1% da banca ([357cb74](https://github.com/victorh-silveira/aether-quantum-engine/commit/357cb74cef1ac9dbbed8e97815794c1ac5f19ca9))
 
 ## [2.72.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.71.0...v2.72.0) (2026-09-24)
 

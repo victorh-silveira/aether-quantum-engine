@@ -199,6 +199,7 @@ def test_evaluate_mini_deploy_micro_slice_runs():
                 "max_brier": 0.99,
                 "min_win_rate": 0.0,
                 "max_eval_steps": 10,
+                "require_broker_settlement": False,
             },
         },
         {},
@@ -218,5 +219,5 @@ def test_evaluate_mini_deploy_micro_slice_runs():
             micro=micro,
         )
     assert mock_predict.called
-    assert ok is False
+    assert ok is True
     assert runtime["deploy_settlement_source"] == "m5_close_proxy"

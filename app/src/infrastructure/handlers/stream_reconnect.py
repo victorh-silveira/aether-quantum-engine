@@ -89,7 +89,7 @@ async def execute_stream_reconnect(orch: Any, stream: StreamHandler) -> bool:
             await _resubscribe_market_channels(stream)
         stream.is_synchronized = True
         stream.tick_buffer.reset_live_accumulators()
-        stream.tick_buffer.touch_activity()
+        stream.tick_buffer.mark_activity()
         loop = asyncio.get_running_loop()
         orch._stream_ready_mono = loop.time()
         release_trading_cycle_after_reconnect(orch)

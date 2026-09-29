@@ -19,7 +19,6 @@ if str(_APP) not in sys.path:
 from aether_paths import REPO_ROOT
 
 
-PRESERVE_DATA_DIRS = frozenset({"deriv", "touch"})
 DL_GLOBS = ("*.pth", "*_ts.pt", "*.pt")
 MODEL_GLOBS = ("*.pkl", "*.joblib")
 META_BUNDLE_NAMES = frozenset({"meta_lgbm.pkl"})
@@ -55,7 +54,7 @@ def clear_repo_data_runtime(repo_root: Path, remove: RemoveFn) -> int:
         return 0
     removed = 0
     for child in list(data_root.iterdir()):
-        if child.name in PRESERVE_DATA_DIRS or child.name == "dl":
+        if child.is_dir():
             continue
         remove(child)
         removed += 1
@@ -88,7 +87,7 @@ def sanitize_fresh_run(
     remove: RemoveFn | None = None,
     keep_meta_bundle: bool = False,
 ) -> dict[str, int]:
-    """Remove checkpoints DL, pkls meta/loss e estado em data/ (exceto deriv)."""
+    """Remove checkpoints DL, pkls meta/loss e arquivos de estado; preserva diretorios historicos."""
     rem = remove or _default_remove
     meta_keep = META_BUNDLE_NAMES if keep_meta_bundle else frozenset()
     return {

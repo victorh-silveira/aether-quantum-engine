@@ -287,7 +287,7 @@ def test_stamp_flip_ctx_persists_on_gate(monkeypatch):
     assert ctx["p_eff"] == pytest.approx(0.72)
 
 
-def test_apply_loss_classifier_gate_disabled_when_allow_direction_flip_false():
+def test_apply_loss_classifier_gate_observes_without_flipping(monkeypatch):
     orch = SimpleNamespace(
         config={
             "infra": {"loss_classifier": {"enabled": True}},
@@ -296,5 +296,12 @@ def test_apply_loss_classifier_gate_disabled_when_allow_direction_flip_false():
         _active_cycle_id=1,
     )
     metrics = {"tcn_direction": "CALL", "exec_direction": "CALL"}
-    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch) is False
+    monkeypatch.setattr(
+        "src.application.services.loss_classifier_gate.build_loss_feature_vector",
+        lambda *_a, **_k: [0.0] * 24,
+    )
+    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch, symbol="1HZ75V") is False
     assert metrics.get("loss_clf_flip") is not True
+    assert metrics["loss_clf_observe_only"] is True
+    assert metrics["loss_clf_feature_vector"] == [0.0] * 24
+    assert orch._loss_clf_vectors["1HZ75V"] == [0.0] * 24

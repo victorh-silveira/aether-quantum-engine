@@ -29,6 +29,21 @@ from src.application.services.live_signal_metrics import live_signal_snapshot
 logger = logging.getLogger("AETH")
 
 
+def _settlement_log_summary(runtime: dict) -> str:
+    """Nao apresenta taxa ou Brier de settlement quando nenhum contrato foi medido."""
+    n = int(runtime.get("deploy_settlement_n", 0) or 0)
+    source = str(runtime.get("deploy_settlement_source") or "unknown")
+    if n <= 0:
+        return f"settle_n=0 source={source} settle_wr=NA settle_lcb90=NA settle_brier=NA label_wr=NA"
+    return (
+        f"settle_n={n} source={source} "
+        f"settle_wr={float(runtime.get('deploy_settlement_win_rate', 0.0)):.2f} "
+        f"settle_lcb90={float(runtime.get('deploy_settlement_wilson_lcb', 0.0)):.2f} "
+        f"settle_brier={float(runtime.get('deploy_settlement_brier', 1.0)):.3f} "
+        f"label_wr={float(runtime.get('deploy_label_win_rate', 0.0)):.2f}"
+    )
+
+
 def _log_horizon_gap(
     *,
     level: int,
@@ -216,10 +231,11 @@ def apply_successful_symbol_train(
     live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
     live_wr = float(live_snap.get("live_wr", 0.0))
     live_n = int(live_snap.get("live_n", 0))
+    settlement_summary = _settlement_log_summary(runtime)
     logger.log(
         level,
         "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | "
-        "deploy=%s | provisional=%s | settle_wr=%.2f | settle_lcb90=%.2f | settle_brier=%.3f | label_wr=%.2f | live_wr=%.2f | live_n=%d | "
+        "deploy=%s | provisional=%s | %s | live_wr=%.2f | live_n=%d | "
         "label_call=%.2f | pred_call=%.2f | minority_rec=%.2f",
         symbol,
         time.monotonic() - started,
@@ -229,10 +245,7 @@ def apply_successful_symbol_train(
         float(runtime.get("val_brier", 1.0)),
         bool(runtime.get("deploy_ok", False)),
         bool(runtime.get("deploy_provisional_ok", False)),
-        float(runtime.get("deploy_settlement_win_rate", deploy_wr)),
-        float(runtime.get("deploy_settlement_wilson_lcb", 0.0)),
-        float(runtime.get("deploy_settlement_brier", mini_brier)),
-        float(runtime.get("deploy_label_win_rate", deploy_wr)),
+        settlement_summary,
         live_wr,
         live_n,
         float(runtime.get("label_call_frac", 0.5)),
@@ -249,12 +262,13 @@ def apply_successful_symbol_train(
             pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
             minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
         )
+        if runtime.get("deploy_settlement_source") == "broker_audit_required":
+            reason = "settlement auditado ausente"
         logger.warning(
-            "DL TREINO | %s | deploy_ok=false (%s; settle_wr=%.4f lcb90=%.4f min=%.4f) — meta pode treinar; checkpoint local com stake limitada",
+            "DL TREINO | %s | deploy_ok=false (%s; %s; min=%.4f) — meta pode treinar; checkpoint local com stake limitada",
             symbol,
             reason,
-            float(runtime.get("deploy_settlement_win_rate", 0.0)),
-            float(runtime.get("deploy_settlement_wilson_lcb", 0.0)),
+            settlement_summary,
             float(gate_cfg.get("min_win_rate", 0.0)),
         )
     logger.log(level, "")

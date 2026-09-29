@@ -4,9 +4,35 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.execution_manager_execute import execute_cluster_orders
+from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
+
+
+@pytest.mark.asyncio
+async def test_quote_edge_rejection_is_logged_as_skip_not_execution_failure():
+    from types import SimpleNamespace
+
+    risk = MagicMock()
+    risk.kelly_config = {}
+    risk.pending_loss = {}
+    risk.calculate_stake.return_value = 10.0
+    orch = SimpleNamespace(
+        risk_manager=risk,
+        config={"deep_learning": {}, "risk_management": {"params": {"duration": 300}}},
+        _active_cycle_id=1,
+    )
+    executor = MagicMock(orch=orch)
+    executor._mandatory_trade_each_cycle.return_value = False
+    executor._place_order = AsyncMock(side_effect=QuoteEdgeRejectedError("sem vantagem"))
+    orders = [("1HZ75V", TradeDirection.PUT, {"conviction": 0.6, "execute": True})]
+
+    assert await execute_cluster_orders(executor, orders, 0.0, 1000.0) == 0
+    executor.logger.info.assert_called_once()
+    assert "SKIP: QUOTE_EDGE" in executor.logger.info.call_args.args[0]
+    executor.logger.error.assert_not_called()
 
 
 @pytest.mark.asyncio

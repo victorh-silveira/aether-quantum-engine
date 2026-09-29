@@ -3,7 +3,6 @@
 import asyncio
 import logging
 
-from src.application.services.contract_barrier_selector import resolve_contract_barrier_structure
 from src.application.services.market_audit_log import (
     emit_audit_info,
     format_execution_ticket_line,
@@ -14,6 +13,7 @@ from src.application.services.market_audit_log import (
     store_contract_audit,
 )
 from src.application.services.micro_hedge_monitor import register_contract_for_hedge
+from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError, quoted_edge
 from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -61,14 +61,11 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             audit=audit,
         ),
     )
-    barrier_type = metrics_dict.get("barrier_contract_type")
-    barrier_offset = metrics_dict.get("barrier_offset")
-    ticket_dir = f"{barrier_type} (BARRIER: {barrier_offset})" if barrier_type and barrier_offset else direction.name
     emit_audit_info(
         logger,
         format_execution_ticket_line(
             cycle_id,
-            direction=ticket_dir,
+            direction=direction.name,
             symbol=str(symbol),
             stake=float(stake),
             mode_tag=mode_tag,
@@ -99,13 +96,6 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     cid = f"C{int(executor.orch._active_cycle_id):04d}"
     logger = logging.getLogger("AETH")
     params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
-    params = resolve_contract_barrier_structure(
-        params,
-        metrics if isinstance(metrics, dict) else {},
-        symbol,
-        direction,
-        config=executor.orch.config,
-    )
     if duration:
         params["duration"] = duration
     if params.get("contract_type") == "MULTIPLIER":
@@ -142,8 +132,37 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         ]
     contract = None
     last_error: Exception | None = None
+    if (
+        bool(exec_cfg.get("require_quote_edge", False))
+        and str(getattr(executor.orch.trade_handler, "trading_transport", "ws")).lower() == "rest"
+    ):
+        raise QuoteEdgeRejectedError("Rise/Fall REST sem cotacao final verificavel; compra bloqueada")
     for attempt_stake in attempts:
         try:
+            if bool(exec_cfg.get("require_quote_edge", False)) and params.get("contract_type") != "MULTIPLIER":
+                haircut = float(exec_cfg.get("quote_probability_haircut", 0.0))
+                quote = await executor.orch.trade_handler.fetch_proposal_payout(
+                    symbol, direction, attempt_stake, params=params
+                )
+                edge = quoted_edge(metrics, direction.name, quote, probability_haircut=haircut)
+                min_edge = max(0.0, float(exec_cfg.get("min_quote_edge", 0.0)))
+                if edge is None or edge <= min_edge:
+                    if isinstance(metrics, dict):
+                        metrics["quote_edge"] = edge
+                        metrics["gate_reason"] = "quote_edge_unverified" if edge is None else "quote_edge_nonpositive"
+                    raise QuoteEdgeRejectedError(
+                        f"Cotacao Rise/Fall sem vantagem verificavel: lado={direction.name} "
+                        f"p_cal={metrics.get('calibrated_prob') if isinstance(metrics, dict) else None} "
+                        f"rate={quote} edge={edge} min_edge={min_edge:.4f} haircut={haircut:.4f}"
+                    )
+                if isinstance(metrics, dict):
+                    metrics["quote_edge"] = edge
+                    metrics["quote_payout_rate"] = quote
+                p_call = float(metrics["calibrated_prob"])
+                params["_quote_guard_side_probability"] = max(
+                    0.0, (p_call if direction.name == "CALL" else 1.0 - p_call) - haircut
+                )
+                params["_quote_guard_min_edge"] = min_edge
             contract = await executor.orch.trade_handler.buy_with_parameters(
                 symbol, direction, attempt_stake, params=params
             )

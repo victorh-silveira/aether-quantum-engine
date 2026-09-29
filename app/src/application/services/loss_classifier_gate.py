@@ -45,11 +45,9 @@ def apply_loss_classifier_gate(
         return False
     config = getattr(orch, "config", None)
     exec_cfg = (config.get("orchestrator", {}) if isinstance(config, dict) else {}).get("execution", {})
-    if not bool(exec_cfg.get("allow_direction_flip", True)):
-        return False
     if not loss_classifier_enabled(config if isinstance(config, dict) else None):
         return False
-    cfg = resolve_loss_classifier_config(None)
+    allow_flip = bool(exec_cfg.get("allow_direction_flip", True))
     cycle_id = int(getattr(orch, "_active_cycle_id", 0) or 0)
     metrics["loss_clf_cycle_id"] = cycle_id
     risk_manager = getattr(orch, "risk_manager", None)
@@ -76,6 +74,10 @@ def apply_loss_classifier_gate(
     metrics["loss_clf_feature_vector"] = list(vector)
     if symbol:
         store_loss_feature_vector(orch, str(symbol), list(vector))
+    if not allow_flip:
+        metrics["loss_clf_observe_only"] = True
+        return False
+    cfg = resolve_loss_classifier_config(None)
     hard_floor = float(cfg["hard_p_loss_floor"])
     metrics["loss_clf_hard_p_loss_floor"] = hard_floor
     response = predict_loss_via_config_sync(

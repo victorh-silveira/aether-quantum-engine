@@ -156,9 +156,6 @@ def _settlement_tag(*, profit: float, linear_before: int) -> str:
 def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, Any]) -> str:
     """Linha [DECISION] com direcao e origem (TCN_DIRECT / FLIP_LOSS_CLF / FLIP_ANTI_TREND_LOCK)."""
     dir_name = direction.name if hasattr(direction, "name") else str(direction).upper()
-    barrier_type = metrics.get("barrier_contract_type")
-    barrier_offset = metrics.get("barrier_offset")
-    display_dir = f"{barrier_type} ({barrier_offset})" if barrier_type and barrier_offset else dir_name
     origin = str(metrics.get("direction_origin") or "TCN_DIRECT")
     tcn_dir = str(metrics.get("tcn_direction") or dir_name).upper()
     prob = _f(metrics, "conviction", "calibrated_prob", "tcn_probability", default=0.5)
@@ -171,8 +168,10 @@ def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, 
         pe = _f(metrics, "loss_clf_p_eff", "loss_clf_p_loss", default=0.58)
         detail = f"FLIP loss_clf ({tcn_dir}->{dir_name}) | pe={pe:.3f} | trend={trend}"
     else:
-        detail = f"TCN_DIRECT | p={prob:.3f} | edge={edge:+.3f} | trend={trend}"
-    return f"[DECISION] || {display_dir} [{symbol}] || ORIGEM: {detail}"
+        cal = metrics.get("calibrated_prob")
+        p_side = (float(cal) if dir_name == "CALL" else 1.0 - float(cal)) if cal is not None else prob
+        detail = f"TCN_DIRECT | p={p_side:.3f} | edge={edge:+.3f} | trend={trend}"
+    return f"[DECISION] || {dir_name} [{symbol}] || ORIGEM: {detail}"
 
 
 def format_market_summary_line(symbol: str, metrics: dict[str, Any]) -> str:

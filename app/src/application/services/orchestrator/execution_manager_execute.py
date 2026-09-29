@@ -21,6 +21,7 @@ from src.application.services.meta_classifier_vectors import (
 )
 from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
 from src.application.services.orchestrator.execution_proposal import is_proposal_runtime_error
+from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 
@@ -120,6 +121,9 @@ async def execute_cluster_orders(
                 )
                 executed_count += 1
         except Exception as e:
+            if isinstance(e, QuoteEdgeRejectedError):
+                executor.logger.info("SKIP: QUOTE_EDGE %s: %s", symbol, e)
+                continue
             if handle_broker_maintenance_error(executor.orch, e):
                 executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
                 continue

@@ -183,7 +183,7 @@ def test_log_partial_win_recovery_emits_when_pending_remains():
     assert log_partial_win_recovery(rm, 1.0) == pytest.approx(3.0)
 
 
-def test_cluster_win_with_amort_dust_residual_clears_linear_and_pending():
+def test_cluster_win_with_material_residual_keeps_recovery_active():
     rm = type("RM", (), {})()
     rm.initial_bankroll = 8500.0
     rm.pending_loss = {"1HZ75V": 7.24}
@@ -195,14 +195,13 @@ def test_cluster_win_with_amort_dust_residual_clears_linear_and_pending():
 
     reset = apply_cluster_profit_to_recovery_state(rm, 80.0)
 
-    assert reset is True
-    assert rm.consecutive_losses_linear == 0
-    assert rm.pending_loss == {}
-    assert rm.last_loss_stake == 0.0
-    assert rm._linear_reset_occurred is True
+    assert reset is False
+    assert rm.consecutive_losses_linear == 1
+    assert rm.pending_loss == {"1HZ75V": 7.24}
+    assert rm.last_loss_stake == 86.0
 
 
-def test_cluster_win_absorbs_residual_pending_when_session_in_profit():
+def test_cluster_win_does_not_erase_residual_when_session_in_profit():
     rm = type("RM", (), {})()
     rm.initial_bankroll = 9236.16
     rm.pending_loss = {"1HZ75V": 15.73}
@@ -214,11 +213,10 @@ def test_cluster_win_absorbs_residual_pending_when_session_in_profit():
 
     reset = apply_cluster_profit_to_recovery_state(rm, 186.88)
 
-    assert reset is True
-    assert rm.consecutive_losses_linear == 0
-    assert rm.pending_loss == {}
-    assert rm.last_loss_stake == 0.0
-    assert rm._linear_reset_occurred is True
+    assert reset is False
+    assert rm.consecutive_losses_linear == 1
+    assert rm.pending_loss == {"1HZ75V": 15.73}
+    assert rm.last_loss_stake == 109.52
 
 
 def test_clear_dust_pending_loss_with_positive_session_pnl():
@@ -235,10 +233,10 @@ def test_clear_dust_pending_loss_with_positive_session_pnl():
 
     cleared = clear_dust_pending_loss(rm)
 
-    assert cleared is True
+    assert cleared is False
     assert rm.consecutive_losses_linear == 0
-    assert rm.pending_loss == {}
-    assert rm.last_loss_stake == 0.0
+    assert rm.pending_loss == {"1HZ75V": 15.73}
+    assert rm.last_loss_stake == 109.52
 
 
 def test_apply_win_to_pending_loss_breaks_when_remaining_profit_zero():

@@ -53,6 +53,7 @@ def test_format_settlement_audit_line_default_tag_flat_keep():
     line = format_settlement_audit_line(1, "WIN", 2.0, "CALL", "R_10", 0.1)
     assert "FLAT_KEEP" in line
     assert resolve_settlement_tag(profit=1.0, linear_before=2) == "RESET_LINEAR"
+    assert resolve_settlement_tag(profit=79.69, linear_before=1, pending_after=23.37) == "PARTIAL_RECOVERY"
 
 
 def test_format_cluster_veto_and_metric_float_paths():

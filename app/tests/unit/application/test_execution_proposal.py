@@ -10,7 +10,72 @@ from src.application.services.orchestrator.execution_proposal import (
     proposal_retry_scales,
     proposal_stake_attempts,
 )
+from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError
 from src.domain.models.trade import TradeDirection, TradeStatus
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "direction,p_call,rate,allowed",
+    [
+        (TradeDirection.CALL, 0.62, 0.80, True),
+        (TradeDirection.PUT, 0.38, 0.80, True),
+        (TradeDirection.CALL, 0.52, 0.80, False),
+        (TradeDirection.PUT, 0.62, 0.80, False),
+        (TradeDirection.CALL, 0.62, None, False),
+    ],
+)
+async def test_order_requires_positive_edge_at_quote(orch_config, direction, p_call, rate, allowed):
+    orch = MagicMock()
+    orch._active_cycle_id = 1
+    orch.config = orch_config
+    orch.config["orchestrator"]["execution"]["require_quote_edge"] = True
+    orch.config["orchestrator"]["execution"]["min_quote_edge"] = 0.01
+    orch.risk_manager.contract_to_symbol = {}
+    orch.trade_handler.fetch_proposal_payout = AsyncMock(return_value=rate)
+    orch.trade_handler.buy_with_parameters = AsyncMock(return_value=MagicMock(contract_id=11))
+    executor = MagicMock(orch=orch)
+    metrics = {"calibrated_prob": p_call}
+    if allowed:
+        with patch("src.application.services.orchestrator.execution_orders.subscribe_open_contract", AsyncMock()):
+            await place_order(executor, "1HZ75V", direction, 10.0, metrics=metrics)
+        orch.trade_handler.buy_with_parameters.assert_awaited_once()
+        assert metrics["quote_edge"] > 0.01
+        assert metrics["quote_payout_rate"] == rate
+    else:
+        with pytest.raises(RuntimeError, match="sem vantagem verificavel"):
+            await place_order(executor, "1HZ75V", direction, 10.0, metrics=metrics)
+        orch.trade_handler.buy_with_parameters.assert_not_awaited()
+        assert metrics["gate_reason"].startswith("quote_edge_")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("direction,p_call", [(TradeDirection.CALL, 0.57), (TradeDirection.PUT, 0.43)])
+async def test_order_haircut_abstains_from_thin_quote(orch_config, direction, p_call):
+    orch = MagicMock()
+    orch.config = orch_config
+    orch.config["orchestrator"]["execution"].update(
+        {"require_quote_edge": True, "min_quote_edge": 0.01, "quote_probability_haircut": 0.02}
+    )
+    orch.trade_handler.fetch_proposal_payout = AsyncMock(return_value=0.8)
+    orch.trade_handler.buy_with_parameters = AsyncMock()
+    with pytest.raises(RuntimeError, match="sem vantagem verificavel"):
+        await place_order(MagicMock(orch=orch), "1HZ75V", direction, 10.0, metrics={"calibrated_prob": p_call})
+    orch.trade_handler.buy_with_parameters.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_quote_guard_does_not_buy_through_rest_without_final_quote(orch_config):
+    orch = MagicMock()
+    orch.config = orch_config
+    orch.config["orchestrator"]["execution"]["require_quote_edge"] = True
+    orch.trade_handler.trading_transport = "rest"
+    orch.trade_handler.fetch_proposal_payout = AsyncMock(return_value=0.8)
+    orch.trade_handler.buy_with_parameters = AsyncMock()
+    with pytest.raises(QuoteEdgeRejectedError, match="REST sem cotacao final"):
+        await place_order(MagicMock(orch=orch), "1HZ75V", TradeDirection.CALL, 10.0, metrics={"calibrated_prob": 0.65})
+    orch.trade_handler.buy_with_parameters.assert_not_awaited()
+    orch.trade_handler.fetch_proposal_payout.assert_not_awaited()
 
 
 def test_proposal_stake_attempts_descending():

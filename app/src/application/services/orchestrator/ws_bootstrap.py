@@ -13,7 +13,6 @@ from src.application.services.infra_timing_config import resolve_orchestrator_ti
 from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
 from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
-from src.domain.models.touch_policy import touch_enabled
 from src.infrastructure.api.deriv_rest_client import DerivRestError, select_account
 from src.infrastructure.factories.infra_factory import validate_infra_services
 from src.infrastructure.inference.meta_classifier_client import meta_classifier_enabled
@@ -195,10 +194,9 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
     initial_boot = bool(getattr(orch, "_is_initial_boot", True))
     try:
         await validate_infra_services(orch.infra, orch.config)
-        if not touch_enabled(orch.config):
-            if meta_classifier_enabled(orch.config):
-                await bootstrap_meta_classifier_client(orch.config)
-            await bootstrap_and_validate_models(orch, is_initial_boot=initial_boot)
+        if meta_classifier_enabled(orch.config):
+            await bootstrap_meta_classifier_client(orch.config)
+        await bootstrap_and_validate_models(orch, is_initial_boot=initial_boot)
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()

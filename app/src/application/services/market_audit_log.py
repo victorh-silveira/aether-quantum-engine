@@ -119,8 +119,10 @@ def resolve_stake_audit_context(rm: Any, *, balance_fallback: float | None = Non
     }
 
 
-def resolve_settlement_tag(*, profit: float, linear_before: int) -> str:
+def resolve_settlement_tag(*, profit: float, linear_before: int, pending_after: float = 0.0) -> str:
     """Resolve sufixo de liquidacao (RESET_LINEAR / LINEAR_Ln)."""
     if float(profit) >= 0.0:
+        if float(pending_after) > 0.0:
+            return "PARTIAL_RECOVERY"
         return "RESET_LINEAR" if int(linear_before) > 0 else "FLAT_KEEP"
     return f"LINEAR_L{max(1, int(linear_before) + 1)}"

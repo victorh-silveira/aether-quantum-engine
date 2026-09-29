@@ -58,6 +58,8 @@ def test_format_gates_audit_line_ok_and_off():
     assert "blocked=" not in ok
     off = format_gates_audit_line({})
     assert "LOSS_CLF: OFF" in off
+    observe = format_gates_audit_line({"loss_clf_observe_only": True})
+    assert "LOSS_CLF: OBSERVE" in observe
 
 
 def test_format_gates_audit_line_ok_shows_blocked_bootstrap():

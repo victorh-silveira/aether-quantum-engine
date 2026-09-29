@@ -180,7 +180,7 @@ class Orchestrator:
         """Inicia streams OHLC e sincroniza velas historicas."""
         ok = await start_streams(self)
         if ok:
-            self.stream.tick_buffer.touch_activity()
+            self.stream.tick_buffer.mark_activity()
             self._stream_ready_mono = asyncio.get_running_loop().time()
         return ok
 

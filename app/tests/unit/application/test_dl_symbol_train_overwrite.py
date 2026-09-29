@@ -12,7 +12,7 @@ import torch
 from src.application.services.deep_learning.dl_symbol_train_success import apply_successful_symbol_train
 
 
-def test_apply_successful_symbol_train_deploy_warning(tmp_path):
+def test_apply_successful_symbol_train_deploy_warning(tmp_path, caplog):
     ckpt = tmp_path / "R_10.pth"
     torch.save({"deploy_ok": True, "val_brier": 0.22}, ckpt)
     runtime = {"val_accuracy": 0.56, "val_brier": 0.27}
@@ -29,10 +29,16 @@ def test_apply_successful_symbol_train_deploy_warning(tmp_path):
     gate_cfg = {"enabled": True, "soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26}
     dl_config = {"model_path_template": "x/{symbol}.pth", "deploy_gate": gate_cfg}
     orch = MagicMock()
+
+    def _broker_audit_missing(_orch, _symbol, _model, _prices, _norm, rt, *_args, **_kwargs):
+        rt["deploy_settlement_source"] = "broker_audit_required"
+        rt["deploy_settlement_n"] = 0
+        return False, 0.5, 0.27
+
     with (
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.evaluate_mini_deploy",
-            return_value=(False, 0.5, 0.27),
+            side_effect=_broker_audit_missing,
         ),
         patch(
             "src.application.services.deep_learning.dl_symbol_train_success.save_model_checkpoint",
@@ -71,6 +77,8 @@ def test_apply_successful_symbol_train_deploy_warning(tmp_path):
     assert runtime.get("export_ok") is True
     assert save_ckpt.called
     assert save_ckpt.call_args.kwargs.get("deploy_ok") is False
+    assert "settlement auditado ausente" in caplog.text
+    assert "settle_n=0 source=broker_audit_required settle_wr=NA" in caplog.text
 
 
 def test_apply_successful_symbol_train_overwrites_previous_checkpoint(tmp_path):

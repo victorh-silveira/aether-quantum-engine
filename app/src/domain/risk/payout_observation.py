@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 
@@ -9,7 +10,7 @@ def contract_profit_rate(payout: float, buy_price: float) -> float | None:
     """Converte payout bruto cotado em taxa liquida de lucro, ou None se invalido."""
     gross = float(payout)
     stake = float(buy_price)
-    if gross <= stake or stake <= 0.0:
+    if not math.isfinite(gross) or not math.isfinite(stake) or gross <= stake or stake <= 0.0:
         return None
     return (gross / stake) - 1.0
 

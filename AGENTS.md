@@ -13,18 +13,20 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-Touch/No Touch e o fluxo ativo quando `touch.enabled=true` (SSOT atual).
-Prevalece [`docs/engineering-touch-no-touch.md`](docs/engineering-touch-no-touch.md)
-sobre as descricoes direcionais legadas abaixo. Usa 1HZ75V, 300 segundos,
-ticks e propostas reais; nao converte P(CALL) em P(toque). DEMO/REAL compartilham
-qualificacao, decisao e limites. Nao operar sem artefato Touch qualificado.
+Rise/Fall CALL/PUT e o unico fluxo operacional ativo. `launch-train` treina
+TCN M5, loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
+e REAL com a mesma decisao e abertura. O contrato e de 300 segundos no
+indice 1HZ75V. Indicadores de tendencia, momentum, volatilidade e regime
+entram no pipeline direcional conforme `settings.json`; ausencia de modelo
+valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
 
 Atualizacao 27/09/2026: prevalecem `settings.json` e a secao "Adequacao de
 contrato e qualificacao" de `docs/engineering-deep-learning.md` sobre os
 valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras/sharpening/
-Alpha Flip/micro-hedging desativados. Gate proxy nao qualifica por force_ok,
-zero passos ou meta isolado. Teto nao qualificado configurado em 1%, com
-max_stake absoluto de 15; Kelly fracionario 0,25. Nao confundir com aprovacao OOS.
+Alpha Flip/micro-hedging desativados. Esses parametros se referem ao caminho
+direcional. `kelly.max_stake=0`
+significa sem teto absoluto adicional, e Kelly fracionario segue 0,25.
+Nenhum desses limites equivale a aprovacao OOS.
 
 - Politica de mercado vigente: `four_market_vetoes=true` e
   `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.

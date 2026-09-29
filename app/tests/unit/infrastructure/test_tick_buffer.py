@@ -93,5 +93,5 @@ async def test_tick_buffer_last_tick_monotonic_updates_on_record():
     buf.record_tick("R_10", 1000, 100.0)
     assert buf.last_tick_monotonic() > 0.0
     before = buf.last_tick_monotonic()
-    buf.touch_activity()
+    buf.mark_activity()
     assert buf.last_tick_monotonic() >= before

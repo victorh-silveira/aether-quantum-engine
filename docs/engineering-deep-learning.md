@@ -4,10 +4,9 @@ Guia operacional DL para agentes. Detalhe de features: [`arquitetura.md`](arquit
 
 ## Runtime atual (SSOT settings)
 
-Com `touch.enabled=true`, o launcher e o motor usam o pipeline dedicado
-[Touch/No Touch](engineering-touch-no-touch.md). As descricoes TCN/meta
-direcionais a seguir se aplicam apenas ao caminho legado desativado.
-Artefatos CALL/PUT nao qualificam contratos de toque.
+O fluxo ativo e Rise/Fall CALL/PUT em 1HZ75V M5. O launcher e o motor usam
+TCN, loss-classifier e meta LightGBM; os indicadores configurados em
+`config/settings.json` alimentam treino e decisao no mesmo horizonte.
 
 O `launch-train` separa treino de deploy. Checkpoint TCN exportado com
 `deploy_ok=false` alimenta o treino meta e pode ser carregado localmente para
@@ -246,9 +245,8 @@ Skill: `aether-dl-train`.
 ## Adequacao de contrato e qualificacao (27/09/2026)
 
 O SSOT atual usa lookback 32 e label `spot_forward`, mantendo Rise/Fall M5.
-Touch/No Touch esta desativado; o seletor tambem impede conversao quando o
-label configurado e `spot_forward`. Validar direcao no fechamento nao valida
-primeiro toque. ATR de barreira usa `atr_abs`, em unidades de preco.
+O label direcional por fechamento e um proxy do contrato liquidado por spot;
+confirmar edge exige auditoria de ticks e contratos executados.
 Sharpening fixo e Alpha Flip estao desativados por falta de validacao OOS
 compativel. Micro-hedging permanece desativado e exige spot/tempo de entrada
 confirmados; custo de compra da opcao nunca representa spot do indice.
@@ -279,3 +277,23 @@ Nao ha interpolacao de precos futuros nessa montagem.
 
 Alteracoes destas transformacoes exigem retreino e revalidacao dos artefatos
 TCN/meta/loss afetados; manter 14 colunas nao garante compatibilidade semantica.
+# Cotacao e abstencao Rise/Fall
+
+Na execucao CALL/PUT, o motor consulta o payout do lado escolhido antes da compra e calcula
+`EV/stake = max(0, p_lado - haircut) * (1 + lucro_liquido_por_stake) - 1`.
+O haircut configuravel e margem prudencial fixa, nao intervalo de confianca calibrado.
+Sem probabilidade calibrada,
+sem cotacao valida ou com EV inferior ao piso configurado em
+`orchestrator.execution.min_quote_edge`, a ordem nao e enviada. A rota WebSocket
+revalida o edge da proposta final usada na compra; DEMO e REAL usam a mesma regra.
+Proposta sem `ask_price` ou `payout` nao autoriza compra.
+Essa verificacao nao prova poder preditivo: se a probabilidade estiver mal calibrada,
+o EV calculado tambem estara. O piso legado de Kelly permanece para compatibilidade
+com a politica de recuperacao, mas nao substitui a validacao da cotacao.
+
+Quando `deep_learning.deploy_gate.require_broker_settlement=true`, o treino nao executa
+o mini backtest de fechamento M5. Esse proxy nao contem os precos reais de entrada e
+saida do contrato e nao poderia qualificar o gate; a qualificacao permanece pendente
+de contratos liquidados auditados. `val_accuracy`, `val_brier` e o checkpoint local
+continuam disponiveis como diagnostico, mas `deploy_settlement_n=0` e `deploy_ok=false`.
+Nao interprete o antigo `settle_wr` de velas como win rate verificada pela corretora.

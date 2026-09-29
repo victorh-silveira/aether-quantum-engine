@@ -11,8 +11,6 @@ class TradeDirection(Enum):
     PUT = "PUT"
     MULTUP = "MULTUP"
     MULTDOWN = "MULTDOWN"
-    ONETOUCH = "ONETOUCH"
-    NOTOUCH = "NOTOUCH"
 
 
 class TradeStatus(Enum):

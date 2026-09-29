@@ -30,6 +30,7 @@ _STALE_LOSS_CLF_KEYS = (
     "loss_clf_flip_blocked",
     "loss_clf_buffer_n",
     "loss_clf_bootstrap_exit_n",
+    "loss_clf_observe_only",
 )
 
 

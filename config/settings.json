@@ -39,21 +39,6 @@
     "mini_history_bars": 500,
     "mini_fetch_count": 500
   },
-  "touch": {
-    "enabled": false,
-    "symbol": "1HZ75V",
-    "duration_seconds": 300,
-    "history_seconds": 300,
-    "max_tick_gap_ms": 1500,
-    "latency_ms": [0, 1000, 2000],
-    "barrier_sigma": [1.0, 1.5],
-    "min_edge": 0.03,
-    "min_oos_trades": 120,
-    "min_train_groups": 600,
-    "max_quote_age_ms": 2000,
-    "max_stake_pct": 0.01,
-    "model_max_age_days": 7
-  },
   "deep_learning": {
     "arch": "tcn",
     "aux_regression_weight": 0.08,
@@ -468,7 +453,10 @@
       "skip_below_soft_min_acc": false,
       "skip_scale_candle_discord": false,
       "skip_neg_edge": false,
-      "min_edge_execute": -999.0,
+      "require_quote_edge": true,
+      "min_quote_edge": 0.01,
+      "quote_probability_haircut": 0.02,
+      "min_edge_execute": 0.01,
       "min_edge": -999.0,
       "counter_trend_min_edge": 0.08,
       "skip_trend_discord": true,
@@ -661,21 +649,6 @@
     "ws_reconnect_delay_seconds": 8
   },
   "risk_management": {
-    "barrier_contracts": {
-      "enabled": true,
-      "min_atr": 0.0,
-      "target_regimes": [
-        "explosion",
-        "expansion",
-        "chop",
-        "retraction",
-        "trend",
-        "all"
-      ],
-      "barrier_multiplier": 0.45,
-      "default_type": "ONETOUCH",
-      "adx_notouch_threshold": 0.15
-    },
     "kelly": {
       "kelly_fraction": 0.25,
       "max_stake": 0.0,
@@ -759,7 +732,7 @@
     "params": {
       "compounding_enabled": true,
       "compounding_rate_daily": 0.0431,
-      "contract_type": "ONETOUCH",
+      "contract_type": "CALL",
       "duration": 5,
       "duration_unit": "m",
       "payout_estimate": 0.85,

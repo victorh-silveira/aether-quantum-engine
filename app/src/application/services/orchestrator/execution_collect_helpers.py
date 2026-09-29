@@ -2,7 +2,6 @@
 
 import asyncio
 
-from src.application.services.contract_barrier_selector import resolve_contract_barrier_structure
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
@@ -231,9 +230,6 @@ def log_execution_decision(
     symbol, direction, metrics = best[0], best[1], best[2]
     _ = (cid, candidates, decisions, effective_signal)
     metrics_dict = metrics if isinstance(metrics, dict) else {}
-    resolve_contract_barrier_structure(
-        {}, metrics_dict, str(symbol), direction, config=getattr(getattr(exec_mgr, "orch", None), "config", None)
-    )
     emit_audit_info(exec_mgr.logger, format_market_summary_line(str(symbol), metrics_dict))
     emit_audit_info(exec_mgr.logger, format_decision_origin_line(str(symbol), direction, metrics_dict))
     emit_audit_info(exec_mgr.logger, format_gates_audit_line(metrics_dict))

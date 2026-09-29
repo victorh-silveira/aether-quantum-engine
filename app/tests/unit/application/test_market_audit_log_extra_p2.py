@@ -75,6 +75,11 @@ def test_format_decision_origin_line_variants():
     )
     assert "[DECISION] || CALL [1HZ75V] || ORIGEM: TCN_DIRECT | p=0.620 | edge=+0.120 | trend=CALL" in line_direct
 
+    line_put = format_decision_origin_line(
+        "1HZ75V", "PUT", {"direction_origin": "TCN_DIRECT", "conviction": 0.55, "calibrated_prob": 0.47201}
+    )
+    assert "TCN_DIRECT | p=0.528" in line_put
+
     line_flip_clf = format_decision_origin_line(
         "1HZ75V",
         "PUT",

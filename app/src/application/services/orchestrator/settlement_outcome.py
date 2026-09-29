@@ -158,9 +158,7 @@ def process_contract_outcome(
     profit = reconcile_settlement_profit(profit, executed_buy)
     bind_executed_stake_for_contract(orch.risk_manager.contract_stakes, c_id, executed_buy)
     record_symbol_outcome(orch, sym, won=profit >= 0.0)
-    directional = dir_name not in {"ONETOUCH", "NOTOUCH"}
-    if directional:
-        _record_directional_learning(orch, sym, c_id, profit, executed_buy, dir_name, audit_direction, audit_raw_prob)
+    _record_directional_learning(orch, sym, c_id, profit, executed_buy, dir_name, audit_direction, audit_raw_prob)
     orch.risk_manager.register_result(profit, c_id, symbol=sym, current_tick=orch.tick_count, direction=dir_name)
     orch._cluster_results.append({"symbol": sym, "profit": profit})
     orch._last_result_cycle_id = orch._contract_cycle.pop(c_id, 0)
@@ -178,7 +176,7 @@ def process_contract_outcome(
 
 
 def _record_directional_learning(orch, sym, c_id, profit, executed_buy, dir_name, audit_direction, audit_raw_prob):
-    """Resultados de barreira nao entram em learners treinados para CALL/PUT."""
+    """Alimenta learners direcionais com settlement confirmado."""
     record_live_signal_outcome(
         orch,
         str(sym),
