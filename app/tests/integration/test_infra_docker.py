@@ -69,6 +69,15 @@ def test_timescale_sql_chunk_and_crags():
     assert "005_timescale_crags.sql" in lifecycle
 
 
+def test_contract_audit_view_excludes_other_option_types():
+    base = repo_path("infra", "docker", "006_contract_executions.sql").read_text(encoding="utf-8")
+    sql = repo_path("infra", "docker", "007_contract_executions_resilience.sql").read_text(encoding="utf-8")
+    for column in ("proposal_id", "contract_type", "barrier"):
+        assert f"ADD COLUMN IF NOT EXISTS {column}" in base
+    assert "c.contract_type IN ('CALL', 'PUT')" in sql
+    assert "c.settlement_source='broker'" in sql
+
+
 def test_minio_init_script_bucket_ilm():
     script = repo_path("infra", "docker", "minio-init.sh").read_text(encoding="utf-8")
     assert "dl-models" in script

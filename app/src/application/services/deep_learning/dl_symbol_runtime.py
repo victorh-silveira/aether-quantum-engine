@@ -1,5 +1,6 @@
 """Runtime de modelo e checkpoints por simbolo."""
 
+import hashlib
 import logging
 import threading
 from contextlib import contextmanager
@@ -22,6 +23,20 @@ from src.application.services.deep_learning.model import (
 
 
 logger = logging.getLogger("AETH")
+
+
+def checkpoint_fingerprint(path: Path) -> str | None:
+    """Identifica os bytes exatos do checkpoint usado na inferencia."""
+    if not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    try:
+        with path.open("rb") as checkpoint:
+            for chunk in iter(lambda: checkpoint.read(1024 * 1024), b""):
+                digest.update(chunk)
+    except OSError:
+        return None
+    return digest.hexdigest()
 
 
 def _effective_deploy_ok(
@@ -207,6 +222,7 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
             "lookback": lookback,
             "deploy_ok": deploy_ok,
             "checkpoint_loaded": loaded is not None,
+            "model_version": checkpoint_fingerprint(path) if loaded is not None else None,
             "deploy_provisional_ok": deploy_provisional_ok,
             "deploy_win_rate": deploy_win_rate,
             "session_trained": session_trained,

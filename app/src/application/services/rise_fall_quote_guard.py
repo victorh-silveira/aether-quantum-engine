@@ -6,10 +6,6 @@ import math
 from typing import Any
 
 
-class QuoteEdgeRejectedError(RuntimeError):
-    """Cotacao obtida, mas a compra nao supera a margem de seguranca."""
-
-
 def quoted_edge(
     metrics: dict[str, Any] | None,
     direction: str,

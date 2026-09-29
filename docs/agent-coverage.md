@@ -28,7 +28,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Orchestrator / ciclo | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
 | Scale vision MACRO/MICRO/MINI/MILI | [engineering-orchestrator.md](engineering-orchestrator.md) + [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-cycle-debug` + `aether-binary-senior` |
 | DL / labels / calib / vies de classe | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
-| Sweep horizonte N (label promote; ops duration fixo; logs densos) | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
+| Sweep horizonte N (label e duracao alinhados; sem carimbo de qualificacao) | [engineering-deep-learning.md](engineering-deep-learning.md) | `aether-deep-learning.mdc` | `aether-dl-train` |
 | Settlement / Redis fila | [engineering-settlement.md](engineering-settlement.md) | `aether-settlement.mdc` | `aether-settlement-debug` |
 | Infra Docker / state / storage / market / inference | [infra-docker.md](infra-docker.md) | `aether-infra.mdc` | `aether-infra-stack` |
 | DevOps / CloudOps sênior (Compose, Redis, TS, MinIO) | [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-devops-cloudops` |

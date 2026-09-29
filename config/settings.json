@@ -453,8 +453,6 @@
       "skip_below_soft_min_acc": false,
       "skip_scale_candle_discord": false,
       "skip_neg_edge": false,
-      "require_quote_edge": true,
-      "min_quote_edge": 0.01,
       "quote_probability_haircut": 0.02,
       "min_edge_execute": 0.01,
       "min_edge": -999.0,

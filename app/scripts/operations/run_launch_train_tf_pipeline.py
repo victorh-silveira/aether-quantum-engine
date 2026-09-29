@@ -95,7 +95,7 @@ def _finish_sweep(
         return 1
     n_bars = int(winner.get("label_horizon_bars") or 0)
     train_duration = int(winner.get("duration") or 0)
-    ops_m = int(knobs.get("ops_contract_duration_minutes") or 5)
+    ops_m = train_duration
     log.info(
         "[%s] winner N=%s train_duration=%sm ops_duration=%sm tf=%s settle=%.4f edge_vs_be=%.4f (mais assertivo)",
         tag,

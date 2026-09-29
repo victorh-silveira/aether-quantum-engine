@@ -181,3 +181,15 @@ def test_get_symbol_runtime_logs_retrain_when_online_training_and_mismatch():
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
     assert runtime["session_trained"] is False
     assert runtime["lookback"] == 72
+
+
+def test_checkpoint_fingerprint_tracks_exact_file_bytes(tmp_path):
+    from src.application.services.deep_learning.dl_symbol_runtime import checkpoint_fingerprint
+
+    path = tmp_path / "model.pth"
+    assert checkpoint_fingerprint(path) is None
+    path.write_bytes(b"first")
+    first = checkpoint_fingerprint(path)
+    assert first is not None and len(first) == 64
+    path.write_bytes(b"second")
+    assert checkpoint_fingerprint(path) != first

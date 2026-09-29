@@ -67,6 +67,47 @@ async def test_fetch_paginated_retries_rate_limit():
 
 
 @pytest.mark.asyncio
+async def test_fetch_paginated_retries_timeout_on_same_page():
+    page = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.05, "epoch": 2000}]
+    ws = AsyncMock()
+    ws.send = AsyncMock(side_effect=[TimeoutError(), {"candles": page}])
+    cfg = parse_history_fetch_config({"history_fetch_chunk": 1, "history_fetch_delay_seconds": 0})
+    with patch("src.infrastructure.handlers.history_fetch.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        out = await fetch_paginated_candle_history(
+            ws,
+            symbol="1HZ75V",
+            granularity=300,
+            target=1,
+            fetch_cfg=cfg,
+            logger=logging.getLogger("test"),
+        )
+    assert len(out) == 1
+    assert ws.send.await_count == 2
+    assert ws.send.await_args_list[0].args[0]["end"] == ws.send.await_args_list[1].args[0]["end"]
+    assert mock_sleep.await_count >= 1
+
+
+@pytest.mark.asyncio
+async def test_fetch_paginated_timeout_exhausted_fails_closed():
+    ws = AsyncMock()
+    ws.send = AsyncMock(side_effect=TimeoutError())
+    cfg = parse_history_fetch_config({"history_fetch_chunk": 1, "history_fetch_delay_seconds": 0})
+    with (
+        patch("src.infrastructure.handlers.history_fetch.asyncio.sleep", new_callable=AsyncMock),
+        pytest.raises(TimeoutError),
+    ):
+        await fetch_paginated_candle_history(
+            ws,
+            symbol="1HZ75V",
+            granularity=300,
+            target=1,
+            fetch_cfg=cfg,
+            logger=logging.getLogger("test"),
+        )
+    assert ws.send.await_count == 3
+
+
+@pytest.mark.asyncio
 async def test_fetch_paginated_resumes_existing():
     existing = [Candle("R_10", 1, 1, 1, 1, None, 3000)]
     older = [{"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.02, "epoch": 1000 + i} for i in range(2)]

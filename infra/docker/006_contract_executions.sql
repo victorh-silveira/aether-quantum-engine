@@ -17,6 +17,9 @@ CREATE TABLE IF NOT EXISTS contract_executions (
   buy_price DOUBLE PRECISION,
   payout DOUBLE PRECISION,
   signal_prob DOUBLE PRECISION,
+  proposal_id TEXT,
+  contract_type TEXT,
+  barrier DOUBLE PRECISION,
   profit DOUBLE PRECISION,
   status TEXT,
   settlement_source TEXT NOT NULL DEFAULT 'pending',
@@ -24,6 +27,9 @@ CREATE TABLE IF NOT EXISTS contract_executions (
 );
 
 ALTER TABLE contract_executions ADD COLUMN IF NOT EXISTS signal_prob DOUBLE PRECISION;
+ALTER TABLE contract_executions ADD COLUMN IF NOT EXISTS proposal_id TEXT;
+ALTER TABLE contract_executions ADD COLUMN IF NOT EXISTS contract_type TEXT;
+ALTER TABLE contract_executions ADD COLUMN IF NOT EXISTS barrier DOUBLE PRECISION;
 
 CREATE INDEX IF NOT EXISTS contract_executions_symbol_start
   ON contract_executions (symbol, date_start DESC);

@@ -57,10 +57,18 @@ token, reconexao automatica; Ctrl+C encerra). O smoke
 `--max-ticks 3 --max-retries 3` gravou 3 ticks reais em 23/09/2026; isso nao
 constitui base historica suficiente para o gate.
 `contract_executions` registra compra e settlement, separando `broker`,
+e a migracao 008 acrescenta `model_version` (SHA-256 dos bytes do checkpoint carregado)
+e `calibrated_call_prob`. A view `contract_model_outcomes` agrega apenas contratos
+Rise/Fall liquidados pelo broker por versao, simbolo, tipo e conta. Versoes antigas
+sem identificador permanecem fora dessa agregacao; a amostra e observacional e
+nao substitui validacao temporal OOS nem demonstra edge por si so.
 `profit_table` e `inferred_rest`. Spots ausentes ficam `NULL`, nunca sao
 preenchidos pelo close M5 ou pelo spot de proposta. A view
-`contract_label_audit` cruza somente contratos `broker` com spots, tempos,
-lucro e velas M5 disponiveis. Exemplo de consulta somente leitura:
+`contract_label_audit` cruza apenas contratos Rise/Fall `CALL`/`PUT` confirmados
+pelo broker com spots e lucro. Velas M5 ausentes permanecem `NULL`; esse caso
+nao mede discordancia de label. `ensure_timescale.py` verifica tanto quantidade
+quanto frescor do OHLC e atualiza a base antes do treino meta quando necessario.
+Exemplo de consulta somente leitura:
 
 ```sql
 SELECT count(*) AS n,
@@ -71,7 +79,8 @@ SELECT count(*) AS n,
 FROM contract_label_audit WHERE symbol='1HZ75V';
 ```
 
-A view esta vazia ate haver contratos auditados. O backtest TCN por close M5
+A view so contem contratos auditados; nao deve misturar ONETOUCH nem tratar
+`NULL` em `is_label_mismatched` como concordancia. O backtest TCN por close M5
 agora e explicitamente `m5_close_proxy`: continua diagnostico, mas
 `deploy_gate.require_broker_settlement=true` impede que ele ou um checkpoint
 antigo sem fonte auditada sejam promovidos. A view nao promove modelo nem
@@ -81,6 +90,14 @@ Antes de substituir o gate e necessario coletar ticks completos, verificar
 o alinhamento de timestamps e payout efetivo, e repetir OOS purgado. `DEMO`
 e `REAL` passam pelo mesmo codigo de captura; a fonte `inferred_rest` nunca
 conta como observacao de spot confirmado.
+
+Base metodologica: a [documentacao oficial da Deriv sobre contrato aberto](https://developers.deriv.com/docs/trading/proposal-open-contract/)
+define a fonte do desfecho; a [validacao temporal do scikit-learn](https://scikit-learn.org/stable/auto_examples/applications/plot_time_series_lagged_features.html)
+explica a separacao cronologica com gap; e [Bailey et al., *The Probability of
+Backtest Overfitting*](https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2326253)
+alerta que escolher o melhor entre muitos modelos/horizontes no mesmo historico
+superestima desempenho futuro. Nenhuma dessas referencias autoriza promover um
+checkpoint sem evidencias de contratos do proprio modelo e de periodo OOS.
 
 Em uma serie binaria, a Lei dos Grandes Numeros converge para a probabilidade
 verdadeira de CALL, nao necessariamente para 50%. Mesmo com labels 50/50,
@@ -140,14 +157,14 @@ Acao: `launch-train` → gate deploy/settle → `make docker-rebuild` + sync Min
 
 ## Sweep de horizonte N (launch-train)
 
-O TCN estima deslocamento em **N velas M5**. O `horizon_sweep` e **diagnostico offline** (`enabled` / `run_in_launch_train` **false** no SSOT). Grade **H1–H4** (`n_bars` = 1/2/3/4 em M5) nao promove duracao ops ≠ **5 m** sem mandato. Contrato live permanece `duration=5`.
+O TCN estima deslocamento em **N velas M5**. O `horizon_sweep` permanece **diagnostico offline** (`enabled` / `run_in_launch_train` **false** no SSOT). A grade **H1–H4** compara expiracoes de 5, 10, 15 e 20 minutos no mesmo indice. O contrato live permanece em 5 minutos ate existir candidato qualificado; uma promocao futura deve manter `duration = N × 5 minutos`, igual ao horizonte treinado.
 
 Pipeline **offline** (nao troca N por ciclo ao vivo):
 
 1. `horizon_sweep.n_bars` / `duration_minutes` no SSOT — celulas **H1…H4** no relogio M5 (lookback/history copiados, sem reescalar wall-clock). Simbolo **1HZ75V**.
 2. `run_launch_train_tf_pipeline.py` limpa `data/dl/sweep`, treina cada celula com ckpt isolado (`data/dl/sweep/1HZ75V/H{N}/`), **infra/MinIO off** no sweep, **1 tentativa** (`train_deploy_retries=1`), overlay `logging.level=CRITICAL` se `quiet_train_logs` (falha resumida em `why=` na linha cell), grava leaderboard.
 3. Elegivel: **`settle_wr` ≥ be + 0.03** **e** `settle_n ≥ min_settle_n` (**16**) **e** `history_bars ≥ min_history_bars` (**800**). Label ACC e so telemetria.
-4. Com `auto_promote=true` (default), promove vencedor: copia ckpt para `data/dl/` (carimba `deploy_ok`) + grava `label_horizon_bars` do winner; **`params.duration`** vem de `ops_contract_duration_minutes` (**5**), **nao** do N do winner — **fail-closed** se nenhum elegivel (meta nao roda).
+4. Com `auto_promote=true`, promove apenas vencedor com `deploy_ok` ja qualificado e amostra settlement suficiente: valida o checkpoint sem modificar a flag, copia para `data/dl/` e grava `label_horizon_bars` e `params.duration` do mesmo candidato. `ops_contract_duration_minutes` acompanha a duracao promovida. Sem vencedor elegivel, permanece fail-closed. O mini walk-forward por closes M5 nao e evidencia auditada de contrato; com `require_broker_settlement=true`, ele nao habilita a promocao.
 5. Gate ACC/settle + meta no SSOT promovido. Depois: `make docker-rebuild` + sync MinIO.
 
 Knobs: `horizon_sweep.n_bars` / `duration_minutes` / `ops_contract_duration_minutes` / `quiet_train_logs` / `run_in_launch_train` / pisos settle. Flags CLI: `--only H1 H2`, `--dry-run`, `--skip-promote`.
@@ -290,6 +307,19 @@ Proposta sem `ask_price` ou `payout` nao autoriza compra.
 Essa verificacao nao prova poder preditivo: se a probabilidade estiver mal calibrada,
 o EV calculado tambem estara. O piso legado de Kelly permanece para compatibilidade
 com a politica de recuperacao, mas nao substitui a validacao da cotacao.
+
+A direcao da previsao e sempre CALL ou PUT quando o checkpoint e os dados sao
+validos; isso nao implica compra obrigatoria. Com payout liquido de 0,781, o
+break-even antes de margem adicional e `1 / 1,781 = 56,15%`. Se ambos os lados
+ficam abaixo desse piso, inverter o lado ou retirar `QUOTE_EDGE` nao cria vantagem.
+A compra confirmada grava `settlement_source=pending` mesmo na linha complementar
+de atribuicao do checkpoint; ao receber a liquidacao do broker, essa fonte passa
+a `broker`. A ausencia da fonte em um INSERT explicitamente nulo invalida o
+registro e impede a auditoria de modelo.
+
+Referencias: [Deriv Proposal API](https://developers.deriv.com/docs/trading/proposal/),
+[Deriv Risk Disclosure](https://deriv.com/terms-and-conditions/risk-disclosure),
+[Kelly (1956), Bell System Technical Journal](https://onlinelibrary.wiley.com/doi/abs/10.1002/j.1538-7305.1956.tb03809.x).
 
 Quando `deep_learning.deploy_gate.require_broker_settlement=true`, o treino nao executa
 o mini backtest de fechamento M5. Esse proxy nao contem os precos reais de entrada e

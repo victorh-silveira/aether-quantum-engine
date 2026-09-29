@@ -10,7 +10,6 @@ from typing import Any
 
 import torch
 
-from src.application.services.deep_learning.horizon_sweep import load_horizon_sweep_knobs
 from src.application.services.deep_learning.tf_sweep_config import (
     candidate_artifact_dir,
     resolve_repo_path,
@@ -30,22 +29,22 @@ def patch_settings_for_candidate(
     *,
     ops_contract_duration_minutes: int | None = None,
 ) -> dict[str, Any]:
-    """Retorna copia de settings com ciclo/horizon da celula (sem reescalar lookback).
-
-    Treino (ops=None): params.duration = duration da celula.
-    Promote (ops=int): params.duration fixo em ops; label_horizon_bars vem do winner.
-    """
+    """Alinha contrato e horizonte do candidato no treino e na operacao."""
     out = copy.deepcopy(settings)
     micro = int(candidate["micro_granularity"])
     macro = int(candidate["macro_granularity"])
     mini = int(candidate.get("mini_granularity") or micro)
-    if ops_contract_duration_minutes is None:
-        duration = int(candidate["duration"])
-        duration_unit = str(candidate.get("duration_unit") or "m")
-    else:
-        duration = max(1, int(ops_contract_duration_minutes))
-        duration_unit = "m"
+    duration = int(candidate["duration"])
+    duration_unit = str(candidate.get("duration_unit") or "m")
     label_h = int(candidate.get("label_horizon_bars") or 1)
+    unit_seconds = {"s": 1, "m": 60, "h": 3600}.get(duration_unit)
+    if duration <= 0 or unit_seconds is None or duration * unit_seconds != label_h * micro:
+        raise ValueError("duracao do contrato deve corresponder ao horizonte do label")
+    if (
+        ops_contract_duration_minutes is not None
+        and int(ops_contract_duration_minutes) != duration * unit_seconds // 60
+    ):
+        raise ValueError("duracao operacional fixa difere do horizonte treinado")
     data = out.setdefault("data_handler", {})
     if not isinstance(data, dict):
         raise ValueError("data_handler invalido")
@@ -57,6 +56,9 @@ def patch_settings_for_candidate(
         raise ValueError("deep_learning invalido")
     dl["train_timeframe"] = str(candidate.get("train_timeframe") or "micro")
     dl["label_horizon_bars"] = label_h
+    sweep = dl.get("horizon_sweep")
+    if isinstance(sweep, dict):
+        sweep["ops_contract_duration_minutes"] = duration * unit_seconds // 60
     risk = out.setdefault("risk_management", {})
     if not isinstance(risk, dict):
         raise ValueError("risk_management invalido")
@@ -129,15 +131,11 @@ def checkpoint_paths_for_tf(
     return folder / f"{sym}.pth", folder / f"{sym}_ts.pt"
 
 
-def _stamp_checkpoint_deploy_ok(path: Path) -> None:
-    """Marca deploy_ok no ckpt promovido (elegibilidade do sweep e por ACC/edge)."""
+def _validate_checkpoint_deploy_ok(path: Path) -> None:
+    """Recusa checkpoint nao qualificado sem alterar sua evidencia original."""
     payload = torch.load(path, map_location="cpu", weights_only=True)
-    if not isinstance(payload, dict):
-        raise ValueError(f"checkpoint invalido para stamp: {path}")
-    if bool(payload.get("deploy_ok", False)):
-        return
-    payload["deploy_ok"] = True
-    torch.save(payload, path)
+    if not isinstance(payload, dict) or not bool(payload.get("deploy_ok", False)):
+        raise ValueError(f"checkpoint nao qualificado para promocao: {path}")
 
 
 def promote_artifacts(
@@ -152,12 +150,12 @@ def promote_artifacts(
     src_pth, src_ts = checkpoint_paths_for_tf(artifact_root=artifact_root, tf=tf, symbol=symbol, repo_root=repo_root)
     if not src_pth.is_file():
         raise FileNotFoundError(f"checkpoint sweep ausente: {src_pth}")
+    _validate_checkpoint_deploy_ok(src_pth)
     dest = dest_dir if dest_dir is not None else resolve_repo_path("data/dl", repo_root=repo_root)
     dest.mkdir(parents=True, exist_ok=True)
     copied: list[Path] = []
     dest_pth = dest / f"{symbol}.pth"
     shutil.copy2(src_pth, dest_pth)
-    _stamp_checkpoint_deploy_ok(dest_pth)
     copied.append(dest_pth)
     if src_ts.is_file():
         dest_ts = dest / f"{symbol}_ts.pt"
@@ -198,14 +196,11 @@ def promote_winner_from_leaderboard(
         "label_horizon_bars": int(winner.get("label_horizon_bars") or 1),
         "train_timeframe": "micro",
     }
-    ops_m = int(load_horizon_sweep_knobs(settings)["ops_contract_duration_minutes"])
-    patched = patch_settings_for_candidate(settings, candidate, ops_contract_duration_minutes=ops_m)
+    patched = patch_settings_for_candidate(settings, candidate)
     patch_settings_for_symbol(patched, win_symbol)
     dl = patched.setdefault("deep_learning", {})
     if isinstance(dl, dict):
         dl["model_path_template"] = "data/dl/{symbol}.pth"
-    if write_symbols_module:
-        write_trading_symbols_module(win_symbol, path=symbols_module_path)
     copied: list[Path] = []
     if copy_artifacts:
         dest = dest_dir if dest_dir is not None else resolve_repo_path("data/dl", repo_root=repo_root)
@@ -217,6 +212,8 @@ def promote_winner_from_leaderboard(
             repo_root=repo_root,
         )
         clear_other_live_checkpoints(dest, win_symbol)
+    if write_symbols_module:
+        write_trading_symbols_module(win_symbol, path=symbols_module_path)
     return winner, patched, copied
 
 

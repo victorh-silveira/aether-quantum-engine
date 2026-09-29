@@ -77,8 +77,19 @@ async def test_timescale_inventory_ignores_unaligned_bars():
     from scripts.operations import ensure_timescale as mod
 
     conn = AsyncMock()
-    conn.fetch = AsyncMock(return_value=[{"symbol": "1HZ75V", "granularity": 300, "total": 5000}])
+    conn.fetch = AsyncMock(return_value=[{"symbol": "1HZ75V", "granularity": 300, "total": 5000, "latest_epoch": 1000}])
     conn.close = AsyncMock()
-    with patch("asyncpg.connect", new=AsyncMock(return_value=conn)):
+    with patch("asyncpg.connect", new=AsyncMock(return_value=conn)), patch.object(mod.time, "time", return_value=1200):
         assert await mod._data_ok("unused", ["1HZ75V"], [300]) is True
     assert "epoch % granularity = 0" in conn.fetch.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_timescale_inventory_rejects_stale_bars():
+    from scripts.operations import ensure_timescale as mod
+
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[{"symbol": "1HZ75V", "granularity": 300, "total": 5000, "latest_epoch": 1000}])
+    conn.close = AsyncMock()
+    with patch("asyncpg.connect", new=AsyncMock(return_value=conn)), patch.object(mod.time, "time", return_value=5000):
+        assert await mod._data_ok("unused", ["1HZ75V"], [300]) is False

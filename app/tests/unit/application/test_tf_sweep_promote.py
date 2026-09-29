@@ -57,13 +57,14 @@ def test_patch_settings_aligns_contract_and_cycle():
     assert patched["deep_learning"]["indicators"]["windows"]["rsi_period"] == 14
     assert patched["orchestrator"]["execution"]["scale_vision"]["slope_bars"] == 5
     assert settings["data_handler"]["micro_granularity"] == 120
-    ops_fixed = patch_settings_for_candidate(
-        settings,
-        {**cand, "duration": 50, "label_horizon_bars": 50},
-        ops_contract_duration_minutes=5,
-    )
-    assert ops_fixed["risk_management"]["params"]["duration"] == 5
-    assert ops_fixed["deep_learning"]["label_horizon_bars"] == 50
+    with pytest.raises(ValueError, match="duracao operacional"):
+        patch_settings_for_candidate(
+            settings,
+            {**cand, "duration": 50, "label_horizon_bars": 10},
+            ops_contract_duration_minutes=5,
+        )
+    with pytest.raises(ValueError, match="horizonte do label"):
+        patch_settings_for_candidate(settings, {**cand, "duration": 10})
     train = patch_settings_for_sweep_train(settings, cand, artifact_root="data/dl/sweep")
     assert train["risk_management"]["params"]["duration"] == 5
     assert train["deep_learning"]["model_path_template"] == "data/dl/sweep/1HZ75V/M5/{symbol}.pth"
@@ -105,7 +106,7 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
     artifact_root = "sweep_art"
     tf_dir = tmp_path / artifact_root / "R_10" / "H50"
     tf_dir.mkdir(parents=True)
-    torch.save({"deploy_ok": False, "val_accuracy": 0.65, "val_brier": 0.22}, tf_dir / "R_10.pth")
+    torch.save({"deploy_ok": True, "val_accuracy": 0.65, "val_brier": 0.22}, tf_dir / "R_10.pth")
     (tf_dir / "R_10_ts.pt").write_bytes(b"ts")
     dest = tmp_path / "live_dl"
     drift_path = tmp_path / "drift_symbols.py"
@@ -147,7 +148,7 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
         {
             "symbol": "R_10",
             "tf": "H50",
-            "deploy_ok": False,
+            "deploy_ok": True,
             "val_accuracy": 0.54,
             "settle_wr": 0.65,
             "settle_n": 24,
@@ -176,8 +177,9 @@ def test_promote_fail_closed_and_copy(tmp_path: Path):
     )
     assert winner is not None and winner["tf"] == "H50"
     assert patched["data_handler"]["micro_granularity"] == 60
-    assert patched["risk_management"]["params"]["duration"] == 5
+    assert patched["risk_management"]["params"]["duration"] == 50
     assert patched["deep_learning"]["label_horizon_bars"] == 50
+    assert patched["deep_learning"]["horizon_sweep"]["ops_contract_duration_minutes"] == 50
     assert patched["anchor"] == "R_10"
     assert patched["symbols"] == ["R_10"]
     stamped = torch.load(dest / "R_10.pth", map_location="cpu", weights_only=True)
@@ -221,21 +223,35 @@ def test_promote_artifacts_missing_raises(tmp_path: Path):
         promote_artifacts(artifact_root="art", tf="M5", repo_root=tmp_path)
 
 
-def test_stamp_checkpoint_deploy_ok_invalid_and_already_ok(tmp_path: Path):
+def test_checkpoint_promotion_rejects_unqualified_without_stamping(tmp_path: Path):
     import torch
 
-    from src.application.services.deep_learning.tf_sweep_promote import _stamp_checkpoint_deploy_ok
+    from src.application.services.deep_learning.tf_sweep_promote import _validate_checkpoint_deploy_ok
 
     bad = tmp_path / "bad.pth"
     torch.save([1, 2, 3], bad)
-    with pytest.raises(ValueError, match="checkpoint invalido"):
-        _stamp_checkpoint_deploy_ok(bad)
+    with pytest.raises(ValueError, match="nao qualificado"):
+        _validate_checkpoint_deploy_ok(bad)
+
+    unqualified = tmp_path / "unqualified.pth"
+    torch.save({"deploy_ok": False}, unqualified)
+    with pytest.raises(ValueError, match="nao qualificado"):
+        _validate_checkpoint_deploy_ok(unqualified)
+    assert torch.load(unqualified, map_location="cpu", weights_only=True)["deploy_ok"] is False
 
     ok = tmp_path / "ok.pth"
     torch.save({"deploy_ok": True, "val_accuracy": 0.6}, ok)
-    _stamp_checkpoint_deploy_ok(ok)
+    _validate_checkpoint_deploy_ok(ok)
     payload = torch.load(ok, map_location="cpu", weights_only=True)
     assert payload["deploy_ok"] is True
+
+
+def test_write_json_creates_parent_directory(tmp_path: Path):
+    from src.application.services.deep_learning.tf_sweep_promote import write_json
+
+    target = tmp_path / "nested" / "settings.json"
+    write_json(target, {"duration": 5})
+    assert target.read_text(encoding="utf-8") == '{\n  "duration": 5\n}\n'
 
 
 def test_config_edge_paths_and_template(tmp_path: Path):

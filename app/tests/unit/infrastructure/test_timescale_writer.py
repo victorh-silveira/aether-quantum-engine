@@ -5,7 +5,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.infrastructure.market.null_market_writer import NullMarketWriter
-from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
+from src.infrastructure.market.timescale_writer import _CONTRACT_FIELDS, TimescaleMarketWriter
+
+
+@pytest.mark.asyncio
+async def test_contract_audit_defaults_missing_source_to_pending():
+    writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
+    with patch.object(writer, "_ensure_worker"):
+        await writer.enqueue_contract_audit({"contract_id": 42})
+        _, values = writer._queue.get_nowait()
+    assert values[_CONTRACT_FIELDS.index("settlement_source")] == "pending"
 
 
 @pytest.mark.asyncio

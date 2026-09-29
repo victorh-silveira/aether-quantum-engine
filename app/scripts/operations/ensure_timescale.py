@@ -86,8 +86,8 @@ async def _data_ok(
     try:
         import asyncpg  # noqa: PLC0415
     except ImportError:
-        logger.warning("[AETHER] asyncpg nao disponivel - pulando verificacao de dados.")
-        return True
+        logger.warning("[AETHER] asyncpg nao disponivel - dados nao verificados.")
+        return False
     try:
         conn = await asyncpg.connect(dsn, timeout=5.0)
     except Exception as exc:
@@ -96,18 +96,20 @@ async def _data_ok(
     try:
         rows = await conn.fetch(
             """
-            SELECT symbol, granularity, COUNT(*)::int AS total
+            SELECT symbol, granularity, COUNT(*)::int AS total, MAX(epoch)::bigint AS latest_epoch
             FROM ohlc_bars
             WHERE symbol = ANY($1::text[]) AND epoch % granularity = 0
             GROUP BY symbol, granularity
             """,
             symbols,
         )
-        counts: dict[tuple[str, int], int] = {(r["symbol"], r["granularity"]): r["total"] for r in (rows or [])}
+        inventory = {(r["symbol"], r["granularity"]): r for r in (rows or [])}
+        now_epoch = int(time.time())
         for sym in symbols:
             for gran in granularities:
                 floor = min_bars_for_granularity(int(gran))
-                have = counts.get((sym, int(gran)), 0)
+                row = inventory.get((sym, int(gran)))
+                have = int(row["total"]) if row is not None else 0
                 if have < floor:
                     if log_shortfalls:
                         logger.info(
@@ -116,6 +118,19 @@ async def _data_ok(
                             int(gran),
                             have,
                             floor,
+                        )
+                    return False
+                latest = int(row["latest_epoch"]) if row["latest_epoch"] is not None else 0
+                age = now_epoch - latest
+                max_age = max(900, min(172800, 3 * int(gran)))
+                if age < 0 or age > max_age:
+                    if log_shortfalls:
+                        logger.info(
+                            "[AETHER] TimescaleDB | %s gran=%ds historico desatualizado (age=%ds max=%ds)",
+                            sym,
+                            int(gran),
+                            age,
+                            max_age,
                         )
                     return False
         return True
@@ -216,7 +231,9 @@ def main() -> int:
         return 0
 
     logger.info("[AETHER] TimescaleDB | ohlc=smoke/curto - sementeando via Deriv...")
-    return _seed_timescale(symbols)
+    if _seed_timescale(symbols) != 0:
+        return 1
+    return 0 if asyncio.run(_data_ok(dsn, symbols, granularities)) else 1
 
 
 if __name__ == "__main__":

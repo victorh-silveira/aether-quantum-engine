@@ -23,6 +23,7 @@ def test_settle_history_fallbacks_and_invalid_payload():
     assert _history_bars_for_settle({}, {"data_handler": {"micro_history_bars": 8}}) == 8
     assert checkpoint_settle_eligible(None, {}) is False
     assert checkpoint_settle_eligible({}, {}) is False
+    assert checkpoint_settle_eligible({"deploy_ok": True}, {}) is False
 
 
 def test_implied_breakeven_matches_live_logs():
@@ -38,6 +39,7 @@ def test_eligibility_requires_edge_above_breakeven():
             min_edge_vs_breakeven=0.03,
             settle_n=24,
             min_settle_n=16,
+            deploy_ok=True,
         )
         is False
     )
@@ -48,6 +50,7 @@ def test_eligibility_requires_edge_above_breakeven():
             min_edge_vs_breakeven=0.03,
             settle_n=24,
             min_settle_n=16,
+            deploy_ok=True,
         )
         is True
     )
@@ -58,6 +61,19 @@ def test_eligibility_requires_edge_above_breakeven():
             min_edge_vs_breakeven=0.03,
             settle_n=8,
             min_settle_n=16,
+        )
+        is False
+    )
+    assert (
+        is_tf_eligible(
+            rank_wr=0.70,
+            be_implied=be,
+            min_edge_vs_breakeven=0.03,
+            settle_n=24,
+            min_settle_n=16,
+            history_bars=10,
+            min_history_bars=100,
+            deploy_ok=True,
         )
         is False
     )
@@ -132,7 +148,7 @@ def test_pick_winner_uses_settle_wr_not_label_acc():
     high_settle = enrich_leaderboard_row(
         {
             "tf": "H5",
-            "deploy_ok": False,
+            "deploy_ok": True,
             "val_accuracy": 0.54,
             "settle_wr": 0.65,
             "settle_n": 24,
@@ -272,6 +288,7 @@ def test_tf_score_settle_n_and_history_fallbacks():
             {
                 "deploy_settlement_win_rate": 0.70,
                 "deploy_settlement_n": 24,
+                "deploy_ok": True,
             },
             {
                 "deep_learning": {

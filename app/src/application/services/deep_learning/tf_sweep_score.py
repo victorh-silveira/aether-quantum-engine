@@ -14,13 +14,13 @@ def implied_breakeven(payout: float) -> float:
 
 
 def resolve_rank_wr(row: dict[str, Any]) -> float:
-    """WR de ranking: settlement preferencial; fallback label so se settle ausente."""
+    """WR de ranking: sem settlement, acuracia do label e apenas diagnostica."""
     settle = row.get("settle_wr")
     if settle is None:
         settle = row.get("deploy_settlement_win_rate")
     if settle is not None:
         return float(settle)
-    return float(row.get("val_accuracy") or 0.0)
+    return 0.0
 
 
 def resolve_settle_n(row: dict[str, Any]) -> int:
@@ -47,7 +47,9 @@ def is_tf_eligible(
     val_accuracy: float | None = None,
 ) -> bool:
     """Elegivel: settle_wr >= be+margem e N/historico acima do piso."""
-    _ = (deploy_ok, val_accuracy)
+    _ = val_accuracy
+    if deploy_ok is not True:
+        return False
     if int(settle_n) < int(min_settle_n):
         return False
     if int(min_history_bars) > 0 and int(history_bars) < int(min_history_bars):
@@ -80,7 +82,7 @@ def checkpoint_settle_eligible(
     knobs: dict[str, Any] | None = None,
 ) -> bool:
     """True se o ckpt passa o mesmo criterio settle do sweep (ignora label ACC)."""
-    if not isinstance(payload, dict) or not isinstance(settings, dict):
+    if not isinstance(payload, dict) or not isinstance(settings, dict) or not bool(payload.get("deploy_ok", False)):
         return False
     sweep = knobs if isinstance(knobs, dict) else load_tf_sweep_knobs(settings)
     settle = payload.get("deploy_settlement_win_rate")
@@ -95,6 +97,7 @@ def checkpoint_settle_eligible(
         min_settle_n=int(sweep.get("min_settle_n", 16)),
         history_bars=_history_bars_for_settle(payload, settings),
         min_history_bars=int(sweep.get("min_history_bars", 0)),
+        deploy_ok=True,
     )
 
 

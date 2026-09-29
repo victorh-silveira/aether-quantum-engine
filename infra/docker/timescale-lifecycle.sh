@@ -59,4 +59,8 @@ docker_ui_ok "auditoria de contratos"
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/007_contract_executions_resilience.sql >/dev/null'
 
 docker_ui_ok "resiliencia de auditoria"
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+  'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/008_contract_model_attribution.sql >/dev/null'
+
+docker_ui_ok "atribuicao por modelo"
 docker_ui_nl

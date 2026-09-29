@@ -31,6 +31,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN ohlc_bars b1 ON b1.symbol=c.symbol AND b1.granularity=300
   AND b1.epoch=b0.epoch + 300 AND b1.epoch % 300=0
 WHERE c.settlement_source='broker'
+  AND c.contract_type IN ('CALL', 'PUT')
   AND COALESCE(c.request_epoch_ms / 1000, c.date_start) IS NOT NULL
   AND c.entry_tick IS NOT NULL AND c.exit_tick IS NOT NULL
   AND c.profit IS NOT NULL AND c.buy_price > 0;

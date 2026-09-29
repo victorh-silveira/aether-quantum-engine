@@ -44,6 +44,7 @@ def attach_dynamic_metrics(
     runtime: dict,
 ) -> None:
     """Preenche thresholds dinamicos, squeeze e entropia no dict de metricas."""
+    metrics["model_version"] = runtime.get("model_version")
     if dynamic is not None:
         metrics["dynamic_call_threshold"] = dynamic.call_threshold
         metrics["dynamic_put_threshold"] = dynamic.put_threshold

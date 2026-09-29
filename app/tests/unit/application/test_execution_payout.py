@@ -29,3 +29,13 @@ def test_resolve_execution_payout_uses_trade_handler_latest_rate():
         trade_handler=SimpleNamespace(latest_payout_rate="invalid"),
     )
     assert resolve_execution_payout(orch_invalid) == pytest.approx(0.85)
+
+
+def test_live_quote_supersedes_unrealistic_configured_payout():
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}),
+        trade_handler=SimpleNamespace(latest_payout_rate=0.784),
+    )
+    assert resolve_execution_payout(orch) == pytest.approx(0.784)
+    orch.trade_handler.latest_payout_rate = float("nan")
+    assert resolve_execution_payout(orch) == pytest.approx(0.85)

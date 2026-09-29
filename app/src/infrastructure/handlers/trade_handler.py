@@ -1,6 +1,7 @@
 """Lida com solicitações de propostas de trade e compra de contratos."""
 
 import logging
+import math
 import time
 from typing import Any
 
@@ -100,14 +101,28 @@ class TradeHandler:
             proposal.get("ask_price") is None or proposal.get("payout") is None
         ):
             raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout; compra bloqueada")
-        ask_price = float(proposal.get("ask_price") or stake)
-        payout_val = float(proposal.get("payout") or 0.0)
-        rate = contract_profit_rate(payout_val, ask_price)
-        if rate is not None:
-            self.latest_payout_rate = rate
+
+        is_multiplier = str(p_cfg.get("contract_type", "")).upper() == "MULTIPLIER"
+        try:
+            raw_ask = proposal.get("ask_price")
+            ask_price = float(raw_ask if raw_ask is not None else stake)
+            raw_payout = proposal.get("payout")
+            payout_val = float(raw_payout) if raw_payout is not None else (0.0 if is_multiplier else None)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada") from exc
+        if not math.isfinite(ask_price) or ask_price <= 0:
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+        if payout_val is not None:
+            if not math.isfinite(payout_val) or payout_val < 0:
+                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+            if not is_multiplier and payout_val == 0 and "_quote_guard_side_probability" not in p_cfg:
+                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+            rate = contract_profit_rate(payout_val, ask_price)
+            if rate is not None:
+                self.latest_payout_rate = rate
         if "_quote_guard_side_probability" in p_cfg:
             p_side = float(p_cfg["_quote_guard_side_probability"])
-            min_edge = float(p_cfg["_quote_guard_min_edge"])
+            min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))
             if rate is None or p_side * (1.0 + rate) - 1.0 <= min_edge:
                 raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
         request_epoch_ms = time.time_ns() // 1_000_000

@@ -114,7 +114,28 @@ async def fetch_paginated_candle_history(
         }
         res: dict[str, Any] | None = None
         for attempt in range(max_retries + 1):
-            res = await ws.send(request)
+            try:
+                res = await ws.send(request)
+            except TimeoutError:
+                if attempt >= min(max_retries, 2):
+                    logger.error(
+                        "DATA: timeout persistente %s | granularity=%ss | pagina=%d",
+                        symbol,
+                        granularity,
+                        chunk_index,
+                    )
+                    raise
+                delay = min(backoff_cap, backoff_base**attempt)
+                logger.warning(
+                    "DATA: timeout %s | granularity=%ss | pagina=%d | retry %d/2 em %.1fs",
+                    symbol,
+                    granularity,
+                    chunk_index,
+                    attempt + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+                continue
             if not res.get("error"):
                 break
             if is_rate_limit_error(res) and attempt < max_retries:

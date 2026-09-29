@@ -74,7 +74,7 @@ def test_build_prediction_entry_with_sharpening():
     orch = SimpleNamespace(config={})
     prices = np.full(50, 100.0)
     series = {"bb_width": [0.05], "vol_ratio_short_long": [1.0]}
-    runtime = {"val_accuracy": 0.55, "deploy_ok": True}
+    runtime = {"val_accuracy": 0.55, "deploy_ok": True, "model_version": "a" * 64}
     params = {
         "calibration": {"sharpening_enabled": True, "sharpening_tau": 0.40, "max_calibrated_raw_gap": 0.20},
         "indicators": {
@@ -104,4 +104,5 @@ def test_build_prediction_entry_with_sharpening():
         val_accuracy=0.55,
     )
     cal_p = entry["metrics"]["calibrated_prob"]
+    assert entry["metrics"]["model_version"] == "a" * 64
     assert cal_p > 0.58

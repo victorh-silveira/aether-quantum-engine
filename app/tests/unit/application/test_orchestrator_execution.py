@@ -4,15 +4,46 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from src.application.services.orchestrator import Orchestrator
-from src.application.services.orchestrator.execution_manager_execute import execute_cluster_orders
-from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError
+from src.application.services.orchestrator.execution_manager_execute import (
+    execute_cluster_orders,
+    record_model_attribution,
+)
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
 from tests.unit.application.universal_regime_metrics import bear_put_metrics
 
 
 @pytest.mark.asyncio
-async def test_quote_edge_rejection_is_logged_as_skip_not_execution_failure():
+async def test_model_attribution_persists_version_and_probability_without_rebuy():
+    from types import SimpleNamespace
+
+    writer = SimpleNamespace(enqueue_contract_audit=AsyncMock())
+    orch = SimpleNamespace(config={"trading": {"mode": "real"}}, market_writer=writer, logger=MagicMock())
+    await record_model_attribution(orch, 42, "1HZ75V", "CALL", {"model_version": "a" * 64, "calibrated_prob": 0.57})
+    row = writer.enqueue_contract_audit.await_args.args[0]
+    assert row == {
+        "contract_id": 42,
+        "symbol": "1HZ75V",
+        "account_mode": "real",
+        "direction": "CALL",
+        "settlement_source": "pending",
+        "model_version": "a" * 64,
+        "calibrated_call_prob": 0.57,
+    }
+    writer.enqueue_contract_audit.side_effect = RuntimeError("db down")
+    await record_model_attribution(orch, 43, "1HZ75V", "PUT", {"model_version": "a" * 64})
+    orch.logger.error.assert_called_once()
+    writer.enqueue_contract_audit.reset_mock()
+    await record_model_attribution(orch, 44, "1HZ75V", "PUT", {})
+    writer.enqueue_contract_audit.assert_not_awaited()
+    await record_model_attribution(
+        orch, 45, "1HZ75V", "PUT", {"model_version": "a" * 64, "calibrated_prob": float("nan")}
+    )
+    assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
+
+
+@pytest.mark.asyncio
+async def test_proposal_runtime_error_is_logged_as_skip_not_execution_failure():
     from types import SimpleNamespace
 
     risk = MagicMock()
@@ -26,13 +57,12 @@ async def test_quote_edge_rejection_is_logged_as_skip_not_execution_failure():
     )
     executor = MagicMock(orch=orch)
     executor._mandatory_trade_each_cycle.return_value = False
-    executor._place_order = AsyncMock(side_effect=QuoteEdgeRejectedError("sem vantagem"))
+    executor._place_order = AsyncMock(side_effect=RuntimeError("Market is closed"))
     orders = [("1HZ75V", TradeDirection.PUT, {"conviction": 0.6, "execute": True})]
 
     assert await execute_cluster_orders(executor, orders, 0.0, 1000.0) == 0
-    executor.logger.info.assert_called_once()
-    assert "SKIP: QUOTE_EDGE" in executor.logger.info.call_args.args[0]
-    executor.logger.error.assert_not_called()
+    executor.logger.warning.assert_called_once()
+    assert "SKIP: Sessão fechada" in executor.logger.warning.call_args.args[0]
 
 
 @pytest.mark.asyncio

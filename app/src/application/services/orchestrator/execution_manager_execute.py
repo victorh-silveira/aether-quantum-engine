@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch, resolve_force_min_stake
@@ -21,9 +22,37 @@ from src.application.services.meta_classifier_vectors import (
 )
 from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
 from src.application.services.orchestrator.execution_proposal import is_proposal_runtime_error
-from src.application.services.rise_fall_quote_guard import QuoteEdgeRejectedError
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
+
+
+async def record_model_attribution(orch: Any, contract_id: int, symbol: str, direction: str, metrics: dict) -> None:
+    """Associa a compra confirmada ao checkpoint, sem repetir a ordem em falha de auditoria."""
+    version = metrics.get("model_version")
+    writer = getattr(orch, "market_writer", None)
+    if not isinstance(version, str) or len(version) != 64 or writer is None:
+        return
+    probability = metrics.get("calibrated_prob")
+    try:
+        probability = float(probability)
+    except (TypeError, ValueError):
+        probability = None
+    if probability is not None and (not math.isfinite(probability) or not 0 <= probability <= 1):
+        probability = None
+    try:
+        await writer.enqueue_contract_audit(
+            {
+                "contract_id": contract_id,
+                "symbol": symbol,
+                "account_mode": str(orch.config.get("trading", {}).get("mode", "demo")),
+                "direction": direction,
+                "settlement_source": "pending",
+                "model_version": version,
+                "calibrated_call_prob": probability,
+            }
+        )
+    except Exception as exc:
+        orch.logger.error("AUDIT: atribuicao de modelo falhou cid=%s erro=%s", contract_id, exc)
 
 
 async def execute_cluster_orders(
@@ -91,6 +120,9 @@ async def execute_cluster_orders(
             order_metrics = {**metrics, "duration": int(custom_dur)}
             res = await executor._place_order(symbol, direction, stake, duration=custom_dur, metrics=order_metrics)
             if res:
+                await record_model_attribution(
+                    executor.orch, int(res.contract_id), symbol, direction.name, order_metrics
+                )
                 executed_stake = float(getattr(res, "buy_price", 0.0) or stake)
                 executor.orch.risk_manager.record_contract_stake(int(res.contract_id), executed_stake)
                 executor.orch.risk_manager.active_contract_ids.append(res.contract_id)
@@ -121,9 +153,6 @@ async def execute_cluster_orders(
                 )
                 executed_count += 1
         except Exception as e:
-            if isinstance(e, QuoteEdgeRejectedError):
-                executor.logger.info("SKIP: QUOTE_EDGE %s: %s", symbol, e)
-                continue
             if handle_broker_maintenance_error(executor.orch, e):
                 executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
                 continue

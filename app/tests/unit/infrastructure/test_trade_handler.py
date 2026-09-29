@@ -323,3 +323,19 @@ def test_rise_fall_contract_type_ignores_removed_barrier_settings():
     )
     assert request["contract_type"] == "CALL"
     assert "barrier" not in request
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "proposal",
+    [
+        {"id": "p", "ask_price": "bad"},
+        {"id": "p", "ask_price": 0.0},
+        {"id": "p", "ask_price": 10.0, "payout": -1.0},
+        {"id": "p", "ask_price": 10.0, "payout": 0.0},
+    ],
+)
+async def test_trade_handler_rejects_invalid_proposal_prices(trade_handler, mock_ws, proposal):
+    mock_ws.send.return_value = {"proposal": proposal}
+    with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall sem preco ou payout valido"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0)
