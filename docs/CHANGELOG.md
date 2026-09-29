@@ -1,3 +1,9 @@
+## [2.78.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.77.0...v2.78.0) (2026-09-29)
+
+### Funcionalidades
+
+* **engine:** consolida Rise/Fall e protege execucao por cotacao ([e847ddf](https://github.com/victorh-silveira/aether-quantum-engine/commit/e847ddf5e6fbcda6dcbd7d7b1d1a659f9528ed80))
+
 ## [2.77.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.76.0...v2.77.0) (2026-09-28)
 
 ### Funcionalidades
