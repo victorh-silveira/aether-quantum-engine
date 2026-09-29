@@ -58,9 +58,9 @@ def test_production_deploy_gate_armed():
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "signal_skip" not in settings["orchestrator"]["execution"]
     assert settings["orchestrator"]["execution"]["invert_exec_side"] is False
-    assert settings["orchestrator"]["execution"]["anti_trend_lock"] is False
-    assert settings["orchestrator"]["execution"]["allow_direction_flip"] is False
-    assert settings["orchestrator"]["execution"]["error_driven_reversal"]["enabled"] is False
+    assert settings["orchestrator"]["execution"]["anti_trend_lock"] is True
+    assert settings["orchestrator"]["execution"]["allow_direction_flip"] is True
+    assert settings["orchestrator"]["execution"]["error_driven_reversal"]["enabled"] is True
     assert float(settings["orchestrator"]["execution"]["error_driven_reversal"]["brier_threshold"]) == pytest.approx(
         0.40
     )
