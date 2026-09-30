@@ -1,3 +1,9 @@
+## [2.81.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.80.1...v2.81.0) (2026-09-30)
+
+### Funcionalidades
+
+* **app:** alinhar anti-trend-lock a regime de explosao e otimizar limites ([f68256e](https://github.com/victorh-silveira/aether-quantum-engine/commit/f68256e110a1b2270b2399b468eb07fb6205bb61))
+
 ## [2.80.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.80.0...v2.80.1) (2026-09-30)
 
 ### Correcoes de Bug
