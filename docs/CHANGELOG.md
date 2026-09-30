@@ -1,3 +1,9 @@
+## [2.80.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.79.0...v2.80.0) (2026-09-30)
+
+### Funcionalidades
+
+* **engine:** ativa conversao de direcao e desativa bloqueios estaticos ([edc923d](https://github.com/victorh-silveira/aether-quantum-engine/commit/edc923d7e939932d713b64f00574f00cbfbd9326))
+
 ## [2.79.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.78.0...v2.79.0) (2026-09-29)
 
 ### Funcionalidades
