@@ -30,8 +30,12 @@ def test_rise_fall_settings_and_indicators_are_consistent():
 
 def test_rise_fall_launchers_train_tcn_and_meta_without_candidate_promotion():
     root = Path(__file__).resolve().parents[4]
-    for launcher in ("launch-train.bat", "launch-train-wsl.sh"):
-        script = (root / "app" / "scripts" / "batch" / launcher).read_text(encoding="utf-8")
+    launchers = (
+        root / "app" / "scripts" / "batch" / "launch-train.bat",
+        root / "app" / "scripts" / "wsl" / "launch-train-wsl.sh",
+    )
+    for path in launchers:
+        script = path.read_text(encoding="utf-8")
         assert "run_launch_train_tf_pipeline.py" in script
         assert "train_meta_classifier.py" in script
         assert "train_loss_classifier" in script

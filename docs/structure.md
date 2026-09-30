@@ -428,7 +428,7 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
 | `batch/launch-train.bat` | Launcher treino Windows: sanitize → sweep H15–H60 + promote → gate → Timescale → meta (logs densos) |
-| `batch/launch-train-wsl.sh` | Mesmo pipeline via WSL (python Conda `deriv-api` no host Windows) |
+| `wsl/launch-train-wsl.sh` | Mesmo pipeline via WSL (python Conda `deriv-api` no host Windows) |
 | `monitor/live_monitor.py` | Monitor Rich ao vivo |
 | `monitor/monitor_redis.py` | Inspeção Redis |
 | `monitor/monitor_state.py` | Inspeção de estado |

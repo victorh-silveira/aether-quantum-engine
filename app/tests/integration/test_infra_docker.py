@@ -60,10 +60,13 @@ def test_timescale_orphan_conf_removed():
 
 
 def _resolve_infra_file(*subpath: str) -> Path:
-    p = repo_path("infra", "docker", *subpath)
-    if p.is_file():
-        return p
-    return repo_path("infra", "docker", subpath[-1])
+    return repo_path("infra", "docker", *subpath)
+
+
+def test_no_loose_scripts_in_infra_docker_root():
+    docker_dir = repo_path("infra", "docker")
+    loose = [f.name for f in docker_dir.iterdir() if f.is_file() and f.suffix in {".sh", ".sql", ".conf"}]
+    assert loose == [], f"Arquivos soltos na raiz de infra/docker: {loose}"
 
 
 def test_timescale_sql_chunk_and_crags():
