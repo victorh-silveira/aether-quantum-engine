@@ -143,7 +143,6 @@ class WebSocketManager:
         if self.ws:
             await self.ws.close()
             self.ws = None
-            self.uri = ""
             self.logger.debug("WSS: Conexao encerrada.")
 
     async def _listen(self):
@@ -192,7 +191,7 @@ class WebSocketManager:
                 await asyncio.sleep(self.ping_interval)
                 if self.is_running and self.ws:
                     try:
-                        await self.send({"ping": 1}, timeout=5)
+                        await self.send({"ping": 1}, timeout=10)
                     except Exception:
                         self.logger.debug("WSS: Ping falhou silenciosamente. Tentando reconectar...")
                         self.is_running = False

@@ -3,7 +3,7 @@
   "api_config": {
     "deriv_app_id": "",
     "history_fetch": {
-      "chunk": 500,
+      "chunk": 5000,
       "delay_seconds": 0.35,
       "rate_limit_backoff": 2.0,
       "rate_limit_max_delay": 45.0,

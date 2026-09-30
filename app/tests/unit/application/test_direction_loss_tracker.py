@@ -148,27 +148,23 @@ def test_should_anti_trend_lock_flip_cases():
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=0.0) is False
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0) is True
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, pending_loss_total=50.0) is False
-    # Conviccao alta (edge >= 0.070 ou edge >= 0.035 e prob >= 0.58) ignora flip se a favor da macro
+    # Conviccao alta sem macro definida ignora flip
     assert (
-        should_anti_trend_lock_flip(
-            "1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.08, prob=0.55, trend_direction="PUT"
-        )
+        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.08, prob=0.55)
         is False
     )
     assert (
-        should_anti_trend_lock_flip(
-            "1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.04, prob=0.59, trend_direction="PUT"
-        )
+        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.04, prob=0.59)
         is False
     )
-    # Alinhamento com a tendencia macro (trend == direction e prob >= 0.58) ignora flip
+    # Alinhamento com a tendencia macro ignora flip mesmo com prob modesta
     assert (
         should_anti_trend_lock_flip(
             "1HZ75V",
             TradeDirection.PUT,
             pending_loss_total=50.0,
-            edge=0.02,
-            prob=0.59,
+            edge=-0.08,
+            prob=0.51,
             trend_direction="PUT",
         )
         is False
