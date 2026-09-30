@@ -1,3 +1,9 @@
+## [2.80.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.80.0...v2.80.1) (2026-09-30)
+
+### Correcoes de Bug
+
+* **engine:** respeita tendencia no anti-trend-lock e otimiza sync ([1f5d81a](https://github.com/victorh-silveira/aether-quantum-engine/commit/1f5d81a5e731dbe07176b1e8696c422d753a3462))
+
 ## [2.80.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.79.0...v2.80.0) (2026-09-30)
 
 ### Funcionalidades
