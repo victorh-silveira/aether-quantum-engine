@@ -247,3 +247,32 @@ def test_resolve_execution_direction_alpha_flip_active():
     assert direction == TradeDirection.PUT
     assert metrics["alpha_flip_applied"] is True
     assert metrics["direction_origin"] == "FLIP_ERROR_DRIVEN_ALPHA"
+
+
+def test_resolve_execution_direction_counter_explosion_alignment():
+    """Verifica inversao anti-trend-lock para alinhamento em regime de explosao."""
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.51,
+            "calibrated_prob": 0.51,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.5,
+            "scale_mini_prev_bar_dir": "PUT",
+            "scale_mini_bar_dir": "PUT",
+            "cal_side_edge": 0.01,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics.get("anti_trend_lock_flip") is True
+    assert metrics.get("anti_trend_lock_reason") == "COUNTER_EXPLOSION_ALIGNMENT"

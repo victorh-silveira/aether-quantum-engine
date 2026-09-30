@@ -242,6 +242,15 @@ def build_prediction_entry(
             "raw_margin": abs(raw_prob - 0.5),
             "cal_margin": abs(float(calibrated_prob) - 0.5),
             "direction_margin": abs(float(calibrated_prob) - 0.5),
+            "trend_direction": trend_dir.name,
+            "trend_type": trend_type,
+            "trend_period": trend_period,
+            "call_votes": call_votes,
+            "put_votes": put_votes,
+            "elastic_distance_ou": float(compute_elastic_distance_ou(prices)),
+            "calibration_collapsed": bool(
+                abs(raw_prob - 0.5) + 1e-12 >= 0.03 and abs(float(calibrated_prob) - 0.5) + 1e-12 < 0.03
+            ),
         }
     )
     if calibrator is not None:
@@ -253,19 +262,6 @@ def build_prediction_entry(
                 "calibrator_platt_b": float(getattr(calibrator, "platt_b", 0.0) or 0.0),
             }
         )
-    entry["metrics"]["calibration_collapsed"] = bool(
-        abs(raw_prob - 0.5) + 1e-12 >= 0.03 and abs(float(calibrated_prob) - 0.5) + 1e-12 < 0.03
-    )
-    entry["metrics"].update(
-        {
-            "trend_direction": trend_dir.name,
-            "trend_type": trend_type,
-            "trend_period": trend_period,
-            "call_votes": call_votes,
-            "put_votes": put_votes,
-            "elastic_distance_ou": float(compute_elastic_distance_ou(prices)),
-        }
-    )
     entry["metrics"]["indicators"] = indicators_data
     if len(series.get("log_return", [])) > 0:
         idx = len(series["log_return"]) - 1

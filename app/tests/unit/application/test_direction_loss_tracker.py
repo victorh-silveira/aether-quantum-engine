@@ -202,3 +202,50 @@ def test_should_anti_trend_lock_flip_elastic_zeta():
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, elastic_zeta=1.8) is False
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, elastic_zeta=-2.5) is True
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, elastic_zeta=-1.5) is False
+
+
+def test_should_anti_trend_lock_flip_micro_explosion():
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            micro_regime="explosion",
+            regime_side="PUT",
+            prob=0.51,
+            edge=0.01,
+        )
+        is True
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.PUT,
+            micro_regime="explosion",
+            regime_side="PUT",
+            prob=0.51,
+            edge=0.01,
+        )
+        is False
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            micro_regime="explosion",
+            regime_side="PUT",
+            prob=0.57,
+            edge=0.05,
+        )
+        is False
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            micro_regime="chop",
+            regime_side="PUT",
+            prob=0.51,
+            edge=0.01,
+        )
+        is False
+    )

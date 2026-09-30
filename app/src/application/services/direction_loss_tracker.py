@@ -140,14 +140,26 @@ def should_anti_trend_lock_flip(
     prob: float = 0.5,
     trend_direction: str | None = None,
     elastic_zeta: float = 0.0,
+    micro_regime: str | None = None,
+    regime_side: str | None = None,
 ) -> bool:
-    """Indica se a direcao proposta deve sofrer inversao por perdas acumuladas ou exaustao OU."""
+    """Indica se a direcao proposta deve sofrer inversao por perdas acumuladas, exaustao OU ou contra-explosao."""
     if not symbol:
         return False
     zeta = float(elastic_zeta)
     if direction == TradeDirection.CALL and zeta > 2.0:
         return True
     if direction == TradeDirection.PUT and zeta < -2.0:
+        return True
+    regime = str(micro_regime or "").strip().lower()
+    reg_side = str(regime_side or "").strip().upper()
+    if (
+        regime == "explosion"
+        and reg_side in _DIRECTION_KEYS
+        and reg_side != direction.name
+        and float(prob) < 0.56
+        and float(edge) < 0.045
+    ):
         return True
     tracker = get_direction_loss_tracker()
     losses = tracker.consecutive_losses(str(symbol), direction.name)

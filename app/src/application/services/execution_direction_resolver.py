@@ -131,6 +131,8 @@ def _finalize_execution_metrics(
         ready_name = str(metrics.get("exec_direction") or exec_dir.name).upper()
         if ready_name in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
             exec_dir = TradeDirection[ready_name]
+    if orch is not None and symbol:
+        compute_scale_directions(orch, str(symbol), exec_dir, metrics)
     allow_flip = bool((exec_cfg or {}).get("allow_direction_flip", True))
     anti_trend_active = bool((exec_cfg or {}).get("anti_trend_lock", (exec_cfg or {}).get("enable_anti_trend", True)))
     if allow_flip and anti_trend_active and not bool(metrics.get("loss_clf_flip")):
@@ -138,6 +140,8 @@ def _finalize_execution_metrics(
         trend = str(metrics.get("trend_direction") or "").strip().upper()
         curr_edge = float(metrics.get("cal_side_edge", predicted_edge) or 0.0)
         zeta = float(metrics.get("elastic_distance_ou", 0.0) or 0.0)
+        micro_reg = str(metrics.get("scale_micro_regime") or "").strip().lower()
+        reg_side = str(metrics.get("scale_micro_side") or "").strip().upper()
         if should_anti_trend_lock_flip(
             symbol,
             exec_dir,
@@ -146,6 +150,8 @@ def _finalize_execution_metrics(
             prob=prob,
             trend_direction=trend,
             elastic_zeta=zeta,
+            micro_regime=micro_reg,
+            regime_side=reg_side,
         ):
             flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
             metrics["anti_trend_lock_flip"] = True
@@ -153,6 +159,8 @@ def _finalize_execution_metrics(
             metrics["anti_trend_lock_to"] = flipped.name
             if (exec_dir == TradeDirection.CALL and zeta > 2.0) or (exec_dir == TradeDirection.PUT and zeta < -2.0):
                 metrics["anti_trend_lock_reason"] = "OU_ELASTIC_EXHAUSTION"
+            elif micro_reg == "explosion" and reg_side in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
+                metrics["anti_trend_lock_reason"] = "COUNTER_EXPLOSION_ALIGNMENT"
             exec_dir = flipped
     exec_dir, _ = apply_error_reversal_to_direction(orch, str(symbol or ""), exec_dir, metrics, exec_cfg=exec_cfg)
     if bool(metrics.get("alpha_flip_applied")):
@@ -166,8 +174,6 @@ def _finalize_execution_metrics(
     metrics["exec_direction_pre_scale"] = exec_dir.name
     metrics["scale_adapt_applied"] = False
     metrics.pop("scale_adapt_reason", None)
-    if orch is not None and symbol:
-        compute_scale_directions(orch, str(symbol), exec_dir, metrics)
     exec_dir = _apply_invert_exec_side(exec_dir, metrics, exec_cfg)
     exec_dir = reevaluate_market_direction(exec_dir, metrics, exec_cfg, payout=payout, orch=orch, symbol=symbol)
     metrics["exec_direction"] = exec_dir.name
