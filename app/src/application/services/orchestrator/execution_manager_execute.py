@@ -102,7 +102,13 @@ async def execute_cluster_orders(
             pct = max(neutral_pct, 0.008) if _in_recovery else neutral_pct
             stake = max(0.0, bankroll_snapshot * pct)
         if metrics.get("checkpoint_exploration"):
-            cap_pct = min(0.01, max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0))))
+            max_limit = 0.035 if metrics.get("recovery_cap_mode") == "cover_l0" else 0.01
+            raw_cap = (
+                max_limit
+                if metrics.get("recovery_cap_mode") == "cover_l0"
+                else float(metrics.get("provisional_max_stake_pct", 0.0))
+            )
+            cap_pct = min(max_limit, max(0.0, raw_cap))
             stake = min(stake, bankroll_snapshot * cap_pct)
             stake_min = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
             if stake + 1e-9 < stake_min:

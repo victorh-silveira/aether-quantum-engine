@@ -446,3 +446,35 @@ def test_should_skip_neg_edge_two_stage_meta_override():
     }
     assert should_skip_neg_edge(m_alias_z, cfg) is False
     assert m_alias_z.get("neg_edge_waived_by_meta") is True
+
+
+def test_should_skip_neg_edge_rejects_catastrophic_negative_edge_even_with_pend():
+    metrics = {"cal_side_edge": -0.216, "pending_loss_total": 20.0}
+    assert should_skip_neg_edge(metrics, {"skip_neg_edge": True}) is True
+    assert metrics["skip_reason"] == "neg_edge"
+
+
+def test_should_skip_tcn_noise_discord_skips_when_margin_thin_and_against_candle():
+    from src.application.services.execution_senior_skips import should_skip_tcn_noise_discord
+
+    metrics = {
+        "direction_margin": 0.005,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": -0.05,
+    }
+    assert should_skip_tcn_noise_discord(metrics, TradeDirection.CALL) is True
+    assert metrics["skip_reason"] == "tcn_noise_discord"
+
+    metrics_aligned = {
+        "direction_margin": 0.005,
+        "closed_micro_candle_dir": "CALL",
+        "cal_side_edge": -0.05,
+    }
+    assert should_skip_tcn_noise_discord(metrics_aligned, TradeDirection.CALL) is False
+
+    metrics_solid = {
+        "direction_margin": 0.05,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.08,
+    }
+    assert should_skip_tcn_noise_discord(metrics_solid, TradeDirection.CALL) is False

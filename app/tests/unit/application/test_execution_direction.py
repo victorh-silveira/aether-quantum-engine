@@ -276,3 +276,33 @@ def test_resolve_execution_direction_counter_explosion_alignment():
     assert direction == TradeDirection.PUT
     assert metrics.get("anti_trend_lock_flip") is True
     assert metrics.get("anti_trend_lock_reason") == "COUNTER_EXPLOSION_ALIGNMENT"
+
+
+def test_resolve_execution_direction_counter_retraction_alignment():
+    """Verifica inversao anti-trend-lock para alinhamento em regime de retracao."""
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "raw_prob": 0.506,
+            "calibrated_prob": 0.506,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "scale_mini_prev_bar_dir": "PUT",
+            "scale_mini_bar_dir": "CALL",
+            "scale_mili_dir": "CALL",
+            "cal_side_edge": -0.134,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics.get("anti_trend_lock_flip") is True
+    assert metrics.get("anti_trend_lock_reason") == "COUNTER_RETRACTION_ALIGNMENT"

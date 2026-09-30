@@ -38,7 +38,7 @@ Adapter de persistencia, inserts de ticks/velas, tuning de pool, hypertables/com
 - `docs/engineering-devops-cloudops-senior.md`
 - `docs/infra-docker.md`
 - `docs/engineering-architecture-senior.md`
-- `infra/docker/003_init-timescale.sql` / `005_timescale_crags.sql`
+- `infra/docker/sql/003_init-timescale.sql` / `005_timescale_crags.sql`
 - `app/src/infrastructure/` (adapters asyncpg/Timescale)
 - `.cursor/rules/aether-infra.mdc`
 - `.cursor/rules/aether-python-313-runtime.mdc`

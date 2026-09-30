@@ -226,7 +226,7 @@ def build_prediction_entry(
         raw_prob=raw_prob,
         val_brier=float(runtime.get("val_brier", 1.0)),
         val_ece=float(runtime.get("val_ece", 1.0)),
-        contract_duration=int(params.get("contract_duration", 180)),
+        contract_duration=int(params.get("contract_duration", 300)),
     )
     entry["metrics"].update(
         {

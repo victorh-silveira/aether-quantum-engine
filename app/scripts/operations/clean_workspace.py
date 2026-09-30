@@ -471,7 +471,14 @@ def _run_pip_audit(ignore_args: list[str]) -> None:
             print(res.stdout)
         return
     output = (res.stderr or "") + (res.stdout or "")
-    if any(err in output for err in ("Read timed out", "ConnectionError", "HTTPSConnectionPool", "TimeoutError")):
+    network_errors = (
+        "Read timed out",
+        "ConnectionError",
+        "HTTPSConnectionPool",
+        "TimeoutError",
+        "Could not connect",
+    )
+    if any(err in output for err in network_errors):
         print("[AVISO] Timeout na API PyPI; retentando auditoria via servico Google OSV...")
         cmd_osv = [sys.executable, "-m", "pip_audit", *ignore_args, "--timeout", "60", "-s", "osv"]
         res_osv = subprocess.run(cmd_osv, check=False, text=True, shell=False, capture_output=True)
@@ -480,9 +487,7 @@ def _run_pip_audit(ignore_args: list[str]) -> None:
                 print(res_osv.stdout)
             return
         output_osv = (res_osv.stderr or "") + (res_osv.stdout or "")
-        if any(
-            err in output_osv for err in ("Read timed out", "ConnectionError", "HTTPSConnectionPool", "TimeoutError")
-        ):
+        if any(err in output_osv for err in network_errors):
             print("[AVISO] Servicos remotos de vulnerabilidade inacessiveis por instabilidade de rede externa.")
             print("[AVISO] Prosseguindo em fallback seguro; analise estatica Bandit ja aprovada.")
             return

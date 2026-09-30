@@ -22,7 +22,7 @@ services:
       - "127.0.0.1:6379:6379"
     volumes:
       - aether_redis_data:/data
-      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
     mem_limit: 256m
     mem_swappiness: 0
     cpus: 0.50
@@ -70,18 +70,18 @@ services:
       - "127.0.0.1:5432:5432"
     volumes:
       - aether_ts_data:/var/lib/postgresql/data
-      - ./002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
-      - ./003_init-timescale.sql:/docker-entrypoint-initdb.d/003_init-timescale.sql:ro
-      - ./004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
-      - ./005_timescale_crags.sql:/docker-entrypoint-initdb.d/005_timescale_crags.sql:ro
-      - ./006_contract_executions.sql:/docker-entrypoint-initdb.d/006_contract_executions.sql:ro
-      - ./007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
-      - ./008_contract_model_attribution.sql:/docker-entrypoint-initdb.d/008_contract_model_attribution.sql:ro
-      - ./004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
-      - ./005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
-      - ./006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
-      - ./007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
-      - ./008_contract_model_attribution.sql:/docker-scripts/008_contract_model_attribution.sql:ro
+      - ./sql/002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
+      - ./sql/003_init-timescale.sql:/docker-entrypoint-initdb.d/003_init-timescale.sql:ro
+      - ./sql/004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
+      - ./sql/005_timescale_crags.sql:/docker-entrypoint-initdb.d/005_timescale_crags.sql:ro
+      - ./sql/006_contract_executions.sql:/docker-entrypoint-initdb.d/006_contract_executions.sql:ro
+      - ./sql/007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
+      - ./sql/008_contract_model_attribution.sql:/docker-entrypoint-initdb.d/008_contract_model_attribution.sql:ro
+      - ./sql/004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
+      - ./sql/005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
+      - ./sql/006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
+      - ./sql/007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
+      - ./sql/008_contract_model_attribution.sql:/docker-scripts/008_contract_model_attribution.sql:ro
     mem_limit: 1g
     mem_swappiness: 0
     cpus: 1.0
@@ -152,7 +152,7 @@ services:
       AETHER_MINIO_ILM_PREFIX: ${AETHER_MINIO_ILM_PREFIX:-optuna/}
       AETHER_MINIO_ILM_DAYS: ${AETHER_MINIO_ILM_DAYS:-7}
     volumes:
-      - ./minio-init.sh:/minio-init.sh:ro
+      - ./sh/minio-init.sh:/minio-init.sh:ro
     entrypoint: ["/bin/sh", "/minio-init.sh"]
     labels:
       aether.oneshot: "true"

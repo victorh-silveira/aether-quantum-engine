@@ -357,3 +357,30 @@ def test_d_squeeze_pending_waives_recovery():
 
 def test_soft_size_cycle_edge_none_metrics():
     assert _soft_size_cycle_edge(None) is None
+
+
+def test_apply_soft_recovery_stake_damps_under_near_stop_win():
+    from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
+
+    soft = {
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 2,
+        "cover_enabled": True,
+        "cover_multiple": 1.0,
+        "material_pending_min": 0.5,
+        "near_stop_win_freeze_pct": 0.7,
+        "max_safe_stake_pct": 0.05,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=85.0,
+        base_unit=50.0,
+        consecutive_losses=2,
+        previous_stake=100.0,
+        bankroll=10000.0,
+        payout=0.85,
+        soft_recovery=soft,
+        session_pnl=350.0,
+        target_win=417.0,
+    )
+    raw_cover = 85.0 / 0.85
+    assert stake < raw_cover

@@ -84,7 +84,9 @@ fi
 
 cd "$ROOT"
 chmod +x linters/git-hooks/bin/resolve_conda_python.sh linters/git-hooks/bin/python
-if [ -f "$ROOT/infra/docker/host-prereq.sh" ]; then
+if [ -f "$ROOT/infra/docker/sh/host-prereq.sh" ]; then
+  bash "$ROOT/infra/docker/sh/host-prereq.sh" || true
+elif [ -f "$ROOT/infra/docker/host-prereq.sh" ]; then
   bash "$ROOT/infra/docker/host-prereq.sh" || true
 fi
 make app-pre-commit

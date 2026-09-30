@@ -6,6 +6,7 @@ import json
 import socket
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import pytest
 
@@ -58,20 +59,27 @@ def test_timescale_orphan_conf_removed():
     assert not repo_path("infra", "docker", "timescaledb-aether-io.conf").is_file()
 
 
+def _resolve_infra_file(*subpath: str) -> Path:
+    p = repo_path("infra", "docker", *subpath)
+    if p.is_file():
+        return p
+    return repo_path("infra", "docker", subpath[-1])
+
+
 def test_timescale_sql_chunk_and_crags():
-    init_sql = repo_path("infra", "docker", "003_init-timescale.sql").read_text(encoding="utf-8")
-    crags = repo_path("infra", "docker", "005_timescale_crags.sql").read_text(encoding="utf-8")
+    init_sql = _resolve_infra_file("sql", "003_init-timescale.sql").read_text(encoding="utf-8")
+    crags = _resolve_infra_file("sql", "005_timescale_crags.sql").read_text(encoding="utf-8")
     assert "chunk_time_interval => INTERVAL '1 day'" in init_sql
     assert "candle_m5" in crags
     assert "timescaledb.continuous" in crags
     assert "time_bucket(INTERVAL '5 minutes'" in crags
-    lifecycle = repo_path("infra", "docker", "timescale-lifecycle.sh").read_text(encoding="utf-8")
+    lifecycle = _resolve_infra_file("sh", "timescale-lifecycle.sh").read_text(encoding="utf-8")
     assert "005_timescale_crags.sql" in lifecycle
 
 
 def test_contract_audit_view_excludes_other_option_types():
-    base = repo_path("infra", "docker", "006_contract_executions.sql").read_text(encoding="utf-8")
-    sql = repo_path("infra", "docker", "007_contract_executions_resilience.sql").read_text(encoding="utf-8")
+    base = _resolve_infra_file("sql", "006_contract_executions.sql").read_text(encoding="utf-8")
+    sql = _resolve_infra_file("sql", "007_contract_executions_resilience.sql").read_text(encoding="utf-8")
     for column in ("proposal_id", "contract_type", "barrier"):
         assert f"ADD COLUMN IF NOT EXISTS {column}" in base
     assert "c.contract_type IN ('CALL', 'PUT')" in sql
@@ -79,14 +87,14 @@ def test_contract_audit_view_excludes_other_option_types():
 
 
 def test_minio_init_script_bucket_ilm():
-    script = repo_path("infra", "docker", "minio-init.sh").read_text(encoding="utf-8")
+    script = _resolve_infra_file("sh", "minio-init.sh").read_text(encoding="utf-8")
     assert "dl-models" in script
     assert "optuna/" in script
     assert "mc ilm import" in script
 
 
 def test_docker_hydrate_uses_1hz75v_m5_d1():
-    script = repo_path("infra", "docker", "docker-hydrate.sh").read_text(encoding="utf-8")
+    script = _resolve_infra_file("sh", "docker-hydrate.sh").read_text(encoding="utf-8")
     assert "1HZ75V" in script
     assert "300" in script
     assert "86400" in script
@@ -98,13 +106,13 @@ def test_docker_hydrate_uses_1hz75v_m5_d1():
 
 
 def test_timescale_lifecycle_ohlc_segmentby_includes_granularity():
-    sql = repo_path("infra", "docker", "004_timescale-lifecycle.sql").read_text(encoding="utf-8")
+    sql = _resolve_infra_file("sql", "004_timescale-lifecycle.sql").read_text(encoding="utf-8")
     assert "symbol,granularity" in sql
     assert "time DESC, epoch DESC" in sql
 
 
 def test_aether_io_tune_reloadable_only():
-    sql = repo_path("infra", "docker", "002_aether-io-tune.sql").read_text(encoding="utf-8")
+    sql = _resolve_infra_file("sql", "002_aether-io-tune.sql").read_text(encoding="utf-8")
     assert "shared_buffers" not in sql
     assert "work_mem" in sql
     assert "pg_reload_conf" in sql
@@ -142,7 +150,7 @@ def test_loss_dockerfile_multi_stage():
 
 
 def test_compose_lib_and_env_example_document_ml_knobs():
-    lib = repo_path("infra", "docker", "compose-lib.sh").read_text(encoding="utf-8")
+    lib = _resolve_infra_file("sh", "compose-lib.sh").read_text(encoding="utf-8")
     env = repo_path(".env.example").read_text(encoding="utf-8")
     assert "DOCKER_PROFILES" in lib
     assert "docker-compose.gpu.yml" not in lib
@@ -208,3 +216,33 @@ def test_live_meta_when_up():
     if not meta_up:
         pytest.skip("Meta classifier nao esta no ar")
     assert meta_ready is True
+
+
+def test_infra_docker_files_organized_by_extension_family():
+    sql_files = [
+        "002_aether-io-tune.sql",
+        "003_init-timescale.sql",
+        "004_timescale-lifecycle.sql",
+        "005_timescale_crags.sql",
+        "006_contract_executions.sql",
+        "007_contract_executions_resilience.sql",
+        "008_contract_model_attribution.sql",
+    ]
+    for name in sql_files:
+        assert repo_path("infra", "docker", "sql", name).is_file()
+
+    sh_files = [
+        "compose-lib.sh",
+        "docker-hydrate.sh",
+        "docker-smoke.sh",
+        "docker-ui.sh",
+        "docker-wait-healthy.sh",
+        "host-prereq.sh",
+        "loss-clf-reset.sh",
+        "minio-init.sh",
+        "timescale-lifecycle.sh",
+    ]
+    for name in sh_files:
+        assert repo_path("infra", "docker", "sh", name).is_file()
+
+    assert repo_path("infra", "docker", "config", "redis.conf").is_file()

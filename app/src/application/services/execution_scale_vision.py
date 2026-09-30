@@ -224,7 +224,9 @@ def compute_scale_directions(
         )
     flow = metrics.get("flow_features") if isinstance(metrics.get("flow_features"), dict) else None
     tick_buffer = getattr(stream, "tick_buffer", None) if stream is not None else None
-    metrics["scale_mili_dir"] = mili_direction_from_flow(flow, tick_buffer, str(symbol))
+    calc_mili = mili_direction_from_flow(flow, tick_buffer, str(symbol))
+    if calc_mili is not None or metrics.get("scale_mili_dir") is None:
+        metrics["scale_mili_dir"] = calc_mili
     mini_curr = metrics["scale_mini_bar_dir"] if use_last_bar else None
     mini_prev = metrics["scale_mini_prev_bar_dir"] if use_last_bar else None
     mini_peer = mini_curr if mini_curr is not None else metrics["scale_mini_dir"]

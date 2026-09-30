@@ -148,10 +148,6 @@ def should_skip_neg_edge(
     """True quando Edge calibrado do lado TCN fica <= 0 ou abaixo de min_edge_execute em EXPLORE."""
     if force or not bool((exec_cfg or {}).get("skip_neg_edge", False)):
         return False
-    if _pend_waives(metrics, exec_cfg):
-        return False
-    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
-        return False
     raw = metrics.get("cal_side_edge")
     if raw is None:
         raw = metrics.get("edge")
@@ -160,6 +156,11 @@ def should_skip_neg_edge(
     try:
         edge = float(raw)
     except (TypeError, ValueError):
+        return False
+    if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+        return False
+    rec_floor = float((exec_cfg or {}).get("recovery_neg_edge_floor", -0.08))
+    if _pend_waives(metrics, exec_cfg) and edge >= rec_floor:
         return False
     min_edge = 0.0
     if isinstance(exec_cfg, dict):

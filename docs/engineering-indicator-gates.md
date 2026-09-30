@@ -7,9 +7,9 @@ de mercado legada abaixo. Sao quatro categorias, nao uma cota de quatro ciclos:
 
 | Veto | Confluencia na ultima vela fechada |
 |------|------------------------------------|
-| `call_top_rejection` | RSI >= 0.75, BB %B >= 1 e pavio superior >= 45% do range |
+| `call_top_rejection` | RSI >= 0.70, BB %B >= 0.95 e pavio superior >= 40% do range |
 | `call_down_continuation` | Corpo vendedor >= 80%, DI diff <= -0.15, tendencia e vela anterior PUT |
-| `put_bottom_rejection` | RSI <= 0.25, BB %B <= 0 e pavio inferior >= 45% do range |
+| `put_bottom_rejection` | RSI <= 0.30, BB %B <= 0.05 e pavio inferior >= 40% do range |
 | `put_up_continuation` | Corpo comprador >= 80%, DI diff >= 0.15, tendencia e vela anterior CALL |
 
 RSI e DI diff sao normalizados; OHLC usa precos absolutos. Candle ausente ou

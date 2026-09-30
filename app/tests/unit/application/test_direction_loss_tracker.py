@@ -249,3 +249,40 @@ def test_should_anti_trend_lock_flip_micro_explosion():
         )
         is False
     )
+
+
+def test_should_anti_trend_lock_flip_micro_retraction():
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.PUT,
+            micro_regime="retraction",
+            regime_side="CALL",
+            prob=0.506,
+            edge=-0.134,
+        )
+        is True
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            micro_regime="retraction",
+            regime_side="CALL",
+            prob=0.506,
+            edge=-0.134,
+        )
+        is False
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.PUT,
+            micro_regime="retraction",
+            regime_side="CALL",
+            trend_direction="PUT",
+            prob=0.539,
+            edge=-0.040,
+        )
+        is False
+    )

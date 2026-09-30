@@ -100,9 +100,9 @@ WHERE state = 'idle in transaction'
 ## Paths
 
 - `infra/docker/docker-compose.yml`
-- `infra/docker/redis.conf`
-- `infra/docker/minio-init.sh`
-- `infra/docker/003_init-timescale.sql` / `004_timescale-lifecycle.sql` / `005_timescale_crags.sql`
+- `infra/docker/config/redis.conf`
+- `infra/docker/sh/minio-init.sh`
+- `infra/docker/sql/003_init-timescale.sql` / `004_timescale-lifecycle.sql` / `005_timescale_crags.sql`
 - `infra/docker/meta-classifier/Dockerfile` / `loss-classifier/Dockerfile` / `ml_common/`
 - Skills: `aether-devops-cloudops`, `aether-infra-stack`, `aether-redis-hiredis`, `aether-asyncpg-timescale`
 - Rule: `aether-infra.mdc`

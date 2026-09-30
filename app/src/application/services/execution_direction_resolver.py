@@ -159,8 +159,13 @@ def _finalize_execution_metrics(
             metrics["anti_trend_lock_to"] = flipped.name
             if (exec_dir == TradeDirection.CALL and zeta > 2.0) or (exec_dir == TradeDirection.PUT and zeta < -2.0):
                 metrics["anti_trend_lock_reason"] = "OU_ELASTIC_EXHAUSTION"
-            elif micro_reg == "explosion" and reg_side in {TradeDirection.CALL.name, TradeDirection.PUT.name}:
-                metrics["anti_trend_lock_reason"] = "COUNTER_EXPLOSION_ALIGNMENT"
+            elif micro_reg in {"explosion", "retraction"} and reg_side in {
+                TradeDirection.CALL.name,
+                TradeDirection.PUT.name,
+            }:
+                metrics["anti_trend_lock_reason"] = f"COUNTER_{micro_reg.upper()}_ALIGNMENT"
+            else:
+                metrics["anti_trend_lock_reason"] = "CONSECUTIVE_DIRECTION_LOSSES"
             exec_dir = flipped
     exec_dir, _ = apply_error_reversal_to_direction(orch, str(symbol or ""), exec_dir, metrics, exec_cfg=exec_cfg)
     if bool(metrics.get("alpha_flip_applied")):

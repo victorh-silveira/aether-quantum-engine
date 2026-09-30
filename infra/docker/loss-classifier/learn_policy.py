@@ -6,7 +6,8 @@ def bootstrap_retrain_floor(
     retrain_on_loss_min_n: int = 2,
     bootstrap_exit_n: int = 2,
 ) -> int:
-    return int(max(int(bootstrap_exit_n), max(2, int(retrain_on_loss_min_n))))
+    _ = retrain_on_loss_min_n
+    return int(max(2, int(bootstrap_exit_n)))
 
 
 def bootstrap_seed_keep_detail(

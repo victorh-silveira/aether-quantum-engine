@@ -7,7 +7,10 @@ import pytest
 
 from src.application.services import execution_four_vetoes as policy
 from src.application.services.execution_direction_resolver import resolve_execution_direction
-from src.application.services.execution_senior_skips import apply_senior_execution_skips
+from src.application.services.execution_senior_skips import (
+    apply_senior_execution_skips,
+    should_skip_tcn_noise_discord,
+)
 from src.application.services.market_audit_gate_tokens import format_gates_audit_line
 from src.application.services.orchestrator.execution_blockers import _candidate_block_reason
 from src.domain.models.market_data import Candle
@@ -190,3 +193,45 @@ def test_continuation_requires_two_distinct_closed_candles():
     assert policy.market_veto_reason(Side.CALL, metrics, orch=orch, symbol="1HZ75V") == "call_down_continuation"
     orch.stream.micro_candles["1HZ75V"] = [current, forming]
     assert policy.market_veto_reason(Side.CALL, metrics, orch=orch, symbol="1HZ75V") is None
+
+
+def test_real_market_oversold_veto():
+    metrics = {
+        "closed_candle_ohlc": (100, 101, 95, 99),
+        "indicators": {"rsi": 0.293, "bb_pct_b": 0.038},
+    }
+    assert policy.market_veto_reason(Side.PUT, metrics) == "put_bottom_rejection"
+    assert policy.market_veto_reason(Side.CALL, metrics) is None
+
+
+def test_tcn_noise_discord_skips_and_edge_bypass():
+    metrics = {
+        "direction_margin": 0.005,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.03,
+    }
+    assert should_skip_tcn_noise_discord(metrics, Side.CALL, {"skip_tcn_noise_discord": True}) is False
+
+    metrics_invalid = {"direction_margin": "invalid_num"}
+    assert should_skip_tcn_noise_discord(metrics_invalid, Side.CALL, {"skip_tcn_noise_discord": True}) is False
+
+    metrics_invalid_edge = {
+        "direction_margin": 0.005,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": "invalid_edge",
+    }
+    assert should_skip_tcn_noise_discord(metrics_invalid_edge, Side.CALL, {"skip_tcn_noise_discord": True}) is True
+
+    metrics_block = {
+        "direction_margin": 0.005,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.01,
+    }
+    res_dir, blocked = apply_senior_execution_skips(
+        Side.CALL,
+        metrics_block,
+        exec_cfg={"four_market_vetoes": True, "skip_tcn_noise_discord": True},
+    )
+    assert blocked is True
+    assert res_dir == Side.CALL
+    assert metrics_block["gate_reason"] == "tcn_noise_discord"

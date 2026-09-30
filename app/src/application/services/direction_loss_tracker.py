@@ -153,11 +153,14 @@ def should_anti_trend_lock_flip(
         return True
     regime = str(micro_regime or "").strip().lower()
     reg_side = str(regime_side or "").strip().upper()
+    trend = str(trend_direction or "").strip().upper()
+    trend_aligned = trend in _DIRECTION_KEYS and trend == direction.name
+    prob_floor = 0.52 if (regime == "retraction" and trend_aligned) else 0.56
     if (
-        regime == "explosion"
+        regime in {"explosion", "retraction"}
         and reg_side in _DIRECTION_KEYS
         and reg_side != direction.name
-        and float(prob) < 0.56
+        and float(prob) < prob_floor
         and float(edge) < 0.045
     ):
         return True

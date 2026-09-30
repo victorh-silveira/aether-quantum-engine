@@ -29,7 +29,12 @@ class StopWinManager:
     """Calcula meta de stop win da sessao (4,31% composto, ou fixo em micro-banca)."""
 
     def __init__(self, risk_management: dict[str, Any] | None):
-        self.risk_management = risk_management if isinstance(risk_management, dict) else {}
+        raw = risk_management if isinstance(risk_management, dict) else {}
+        self.risk_management = (
+            raw.get("risk_management")
+            if "risk_management" in raw and isinstance(raw.get("risk_management"), dict)
+            else raw
+        )
         raw_params = self.risk_management.get("params")
         self.params = raw_params if isinstance(raw_params, dict) else {}
 

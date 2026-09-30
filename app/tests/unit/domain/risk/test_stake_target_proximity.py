@@ -63,3 +63,20 @@ def test_target_proximity_damping_curve_on_kelly_stake():
     assert at_half == pytest.approx(raw * resolve_target_proximity_damping(target, target * 0.50))
     assert at_ninety == pytest.approx(raw * resolve_target_proximity_damping(target, target * 0.90))
     assert at_start > at_half > at_ninety
+
+
+def test_apply_target_proximity_to_kelly_caps_at_needed_stake():
+    from types import SimpleNamespace
+
+    from src.domain.risk.risk_stake_flow import apply_target_proximity_to_kelly
+
+    rm = SimpleNamespace(
+        config={"risk_management": {"params": {"compounding_enabled": True, "compounding_rate_daily": 0.0431}}},
+        initial_bankroll=10000.0,
+        total_session_profit=350.0,
+        kelly_config={},
+        risk_params={"stake_min": 1.0},
+    )
+    capped = apply_target_proximity_to_kelly(rm, 500.0, apply_stop_win=True, payout=0.85)
+    assert capped < 110.0
+    assert capped >= 95.0

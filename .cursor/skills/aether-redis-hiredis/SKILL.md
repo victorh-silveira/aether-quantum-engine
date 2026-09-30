@@ -40,7 +40,7 @@ Cliente Redis, fila de liquidacao, orphans/estagnacao SETTLE, mudanca AOF, ou pr
 - `docs/engineering-python-313-runtime.md`
 - `docs/infra-docker.md`
 - `docs/engineering-architecture-senior.md`
-- `infra/docker/redis.conf`
+- `infra/docker/config/redis.conf`
 - `app/src/` (ops de `settlement:queue:priority` / Redis adapters)
 - `.cursor/rules/aether-settlement.mdc`
 - `.cursor/rules/aether-infra.mdc`

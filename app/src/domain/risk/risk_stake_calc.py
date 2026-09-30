@@ -175,7 +175,7 @@ def calculate_stake_for_manager(
         live_metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
     if apply_stop_win:
-        kelly_base = _apply_target_proximity_to_kelly(rm, kelly_base, apply_stop_win=True)
+        kelly_base = _apply_target_proximity_to_kelly(rm, kelly_base, apply_stop_win=True, payout=b)
     kelly_base = apply_neutral_edge_kelly_base(kelly_base, bankroll, dl_metrics)
     final_stake, mode_tag = resolve_dlambert_stake(
         recovery_active=recovery_stress,
@@ -238,7 +238,9 @@ def calculate_stake_for_manager(
         safe_cap=float(safe_cap),
         metrics=dl_metrics if isinstance(dl_metrics, dict) else None,
     )
-    final_stake = cap_provisional_stake(final_stake, bankroll, dl_metrics if isinstance(dl_metrics, dict) else None)
+    final_stake = cap_provisional_stake(
+        final_stake, bankroll, dl_metrics if isinstance(dl_metrics, dict) else None, safe_cap=float(safe_cap)
+    )
     log_kelly_base = (
         effective_soft_recovery_base(kelly_base, rm, rm.dlambert_config) if mode_tag == "D'ALEMBERT" else kelly_base
     )

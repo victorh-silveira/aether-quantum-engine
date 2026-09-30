@@ -16,6 +16,12 @@ def test_provisional_cap_nao_tem_waiver_por_recovery():
     assert metrics["provisional_stake_cap_applied"] is True
 
 
+def test_provisional_cap_honors_cover_l0_safe_cap():
+    metrics = {"deploy_provisional": True, "provisional_max_stake_pct": 0.01, "recovery_cap_mode": "cover_l0"}
+    assert cap_provisional_stake(125.0, 10000.0, metrics, safe_cap=350.0) == pytest.approx(125.0)
+    assert cap_provisional_stake(400.0, 10000.0, metrics, safe_cap=350.0) == pytest.approx(350.0)
+
+
 def test_cal_margin_soft_without_explicit_pct_does_not_crush_stake():
     metrics = {"cal_margin_soft": True}
     capped = apply_signal_soft_stake_cap(200.0, 10000.0, metrics, pending_total=0.0)

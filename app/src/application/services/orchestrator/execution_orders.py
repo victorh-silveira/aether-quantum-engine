@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from typing import Any
 
 from src.application.services.market_audit_log import (
     emit_audit_info,
@@ -104,6 +105,34 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
     )
 
 
+def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: Any, exec_cfg: dict) -> None:
+    """Anexa probabilidade efetiva e piso de edge para quote guard no proposal."""
+    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", True)):
+        return
+    cal_prob = metrics.get("calibrated_prob")
+    if cal_prob is None:
+        return
+    try:
+        p_c = float(cal_prob)
+        dir_name = getattr(direction, "name", str(direction)).upper()
+        if bool(metrics.get("loss_clf_flip")):
+            p_side = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
+        elif bool(metrics.get("anti_trend_lock_flip")):
+            p_side = float(metrics.get("conviction") or 0.58)
+        else:
+            p_side = p_c if dir_name == "CALL" else 1.0 - p_c
+        haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
+        p_eff = max(0.0, p_side - haircut)
+        is_rec = float(metrics.get("pending_loss_total", 0.0) or 0.0) > 0.5
+        min_edge = float(
+            exec_cfg.get("recovery_neg_edge_floor", -0.08) if is_rec else exec_cfg.get("min_edge_execute", 0.01)
+        )
+        params["_quote_guard_side_probability"] = p_eff
+        params["_quote_guard_min_edge"] = min_edge
+    except (TypeError, ValueError):
+        pass
+
+
 async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):
     """Compra contrato com parametros de risco e registra assinatura de liquidacao."""
     cid = f"C{int(executor.orch._active_cycle_id):04d}"
@@ -125,6 +154,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             lo.pop("stop_loss", None)
             params["limit_order"] = lo
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
+    _attach_quote_guard_params(params, metrics, direction, exec_cfg)
     rm_cfg = executor.orch.config.get("risk_management", {})
     max_stake_cap = float(
         rm_cfg.get("kelly", {}).get("max_stake", 0.0) or rm_cfg.get("params", {}).get("max_stake", 0.0)
@@ -134,7 +164,13 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
     if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
-        cap_pct = min(0.01, max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0))))
+        max_limit = 0.035 if metrics.get("recovery_cap_mode") == "cover_l0" else 0.01
+        raw_cap = (
+            max_limit
+            if metrics.get("recovery_cap_mode") == "cover_l0"
+            else float(metrics.get("provisional_max_stake_pct", 0.0))
+        )
+        cap_pct = min(max_limit, max(0.0, raw_cap))
         cap = float(executor.orch.state.balance) * cap_pct
         if cap + 1e-9 < stake_min:
             raise RuntimeError("Checkpoint nao qualificado: stake minimo excede teto")
@@ -161,6 +197,14 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             break
         except RuntimeError as exc:
             last_error = exc
+            if "perdeu vantagem" in str(exc).lower() or "compra bloqueada" in str(exc).lower():
+                logger.warning(
+                    "[PROPOSAL] || Cotacao Deriv sem EV para %s (%s): %s",
+                    symbol,
+                    getattr(direction, "name", str(direction)),
+                    exc,
+                )
+                return None
             if handle_broker_maintenance_error(executor.orch, exc):
                 raise
             if not is_retriable_proposal_error(exc) or attempt_stake == attempts[-1]:

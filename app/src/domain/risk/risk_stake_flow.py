@@ -107,7 +107,7 @@ def apply_stop_win_kelly_boost(
     return boosted
 
 
-def apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_win: bool) -> float:
+def apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_win: bool, payout: float = 0.85) -> float:
     """Comprime Kelly bruto pela proximidade da meta de stop win da sessao."""
     if not apply_stop_win:
         return kelly_base
@@ -116,12 +116,20 @@ def apply_target_proximity_to_kelly(rm: Any, kelly_base: float, *, apply_stop_wi
         rm.initial_bankroll,
         persisted_target=persisted_session_target(rm),
     )
-    return apply_target_proximity_damping(
+    damped = apply_target_proximity_damping(
         kelly_base,
         target,
         rm.total_session_profit,
         kelly_config=rm.kelly_config,
     )
+    profit = float(getattr(rm, "total_session_profit", 0.0) or 0.0)
+    if target > 0.0 and profit > 0.0:
+        remaining = max(0.0, target - profit)
+        rate = max(0.10, float(payout))
+        needed_stake = remaining / rate
+        stake_min = float(getattr(rm, "risk_params", {}).get("stake_min", 1.0) or 1.0)
+        return min(damped, max(stake_min, needed_stake * 1.05))
+    return damped
 
 
 def emit_cycle_stake_log(

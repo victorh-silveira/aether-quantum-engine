@@ -132,3 +132,9 @@ async def test_acquire_trading_cycle_lock_rejects_when_stop_win_reached(orch_rea
         "large_account_stop_win_pct": 4.0,
     }
     assert await acquire_trading_cycle_lock(orch) is False
+
+
+def test_trading_cycle_entry_blocked_by_active_cooldown(orch_ready):
+    orch = orch_ready
+    orch._cooldown_until = 9999999999.0
+    assert trading_cycle_entry_allowed(orch) is False

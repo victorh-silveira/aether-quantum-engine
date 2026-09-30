@@ -112,30 +112,30 @@ app-setup-wsl:
 # ------------------------------------------------------------------------------
 
 docker-sanitize-run:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-sanitize-run · limpa checkpoints e artefactos da run anterior"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-sanitize-run · limpa checkpoints e artefactos da run anterior"'
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py
 
 docker-sanitize-run-keep-meta:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-sanitize-run-keep-meta · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-sanitize-run-keep-meta · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
 	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
 
 docker-up:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
-	@bash infra/docker/host-prereq.sh
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
+	@bash infra/docker/sh/host-prereq.sh
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
 	$(DOCKER_COMPOSE) up -d
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'
-	@bash infra/docker/docker-wait-healthy.sh
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 4 5 "Timescale lifecycle + hydrate"'
-	@bash infra/docker/timescale-lifecycle.sh
-	@bash infra/docker/docker-hydrate.sh
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_step 5 5 "Smoke checks"'
-	@bash infra/docker/docker-smoke.sh
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'
+	@bash infra/docker/sh/docker-wait-healthy.sh
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 4 5 "Timescale lifecycle + hydrate"'
+	@bash infra/docker/sh/timescale-lifecycle.sh
+	@bash infra/docker/sh/docker-hydrate.sh
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 5 5 "Smoke checks"'
+	@bash infra/docker/sh/docker-smoke.sh
 
 docker-rebuild:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss (preserva data/dl e meta_lgbm.pkl)"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss (preserva data/dl e meta_lgbm.pkl)"'
 	@test -f .env || cp .env.example .env
 	@if [ ! -f $(DOCKER_DIR)/loss-models/loss_bootstrap_synth.pkl ]; then \
 		cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier; \
@@ -143,51 +143,51 @@ docker-rebuild:
 	$(DOCKER_COMPOSE) build --pull aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d --force-recreate aether-meta-classifier aether-loss-classifier
 	$(DOCKER_COMPOSE) up -d
-	@bash infra/docker/docker-wait-healthy.sh
-	@bash infra/docker/docker-smoke.sh
+	@bash infra/docker/sh/docker-wait-healthy.sh
+	@bash infra/docker/sh/docker-smoke.sh
 
 docker-timescale-lifecycle:
-	@bash infra/docker/timescale-lifecycle.sh
+	@bash infra/docker/sh/timescale-lifecycle.sh
 
 docker-down:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-down · parando stack (volumes preservados)"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-down · parando stack (volumes preservados)"'
 	$(DOCKER_COMPOSE) down
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_nl'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_nl'
 
 docker-restart:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-restart · reiniciando containers (volumes preservados)"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-restart · reiniciando containers (volumes preservados)"'
 	@test -f .env || cp .env.example .env
 	$(DOCKER_COMPOSE) restart
-	@bash infra/docker/docker-wait-healthy.sh
+	@bash infra/docker/sh/docker-wait-healthy.sh
 	@$(DOCKER_COMPOSE) ps
 
 docker-reset:
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + loss-models + volumes"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + loss-models + volumes"'
 	@echo -e "$(RED)  Limpando checkpoints/artefactos + loss-models + volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
 	@echo ""
 	@$(MAKE) --no-print-directory docker-sanitize-run-keep-meta
-	@bash infra/docker/loss-clf-reset.sh clear
+	@bash infra/docker/sh/loss-clf-reset.sh clear
 	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@$(MAKE) --no-print-directory docker-up
 
 docker-clean:
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-clean · ATENCAO: volumes serao apagados"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-clean · ATENCAO: volumes serao apagados"'
 	@echo -e "$(RED)  Removendo containers, redes e volumes (TimescaleDB/MinIO/Redis)$(RESET)"
 	@echo ""
-	@bash infra/docker/loss-clf-reset.sh clear
+	@bash infra/docker/sh/loss-clf-reset.sh clear
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@echo ""
 	@$(DOCKER_COMPOSE) ps
 
 docker-hydrate:
-	@bash infra/docker/docker-hydrate.sh
+	@bash infra/docker/sh/docker-hydrate.sh
 
 docker-smoke:
-	@bash -c 'source infra/docker/docker-ui.sh; docker_ui_banner "docker-smoke"'
-	@bash infra/docker/docker-smoke.sh
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-smoke"'
+	@bash infra/docker/sh/docker-smoke.sh
 
 docker-ps:
 	$(DOCKER_COMPOSE) ps

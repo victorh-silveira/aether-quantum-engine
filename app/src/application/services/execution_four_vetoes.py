@@ -56,9 +56,9 @@ def market_veto_reason(
     call = direction == TradeDirection.CALL
     wick = (h - max(o, c)) / span if call else (min(o, c) - low) / span
     extreme = (
-        rsi is not None and bb is not None and ((rsi >= 0.75 and bb >= 1.0) if call else (rsi <= 0.25 and bb <= 0.0))
+        rsi is not None and bb is not None and ((rsi >= 0.70 and bb >= 0.95) if call else (rsi <= 0.30 and bb <= 0.05))
     )
-    if extreme and wick >= 0.45:
+    if extreme and wick >= 0.40:
         return "call_top_rejection" if call else "put_bottom_rejection"
     opposite = "PUT" if call else "CALL"
     momentum = di is not None and (di <= -0.15 if call else di >= 0.15)
