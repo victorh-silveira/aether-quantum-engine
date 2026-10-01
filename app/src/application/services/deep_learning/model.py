@@ -161,7 +161,10 @@ def predict_next_direction(
         implied_vol_bars=implied_vol_bars,
     ).reshape(1, lookback, FEATURE_DIM)
     if norm_stats is None:
-        norm_stats = fit_norm_stats(seq)
+        norm_stats = FeatureNormStats(
+            mean=np.zeros(FEATURE_DIM, dtype=np.float32),
+            std=np.ones(FEATURE_DIM, dtype=np.float32),
+        )
     feat = normalize_sequences(seq, norm_stats)
     raw_prob = float(_model_raw_prob(model, feat)[0])
     prob = apply_calibrator_stable(raw_prob, calibrator)

@@ -462,6 +462,8 @@ def run_optuna_study(
     sample_weight: np.ndarray | None = None,
     hygiene: dict[str, Any] | None = None,
     allow_unqualified: bool = False,
+    export_min_zscore: float | None = None,
+    export_min_ir: float | None = None,
 ) -> tuple[lgb.Booster, dict[str, Any], float, float]:
     configure_meta_train_logging()
     frame = _feature_frame(frame)
@@ -551,8 +553,6 @@ def run_optuna_study(
             )
             trial.set_user_attr("oos_payoff_zscore_mean", mean_z)
             trial.set_user_attr("oos_information_ratio", mean_ir)
-            if not _export_edge_ok(mean_z, mean_ir):
-                return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
             return mean_z + OPTUNA_IR_TIEBREAK_WEIGHT * mean_ir
 
         model, train_mae, val_mae = train_lgbm_candidate(
@@ -583,8 +583,6 @@ def run_optuna_study(
         oos_ir = information_ratio_from_predictions(y_val, val_pred)
         trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
         trial.set_user_attr("oos_information_ratio", float(oos_ir))
-        if not _export_edge_ok(float(oos_zscore), float(oos_ir)):
-            return float(OPTUNA_NEGATIVE_EDGE_PENALTY)
         confidence_scale = min(1.0, math.sqrt(max(1, n_val) / 64.0))
         return (float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)) * confidence_scale
 
@@ -614,10 +612,12 @@ def run_optuna_study(
     best_z = float(best_trial.user_attrs.get("oos_payoff_zscore_mean", 0.0) or 0.0)
     best_ir = float(best_trial.user_attrs.get("oos_information_ratio", 0.0) or 0.0)
     if not allow_unqualified:
+        floor = float(export_min_zscore) if export_min_zscore is not None else float(OPTUNA_OOS_PAYOFF_ZSCORE_MIN)
+        ir_floor = float(export_min_ir) if export_min_ir is not None else float(META_EXPORT_MIN_IR)
         assert_export_zscore_floor(
             {"oos_payoff_zscore_mean": best_z, "oos_information_ratio": best_ir},
-            floor=float(OPTUNA_OOS_PAYOFF_ZSCORE_MIN),
-            min_ir=float(META_EXPORT_MIN_IR),
+            floor=floor,
+            min_ir=ir_floor,
         )
     best_params = {**study.best_params, "n_jobs": OPTUNA_N_JOBS}
     model, train_mae, val_mae = train_lgbm_candidate(

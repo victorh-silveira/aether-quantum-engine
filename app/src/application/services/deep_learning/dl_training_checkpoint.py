@@ -40,8 +40,9 @@ def checkpoint_if_improved(
     best_state = None
     best_sharp_state = None
     acc_improved = val_acc > best_val_acc + 1e-6
-    if acc_improved:
-        best_val_acc = val_acc
+    loss_and_same_acc = loss_improved and abs(val_acc - best_val_acc) <= 1e-6 and not bool(collapse_hit)
+    if acc_improved or loss_and_same_acc:
+        best_val_acc = max(best_val_acc, val_acc)
         best_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
     acc_floor_ok = float(val_acc) + 1e-9 >= float(min_val_accuracy)
     if acc_floor_ok and not bool(collapse_hit):

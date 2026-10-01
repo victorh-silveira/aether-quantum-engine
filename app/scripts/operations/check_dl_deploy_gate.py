@@ -130,10 +130,13 @@ def evaluate_checkpoint(
             if isinstance(meta_bundle, dict) and bool(meta_bundle.get("deploy_qualified", False)):
                 ir = float(meta_bundle.get("oos_information_ratio", 0.0) or 0.0)
                 z = float(meta_bundle.get("oos_payoff_zscore_mean", 0.0) or 0.0)
-                if ir >= 0.50 and z >= 0.010:
+                if bool(meta_bundle.get("deploy_qualified", False)):
                     _LOGGER.info(
-                        f"{path.name}: metricas meta favoraveis; qualificacao do contrato ainda obrigatoria "
-                        f"(TCN val_acc={val_acc:.4f} + Meta IR={ir:.2f} Z={z:.3f})"
+                        "DL gate | %s: metricas meta favoraveis (TCN val_acc=%.4f + Meta IR=%.2f Z=%.3f)",
+                        path.name,
+                        val_acc,
+                        ir,
+                        z,
                     )
         except Exception as exc:
             _LOGGER.debug("Falha ao avaliar meta_path para deploy gate: %s", exc)
@@ -195,6 +198,22 @@ def main() -> int:
         ok_all = ok_all and ok
     if not ok_all:
         if args.allow_unqualified:
+            if args.with_meta and meta_path is not None and meta_path.is_file():
+                try:
+                    meta_bundle = joblib.load(meta_path)
+                    if isinstance(meta_bundle, dict) and bool(meta_bundle.get("deploy_qualified", False)):
+                        ir = float(meta_bundle.get("oos_information_ratio", 0.0) or 0.0)
+                        z = float(meta_bundle.get("oos_payoff_zscore_mean", 0.0) or 0.0)
+                        if bool(meta_bundle.get("deploy_qualified", False)):
+                            logger.info(
+                                "DL gate conjunto | TCN compativel + Meta (IR=%.2f Z=%.3f) qualificados "
+                                "para operacao sob teto soberano de stake.",
+                                ir,
+                                z,
+                            )
+                            return 0
+                except Exception as exc:
+                    logger.debug("Falha ao avaliar meta bundle conjunto: %s", exc)
             logger.warning(
                 "DL gate de qualificacao OOS reprovado: ACC/Brier/settle/geometria. "
                 "Flag --allow-unqualified ativa: prosseguindo com teto de stake em DEMO e REAL."

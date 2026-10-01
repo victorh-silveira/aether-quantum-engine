@@ -31,6 +31,7 @@ from scripts.operations.train_meta_data import (
     resolve_training_bundles,
 )
 from scripts.operations.train_meta_optuna import (
+    META_EXPORT_MIN_IR,
     META_EXPORT_MIN_ZSCORE,
     assert_export_mae_gap,
     assert_export_zscore_floor,
@@ -186,6 +187,7 @@ async def train_meta_classifier(
     output_path: Path,
     source: str,
     export_min_zscore: float = META_EXPORT_MIN_ZSCORE,
+    export_min_ir: float = META_EXPORT_MIN_IR,
     candidate_on_low_quality: bool = False,
 ) -> dict[str, Any]:
     required_gran = int(granularity)
@@ -222,10 +224,16 @@ async def train_meta_classifier(
         hygiene=hygiene,
         sample_weight=teacher_sample_weights(_proxy),
         allow_unqualified=candidate_on_low_quality,
+        export_min_zscore=export_min_zscore,
+        export_min_ir=export_min_ir,
     )
     qualified = True
     try:
-        assert_export_zscore_floor(bundle_meta, floor=float(export_min_zscore))
+        assert_export_zscore_floor(
+            bundle_meta,
+            floor=float(export_min_zscore),
+            min_ir=float(export_min_ir),
+        )
         assert_export_mae_gap(train_mae, val_mae)
     except RuntimeError as exc:
         if not candidate_on_low_quality:
@@ -259,6 +267,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     parser.add_argument("--symbols", nargs="+", default=None)
     parser.add_argument("--source", choices=("auto", "timescale", "deriv"), default="auto")
     parser.add_argument("--export-min-zscore", type=float, default=META_EXPORT_MIN_ZSCORE)
+    parser.add_argument("--export-min-ir", type=float, default=META_EXPORT_MIN_IR)
     parser.add_argument("--candidate-on-low-quality", action="store_true")
     return parser.parse_args()
 
@@ -286,6 +295,7 @@ def main() -> None:
             output_path=Path(args.output),
             source=str(args.source),
             export_min_zscore=float(args.export_min_zscore),
+            export_min_ir=float(args.export_min_ir),
             candidate_on_low_quality=bool(args.candidate_on_low_quality),
         )
     )

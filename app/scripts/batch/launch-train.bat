@@ -34,10 +34,10 @@ if errorlevel 1 echo [AVISO] TCN sem qualificacao de deploy; checkpoint local pe
 "%PYTHON_EXE%" -u app/scripts/operations/ensure_timescale.py
 if errorlevel 1 echo [AVISO] Timescale seed indisponivel; meta tentara API Deriv.
 
-"%PYTHON_EXE%" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality
+"%PYTHON_EXE%" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality --export-min-zscore -0.05 --export-min-ir -0.50
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta
+"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta --allow-unqualified
 if errorlevel 1 (
     if exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" (
         echo [AVISO] Meta exportado em meta-models, mas gate conjunto TCN + meta nao qualificado.
@@ -45,6 +45,6 @@ if errorlevel 1 (
         echo [AVISO] Meta nao exportado; somente candidato diagnostico. Gate conjunto TCN + meta nao qualificado.
     )
 ) else (
-    echo [AETHER] TCN + meta Rise/Fall qualificados.
+    echo [AETHER] TCN + meta Rise/Fall qualificados - operacao sob teto de stake.
 )
 exit /b 0

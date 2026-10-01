@@ -135,13 +135,10 @@ def train_model_walkforward(
         full_n=len(y_all),
         train_index=train_sl,
         weighting_cfg=weighting_cfg,
+        deltas=delta_train,
     )
     label_call_frac = label_call_fraction(y_train)
-    patience = 6
-    min_epochs = 0
-    label_smoothing = 0.0
-    focal_gamma = 0.0
-    lr_scheduler = "cosine"
+    patience, min_epochs, label_smoothing, focal_gamma, lr_scheduler = 6, 0, 0.0, 0.0, "cosine"
     if dl_config is not None:
         patience = max(0, int(dl_config.get("early_stopping_patience", 6)))
         min_epochs = max(0, int(dl_config.get("min_epochs", 0)))

@@ -23,6 +23,7 @@ from scripts.operations.timescale_seed_policy import (  # noqa: E402
     MIN_BARS_MICRO,
     min_bars_for_granularity,
 )
+from src.presentation.terminal.logger import setup_logger
 
 _DOCKER_DIR = _REPO_ROOT / "infra" / "docker"
 _TS_HOST = "127.0.0.1"
@@ -30,7 +31,6 @@ _TS_PORT = 5432
 _DEFAULT_DSN = "postgresql://aether:aether@localhost:5432/aether"
 _SEED_TIMEOUT_SECONDS = 900
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger("AETH.ops")
 
 
@@ -86,12 +86,12 @@ async def _data_ok(
     try:
         import asyncpg  # noqa: PLC0415
     except ImportError:
-        logger.warning("[AETHER] asyncpg nao disponivel - dados nao verificados.")
+        logger.warning("TIMESCALE | asyncpg nao disponivel - dados nao verificados.")
         return False
     try:
         conn = await asyncpg.connect(dsn, timeout=5.0)
     except Exception as exc:
-        logger.warning("[AETHER] Conexao TimescaleDB falhou: %s", exc)
+        logger.warning("TIMESCALE | Conexao falhou: %s", exc)
         return False
     try:
         rows = await conn.fetch(
@@ -113,7 +113,7 @@ async def _data_ok(
                 if have < floor:
                     if log_shortfalls:
                         logger.info(
-                            "[AETHER] TimescaleDB | %s gran=%ds tem %d barras (min=%d)",
+                            "TIMESCALE | %s gran=%ds tem %d barras (min=%d)",
                             sym,
                             int(gran),
                             have,
@@ -126,7 +126,7 @@ async def _data_ok(
                 if age < 0 or age > max_age:
                     if log_shortfalls:
                         logger.info(
-                            "[AETHER] TimescaleDB | %s gran=%ds historico desatualizado (age=%ds max=%ds)",
+                            "TIMESCALE | %s gran=%ds historico desatualizado (age=%ds max=%ds)",
                             sym,
                             int(gran),
                             age,
@@ -142,7 +142,7 @@ def _seed_timescale(symbols: list[str]) -> int:
     seed_script = str(_REPO_ROOT / "app" / "scripts" / "operations" / "seed_timescale_ohlc.py")
     cmd = [sys.executable, seed_script, "--bars", str(MIN_BARS_MICRO), "--symbols"] + symbols
     logger.info(
-        "[AETHER] Sementeando TimescaleDB via Deriv (timeout=%ds, M5=%d D1=365)...",
+        "TIMESCALE | Sementeando via Deriv (timeout=%ds, M5=%d D1=365)...",
         _SEED_TIMEOUT_SECONDS,
         MIN_BARS_MICRO,
     )
@@ -150,23 +150,23 @@ def _seed_timescale(symbols: list[str]) -> int:
         r = subprocess.run(cmd, timeout=_SEED_TIMEOUT_SECONDS, check=False)
     except subprocess.TimeoutExpired:
         logger.warning(
-            "[AVISO] Seed TimescaleDB timeout apos %ds; meta usara Deriv se preciso.",
+            "TIMESCALE | Seed timeout apos %ds; meta usara Deriv se preciso.",
             _SEED_TIMEOUT_SECONDS,
         )
         return 1
     if r.returncode != 0:
-        logger.warning("[AVISO] Seed TimescaleDB falhou rc=%s", r.returncode)
+        logger.warning("TIMESCALE | Seed falhou rc=%s", r.returncode)
         return 1
-    logger.info("[AETHER] TimescaleDB sementeado com sucesso.")
+    logger.info("TIMESCALE | Sementeado com sucesso.")
     return 0
 
 
 def _ensure_timescaledb_running(*, quiet: bool = False) -> int:
     if _port_open():
         if not quiet:
-            logger.info("[AETHER] TimescaleDB acessivel em localhost:5432.")
+            logger.info("TIMESCALE | Acessivel em localhost:5432.")
         return 0
-    logger.info("[AETHER] TimescaleDB nao respondeu. Tentando iniciar via WSL...")
+    logger.info("TIMESCALE | Nao respondeu. Tentando iniciar via WSL...")
     r = _wsl(
         "docker",
         "compose",
@@ -182,18 +182,19 @@ def _ensure_timescaledb_running(*, quiet: bool = False) -> int:
     )
     if r.returncode != 0:
         stderr = (r.stderr or b"").decode(errors="replace").strip()
-        logger.warning("[AVISO] Docker Compose via WSL falhou: %s", stderr or "desconhecido")
+        logger.warning("TIMESCALE | Docker Compose via WSL falhou: %s", stderr or "desconhecido")
         return 1
     for _i in range(30):
         if _port_open():
-            logger.info("[AETHER] TimescaleDB pronto (porta 5432).")
+            logger.info("TIMESCALE | Pronto (porta 5432).")
             return 0
         time.sleep(2)
-    logger.warning("[AVISO] Timeout ao aguardar TimescaleDB (60s).")
+    logger.warning("TIMESCALE | Timeout ao aguardar inicializacao (60s).")
     return 1
 
 
 def main() -> int:
+    setup_logger("AETH.ops", log_file=None)
     parser = argparse.ArgumentParser(description="Garante TimescaleDB para treino meta")
     parser.add_argument(
         "--check-only",
@@ -214,23 +215,23 @@ def main() -> int:
     if ok:
         if check_only:
             logger.info(
-                "[AETHER] Timescale check-only: ok porta=%s ohlc=meta_ready gran=%s",
+                "TIMESCALE | Check-only: ok porta=%s ohlc=meta_ready gran=%s",
                 _TS_PORT,
                 granularities,
             )
         else:
-            logger.info("[AETHER] TimescaleDB | dados OHLC meta_ready.")
+            logger.info("TIMESCALE | Dados OHLC meta_ready.")
         return 0
 
     if check_only:
         logger.info(
-            "[AETHER] Timescale check-only: ok porta=%s ohlc=smoke gran=%s → seed/Deriv antes do meta",
+            "TIMESCALE | Check-only: ok porta=%s ohlc=smoke gran=%s -> seed/Deriv antes do meta",
             _TS_PORT,
             granularities,
         )
         return 0
 
-    logger.info("[AETHER] TimescaleDB | ohlc=smoke/curto - sementeando via Deriv...")
+    logger.info("TIMESCALE | ohlc=smoke/curto - sementeando via Deriv...")
     if _seed_timescale(symbols) != 0:
         return 1
     return 0 if asyncio.run(_data_ok(dsn, symbols, granularities)) else 1

@@ -119,7 +119,7 @@ async def fetch_paginated_candle_history(
             except TimeoutError:
                 if attempt >= min(max_retries, 2):
                     logger.error(
-                        "DATA: timeout persistente %s | granularity=%ss | pagina=%d",
+                        "DATA | timeout persistente %s | granularity=%ss | pagina=%d",
                         symbol,
                         granularity,
                         chunk_index,
@@ -127,7 +127,7 @@ async def fetch_paginated_candle_history(
                     raise
                 delay = min(backoff_cap, backoff_base**attempt)
                 logger.warning(
-                    "DATA: timeout %s | granularity=%ss | pagina=%d | retry %d/2 em %.1fs",
+                    "DATA | timeout %s | granularity=%ss | pagina=%d | retry %d/2 em %.1fs",
                     symbol,
                     granularity,
                     chunk_index,
@@ -141,7 +141,7 @@ async def fetch_paginated_candle_history(
             if is_rate_limit_error(res) and attempt < max_retries:
                 delay = min(backoff_cap, chunk_delay * (backoff_base ** (attempt + 1)))
                 logger.warning(
-                    "DATA: rate limit %s | retry %d/%d em %.1fs",
+                    "DATA | rate limit %s | retry %d/%d em %.1fs",
                     symbol,
                     attempt + 1,
                     max_retries,
@@ -150,7 +150,7 @@ async def fetch_paginated_candle_history(
                 await asyncio.sleep(delay)
                 continue
             logger.error(
-                "DATA: Historico %s falhou | granularity=%ss | %s",
+                "DATA | historico %s falhou | granularity=%ss | %s",
                 symbol,
                 granularity,
                 res["error"].get("message", res["error"]) if isinstance(res["error"], dict) else res["error"],
@@ -167,7 +167,7 @@ async def fetch_paginated_candle_history(
             break
         if chunk_index == 1 or chunk_index % 10 == 0 or len(merged) >= goal:
             progress_log(
-                "DATA: %s | g=%ss | %d/%d velas",
+                "DATA | %s | g=%ss | %d/%d velas",
                 symbol,
                 granularity,
                 len(merged),
@@ -181,7 +181,7 @@ async def fetch_paginated_candle_history(
         merged = merged[-goal:]
     if len(merged) < goal:
         progress_log(
-            "DATA: %s | g=%ss | historico API esgotado em %d/%d velas",
+            "DATA | %s | g=%ss | historico API esgotado em %d/%d velas",
             symbol,
             granularity,
             len(merged),

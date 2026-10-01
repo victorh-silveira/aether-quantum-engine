@@ -375,3 +375,31 @@ def test_main_with_allow_unqualified_flag(monkeypatch, tmp_path: Path):
         from scripts.operations.check_dl_deploy_gate import main
 
         assert main() == 0
+
+
+def test_main_with_meta_and_allow_unqualified_qualifies_jointly(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "sys.argv",
+        ["check_dl_deploy_gate.py", "--symbols", "1HZ75V", "--with-meta", "--allow-unqualified"],
+    )
+    ckpt = tmp_path / "1HZ75V.pth"
+    ckpt.write_bytes(b"x")
+    meta_path = tmp_path / "meta_lgbm.pkl"
+    meta_path.write_bytes(b"x")
+    bundle = {
+        "deploy_qualified": True,
+        "oos_information_ratio": 1.05,
+        "oos_payoff_zscore_mean": 0.030,
+    }
+    with (
+        patch("scripts.operations.check_dl_deploy_gate._checkpoint_paths", return_value=[ckpt]),
+        patch("scripts.operations.check_dl_deploy_gate._load_settings", return_value={}),
+        patch("scripts.operations.check_dl_deploy_gate._soft_min_acc", return_value=0.50),
+        patch("scripts.operations.check_dl_deploy_gate.evaluate_checkpoint", return_value=(False, "falha")),
+        patch("scripts.operations.check_dl_deploy_gate.REPO_ROOT", tmp_path),
+        patch("pathlib.Path.is_file", return_value=True),
+        patch("joblib.load", return_value=bundle),
+    ):
+        from scripts.operations.check_dl_deploy_gate import main
+
+        assert main() == 0

@@ -252,3 +252,10 @@ def test_fit_training_epochs_reduce_on_plateau_scheduler():
     assert ran == 3
     assert state is not None
     assert math.isfinite(avg)
+
+
+def test_aux_regression_weight_success_in_dl_training_epochs():
+    from src.application.services.deep_learning.dl_training_epochs import _aux_regression_weight
+
+    val = _aux_regression_weight()
+    assert val > 0.0

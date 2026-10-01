@@ -81,6 +81,27 @@ def apply_recency_half_life(
     return out
 
 
+def apply_energy_weights(
+    weights: list[float],
+    deltas: np.ndarray | list[float] | None,
+    *,
+    energy_scale: float = 1.5,
+    enabled: bool = True,
+) -> list[float]:
+    """Pondera amostras proporcionalmente a magnitude do movimento direcional."""
+    if not enabled or deltas is None or len(weights) == 0:
+        return list(weights)
+    arr = np.abs(np.asarray(deltas, dtype=np.float64).reshape(-1))
+    if arr.size != len(weights):
+        return list(weights)
+    mean_val = float(np.mean(arr)) if arr.size else 0.0
+    scale = mean_val if mean_val > 1e-8 else 1.0
+    normalized_energy = np.clip(arr / scale, 0.2, 5.0)
+    factor = 1.0 + float(energy_scale) * (normalized_energy - 1.0)
+    factor = np.clip(factor, 0.2, 4.0)
+    return [float(weights[i]) * float(factor[i]) for i in range(len(weights))]
+
+
 def align_sample_weights(
     sample_weights: list[float] | None,
     *,
@@ -108,8 +129,9 @@ def compose_train_weights(
     full_n: int,
     train_index: np.ndarray | slice | list[int],
     weighting_cfg: dict[str, Any] | None = None,
+    deltas: np.ndarray | list[float] | None = None,
 ) -> list[float]:
-    """Compõe pesos de outcome + balanceamento de classe + half-life de recencia."""
+    """Compõe pesos de outcome + balanceamento de classe + energia + half-life de recencia."""
     cfg = weighting_cfg if isinstance(weighting_cfg, dict) else {}
     weights = align_sample_weights(sample_weights, full_n=full_n, train_index=train_index)
     weights = apply_class_balance_weights(
@@ -117,6 +139,12 @@ def compose_train_weights(
         y_train,
         enabled=bool(cfg.get("class_balance_enabled", True)),
         imbalance_eps=float(cfg.get("class_balance_eps", 0.05)),
+    )
+    weights = apply_energy_weights(
+        weights,
+        deltas,
+        energy_scale=float(cfg.get("energy_weight_scale", 1.5)),
+        enabled=bool(cfg.get("energy_weight_enabled", True)),
     )
     return apply_recency_half_life(
         weights,

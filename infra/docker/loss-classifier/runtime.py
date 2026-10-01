@@ -243,7 +243,7 @@ def live_like_synthetic_xy(
     x_arr = np.zeros((rows, dim), dtype=np.float64)
     x_arr[:, 0] = rng.uniform(0.0, 0.15, size=rows)
     if dim > 1:
-        x_arr[:, 1] = rng.uniform(0.42, 0.58, size=rows)
+        x_arr[:, 1] = rng.uniform(0.28, 0.72, size=rows)
     if dim > 2:
         x_arr[:, 2] = rng.uniform(0.0, 0.12, size=rows)
     for idx in (3, 14, 15, 23):
@@ -273,7 +273,7 @@ def live_like_synthetic_xy(
     if dim > 17:
         x_arr[:, 17] = np.clip(rng.normal(1.0, 0.35, size=rows), -3.0, 3.0)
     if dim > 18:
-        x_arr[:, 18] = rng.uniform(0.42, 0.58, size=rows)
+        x_arr[:, 18] = rng.uniform(0.28, 0.72, size=rows)
     if dim > 19:
         x_arr[:, 19] = np.clip(rng.normal(0.0, 0.5, size=rows), -3.0, 3.0)
     if dim > 20:
@@ -287,8 +287,9 @@ def live_like_synthetic_xy(
         + 0.5 * (x_arr[:, 7] if dim > 7 else 0.0)
         + 0.4 * (x_arr[:, 9] if dim > 9 else 0.0)
         - 2.5 * (x_arr[:, 10] if dim > 10 else 0.0)
-        - 1.0 * x_arr[:, 0]
-        + rng.normal(0.0, 0.25, size=rows)
+        - 1.5 * x_arr[:, 0]
+        - 2.0 * np.abs(x_arr[:, 1] - 0.5)
+        + rng.normal(0.0, 0.20, size=rows)
     )
     order = np.argsort(risk)
     y_arr = np.zeros(rows, dtype=np.int32)

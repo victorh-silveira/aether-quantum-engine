@@ -23,6 +23,7 @@ from scripts.operations.train_meta_data import (
     load_bundles_from_deriv,
     persist_bundles_to_timescale,
 )
+from src.presentation.terminal.logger import setup_logger
 
 
 logger = logging.getLogger("AETH.meta")
@@ -99,7 +100,7 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
 
 def main() -> None:
     silence_asyncio_debug()
-    logging.basicConfig(level=logging.INFO)
+    setup_logger("AETH.meta", log_file=None)
     settings = _load_settings()
     args = _parse_args(settings)
     summary = run_async(
@@ -111,7 +112,12 @@ def main() -> None:
             bars=int(args.bars),
         )
     )
-    print(json.dumps(summary, indent=2))
+    logger.info(
+        "SEED_TIMESCALE | concluido | gran=%s | symbols=%s | rows=%s",
+        list(summary.get("granularities", {}).keys()),
+        summary.get("symbols", []),
+        [info.get("rows_written", 0) for info in summary.get("granularities", {}).values()],
+    )
 
 
 if __name__ == "__main__":

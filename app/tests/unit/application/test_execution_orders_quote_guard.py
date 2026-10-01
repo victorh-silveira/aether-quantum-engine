@@ -44,6 +44,9 @@ def test_attach_quote_guard_params_disabled_or_missing():
     _attach_quote_guard_params(params, None, TradeDirection.CALL, {"require_quote_edge": True})
     assert params == {}
 
+    _attach_quote_guard_params(params, {"calibrated_prob": None}, TradeDirection.CALL, {"require_quote_edge": True})
+    assert params == {}
+
     _attach_quote_guard_params(params, {"calibrated_prob": 0.60}, TradeDirection.CALL, {"require_quote_edge": False})
     assert params == {}
 

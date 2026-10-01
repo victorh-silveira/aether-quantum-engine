@@ -5,6 +5,7 @@ import numpy as np
 from src.application.services.deep_learning.dl_sample_weighting import (
     align_sample_weights,
     apply_class_balance_weights,
+    apply_energy_weights,
     apply_recency_half_life,
     compose_train_weights,
     label_call_fraction,
@@ -95,3 +96,14 @@ def test_minority_recall_edges():
     y = [0.0] * 8 + [1.0] * 2
     pred = [False] * 8 + [True, False]
     assert minority_class_recall(y, pred) == 0.5
+
+
+def test_apply_energy_weights_boosts_high_displacement():
+    weights = [1.0, 1.0, 1.0]
+    deltas = [0.0001, 0.01, 0.0001]
+    out = apply_energy_weights(weights, deltas, energy_scale=2.0, enabled=True)
+    assert out[1] > out[0]
+    assert apply_energy_weights([], None) == []
+    assert apply_energy_weights([1.0], None) == [1.0]
+    assert apply_energy_weights([1.0], [0.01], enabled=False) == [1.0]
+    assert apply_energy_weights([1.0, 1.0], [0.01]) == [1.0, 1.0]

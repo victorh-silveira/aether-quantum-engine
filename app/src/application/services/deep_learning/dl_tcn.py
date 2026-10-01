@@ -43,8 +43,25 @@ class _TemporalBlock(nn.Module):
         return self.relu(out + res)
 
 
+class _TemporalAttention(nn.Module):
+    """Atencao temporal 1D para ponderar relevância causal dos passos passados."""
+
+    def __init__(self, channels: int):
+        super().__init__()
+        self.attn = nn.Sequential(
+            nn.Conv1d(channels, max(4, channels // 2), kernel_size=1),
+            nn.Tanh(),
+            nn.Conv1d(max(4, channels // 2), 1, kernel_size=1),
+        )
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Retorna vetor ponderado por atencao ao longo da dimensao temporal."""
+        weights = torch.softmax(self.attn(x), dim=2)
+        return torch.sum(x * weights, dim=2)
+
+
 class TemporalDirectionClassifier(nn.Module):
-    """TCN dilatado sobre sequencia (batch, lookback, features)."""
+    """TCN dilatado causal sobre sequencia (batch, lookback, features)."""
 
     def __init__(self, input_dim: int, channels: tuple[int, ...] = (32, 32, 16), dropout: float = 0.25):
         super().__init__()
@@ -54,20 +71,22 @@ class TemporalDirectionClassifier(nn.Module):
             layers.append(_TemporalBlock(in_ch, out_ch, kernel_size=3, dilation=2**idx, dropout=dropout))
             in_ch = out_ch
         self.network = nn.Sequential(*layers)
-        self.norm = nn.LayerNorm(in_ch)
+        self.attn_pool = _TemporalAttention(in_ch)
+        self.input_proj = nn.Linear(input_dim, in_ch)
+        self.fusion = nn.Sequential(nn.Linear(in_ch * 3, in_ch), nn.GELU())
         self.head = nn.Linear(in_ch, 1)
         self.regression_head = nn.Linear(in_ch, 1)
         self._init_weights()
 
     def _init_weights(self) -> None:
-        """Inicializa pesos convolucionais com Kaiming e lineares com Xavier."""
+        """Inicializa pesos convolucionais com Kaiming e lineares com ganho para conviccao."""
         for m in self.modules():
             if isinstance(m, nn.Conv1d):
                 nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
             elif isinstance(m, nn.Linear):
-                nn.init.xavier_uniform_(m.weight)
+                nn.init.xavier_uniform_(m.weight, gain=1.2)
                 if m.bias is not None:
                     nn.init.zeros_(m.bias)
 
@@ -83,10 +102,12 @@ class TemporalDirectionClassifier(nn.Module):
             x = x.unsqueeze(1)
         x = x.transpose(1, 2)
         out = self.network(x)
-        pooled = out.mean(dim=2)
-        pooled = self.norm(pooled)
-        raw = self.head(pooled)
-        aux = self.regression_head(pooled)
+        h_last = out[:, :, -1]
+        h_att = self.attn_pool(out)
+        raw_last = self.input_proj(x[:, :, -1])
+        fused = self.fusion(torch.cat([h_last, h_att, raw_last], dim=-1))
+        raw = self.head(fused)
+        aux = self.regression_head(fused)
         if logits:
             logits_out = raw.squeeze(-1)
             aux_out = aux.squeeze(-1)

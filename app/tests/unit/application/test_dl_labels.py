@@ -9,9 +9,11 @@ from src.application.services.deep_learning.dl_horizon import (
 )
 from src.application.services.deep_learning.dl_labels import (
     LABEL_MODE_MA_TREND,
+    LABEL_MODE_QUANTUM_MULTI_BARRIER,
     LABEL_MODE_SPOT,
     LabelSpec,
     binary_label_at_index,
+    label_and_mask_at_index,
     sequence_labels,
 )
 
@@ -180,12 +182,53 @@ def test_quantum_multi_barrier_direction():
 
     # Caso 5: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (alta)
     prices_flat_uptrend = np.array(list(np.linspace(95.0, 100.0, 20)) + [100.0, 100.0, 100.0])
-    assert _quantum_multi_barrier_direction(prices_flat_uptrend, 20, 2) is True
+    assert _quantum_multi_barrier_direction(prices_flat_uptrend, 20, 2, min_viable_delta=0.01) is True
 
     # Caso 6: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (baixa)
     prices_flat_downtrend = np.array(list(np.linspace(105.0, 100.0, 20)) + [100.0, 100.0, 100.0])
-    assert _quantum_multi_barrier_direction(prices_flat_downtrend, 20, 2) is False
+    assert _quantum_multi_barrier_direction(prices_flat_downtrend, 20, 2, min_viable_delta=0.01) is False
 
     # Caso 7: Array de volatilidade curto
     prices_short = np.array([100.0, 100.1])
     assert _quantum_multi_barrier_direction(prices_short, 0, 1) is True
+
+    # Caso 8: Deslocamento direcional alem da dead zone sem tocar barreiras extremas
+    from src.application.services.deep_learning.dl_labels import _quantum_multi_barrier_label_and_mask
+
+    prices_mid = np.array([100.0, 102.0, 98.0, 100.0, 105.0])
+    up_mid, mask_mid = _quantum_multi_barrier_label_and_mask(
+        prices_mid, 3, 1, lookback_vol=3, barrier_mult=50.0, dead_zone_ratio=0.01
+    )
+    assert up_mid is True
+    assert mask_mid == 1.0
+
+
+def test_label_and_mask_at_index_deadzone():
+    prices_flat = np.array([100.0] * 30)
+    up, mask = label_and_mask_at_index(prices_flat, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER)
+    assert mask == 0.0
+
+    prices_surge = np.array([100.0] * 20 + [100.0, 110.0, 120.0])
+    up_s, mask_s = label_and_mask_at_index(prices_surge, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER)
+    assert up_s is True
+    assert mask_s == 1.0
+
+
+def test_label_and_mask_all_modes_deadzone():
+    from src.application.services.deep_learning.dl_labels import LABEL_MODE_SUPERTREND_ATR
+
+    prices_flat = np.array([100.0] * 35)
+    _, mask_st = label_and_mask_at_index(prices_flat, 25, 2, label_mode=LABEL_MODE_SUPERTREND_ATR)
+    assert mask_st == 0.0
+
+    _, mask_ma = label_and_mask_at_index(prices_flat, 25, 2, label_mode=LABEL_MODE_MA_TREND)
+    assert mask_ma == 0.0
+
+    _, mask_sp = label_and_mask_at_index(prices_flat, 25, 2, label_mode=LABEL_MODE_SPOT)
+    assert mask_sp == 0.0
+
+    _, m_all_dead = sequence_labels(
+        prices_flat, lookback=10, horizon_bars=1, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER
+    )
+    assert len(m_all_dead) > 0
+    assert (m_all_dead == 1.0).all()

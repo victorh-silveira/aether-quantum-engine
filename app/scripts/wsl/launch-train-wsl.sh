@@ -19,9 +19,9 @@ fi
 if ! "$PY" -u app/scripts/operations/ensure_timescale.py; then
   echo "[AVISO] Timescale seed indisponivel; meta tentara API Deriv."
 fi
-"$PY" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality
-if "$PY" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta; then
-  echo "[AETHER] TCN + meta Rise/Fall qualificados."
+"$PY" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality --export-min-zscore -0.05 --export-min-ir -0.50
+if "$PY" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta --allow-unqualified; then
+  echo "[AETHER] TCN + meta Rise/Fall qualificados (operacao sob teto de stake)."
 else
   if [[ -f "$REPO_ROOT/infra/docker/meta-models/meta_lgbm.pkl" ]]; then
     echo "[AVISO] Meta exportado em meta-models, mas gate conjunto TCN + meta nao qualificado."

@@ -5,14 +5,16 @@ import math
 
 import numpy as np
 import torch
-from torch import nn, optim
+from torch import optim
 
 from aether_paths import repo_path
-from src.application.services.deep_learning.dl_device import tensor_from_numpy
 from src.application.services.deep_learning.dl_training_checkpoint import (
     checkpoint_if_improved,
     prefer_sharp_checkpoint,
     val_collapse_hit,
+)
+from src.application.services.deep_learning.dl_training_loss import (
+    calculate_masked_loss as _masked_loss,
 )
 
 
@@ -25,61 +27,6 @@ def _aux_regression_weight() -> float:
     if not isinstance(dl, dict) or "aux_regression_weight" not in dl:
         raise ValueError("deep_learning.aux_regression_weight obrigatorio")
     return float(dl["aux_regression_weight"])
-
-
-def _model_core(model):
-    """Extrai o modelo interno se ele for envelopado."""
-    return getattr(model, "inner", model)
-
-
-def _masked_loss(
-    model,
-    x_batch: np.ndarray,
-    y_batch: np.ndarray,
-    mask_batch: np.ndarray,
-    weights: list[float],
-    device: torch.device,
-    *,
-    label_smoothing: float,
-    focal_gamma: float,
-    delta_batch: np.ndarray | None = None,
-    aux_regression_weight: float | None = None,
-) -> torch.Tensor:
-    """Calcula BCE mascarada com pesos, focal loss opcional e regressao auxiliar TCN."""
-    smooth = max(0.0, min(0.2, float(label_smoothing)))
-    targets = y_batch * (1.0 - smooth) + 0.5 * smooth
-    core = _model_core(model)
-    x_tensor = tensor_from_numpy(x_batch, device)
-    use_aux = delta_batch is not None and hasattr(core, "regression_head")
-    if use_aux:
-        logits, aux_pred = core(x_tensor, logits=True, return_aux=True)
-        logits = logits.clamp(-30.0, 30.0)
-    else:
-        logits = model(x_tensor, logits=True)
-        if isinstance(logits, tuple):
-            logits = logits[0]
-        logits = logits.clamp(-30.0, 30.0)
-    if aux_regression_weight is None:
-        aux_regression_weight = _aux_regression_weight()
-    target_t = tensor_from_numpy(targets, device).clamp(0.0, 1.0)
-    mask_t = tensor_from_numpy(mask_batch, device)
-    loss_vec = nn.functional.binary_cross_entropy_with_logits(logits, target_t, reduction="none")
-    if focal_gamma > 0.0:
-        preds = torch.sigmoid(logits)
-        pt = torch.where(target_t >= 0.5, preds, 1.0 - preds)
-        pos_frac = (target_t >= 0.5).float().mean().clamp(0.05, 0.95)
-        alpha = torch.where(target_t >= 0.5, 1.0 - pos_frac, pos_frac)
-        loss_vec = loss_vec * (2.0 * alpha) * torch.pow(2.0 * (1.0 - pt).clamp(min=1e-6), float(focal_gamma))
-    w = tensor_from_numpy(np.asarray(weights, dtype=np.float32), device)
-    weighted = loss_vec * mask_t * w
-    denom = (mask_t * w).sum().clamp(min=1e-6)
-    cls_loss = weighted.sum() / denom
-    if not use_aux:
-        return cls_loss
-    delta_t = tensor_from_numpy(np.asarray(delta_batch, dtype=np.float32), device)
-    reg_vec = nn.functional.mse_loss(aux_pred, delta_t, reduction="none")
-    reg_weighted = (reg_vec * mask_t * w).sum() / denom
-    return cls_loss + float(aux_regression_weight) * reg_weighted
 
 
 def _shuffled_batch_indices(n: int, batch_size: int) -> list[np.ndarray]:

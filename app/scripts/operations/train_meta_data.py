@@ -13,7 +13,6 @@ from src.domain.models.market_data import Candle
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.history_fetch import fetch_paginated_candle_history, parse_history_fetch_config
 
-
 logger = logging.getLogger("AETH.meta")
 MIN_OHLC_ROWS = 60
 META_TRAIN_DEFAULT_BARS = 5000
@@ -243,7 +242,7 @@ async def _open_deriv_ws(settings: dict[str, Any]) -> WebSocketManager:
     api = settings.get("api_config") if isinstance(settings.get("api_config"), dict) else {}
     timeout = int((api or {}).get("request_timeout_seconds") or 60)
     ws = WebSocketManager(_public_ws_url(settings), request_timeout=timeout)
-    logger.info("META_TRAIN: historico via WSS publico (sem OTP): %s", ws.uri)
+    logger.info("META_TRAIN | historico via WSS publico (sem OTP): %s", ws.uri)
     await ws.connect(open_timeout=40.0, max_attempts=3, retry_delay=2.0)
     return ws
 
@@ -273,7 +272,7 @@ async def load_bundles_from_deriv(
             )
             if len(candles) < min_complete:
                 logger.warning(
-                    "META_TRAIN: %s incompleto (%d/%d); retomando paginacao apos pausa.",
+                    "META_TRAIN | %s incompleto (%d/%d); retomando paginacao apos pausa",
                     symbol,
                     len(candles),
                     target,
@@ -292,7 +291,7 @@ async def load_bundles_from_deriv(
             bundle = _candles_to_bundle(str(symbol), int(granularity), candles, source="deriv")
             if bundle is not None:
                 bundles.append(bundle)
-                logger.info("META_TRAIN: %s | %d velas via Deriv (%ds)", symbol, len(bundle.closes), granularity)
+                logger.info("META_TRAIN | %s | %d velas via Deriv (%ds)", symbol, len(bundle.closes), granularity)
             if symbol_delay > 0 and index + 1 < len(symbols):
                 await asyncio.sleep(symbol_delay)
     finally:
@@ -448,7 +447,7 @@ async def resolve_training_bundles(
         )
         if not inventory_ok:
             logger.info(
-                "META_TRAIN: Timescale smoke/curto (floor=%d @%ds); buscando Deriv.",
+                "META_TRAIN | Timescale smoke/curto (floor=%d @%ds); buscando Deriv.",
                 quality_floor,
                 int(granularity),
             )
@@ -471,7 +470,7 @@ async def resolve_training_bundles(
                 if short or flat or invalid:
                     invalid_reasons = [f"{b.symbol}: {bundle_training_quality_error(b)}" for b in invalid]
                     logger.info(
-                        "META_TRAIN: Timescale smoke/flat/invalido (curto=%d flat=%d invalido=%d floor=%d motivos=%s); buscando Deriv.",
+                        "META_TRAIN | Timescale smoke/flat/invalido (curto=%d flat=%d invalido=%d floor=%d motivos=%s); buscando Deriv.",
                         len(short),
                         len(flat),
                         len(invalid),
@@ -487,7 +486,7 @@ async def resolve_training_bundles(
         raise RuntimeError(detail)
     if not timescale_skip_logged:
         logger.info(
-            "META_TRAIN: buscando historico na API Deriv (@%ds alvo=%d).",
+            "META_TRAIN | buscando historico na API Deriv (@%ds alvo=%d).",
             int(granularity),
             bar_target,
         )
@@ -508,16 +507,16 @@ async def resolve_training_bundles(
             soft_accepted = soft_accepted or soft
         if soft_accepted:
             logger.info(
-                "META_TRAIN: historico parcial API (%s/%d) — seguindo",
+                "META_TRAIN | historico parcial API (%s/%d) - seguindo",
                 [len(b.closes) for b in bundles],
                 quality_floor,
             )
         if seed_timescale_on_deriv:
             try:
                 written = await persist_bundles_to_timescale(dsn, bundles)
-                logger.info("META_TRAIN: Timescale seed | %d barras gravadas @%ds", written, int(granularity))
+                logger.info("META_TRAIN | Timescale seed | %d barras gravadas @%ds", written, int(granularity))
             except Exception as exc:
-                logger.warning("META_TRAIN: falha ao popular Timescale apos Deriv: %s", exc)
+                logger.warning("META_TRAIN | falha ao popular Timescale apos Deriv: %s", exc)
         return bundles
     detail = await _timescale_error(dsn, symbols, granularities)
     raise RuntimeError(
