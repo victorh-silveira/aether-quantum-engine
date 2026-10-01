@@ -29,5 +29,14 @@ def quoted_edge(
         or not 0.0 <= haircut < 0.5
     ):
         return None
-    p_side = p_call if direction == "CALL" else 1.0 - p_call
+    if bool(metrics.get("loss_clf_flip")):
+        try:
+            raw_pe = metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss")
+            p_side = float(raw_pe) if raw_pe is not None else (p_call if direction == "CALL" else 1.0 - p_call)
+        except (TypeError, ValueError):
+            p_side = p_call if direction == "CALL" else 1.0 - p_call
+    else:
+        p_side = p_call if direction == "CALL" else 1.0 - p_call
+    if not math.isfinite(p_side) or not 0.0 <= p_side <= 1.0:
+        return None
     return max(0.0, p_side - haircut) * (1.0 + rate) - 1.0

@@ -244,3 +244,17 @@ async def test_execute_orders_registers_proposal_skip(orch_config):
     count = await exec_mgr._execute_orders(orders, 0.0, 10000.0)
     assert count == 0
     orch.risk_manager.register_proposal_failure.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_place_order_blocks_when_quote_loses_edge(orch_config):
+    orch = MagicMock()
+    orch._active_cycle_id = 17
+    orch.config = orch_config
+    orch.risk_manager.contract_to_symbol = {}
+    orch.trade_handler.buy_with_parameters = AsyncMock(
+        side_effect=RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
+    )
+    executor = MagicMock(orch=orch)
+    res = await place_order(executor, "1HZ75V", TradeDirection.CALL, 10.0, metrics={"calibrated_prob": 0.45})
+    assert res is None

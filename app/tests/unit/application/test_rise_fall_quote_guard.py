@@ -20,6 +20,9 @@ from src.application.services.rise_fall_quote_guard import quoted_edge
         ({"calibrated_prob": 0.6}, "CALL", float("nan"), None),
         ({"calibrated_prob": 1.1}, "CALL", 0.8, None),
         ({"calibrated_prob": 0.6}, "CALL", 0.0, None),
+        ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": 0.65}, "CALL", 0.8, 0.17),
+        ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": "bad"}, "CALL", 0.8, -0.28),
+        ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": 1.5}, "CALL", 0.8, None),
     ],
 )
 def test_quoted_edge(metrics, direction, rate, expected):

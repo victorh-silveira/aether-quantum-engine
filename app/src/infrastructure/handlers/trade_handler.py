@@ -112,6 +112,7 @@ class TradeHandler:
             raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada") from exc
         if not math.isfinite(ask_price) or ask_price <= 0:
             raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+        rate: float | None = None
         if payout_val is not None:
             if not math.isfinite(payout_val) or payout_val < 0:
                 raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
@@ -120,6 +121,9 @@ class TradeHandler:
             rate = contract_profit_rate(payout_val, ask_price)
             if rate is not None:
                 self.latest_payout_rate = rate
+        min_payout = float(p_cfg.get("min_payout_rate") or 0.0)
+        if rate is not None and min_payout > 0.0 and rate + 1e-9 < min_payout:
+            raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
         if "_quote_guard_side_probability" in p_cfg:
             p_side = float(p_cfg["_quote_guard_side_probability"])
             min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))

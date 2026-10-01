@@ -279,6 +279,15 @@ async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws,
 
 
 @pytest.mark.asyncio
+async def test_final_buy_proposal_blocks_degraded_payout_rate(trade_handler, mock_ws):
+    mock_ws.send.return_value = {"proposal": {"id": "new_quote", "ask_price": "10.00", "payout": "17.00"}}
+    params = {"duration": 5, "duration_unit": "m", "min_payout_rate": 0.76}
+    with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall perdeu vantagem"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "proposal",
     [

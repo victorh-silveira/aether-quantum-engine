@@ -306,3 +306,108 @@ def test_resolve_execution_direction_counter_retraction_alignment():
     assert direction == TradeDirection.CALL
     assert metrics.get("anti_trend_lock_flip") is True
     assert metrics.get("anti_trend_lock_reason") == "COUNTER_RETRACTION_ALIGNMENT"
+
+
+def test_resolve_execution_direction_vetoes_weak_regime_flip():
+    """Verifica que inversao fraca por contra-alinhamento e vetada com SKIP."""
+    from types import SimpleNamespace
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.51,
+            "calibrated_prob": 0.51,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.5,
+            "scale_mini_prev_bar_dir": "PUT",
+            "scale_mini_bar_dir": "PUT",
+            "cal_side_edge": 0.01,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 0.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": True}
+    )
+    assert res is None
+    assert entry["metrics"]["signal_status"] == "SKIP:REGIME_CONFLICT"
+    assert entry["metrics"]["gate_reason"] == "regime_conflict"
+
+
+def test_resolve_execution_direction_vetoes_weak_consecutive_losses_flip():
+    """Verifica que inversao por perdas consecutivas sem maioria estatistica e vetada."""
+    from types import SimpleNamespace
+
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("1HZ75V", "PUT", won=False)
+    tracker.record_outcome("1HZ75V", "PUT", won=False)
+
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "raw_prob": 0.45,
+            "calibrated_prob": 0.45,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "cal_side_edge": 0.0175,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 10.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": True}
+    )
+    assert res is None
+    assert entry["metrics"]["signal_status"] == "SKIP:REGIME_CONFLICT"
+    assert entry["metrics"]["gate_reason"] == "regime_conflict"
+    tracker.reset()
+
+
+def test_resolve_execution_direction_anti_trend_edge_reflects_real_probability():
+    """Verifica que o edge lateral apos inversao reflete a probabilidade real sem inflacao."""
+    from types import SimpleNamespace
+
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("1HZ75V", "PUT", won=False)
+    tracker.record_outcome("1HZ75V", "PUT", won=False)
+
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "raw_prob": 0.45,
+            "calibrated_prob": 0.45,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "cal_side_edge": 0.0175,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 10.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": False}
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics["anti_trend_lock_flip"] is True
+    expected_edge = (0.45 * 1.85) - 1.0
+    import pytest
+
+    assert metrics["cal_side_edge"] == pytest.approx(expected_edge)
+    assert metrics["cal_side_edge"] < 0.0
+    tracker.reset()

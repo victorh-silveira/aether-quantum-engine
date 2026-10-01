@@ -142,6 +142,7 @@ def _finalize_execution_metrics(
         zeta = float(metrics.get("elastic_distance_ou", 0.0) or 0.0)
         micro_reg = str(metrics.get("scale_micro_regime") or "").strip().lower()
         reg_side = str(metrics.get("scale_micro_side") or "").strip().upper()
+        veto_weak = bool((exec_cfg or {}).get("veto_weak_regime_flip", False))
         if should_anti_trend_lock_flip(
             symbol,
             exec_dir,
@@ -155,17 +156,21 @@ def _finalize_execution_metrics(
         ):
             flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
             metrics["anti_trend_lock_flip"] = True
-            metrics["anti_trend_lock_from"] = exec_dir.name
-            metrics["anti_trend_lock_to"] = flipped.name
+            metrics["anti_trend_lock_from"], metrics["anti_trend_lock_to"] = exec_dir.name, flipped.name
             if (exec_dir == TradeDirection.CALL and zeta > 2.0) or (exec_dir == TradeDirection.PUT and zeta < -2.0):
                 metrics["anti_trend_lock_reason"] = "OU_ELASTIC_EXHAUSTION"
-            elif micro_reg in {"explosion", "retraction"} and reg_side in {
-                TradeDirection.CALL.name,
-                TradeDirection.PUT.name,
-            }:
+            elif micro_reg in {"explosion", "retraction"} and reg_side in {"CALL", "PUT"}:
                 metrics["anti_trend_lock_reason"] = f"COUNTER_{micro_reg.upper()}_ALIGNMENT"
             else:
                 metrics["anti_trend_lock_reason"] = "CONSECUTIVE_DIRECTION_LOSSES"
+            cal_p = float(metrics.get("calibrated_prob") or 0.5)
+            p_flip = cal_p if flipped == TradeDirection.CALL else 1.0 - cal_p
+            if veto_weak and p_flip + 1e-9 < 0.50:
+                metrics.update(
+                    {"signal_status": "SKIP:REGIME_CONFLICT", "gate_reason": "regime_conflict", "execute": False}
+                )
+                sync_entry_metrics(entry, metrics)
+                return None
             exec_dir = flipped
     exec_dir, _ = apply_error_reversal_to_direction(orch, str(symbol or ""), exec_dir, metrics, exec_cfg=exec_cfg)
     if bool(metrics.get("alpha_flip_applied")):
@@ -190,8 +195,8 @@ def _finalize_execution_metrics(
                 p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
                 metrics["cal_side_edge"] = float((p_eff * (1.0 + payout)) - 1.0)
             elif bool(metrics.get("anti_trend_lock_flip")) or bool(metrics.get("alpha_flip_applied")):
-                conv = float(metrics.get("conviction") or metrics.get("trade_score") or 0.58)
-                p_dir = max(0.55, conv)
+                cal_p = float(metrics.get("calibrated_prob") or 0.5)
+                p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
                 metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
             else:
                 metrics["cal_side_edge"] = resolve_side_edge(

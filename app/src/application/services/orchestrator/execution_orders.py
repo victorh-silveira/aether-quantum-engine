@@ -107,7 +107,7 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
 
 def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: Any, exec_cfg: dict) -> None:
     """Anexa probabilidade efetiva e piso de edge para quote guard no proposal."""
-    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", False)):
+    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", True)):
         return
     cal_prob = metrics.get("calibrated_prob")
     if cal_prob is None:
@@ -116,19 +116,21 @@ def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: An
         p_c = float(cal_prob)
         dir_name = getattr(direction, "name", str(direction)).upper()
         if bool(metrics.get("loss_clf_flip")):
-            p_side = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
-        elif bool(metrics.get("anti_trend_lock_flip")):
-            p_side = float(metrics.get("conviction") or 0.58)
+            raw_pe = metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss")
+            p_side = float(raw_pe) if raw_pe is not None else (p_c if dir_name == "CALL" else 1.0 - p_c)
+        elif bool(metrics.get("anti_trend_lock_flip")) and metrics.get("conviction") is not None:
+            p_side = float(metrics["conviction"])
         else:
             p_side = p_c if dir_name == "CALL" else 1.0 - p_c
         haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
         p_eff = max(0.0, p_side - haircut)
         is_rec = float(metrics.get("pending_loss_total", 0.0) or 0.0) > 0.5
         min_edge = float(
-            exec_cfg.get("recovery_neg_edge_floor", -0.08) if is_rec else exec_cfg.get("min_edge_execute", 0.01)
+            exec_cfg.get("recovery_neg_edge_floor", 0.0) if is_rec else exec_cfg.get("min_edge_execute", 0.0)
         )
         params["_quote_guard_side_probability"] = p_eff
         params["_quote_guard_min_edge"] = min_edge
+        params["min_payout_rate"] = float(exec_cfg.get("min_payout_rate", 0.76) or 0.0)
     except (TypeError, ValueError):
         pass
 
