@@ -1,3 +1,16 @@
+## [2.81.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.81.0...v2.81.1) (2026-10-01)
+
+### Correcoes de Bug
+
+* **orchestrator:** blindar quote guard e vetar inversoes fracas ([a82116d](https://github.com/victorh-silveira/aether-quantum-engine/commit/a82116d7862b16786739846770cc879ecdd72b7d))
+
+### Refatoracoes Tecnicas
+
+* **config:** otimizar settings para alta qualidade e assertividade ([d295309](https://github.com/victorh-silveira/aether-quantum-engine/commit/d295309a50c0daf800820da3befe04e61f29000c))
+* **infra:** eliminar stubs legados e isolar scripts por extensao ([93ea316](https://github.com/victorh-silveira/aether-quantum-engine/commit/93ea316df1f3e8b28b9e1d016d71c1b604bcfb22))
+* **infra:** organizar arquivos docker por familias de extensao ([c1371c6](https://github.com/victorh-silveira/aether-quantum-engine/commit/c1371c67bb5f2f534b9ce6deebed8d52794cb043))
+* **orchestrator:** desativar quote guard e flexibilizar pipeline de treino ([31b7b88](https://github.com/victorh-silveira/aether-quantum-engine/commit/31b7b88bcbb881e3c9a4ce032003c563e4ef531f))
+
 ## [2.81.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.80.1...v2.81.0) (2026-09-30)
 
 ### Funcionalidades
