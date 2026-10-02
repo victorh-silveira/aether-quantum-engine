@@ -1,3 +1,9 @@
+## [2.82.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.81.1...v2.82.0) (2026-10-02)
+
+### Funcionalidades
+
+* **app:** aprimora predicao direcional e telemetria de movimento M5 ([cf12728](https://github.com/victorh-silveira/aether-quantum-engine/commit/cf12728c17504138a2a3d2b9a2e0352868d73646))
+
 ## [2.81.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.81.0...v2.81.1) (2026-10-01)
 
 ### Correcoes de Bug
