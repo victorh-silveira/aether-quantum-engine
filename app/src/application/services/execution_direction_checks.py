@@ -6,6 +6,8 @@ from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_every_cycle, synthesize_force_direction
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.kelly_p_align import apply_kelly_side_p
+from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 from src.domain.risk.soft_recovery_policy import negative_zscore_veto_floor_for_risk
 from src.domain.risk.stake_sizing import metric_float
 
@@ -126,3 +128,38 @@ def initial_direction_checks(
     metrics["resolved_direction"] = dl_dir.name
     sync_entry_metrics(entry, metrics)
     return dl_dir, metrics, clamp01(float(prob))
+
+
+def stamp_direction_resolved_cycle(entry: dict, cycle_id: int) -> None:
+    """Marca o ciclo em que a direcao foi resolvida."""
+    metrics = entry.setdefault("metrics", {})
+    if isinstance(metrics, dict) and int(cycle_id) > 0:
+        metrics["_direction_resolved_cycle"] = int(cycle_id)
+
+
+def apply_invert_exec_side(
+    exec_dir: TradeDirection,
+    metrics: dict[str, Any],
+    exec_cfg: dict | None,
+) -> TradeDirection:
+    """Inverte CALL↔PUT se invert_exec_side=true."""
+    enabled = bool((exec_cfg or {}).get("invert_exec_side", False))
+    metrics["invert_exec_side"] = enabled
+    if not enabled:
+        return exec_dir
+    metrics["exec_direction_pre_invert"] = exec_dir.name
+    if exec_dir == TradeDirection.CALL:
+        return TradeDirection.PUT
+    return TradeDirection.CALL
+
+
+def sync_kelly_side(metrics: dict[str, Any], exec_dir: TradeDirection) -> None:
+    """Alinha p Kelly ao lado EXEC com piso SSOT."""
+    rt = load_kelly_runtime_from_settings()
+    conviction = float(metrics.get("conviction", metrics.get("trade_score", 0.5)) or 0.5)
+    apply_kelly_side_p(
+        metrics,
+        order_direction=exec_dir.name,
+        kelly_config={"kelly_p_floor": rt["kelly_p_floor"]},
+        conviction=conviction,
+    )

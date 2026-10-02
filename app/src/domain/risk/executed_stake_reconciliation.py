@@ -130,6 +130,7 @@ def apply_contract_settlement_result(
     requested_stake = rm.contract_requested_stakes.pop(int(contract_id), None)
     rm.cluster_results[contract_id] = profit
     rm.total_session_profit += profit
+    rm.peak_session_profit = max(float(getattr(rm, "peak_session_profit", 0.0) or 0.0), rm.total_session_profit)
     rm.last_result_tick = current_tick
     rm.record_trade_outcome(symbol, won=profit >= 0.0)
 

@@ -93,3 +93,37 @@ async def test_timescale_inventory_rejects_stale_bars():
     conn.close = AsyncMock()
     with patch("asyncpg.connect", new=AsyncMock(return_value=conn)), patch.object(mod.time, "time", return_value=5000):
         assert await mod._data_ok("unused", ["1HZ75V"], [300]) is False
+
+
+def test_required_granularities_with_sync_macro_false():
+    from scripts.operations.ensure_timescale import _required_granularities
+
+    cfg = {"data_handler": {"micro_granularity": 300, "granularity": 86400, "sync_macro_history": False}}
+    assert _required_granularities(cfg) == [300]
+
+
+def test_required_granularities_with_equal_granularity():
+    from scripts.operations.ensure_timescale import _required_granularities
+
+    cfg = {"data_handler": {"micro_granularity": 300, "granularity": 300, "sync_macro_history": True}}
+    assert _required_granularities(cfg) == [300]
+
+
+def test_required_granularities_with_macro_enabled():
+    from scripts.operations.ensure_timescale import _required_granularities
+
+    cfg = {"data_handler": {"micro_granularity": 300, "granularity": 86400, "sync_macro_history": True}}
+    assert _required_granularities(cfg) == [300, 86400]
+
+
+def test_default_granularities_seed_timescale():
+    from scripts.operations.seed_timescale_ohlc import _default_granularities
+
+    cfg1 = {"data_handler": {"micro_granularity": 300, "granularity": 86400, "sync_macro_history": False}}
+    assert _default_granularities(cfg1) == [300]
+
+    cfg2 = {"data_handler": {"micro_granularity": 300, "granularity": 300, "sync_macro_history": True}}
+    assert _default_granularities(cfg2) == [300]
+
+    cfg3 = {"data_handler": {"micro_granularity": 300, "granularity": 86400, "sync_macro_history": True}}
+    assert _default_granularities(cfg3) == [300, 86400]

@@ -5,10 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from src.domain.risk.consensus_recovery_gates import (
-    acc_below_recovery_floor,
-    adapted_blocks_dal,
-    live_evidence_blocks_dal,
     metric_hurst,
+    resolve_recovery_force_explore,
+    should_downgrade_recovery_stake,
 )
 from src.domain.risk.consensus_stake_helpers import (
     _recovery_waives_consensus_penalty,
@@ -26,6 +25,7 @@ from src.domain.risk.soft_recovery_config import soft_cfg
 from src.domain.risk.soft_recovery_explore import (
     apply_forced_explore_early,
     mark_dal_cover_metrics,
+    neutral_explore_floor,
     soft_floor_scale,
 )
 from src.domain.risk.soft_recovery_policy import (
@@ -75,19 +75,15 @@ def apply_soft_recovery_stake(
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=consecutive_losses, soft_recovery=soft_recovery)
     hurst_val = metric_hurst(metrics)
     low_hurst_noise = hurst_val is not None and float(hurst_val) < 0.400
-    acc_force_explore = acc_below_recovery_floor(metrics, consecutive_losses)
-    live_force_explore = live_evidence_blocks_dal(metrics, consecutive_losses, soft)
-    adapted_force_explore = adapted_blocks_dal(metrics, consecutive_losses, soft)
     cover_enabled = bool(soft["cover_enabled"])
     cover_disabled_path = bool(material_pending and not cover_enabled)
     if isinstance(metrics, dict):
         metrics["recovery_cover_disabled"] = not cover_enabled
-    if material_pending:
-        quality_force_explore = False
-        force_early = cover_disabled_path
-    else:
-        quality_force_explore = bool(acc_force_explore or live_force_explore or adapted_force_explore)
-        force_early = True
+    acc_force_explore, live_force_explore, adapted_force_explore, quality_force_explore, force_early = (
+        resolve_recovery_force_explore(
+            metrics, consecutive_losses, soft, material_pending=material_pending, cover_enabled=cover_enabled
+        )
+    )
     if force_early:
         return apply_forced_explore_early(
             bankroll=bankroll,
@@ -121,6 +117,11 @@ def apply_soft_recovery_stake(
     amort = resolve_amort_cycles(losses, soft_recovery)
     cover_mult = max(1.0, float(soft.get("cover_multiple", 1.0)))
     cover = pending / resolved_payout / float(amort) * cover_mult
+    if should_downgrade_recovery_stake(metrics, losses):
+        explore_base = neutral_explore_floor(bankroll, metrics)
+        cover = min(cover, explore_base)
+        if isinstance(metrics, dict):
+            metrics["recovery_conviction_downgraded"] = True
     if int(amort) <= 1 and cover_enabled:
         pct = float(configured_max_safe_stake_pct(soft_recovery))
         cap = apply_small_account_hard_floor(float(bankroll) * pct, float(bankroll), soft_recovery=soft_recovery)

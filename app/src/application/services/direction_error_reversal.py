@@ -104,9 +104,17 @@ def apply_error_reversal_to_direction(
         return current_dir, False
 
     sym = str(symbol)
-    info = bag.pop(sym, None)
+    info = bag.get(sym)
     if not isinstance(info, dict):
         return current_dir, False
+
+    armed_cycle = int(info.get("armed_cycle", 0) or 0)
+    active_cycle = int(getattr(orch, "_active_cycle_id", 0) or 0)
+    if armed_cycle > 0 and active_cycle > armed_cycle + 1:
+        bag.pop(sym, None)
+        return current_dir, False
+
+    bag.pop(sym, None)
 
     rev_cfg = _get_reversal_config(orch, (exec_cfg or {}).get("error_driven_reversal"))
     if not bool(rev_cfg.get("enabled", True)):

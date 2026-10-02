@@ -71,12 +71,12 @@ def test_resolve_sync_targets_train_lean_skips_mini(mock_ws):
         },
     )
     macro, micro, mini = _resolve_sync_targets(sh)
-    assert macro == 128
+    assert macro == 0
     assert micro == 2000
     assert mini == 0
 
 
-def test_resolve_sync_targets_train_lean_d1_uses_365(mock_ws):
+def test_resolve_sync_targets_train_lean_d1_returns_zero(mock_ws):
     from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
 
     sh = StreamHandler(
@@ -93,7 +93,7 @@ def test_resolve_sync_targets_train_lean_d1_uses_365(mock_ws):
         },
     )
     macro, micro, mini = _resolve_sync_targets(sh)
-    assert macro == 365
+    assert macro == 0
     assert micro == 500
     assert mini == 0
 
@@ -108,11 +108,54 @@ def test_resolve_sync_targets_live_keeps_triple(mock_ws):
             "fetch_count": 2000,
             "micro_fetch_count": 2000,
             "mini_fetch_count": 256,
+            "granularity": 3600,
+            "micro_granularity": 300,
         },
     )
     macro, micro, mini = _resolve_sync_targets(sh)
     assert macro == 2000
     assert micro == 2000
+    assert mini == 256
+
+
+def test_resolve_sync_targets_sync_macro_false(mock_ws):
+    from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
+
+    sh = StreamHandler(
+        mock_ws,
+        ["1HZ75V"],
+        {
+            "fetch_count": 500,
+            "micro_fetch_count": 500,
+            "mini_fetch_count": 256,
+            "sync_macro_history": False,
+            "granularity": 3600,
+            "micro_granularity": 300,
+        },
+    )
+    macro, micro, mini = _resolve_sync_targets(sh)
+    assert macro == 0
+    assert micro == 500
+    assert mini == 256
+
+
+def test_resolve_sync_targets_equal_macro_micro(mock_ws):
+    from src.infrastructure.handlers.stream_sync_start import _resolve_sync_targets
+
+    sh = StreamHandler(
+        mock_ws,
+        ["1HZ75V"],
+        {
+            "fetch_count": 500,
+            "micro_fetch_count": 500,
+            "mini_fetch_count": 256,
+            "granularity": 300,
+            "micro_granularity": 300,
+        },
+    )
+    macro, micro, mini = _resolve_sync_targets(sh)
+    assert macro == 0
+    assert micro == 500
     assert mini == 256
 
 

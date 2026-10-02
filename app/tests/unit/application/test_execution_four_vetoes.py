@@ -235,3 +235,38 @@ def test_tcn_noise_discord_skips_and_edge_bypass():
     assert blocked is True
     assert res_dir == Side.CALL
     assert metrics_block["gate_reason"] == "tcn_noise_discord"
+
+
+def test_exhaustion_turn_oversold_candle_reversal():
+    """Verifica que sobre-extensao com vela de reversao fecha o setup de rejeicao."""
+    metrics_put = {
+        "closed_candle_ohlc": (100, 105, 99, 104),
+        "indicators": {"rsi": 0.25, "bb_pct_b": 0.10},
+    }
+    assert policy.market_veto_reason(Side.PUT, metrics_put) == "put_bottom_rejection"
+    assert policy.market_veto_reason(Side.CALL, metrics_put) is None
+
+    metrics_call = {
+        "closed_candle_ohlc": (104, 105, 99, 100),
+        "indicators": {"rsi": 0.75, "bb_pct_b": 0.90},
+    }
+    assert policy.market_veto_reason(Side.CALL, metrics_call) == "call_top_rejection"
+    assert policy.market_veto_reason(Side.PUT, metrics_call) is None
+
+
+def test_four_vetoes_honors_counter_trend_with_opposing_candle():
+    """Verifica bloqueio de contra-tendencia com candle discordante sob four_market_vetoes."""
+    metrics = {
+        "trend_direction": "PUT",
+        "closed_micro_candle_stamped": True,
+        "closed_micro_candle_dir": "PUT",
+        "cal_side_edge": 0.02,
+    }
+    res_dir, blocked = apply_senior_execution_skips(
+        Side.CALL,
+        metrics,
+        exec_cfg={"four_market_vetoes": True, "skip_trend_discord": True, "counter_trend_min_edge": 0.08},
+    )
+    assert blocked is True
+    assert res_dir == Side.CALL
+    assert metrics["gate_reason"] == "counter_trend_unconfirmed"

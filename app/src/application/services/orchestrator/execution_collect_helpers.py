@@ -12,8 +12,11 @@ from src.application.services.market_audit_log import (
     emit_audit_info,
     format_decision_origin_line,
     format_gates_audit_line,
+    format_live_candle_line,
     format_market_summary_line,
+    format_next_movement_line,
 )
+from src.application.services.market_forming_candle import build_live_forming_candle_snapshot
 from src.application.services.orchestrator.execution_recovery_gate import recovery_min_signal, recovery_min_val_accuracy
 from src.application.services.recovery_hurst_store import (
     increment_recovery_skip_counter,
@@ -230,8 +233,15 @@ def log_execution_decision(
     symbol, direction, metrics = best[0], best[1], best[2]
     _ = (cid, candidates, decisions, effective_signal)
     metrics_dict = metrics if isinstance(metrics, dict) else {}
-    emit_audit_info(exec_mgr.logger, format_market_summary_line(str(symbol), metrics_dict))
-    emit_audit_info(exec_mgr.logger, format_decision_origin_line(str(symbol), direction, metrics_dict))
+    sym_str = str(symbol)
+    orch = getattr(exec_mgr, "orch", None)
+    snap = build_live_forming_candle_snapshot(orch, sym_str)
+    if snap is not None:
+        emit_audit_info(exec_mgr.logger, format_live_candle_line(snap))
+    if metrics_dict.get("predicted_movement_delta") is not None:
+        emit_audit_info(exec_mgr.logger, format_next_movement_line(sym_str, metrics_dict))
+    emit_audit_info(exec_mgr.logger, format_market_summary_line(sym_str, metrics_dict))
+    emit_audit_info(exec_mgr.logger, format_decision_origin_line(sym_str, direction, metrics_dict))
     emit_audit_info(exec_mgr.logger, format_gates_audit_line(metrics_dict))
 
 

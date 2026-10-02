@@ -64,7 +64,7 @@ def _bootstrap_training_context(orch, symbol: str):
     train_bars = int(params.get("training_history_bars", 0) or 0)
     min_len = max(min_dl_history_len(params), train_bars)
     granularity = granularity_seconds(orch)
-    train_tf = str(params.get("train_timeframe", "macro"))
+    train_tf = str(params.get("train_timeframe", "micro"))
     runtime = get_symbol_runtime(orch, symbol, dl_config, params)
     prices, open_, high, low = load_symbol_close_ohlc(orch, symbol, timeframe=train_tf)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices))
@@ -101,7 +101,7 @@ async def _train_bootstrap_symbol(orch, symbol: str) -> str:
             len(prices),
             want,
         )
-    epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "macro")))
+    epoch = candle_epoch(orch, symbol, timeframe=str(params.get("train_timeframe", "micro")))
     await asyncio.to_thread(
         run_symbol_training,
         symbol,
@@ -162,7 +162,7 @@ async def run_initial_bootstrap_training(orch) -> None:
         if not progress:
             wait_rounds += 1
             _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, pending[0])
-            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "macro")))
+            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "micro")))
             if wait_rounds >= max_wait_rounds:
                 logger.warning(
                     "DL TREINO | bootstrap | limite de %d ciclos aguardando historico",
@@ -206,7 +206,7 @@ async def run_dl_training_session(orch) -> bool:
         if not progress:
             wait_rounds += 1
             _, params, min_len, _, _, _, _, _, _, _ = _bootstrap_training_context(orch, symbols[0])
-            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "macro")))
+            await orch.stream.ensure_cluster_history(min_len, timeframe=str(params.get("train_timeframe", "micro")))
             if wait_rounds >= max_wait_rounds:
                 logger.warning(
                     "DL TREINO | sessao | limite de %d ciclos aguardando historico",

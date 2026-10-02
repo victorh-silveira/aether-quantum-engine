@@ -21,8 +21,11 @@ logger = logging.getLogger("AETH")
 
 def _load_active_meta_model(params: dict[str, Any] | None = None) -> Any:
     """Carrega modelo Meta-Learner ativo para filtragem conjunta OOS."""
+    cfg = params or {}
+    if not bool(cfg.get("require_meta_for_execution", False)) and "meta_model_path" not in cfg:
+        return None
     meta_path = Path("infra/docker/meta-models/meta_lgbm.pkl")
-    if params and isinstance(params.get("meta_model_path"), (str, Path)):
+    if isinstance(params.get("meta_model_path"), (str, Path)):
         meta_path = Path(params["meta_model_path"])
     if not meta_path.is_file():
         return None

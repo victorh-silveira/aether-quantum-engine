@@ -28,10 +28,13 @@ def _resolve_sync_targets(handler: Any) -> tuple[int, int, int]:
     startup = handler.config.get("_startup_fetch_count")
     micro_default = resolve_micro_fetch_count(handler.config)
     micro_count = max(1, int(startup)) if startup is not None else micro_default
+    sync_macro = handler.config.get("sync_macro_history", True)
+    if not bool(sync_macro) or lean:
+        return 0, micro_count, 0 if lean else resolve_mini_fetch_count(handler.config)
     macro_g = int(getattr(handler, "macro_granularity", 0) or 0)
-    if lean:
-        macro_count = _resolve_macro_d1_cap(handler) if macro_g >= 86400 else min(128, micro_count)
-        return macro_count, micro_count, 0
+    micro_g = int(getattr(handler, "micro_granularity", 0) or 0)
+    if macro_g == micro_g:
+        return 0, micro_count, resolve_mini_fetch_count(handler.config)
     if macro_g >= 86400:
         macro_cap = _resolve_macro_d1_cap(handler)
         if "fetch_count" in handler.config:
@@ -75,6 +78,8 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
             await handler._fetch_symbol_history(
                 symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
             )
+        if macro_count == 0:
+            handler.macro_candles[symbol] = list(handler.micro_candles.get(symbol, []))
         if mini_count > 0:
             await handler._fetch_symbol_history(
                 symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
@@ -108,9 +113,12 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     handler.ws.subscribe("ohlc", handler._on_candle)
     handler.ws.subscribe("tick", handler._on_tick)
     handler.candle_callback = callback
-    await subscribe_candle_streams(handler.ws, handler.symbols, handler.macro_granularity)
+    if macro_count > 0 and handler.macro_granularity != handler.micro_granularity:
+        await subscribe_candle_streams(handler.ws, handler.symbols, handler.macro_granularity)
     await subscribe_candle_streams(handler.ws, handler.symbols, handler.micro_granularity)
-    if mini_count > 0 or not bool(handler.config.get("_startup_train_lean")):
+    if (
+        mini_count > 0 or not bool(handler.config.get("_startup_train_lean"))
+    ) and handler.mini_granularity != handler.micro_granularity:
         await subscribe_candle_streams(handler.ws, handler.symbols, handler.mini_granularity)
     await subscribe_tick_streams(handler.ws, handler.symbols)
     handler.is_synchronized = True

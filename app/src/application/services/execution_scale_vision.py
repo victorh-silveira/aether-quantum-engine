@@ -139,6 +139,10 @@ def _seed_scale_metrics(metrics: dict[str, Any], micro_name: str | None) -> None
         "scale_micro_prev_bar_dir",
         "closed_micro_candle_dir",
         "closed_micro_candle_body",
+        "closed_micro_upper_wick",
+        "closed_micro_lower_wick",
+        "is_candle_alternating",
+        "last_closed_candle_side",
         "ops_window_candle_dir",
         "ops_window_candle_body",
         "ops_window_bars",
@@ -216,6 +220,12 @@ def compute_scale_directions(
             metrics["closed_micro_candle_stamped"] = True
             metrics["closed_micro_candle_dir"] = closed_micro_candle_dir_from_stream(stream, str(symbol))
             metrics["closed_micro_candle_body"] = closed_micro_candle_body_from_stream(stream, str(symbol))
+            span = float(closed_candle.high) - float(closed_candle.low)
+            if span > 1e-12:
+                hi, lo = float(closed_candle.high), float(closed_candle.low)
+                op, cl = float(closed_candle.open), float(closed_candle.close)
+                metrics["closed_micro_upper_wick"] = (hi - max(op, cl)) / span
+                metrics["closed_micro_lower_wick"] = (min(op, cl) - lo) / span
         stamp_ops_window_metrics(
             metrics,
             stream,

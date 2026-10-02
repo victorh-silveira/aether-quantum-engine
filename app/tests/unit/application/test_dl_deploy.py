@@ -589,3 +589,11 @@ def test_evaluate_mini_deploy_reaches_final_settle_when_enforce_false(requires_a
         )
     assert ok is not requires_audit
     assert runtime["deploy_provisional_ok"] is not requires_audit
+
+
+def test_load_active_meta_model_branches():
+    from src.application.services.deep_learning.dl_deploy_eval import _load_active_meta_model
+
+    assert _load_active_meta_model(None) is None
+    assert _load_active_meta_model({}) is None
+    assert _load_active_meta_model({"meta_model_path": "non_existent_file.pkl"}) is None

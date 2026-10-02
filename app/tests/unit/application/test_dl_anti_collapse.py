@@ -111,7 +111,8 @@ def test_predict_next_direction_recovers_when_calibrator_flat_but_model_confiden
         std=np.ones(FEATURE_DIM, dtype=np.float32),
     )
     with patch(
-        "src.application.services.deep_learning.model._model_raw_prob", return_value=np.array([0.65], dtype=np.float32)
+        "src.application.services.deep_learning.model._model_raw_prob_and_aux",
+        return_value=(np.array([0.65], dtype=np.float32), np.array([0.0], dtype=np.float32)),
     ):
         side, prob, raw_prob = predict_next_direction(
             model,

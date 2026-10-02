@@ -30,6 +30,7 @@ def build_risk_state_snapshot(manager: Any) -> dict[str, Any]:
         "dlambert_unit": manager.dlambert_unit,
         "last_loss_symbol": manager.last_loss_symbol,
         "last_loss_direction": manager.last_loss_direction,
+        "peak_session_profit": float(getattr(manager, "peak_session_profit", 0.0) or 0.0),
     }
 
 
@@ -41,7 +42,7 @@ def apply_risk_snapshot(manager: Any, data: dict[str, Any]) -> None:
     _apply_float_fields(
         manager,
         snapshot,
-        ("initial_bankroll", "total_session_profit", "last_loss_stake", "dlambert_unit"),
+        ("initial_bankroll", "total_session_profit", "peak_session_profit", "last_loss_stake", "dlambert_unit"),
     )
     _apply_int_fields(manager, snapshot, ("last_result_tick", "consecutive_losses_linear"))
     if "consecutive_losses_linear" not in snapshot and "consecutive_losses" in snapshot:

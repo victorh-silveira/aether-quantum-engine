@@ -368,6 +368,20 @@ def test_should_skip_trend_discord_cases():
         is True
     )
 
+    m_pend = {
+        "trend_direction": "PUT",
+        "cal_side_edge": 0.01,
+        "pending_loss_total": 10.0,
+    }
+    assert (
+        should_skip_trend_discord(
+            m_pend,
+            TradeDirection.CALL,
+            {"skip_trend_discord": True, "counter_trend_min_edge": 0.08, "cover_enabled": True},
+        )
+        is False
+    )
+
 
 def test_should_skip_neg_edge_min_edge_execute():
     cfg = {"skip_neg_edge": True, "min_edge_execute": 0.025}

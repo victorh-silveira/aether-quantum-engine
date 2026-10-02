@@ -65,3 +65,47 @@ def attach_dynamic_metrics(
         metrics["calibrated_entropy"] = float(runtime_entropy)
     if runtime.get("entropy_violation") is not None:
         metrics["entropy_violation"] = bool(runtime.get("entropy_violation"))
+    model_obj = runtime.get("model")
+    delta = getattr(model_obj, "_last_predicted_delta", None)
+    if delta is not None:
+        attach_movement_prediction_metrics(
+            metrics,
+            predicted_delta=float(delta),
+            current_direction=metrics.get("exec_direction") or metrics.get("dl_direction"),
+            atr_norm=metrics.get("atr_norm"),
+        )
+
+
+def attach_movement_prediction_metrics(
+    metrics: dict,
+    *,
+    predicted_delta: float,
+    current_direction: str | None = None,
+    atr_norm: float | None = None,
+) -> None:
+    """Anexa metricas de deslocamento de preco projetado pela regression_head."""
+    delta = float(predicted_delta)
+    metrics["predicted_movement_delta"] = delta
+    metrics["expected_drift_pct"] = delta * 100.0
+    move_side = "CALL" if delta > 0.0 else ("PUT" if delta < 0.0 else "DOJI")
+    metrics["predicted_movement_side"] = move_side
+    cur_dir = (
+        str(
+            current_direction
+            or metrics.get("exec_direction")
+            or metrics.get("dl_direction")
+            or metrics.get("resolved_direction")
+            or ""
+        )
+        .strip()
+        .upper()
+    )
+    if cur_dir in {"CALL", "PUT"} and move_side in {"CALL", "PUT"}:
+        metrics["movement_confluence"] = bool(cur_dir == move_side)
+    else:
+        metrics["movement_confluence"] = True
+    atr = float(atr_norm) if atr_norm is not None else float(metrics.get("atr_norm", 0.0) or 0.0)
+    if atr > 1e-12:
+        metrics["movement_atr_ratio"] = float(abs(delta) / atr)
+    else:
+        metrics["movement_atr_ratio"] = 1.0

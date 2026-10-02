@@ -80,3 +80,36 @@ def test_apply_target_proximity_to_kelly_caps_at_needed_stake():
     capped = apply_target_proximity_to_kelly(rm, 500.0, apply_stop_win=True, payout=0.85)
     assert capped < 110.0
     assert capped >= 95.0
+
+
+def test_apply_session_profit_lock_inactive_when_target_zero():
+    from src.domain.risk.stake_target_proximity import apply_session_profit_lock
+
+    assert apply_session_profit_lock(100.0, 0.0, 50.0, 50.0) == 100.0
+
+
+def test_apply_session_profit_lock_inactive_when_peak_below_half_target():
+    from src.domain.risk.stake_target_proximity import apply_session_profit_lock
+
+    target = 400.0
+    assert apply_session_profit_lock(100.0, target, 150.0, 180.0) == 100.0
+
+
+def test_apply_session_profit_lock_caps_stake_to_protect_locked_profit():
+    from src.domain.risk.stake_target_proximity import apply_session_profit_lock
+
+    target = 400.0
+    peak = 220.0
+    pnl = 130.0
+    capped = apply_session_profit_lock(120.0, target, pnl, peak, stake_min=1.0)
+    assert capped == pytest.approx(30.0)
+
+
+def test_apply_session_profit_lock_floors_at_stake_min_when_at_or_below_locked():
+    from src.domain.risk.stake_target_proximity import apply_session_profit_lock
+
+    target = 400.0
+    peak = 220.0
+    pnl = 95.0
+    capped = apply_session_profit_lock(120.0, target, pnl, peak, stake_min=1.5)
+    assert capped == pytest.approx(1.5)

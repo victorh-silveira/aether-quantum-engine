@@ -8,11 +8,14 @@ from src.application.services.deep_learning.dl_gating import resolve_side_edge
 from src.application.services.direction_error_reversal import apply_error_reversal_to_direction
 from src.application.services.direction_loss_tracker import should_anti_trend_lock_flip
 from src.application.services.execution_direction_checks import (
+    apply_invert_exec_side,
     infer_dl_direction,
     initial_direction_checks,
     is_technically_blocked,
     seed_direction_metrics,
+    stamp_direction_resolved_cycle,
     sync_entry_metrics,
+    sync_kelly_side,
 )
 from src.application.services.execution_four_vetoes import reevaluate_market_direction
 from src.application.services.execution_payout import resolve_execution_payout
@@ -28,8 +31,6 @@ from src.application.services.meta_classifier_stacking import resolve_meta_payof
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.kelly_p_align import apply_kelly_side_p
-from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
 __all__ = (
@@ -37,41 +38,6 @@ __all__ = (
     "is_technically_blocked",
     "resolve_execution_direction",
 )
-
-
-def _stamp_direction_resolved_cycle(entry: dict, cycle_id: int) -> None:
-    """Marca o ciclo em que a direcao foi resolvida."""
-    metrics = entry.setdefault("metrics", {})
-    if isinstance(metrics, dict) and int(cycle_id) > 0:
-        metrics["_direction_resolved_cycle"] = int(cycle_id)
-
-
-def _sync_kelly_side(metrics: dict[str, Any], exec_dir: TradeDirection) -> None:
-    """Alinha p Kelly ao lado EXEC com piso SSOT."""
-    rt = load_kelly_runtime_from_settings()
-    conviction = float(metrics.get("conviction", metrics.get("trade_score", 0.5)) or 0.5)
-    apply_kelly_side_p(
-        metrics,
-        order_direction=exec_dir.name,
-        kelly_config={"kelly_p_floor": rt["kelly_p_floor"]},
-        conviction=conviction,
-    )
-
-
-def _apply_invert_exec_side(
-    exec_dir: TradeDirection,
-    metrics: dict[str, Any],
-    exec_cfg: dict | None,
-) -> TradeDirection:
-    """Inverte CALL↔PUT se invert_exec_side=true."""
-    enabled = bool((exec_cfg or {}).get("invert_exec_side", False))
-    metrics["invert_exec_side"] = enabled
-    if not enabled:
-        return exec_dir
-    metrics["exec_direction_pre_invert"] = exec_dir.name
-    if exec_dir == TradeDirection.CALL:
-        return TradeDirection.PUT
-    return TradeDirection.CALL
 
 
 def _finalize_execution_metrics(
@@ -113,18 +79,18 @@ def _finalize_execution_metrics(
     metrics["payout_assumed"] = payout
     if orch is not None:
         rm = getattr(orch, "risk_manager", None)
-        tot_fn = getattr(rm, "pending_loss_total", None)
-        pend_dict = getattr(rm, "pending_loss", None)
+        tot_fn, pend_dict = getattr(rm, "pending_loss_total", None), getattr(rm, "pending_loss", None)
         try:
             val = (
-                float(tot_fn()) if callable(tot_fn) else sum(pend_dict.values()) if isinstance(pend_dict, dict) else 0.0
+                float(tot_fn())
+                if callable(tot_fn)
+                else (sum(pend_dict.values()) if isinstance(pend_dict, dict) else 0.0)
             )
             metrics["pending_loss_total"] = max(0.0, float(val))
         except (TypeError, ValueError):
             metrics.setdefault("pending_loss_total", 0.0)
-    metrics.pop("quality_guard_reject", None)
-    metrics.pop("regime_skip_cycle", None)
-    metrics.pop("gate_reason", None)
+    for k in ("quality_guard_reject", "regime_skip_cycle", "gate_reason"):
+        metrics.pop(k, None)
     if orch is not None:
         tcn_ref = TradeDirection[str(metrics.get("tcn_direction") or dl_dir.name).upper()]
         apply_loss_classifier_gate(metrics, tcn_ref, orch=orch, force=force, symbol=symbol)
@@ -143,6 +109,7 @@ def _finalize_execution_metrics(
         micro_reg = str(metrics.get("scale_micro_regime") or "").strip().lower()
         reg_side = str(metrics.get("scale_micro_side") or "").strip().upper()
         veto_weak = bool((exec_cfg or {}).get("veto_weak_regime_flip", False))
+        closed_cd = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
         if should_anti_trend_lock_flip(
             symbol,
             exec_dir,
@@ -153,6 +120,7 @@ def _finalize_execution_metrics(
             elastic_zeta=zeta,
             micro_regime=micro_reg,
             regime_side=reg_side,
+            closed_candle=closed_cd,
         ):
             flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
             metrics["anti_trend_lock_flip"] = True
@@ -165,13 +133,14 @@ def _finalize_execution_metrics(
                 metrics["anti_trend_lock_reason"] = "CONSECUTIVE_DIRECTION_LOSSES"
             cal_p = float(metrics.get("calibrated_prob") or 0.5)
             p_flip = cal_p if flipped == TradeDirection.CALL else 1.0 - cal_p
-            if veto_weak and p_flip + 1e-9 < 0.50:
-                metrics.update(
-                    {"signal_status": "SKIP:REGIME_CONFLICT", "gate_reason": "regime_conflict", "execute": False}
-                )
-                sync_entry_metrics(entry, metrics)
-                return None
-            exec_dir = flipped
+            trend_aligned = trend in {TradeDirection.CALL.name, TradeDirection.PUT.name} and flipped.name == trend
+            if veto_weak and not trend_aligned and p_flip + 1e-9 < 0.50:
+                metrics["anti_trend_lock_flip"] = False
+                metrics.pop("anti_trend_lock_from", None)
+                metrics.pop("anti_trend_lock_to", None)
+                metrics.pop("anti_trend_lock_reason", None)
+            else:
+                exec_dir = flipped
     exec_dir, _ = apply_error_reversal_to_direction(orch, str(symbol or ""), exec_dir, metrics, exec_cfg=exec_cfg)
     if bool(metrics.get("alpha_flip_applied")):
         metrics["direction_origin"] = "FLIP_ERROR_DRIVEN_ALPHA"
@@ -184,7 +153,7 @@ def _finalize_execution_metrics(
     metrics["exec_direction_pre_scale"] = exec_dir.name
     metrics["scale_adapt_applied"] = False
     metrics.pop("scale_adapt_reason", None)
-    exec_dir = _apply_invert_exec_side(exec_dir, metrics, exec_cfg)
+    exec_dir = apply_invert_exec_side(exec_dir, metrics, exec_cfg)
     exec_dir = reevaluate_market_direction(exec_dir, metrics, exec_cfg, payout=payout, orch=orch, symbol=symbol)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
@@ -194,7 +163,17 @@ def _finalize_execution_metrics(
             if bool(metrics.get("loss_clf_flip")):
                 p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
                 metrics["cal_side_edge"] = float((p_eff * (1.0 + payout)) - 1.0)
-            elif bool(metrics.get("anti_trend_lock_flip")) or bool(metrics.get("alpha_flip_applied")):
+            elif bool(metrics.get("anti_trend_lock_flip")):
+                t_val = str(metrics.get("trend_direction") or "").strip().upper()
+                if t_val in {TradeDirection.CALL.name, TradeDirection.PUT.name} and exec_dir.name == t_val:
+                    metrics["cal_side_edge"] = float((0.58 * (1.0 + payout)) - 1.0)
+                    metrics["conviction"] = 0.58
+                    metrics["trade_score"] = 0.58
+                else:
+                    cal_p = float(metrics.get("calibrated_prob") or 0.5)
+                    p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
+                    metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
+            elif bool(metrics.get("alpha_flip_applied")):
                 cal_p = float(metrics.get("calibrated_prob") or 0.5)
                 p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
                 metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
@@ -220,7 +199,7 @@ def _finalize_execution_metrics(
     if blocked:
         sync_entry_metrics(entry, metrics)
         return None
-    _sync_kelly_side(metrics, exec_dir)
+    sync_kelly_side(metrics, exec_dir)
     sync_direction_margin(metrics, direction=exec_dir.name)
     apply_side_eq_kelly_sizing(orch, symbol, exec_dir, metrics)
     metrics["execution_candidate_ready"] = True
@@ -262,12 +241,12 @@ def resolve_execution_direction(
         skipped_cycles_counter=skipped_cycles_counter,
     )
     if checks is None:
-        _stamp_direction_resolved_cycle(entry, active_cycle)
+        stamp_direction_resolved_cycle(entry, active_cycle)
         return None
     dl_dir, metrics, prob = checks
     if should_skip_acc_floor(metrics, exec_cfg_dict, orch=orch, force=force):
         sync_entry_metrics(entry, metrics)
-        _stamp_direction_resolved_cycle(entry, active_cycle)
+        stamp_direction_resolved_cycle(entry, active_cycle)
         return None
     score = seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
     predicted_edge, meta_applied = resolve_meta_payoff_edge(
@@ -295,5 +274,5 @@ def resolve_execution_direction(
         force=force,
         exec_cfg=exec_cfg_dict,
     )
-    _stamp_direction_resolved_cycle(entry, active_cycle)
+    stamp_direction_resolved_cycle(entry, active_cycle)
     return result

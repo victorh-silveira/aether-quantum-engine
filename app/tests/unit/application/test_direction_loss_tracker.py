@@ -148,16 +148,12 @@ def test_should_anti_trend_lock_flip_cases():
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=0.0) is False
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0) is True
     assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, pending_loss_total=50.0) is False
-    # Conviccao alta sem macro definida ignora flip
+    # Conviccao alta ignora flip
     assert (
-        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.08, prob=0.55)
+        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.09, prob=0.65)
         is False
     )
-    assert (
-        should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, pending_loss_total=50.0, edge=0.04, prob=0.59)
-        is False
-    )
-    # Alinhamento com a tendencia macro ignora flip mesmo com prob modesta
+    # Prob modesta nao ignora flip mesmo se a tendencia for alinhada
     assert (
         should_anti_trend_lock_flip(
             "1HZ75V",
@@ -167,9 +163,8 @@ def test_should_anti_trend_lock_flip_cases():
             prob=0.51,
             trend_direction="PUT",
         )
-        is False
+        is True
     )
-    # Tendencia contraria nao ignora flip
     assert (
         should_anti_trend_lock_flip(
             "1HZ75V",
@@ -285,4 +280,36 @@ def test_should_anti_trend_lock_flip_micro_retraction():
             edge=-0.040,
         )
         is False
+    )
+
+
+def test_should_anti_trend_lock_flip_chop_single_loss_whipsaw_guard():
+    record_direction_outcome("1HZ75V", "CALL", won=False)
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            pending_loss_total=50.0,
+            micro_regime="chop",
+        )
+        is False
+    )
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            pending_loss_total=50.0,
+            closed_candle="PUT",
+        )
+        is False
+    )
+    record_direction_outcome("1HZ75V", "CALL", won=False)
+    assert (
+        should_anti_trend_lock_flip(
+            "1HZ75V",
+            TradeDirection.CALL,
+            pending_loss_total=50.0,
+            micro_regime="chop",
+        )
+        is True
     )

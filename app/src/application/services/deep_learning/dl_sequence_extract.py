@@ -74,6 +74,7 @@ def sequence_price_deltas(
     label_smooth_bars: int = 1,
     label_mode: str = "ma_trend",
     label_ma_window: int = 5,
+    open_: np.ndarray | None = None,
 ) -> np.ndarray:
     """Retorna delta relativo de preco alinhado aos rotulos de classificacao."""
     _, masks = sequence_labels(
@@ -89,10 +90,13 @@ def sequence_price_deltas(
         return np.empty((0,), dtype=np.float32)
     horizon = max(1, int(label_horizon_bars))
     deltas = np.zeros(count, dtype=np.float32)
+    has_open = open_ is not None and len(open_) == len(prices)
     for offset, end_idx in enumerate(range(lookback, lookback + count)):
         start_idx = end_idx
         future_idx = end_idx + horizon
-        base = float(prices[start_idx])
+        if future_idx >= len(prices):
+            break
+        base = float(open_[future_idx]) if has_open else float(prices[start_idx])
         future = float(np.mean(prices[future_idx : future_idx + max(1, int(label_smooth_bars))]))
         if abs(base) < 1e-12:
             deltas[offset] = 0.0

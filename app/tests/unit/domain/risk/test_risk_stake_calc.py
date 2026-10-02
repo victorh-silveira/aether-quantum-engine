@@ -262,3 +262,44 @@ def test_calculate_stake_returns_zero_on_soft_veto(kelly_config):
         kwargs={"dl_metrics": {"execute": True, "meta_veto_mode": "soft"}},
     )
     assert stake == 0.0
+
+
+def test_calculate_stake_recovery_downgrades_on_weak_conviction_and_locks_profit(kelly_config):
+    rm = _mock_rm(
+        kelly_config,
+        pending_loss={"1HZ75V": 95.98},
+        consecutive_losses_linear=1,
+        dlambert_unit=94.69,
+        total_session_profit=126.27,
+        peak_session_profit=222.25,
+        daily_stop_win_target=404.08,
+        _recovery_allowed=MagicMock(return_value=True),
+    )
+    stake = calculate_stake_for_manager(
+        rm,
+        9469.34,
+        "1HZ75V",
+        0.5884,
+        silent=True,
+        apply_stop_win=True,
+        kwargs={
+            "cycle_id": 19,
+            "dl_metrics": {
+                "execute": True,
+                "calibrated_prob": 0.5884,
+                "order_direction": "CALL",
+            },
+            "order_direction": "CALL",
+        },
+    )
+    assert stake <= 25.25 + 1e-2
+
+
+def test_extract_rm_float_handles_edge_cases():
+    from types import SimpleNamespace
+
+    from src.domain.risk.risk_stake_calc_helpers import _extract_rm_float
+
+    assert _extract_rm_float(None, "foo", default=5.0) == 5.0
+    assert _extract_rm_float(SimpleNamespace(foo="invalid"), "foo", default=3.0) == 3.0
+    assert _extract_rm_float(SimpleNamespace(foo=12.5), "foo") == 12.5

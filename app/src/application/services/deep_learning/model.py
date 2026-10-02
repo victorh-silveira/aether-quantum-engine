@@ -1,6 +1,10 @@
 """Fachada de modelos Deep Learning: TCN/LSTM, checkpoint e predicao."""
 
+from __future__ import annotations
+
+import contextlib
 import logging
+from typing import Any
 
 import numpy as np
 import torch
@@ -42,6 +46,7 @@ __all__ = [
     "model_accuracy",
     "normalize_features",
     "normalize_sequences",
+    "predict_direction_and_movement",
     "predict_next_direction",
     "save_model_checkpoint",
 ]
@@ -100,16 +105,37 @@ def _sanitize_feature_batch(batch: np.ndarray) -> np.ndarray:
     return np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32)
 
 
-def _model_raw_prob(model: nn.Module, batch: np.ndarray) -> np.ndarray:
-    """Executa forward e retorna probabilidades brutas."""
+def _model_raw_prob_and_aux(model: nn.Module, batch: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Executa forward e retorna probabilidades brutas e delta auxiliar de deslocamento."""
     model.eval()
     device = next(model.parameters()).device
     with torch.inference_mode():
         tensor = torch.as_tensor(_sanitize_feature_batch(batch), dtype=torch.float32, device=device)
-        preds = model(tensor)
-        flat = preds.squeeze(-1)
-        flat = torch.nan_to_num(flat, nan=0.5, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
-        return flat.detach().cpu().numpy().astype(np.float32)
+        try:
+            preds, aux = model(tensor, return_aux=True)
+            flat_prob = preds.squeeze(-1)
+            flat_prob = torch.nan_to_num(flat_prob, nan=0.5, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
+            flat_aux = aux.squeeze(-1)
+            flat_aux = torch.nan_to_num(flat_aux, nan=0.0, posinf=0.0, neginf=0.0)
+            probs = flat_prob.detach().cpu().numpy().astype(np.float32)
+            auxes = flat_aux.detach().cpu().numpy().astype(np.float32)
+            if len(auxes):
+                with contextlib.suppress(Exception):
+                    model._last_predicted_delta = float(auxes[-1])
+            return probs, auxes
+        except (TypeError, ValueError):
+            preds = model(tensor)
+            flat_prob = preds.squeeze(-1)
+            flat_prob = torch.nan_to_num(flat_prob, nan=0.5, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
+            with contextlib.suppress(Exception):
+                model._last_predicted_delta = 0.0
+            return flat_prob.detach().cpu().numpy().astype(np.float32), np.zeros(len(flat_prob), dtype=np.float32)
+
+
+def _model_raw_prob(model: nn.Module, batch: np.ndarray) -> np.ndarray:
+    """Executa forward e retorna probabilidades brutas."""
+    prob, _ = _model_raw_prob_and_aux(model, batch)
+    return prob
 
 
 def model_accuracy(model: nn.Module, x: np.ndarray, y: np.ndarray, mask: np.ndarray | None = None) -> float:
@@ -143,10 +169,13 @@ def predict_next_direction(
     call_threshold: float = 0.75,
     put_threshold: float = 0.25,
     calibrator: CalibratorState | None = None,
-) -> tuple[TradeDirection | None, float, float]:
-    """Prediz CALL se Cal >= 0.5, PUT caso contrario. Buffer curto devolve None tecnico."""
+    return_movement: bool = False,
+) -> tuple[TradeDirection | None, float, float] | tuple[TradeDirection | None, float, float, float]:
+    """Prediz CALL se Cal >= 0.5, PUT caso contrario. Opcionalmente retorna delta projetado de movimento."""
     n = len(prices)
     if n < lookback:
+        if return_movement:
+            return None, 0.5, 0.5, 0.0
         return None, 0.5, 0.5
     seq = build_sequence_tensor(
         prices,
@@ -166,11 +195,27 @@ def predict_next_direction(
             std=np.ones(FEATURE_DIM, dtype=np.float32),
         )
     feat = normalize_sequences(seq, norm_stats)
-    raw_prob = float(_model_raw_prob(model, feat)[0])
+    probs, auxes = _model_raw_prob_and_aux(model, feat)
+    raw_prob = float(probs[0])
+    delta_pred = float(auxes[0])
     prob = apply_calibrator_stable(raw_prob, calibrator)
     _ = (call_threshold, put_threshold)
     side = TradeDirection.CALL if prob + 1e-12 >= 0.5 else TradeDirection.PUT
+    if return_movement:
+        return side, prob, raw_prob, delta_pred
     return side, prob, raw_prob
+
+
+def predict_direction_and_movement(
+    model: nn.Module,
+    prices: np.ndarray,
+    lookback: int,
+    norm_stats: FeatureNormStats | None = None,
+    **kwargs: Any,
+) -> tuple[TradeDirection | None, float, float, float]:
+    """Prediz lado, probabilidade calibrada, probabilidade bruta e delta esperado de deslocamento."""
+    kwargs["return_movement"] = True
+    return predict_next_direction(model, prices, lookback, norm_stats, **kwargs)  # type: ignore[return-value]
 
 
 def evaluate_calibrated_metrics(

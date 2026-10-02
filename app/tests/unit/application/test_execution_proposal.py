@@ -258,3 +258,19 @@ async def test_place_order_blocks_when_quote_loses_edge(orch_config):
     executor = MagicMock(orch=orch)
     res = await place_order(executor, "1HZ75V", TradeDirection.CALL, 10.0, metrics={"calibrated_prob": 0.45})
     assert res is None
+
+
+def test_attach_quote_guard_params_disabled_when_require_quote_edge_false():
+    from src.application.services.orchestrator.execution_orders import _attach_quote_guard_params
+
+    params = {"duration": 5}
+    metrics = {"calibrated_prob": 0.55}
+    _attach_quote_guard_params(params, metrics, TradeDirection.CALL, exec_cfg={"require_quote_edge": False})
+    assert "_quote_guard_side_probability" not in params
+    assert "_quote_guard_min_edge" not in params
+    assert "min_payout_rate" not in params
+
+    _attach_quote_guard_params(params, metrics, TradeDirection.CALL, exec_cfg={"require_quote_edge": True})
+    assert "_quote_guard_side_probability" in params
+    assert "_quote_guard_min_edge" in params
+    assert "min_payout_rate" in params

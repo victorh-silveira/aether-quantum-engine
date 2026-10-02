@@ -107,7 +107,10 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
 
 def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: Any, exec_cfg: dict) -> None:
     """Anexa probabilidade efetiva e piso de edge para quote guard no proposal."""
-    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", True)):
+    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", False)):
+        params.pop("_quote_guard_side_probability", None)
+        params.pop("_quote_guard_min_edge", None)
+        params.pop("min_payout_rate", None)
         return
     cal_prob = metrics.get("calibrated_prob")
     if cal_prob is None:

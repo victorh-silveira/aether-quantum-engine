@@ -126,6 +126,7 @@ def train_model_walkforward(
         label_smooth_bars=label_smooth_bars,
         label_mode=label_mode,
         label_ma_window=label_ma_window,
+        open_=open_,
     )
     delta_train = delta_all[train_sl] if len(delta_all) == len(x_all) else None
     weighting_cfg = parse_sample_weighting_config(dl_config if isinstance(dl_config, dict) else None)

@@ -259,16 +259,15 @@ def should_skip_trend_discord(
         return False
     if bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
         return False
+    if bool((exec_cfg or {}).get("cover_enabled", False)) and _pend_waives(metrics, exec_cfg):
+        return False
     trend = str(metrics.get("trend_direction") or "").strip().upper()
     candle = _closed_candle_dir(metrics)
-    if trend not in _VALID:
+    if trend not in _VALID or exec_dir.name == trend:
         return False
     exec_name = exec_dir.name
-    if exec_name == trend:
-        return False
-    raw_edge = metrics.get("cal_side_edge", metrics.get("edge", 0.0))
     try:
-        edge = float(raw_edge or 0.0)
+        edge = float(metrics.get("cal_side_edge", metrics.get("edge", 0.0)) or 0.0)
     except (TypeError, ValueError):
         edge = 0.0
     try:

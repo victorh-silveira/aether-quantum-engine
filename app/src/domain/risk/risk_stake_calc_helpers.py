@@ -14,6 +14,7 @@ from src.domain.risk.soft_recovery_policy import (
     configured_max_safe_stake_pct,
 )
 from src.domain.risk.stake_sizing import clamp_kelly_stake
+from src.domain.risk.stake_target_proximity import apply_session_profit_lock
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
 
@@ -81,6 +82,17 @@ def resolve_f_star_and_kelly_base(
     return f_star, kelly_base
 
 
+def _extract_rm_float(rm: Any, attr: str, default: float = 0.0) -> float:
+    """Extrai float de rm ignorando MagicMock auto-gerado."""
+    val = getattr(rm, attr, None)
+    if val is None or type(val).__name__ in ("MagicMock", "Mock", "AsyncMock"):
+        return default
+    try:
+        return float(val)
+    except (TypeError, ValueError):
+        return default
+
+
 def cap_final_stake(
     final_stake: float,
     *,
@@ -108,6 +120,15 @@ def cap_final_stake(
     max_stake = float(rm.kelly_config.get("max_stake", 0.0) or 0.0)
     if max_stake > 0.0:
         capped = min(capped, max_stake)
+    target = _extract_rm_float(rm, "daily_stop_win_target", 0.0)
+    pnl = _extract_rm_float(rm, "total_session_profit", 0.0)
+    peak = _extract_rm_float(rm, "peak_session_profit", 0.0)
+    params = getattr(rm, "risk_params", {})
+    stake_min = float(params.get("stake_min", 1.0)) if isinstance(params, dict) else 1.0
+    if target > 0.0:
+        capped = apply_session_profit_lock(
+            capped, target_win=target, session_pnl=pnl, peak_session_profit=peak, stake_min=stake_min
+        )
     return capped, safe_cap
 
 

@@ -19,7 +19,9 @@ from src.application.services.execution_price_action import (
     should_skip_wick_rejection,
 )
 from src.application.services.execution_signal_skips import (
+    _closed_candle_dir,
     _mark_skip,
+    _pend_waives,
     should_skip_neg_edge,
     should_skip_trend_discord,
 )
@@ -76,6 +78,38 @@ def should_skip_tcn_noise_discord(
     return True
 
 
+def should_skip_explosion_discord(
+    metrics: dict[str, Any],
+    exec_dir: TradeDirection,
+    exec_cfg: dict[str, Any] | None = None,
+    *,
+    force: bool = False,
+) -> bool:
+    """Bloqueia ordens contrarias a vela de rompimento em regime de explosao de volatilidade."""
+    if force or bool(metrics.get("loss_clf_flip")) or bool(metrics.get("anti_trend_lock_flip")):
+        return False
+    if exec_cfg is not None and not bool(exec_cfg.get("skip_explosion_discord", True)):
+        return False
+    if _pend_waives(metrics, exec_cfg):
+        return False
+    regime = str(metrics.get("scale_micro_regime") or "").strip().lower()
+    if regime != "explosion":
+        return False
+    candle = _closed_candle_dir(metrics)
+    if not candle or candle == exec_dir.name:
+        return False
+    edge = 0.0
+    try:
+        edge = float(metrics.get("cal_side_edge", metrics.get("edge", 0.0)) or 0.0)
+    except (TypeError, ValueError):
+        edge = 0.0
+    floor = float((exec_cfg or {}).get("explosion_discord_min_edge", 0.08))
+    if edge >= floor:
+        return False
+    _mark_skip(metrics, "explosion_discord", exec_dir=exec_dir.name, candle_dir=candle, edge=float(edge))
+    return True
+
+
 def apply_senior_execution_skips(
     exec_dir: TradeDirection,
     metrics: dict[str, Any],
@@ -92,6 +126,12 @@ def apply_senior_execution_skips(
             return exec_dir, True
         if should_skip_tcn_noise_discord(metrics, exec_dir, exec_cfg, force=force):
             return exec_dir, True
+        if should_skip_explosion_discord(metrics, exec_dir, exec_cfg, force=force):
+            return exec_dir, True
+        if should_skip_trend_discord(metrics, exec_dir, exec_cfg, force=force):
+            candle = _closed_candle_dir(metrics)
+            if candle and candle != exec_dir.name:
+                return exec_dir, True
         return exec_dir, should_skip_neg_edge(metrics, exec_cfg, force=force)
     skips = (
         lambda: should_skip_trend_discord(metrics, exec_dir, exec_cfg, force=force),

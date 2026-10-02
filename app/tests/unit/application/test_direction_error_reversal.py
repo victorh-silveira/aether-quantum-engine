@@ -97,3 +97,25 @@ def test_apply_error_reversal_to_direction():
     dir_res2, flipped2 = apply_error_reversal_to_direction(orch, "1HZ75V", TradeDirection.PUT, {})
     assert flipped2
     assert dir_res2 == TradeDirection.CALL
+
+
+def test_apply_error_reversal_expires_on_stale_cycle():
+    """Verifica que choque de erro e descartado se active_cycle exceder armed_cycle + 1."""
+    orch = SimpleNamespace(
+        _active_cycle_id=15,
+        _pending_alpha_reversal={
+            "1HZ75V": {
+                "brier": 0.4225,
+                "residual": -0.65,
+                "from_dir": "CALL",
+                "target_dir": "PUT",
+                "armed_cycle": 10,
+            }
+        },
+    )
+    metrics = {}
+    dir_res, flipped = apply_error_reversal_to_direction(orch, "1HZ75V", TradeDirection.CALL, metrics)
+    assert not flipped
+    assert dir_res == TradeDirection.CALL
+    assert "1HZ75V" not in orch._pending_alpha_reversal
+    assert "alpha_flip_applied" not in metrics

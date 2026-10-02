@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 from src.application.services.execution_price_action import (
     _resolve_candle_ohlc,
+    compute_candle_wick_ratios,
     should_skip_adverse_tick_flow,
     should_skip_climactic_blowoff,
     should_skip_opposing_marubozu_flow,
@@ -394,3 +395,11 @@ def test_should_skip_opposing_marubozu_pullback_with_trend_passes():
         "edge": 0.025,
     }
     assert should_skip_opposing_marubozu_flow(metrics, TradeDirection.CALL, cfg) is False
+
+
+def test_compute_candle_wick_ratios():
+    assert compute_candle_wick_ratios([]) == (0.0, 0.0)
+    assert compute_candle_wick_ratios([100.0, 100.0, 100.0, 100.0]) == (0.0, 0.0)
+    up, lo = compute_candle_wick_ratios([100.0, 120.0, 90.0, 110.0])
+    assert abs(up - 10.0 / 30.0) < 1e-6
+    assert abs(lo - 10.0 / 30.0) < 1e-6

@@ -35,6 +35,21 @@ def _resolve_candle_ohlc(
     return None
 
 
+def compute_candle_wick_ratios(
+    ohlc: tuple[float, float, float, float] | list[float],
+) -> tuple[float, float]:
+    """Calcula (upper_wick_ratio, lower_wick_ratio) em relacao ao span total."""
+    if len(ohlc) < 4:
+        return 0.0, 0.0
+    o, h, low, c = float(ohlc[0]), float(ohlc[1]), float(ohlc[2]), float(ohlc[3])
+    span = h - low
+    if span <= 1e-12:
+        return 0.0, 0.0
+    upper = (h - max(o, c)) / span
+    lower = (min(o, c) - low) / span
+    return float(max(0.0, upper)), float(max(0.0, lower))
+
+
 def should_skip_wick_rejection(
     metrics: dict[str, Any],
     exec_dir: TradeDirection,

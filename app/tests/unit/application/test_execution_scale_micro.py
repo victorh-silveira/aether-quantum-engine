@@ -74,3 +74,17 @@ def test_classify_defaults_chop_without_mini_pair():
 def test_tick_confirms_handles_bad_flow_values():
     metrics = {"flow_features": {"price_velocity": object(), "micro_tick_acceleration": object()}}
     assert _tick_confirms_side(metrics, "PUT") is False
+
+
+def test_classify_chop_alternating_candles():
+    metrics = {
+        "scale_mini_prev_bar_dir": "CALL",
+        "scale_mini_bar_dir": "PUT",
+        "scale_micro_prev_bar_dir": "CALL",
+        "scale_micro_bar_dir": "PUT",
+        "closed_micro_candle_dir": "PUT",
+    }
+    classify_micro_regime(metrics, "CALL", cfg={})
+    assert metrics["scale_micro_regime"] == "chop"
+    assert metrics["is_candle_alternating"] is True
+    assert metrics["last_closed_candle_side"] == "PUT"

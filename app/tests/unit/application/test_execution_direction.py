@@ -309,7 +309,7 @@ def test_resolve_execution_direction_counter_retraction_alignment():
 
 
 def test_resolve_execution_direction_vetoes_weak_regime_flip():
-    """Verifica que inversao fraca por contra-alinhamento e vetada com SKIP."""
+    """Verifica que inversao fraca por contra-alinhamento e desarmada mantendo direcao original."""
     from types import SimpleNamespace
 
     entry = {
@@ -332,13 +332,14 @@ def test_resolve_execution_direction_vetoes_weak_regime_flip():
     res = resolve_execution_direction(
         entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": True}
     )
-    assert res is None
-    assert entry["metrics"]["signal_status"] == "SKIP:REGIME_CONFLICT"
-    assert entry["metrics"]["gate_reason"] == "regime_conflict"
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics.get("anti_trend_lock_flip") is False
 
 
 def test_resolve_execution_direction_vetoes_weak_consecutive_losses_flip():
-    """Verifica que inversao por perdas consecutivas sem maioria estatistica e vetada."""
+    """Verifica que inversao por perdas consecutivas sem maioria estatistica e desarmada mantendo TCN original."""
     from types import SimpleNamespace
 
     from src.application.services.direction_loss_tracker import get_direction_loss_tracker
@@ -366,9 +367,10 @@ def test_resolve_execution_direction_vetoes_weak_consecutive_losses_flip():
     res = resolve_execution_direction(
         entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": True}
     )
-    assert res is None
-    assert entry["metrics"]["signal_status"] == "SKIP:REGIME_CONFLICT"
-    assert entry["metrics"]["gate_reason"] == "regime_conflict"
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics.get("anti_trend_lock_flip") is False
     tracker.reset()
 
 
@@ -410,4 +412,84 @@ def test_resolve_execution_direction_anti_trend_edge_reflects_real_probability()
 
     assert metrics["cal_side_edge"] == pytest.approx(expected_edge)
     assert metrics["cal_side_edge"] < 0.0
+    tracker.reset()
+
+
+def test_resolve_execution_direction_accepts_trend_aligned_flip():
+    """Verifica que inversao anti-trend-lock a favor da tendencia nao e barrada por veto_weak."""
+    from types import SimpleNamespace
+
+    import pytest
+
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("1HZ75V", "CALL", won=False)
+    tracker.record_outcome("1HZ75V", "CALL", won=False)
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.65,
+            "calibrated_prob": 0.65,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "trend_direction": "PUT",
+            "cal_side_edge": 0.05,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 50.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": True}
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics["anti_trend_lock_flip"] is True
+    assert metrics["conviction"] in (0.55, 0.58)
+    assert metrics["cal_side_edge"] == pytest.approx((0.58 * 1.85) - 1.0)
+    assert metrics["cal_side_edge"] > 0.0
+    tracker.reset()
+
+
+def test_resolve_execution_direction_fast_reversal_on_single_loss():
+    """Verifica inversao imediata na recuperacao apos 1 perda sem insistir no erro."""
+    from types import SimpleNamespace
+
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("1HZ75V", "PUT", won=False)
+
+    entry = {
+        "direction": TradeDirection.PUT,
+        "metrics": {
+            "raw_prob": 0.45,
+            "calibrated_prob": 0.45,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "trend_direction": "PUT",
+            "scale_mini_bar_dir": "PUT",
+            "scale_mini_prev_bar_dir": "PUT",
+            "cal_side_edge": -0.03,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 89.69),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": False}
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert metrics["anti_trend_lock_flip"] is True
     tracker.reset()

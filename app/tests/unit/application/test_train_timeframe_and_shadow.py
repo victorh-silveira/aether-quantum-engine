@@ -13,7 +13,7 @@ def test_resolve_train_timeframe_micro_aliases():
     assert resolve_train_timeframe({"train_timeframe": "micro"}) == "micro"
     assert resolve_train_timeframe({"train_timeframe": "settlement"}) == "micro"
     assert resolve_train_timeframe({"train_timeframe": "macro"}) == "macro"
-    assert resolve_train_timeframe({}) == "macro"
+    assert resolve_train_timeframe({}) == "micro"
 
 
 def test_resolve_dl_granularity_respects_train_timeframe():

@@ -57,6 +57,8 @@ def classify_micro_regime(
     metrics.setdefault("scale_micro_side", None)
     metrics.setdefault("scale_retraction_vs_tcn", False)
     metrics.setdefault("scale_mili_oppose_tcn", False)
+    metrics.setdefault("is_candle_alternating", False)
+    metrics.setdefault("last_closed_candle_side", None)
     if tcn is not None and mili is not None and mili != tcn:
         metrics["scale_mili_oppose_tcn"] = True
     live = mi_curr if mi_curr is not None else mili
@@ -77,6 +79,14 @@ def classify_micro_regime(
             return metrics
     metrics["scale_micro_regime"] = _REGIME_CHOP
     metrics["scale_retraction_vs_tcn"] = False
+    mc_prev = _side(metrics.get("scale_micro_prev_bar_dir"))
+    mc_curr = _side(metrics.get("scale_micro_bar_dir"))
+    candle_closed = _side(metrics.get("closed_micro_candle_dir"))
+    metrics["is_candle_alternating"] = bool(
+        (mi_prev is not None and mi_curr is not None and mi_prev != mi_curr)
+        or (mc_prev is not None and mc_curr is not None and mc_prev != mc_curr)
+    )
+    metrics["last_closed_candle_side"] = candle_closed or mc_curr or mi_curr
     return metrics
 
 

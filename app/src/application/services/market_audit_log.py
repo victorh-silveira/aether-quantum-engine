@@ -24,6 +24,10 @@ from src.application.services.market_audit_log_helpers import (
     resolve_raw_predicted_edge,
     store_contract_audit,
 )
+from src.application.services.market_audit_movement import (
+    format_live_candle_line,
+    format_next_movement_line,
+)
 
 
 __all__ = [
@@ -34,7 +38,9 @@ __all__ = [
     "format_gates_audit_line",
     "format_indicators_audit_line",
     "format_kelly_audit_line",
+    "format_live_candle_line",
     "format_market_summary_line",
+    "format_next_movement_line",
     "format_settlement_audit_line",
     "pop_contract_audit",
     "resolve_cluster_timeframe",

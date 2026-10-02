@@ -43,6 +43,7 @@ class RiskManager(ProposalSkipMixin):
         self.initial_bankroll = 0.0
         self.daily_stop_win_target = 0.0
         self.total_session_profit = 0.0
+        self.peak_session_profit = 0.0
         self.last_result_tick = 0
         self.consecutive_losses_linear = 0
         self.dlambert_unit = 0.0

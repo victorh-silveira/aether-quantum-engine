@@ -60,6 +60,13 @@ def market_veto_reason(
     )
     if extreme and wick >= 0.40:
         return "call_top_rejection" if call else "put_bottom_rejection"
+    exhaustion_turn = (
+        (rsi is not None and rsi >= 0.72 and c < o and (bb is None or bb >= 0.85))
+        if call
+        else (rsi is not None and rsi <= 0.28 and c > o and (bb is None or bb <= 0.15))
+    )
+    if exhaustion_turn:
+        return "call_top_rejection" if call else "put_bottom_rejection"
     opposite = "PUT" if call else "CALL"
     momentum = di is not None and (di <= -0.15 if call else di >= 0.15)
     body_opposite = c < o if call else c > o

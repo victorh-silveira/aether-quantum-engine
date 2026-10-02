@@ -7,11 +7,11 @@ def load_symbol_close_ohlc(
     orch,
     symbol: str,
     *,
-    timeframe: str = "macro",
+    timeframe: str = "micro",
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
     """Retorna close e open/high/low quando o buffer local tem o mesmo comprimento."""
     stream = orch.stream
-    use_micro = str(timeframe).strip().lower() == "micro"
+    use_micro = str(timeframe).strip().lower() != "macro"
     getter = getattr(stream, "get_micro_numpy_series", None) if use_micro else None
     if use_micro and callable(getter):
         close = getter(symbol, "close")

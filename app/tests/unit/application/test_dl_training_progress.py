@@ -51,7 +51,7 @@ def test_train_walkforward_falls_back_identity_when_oos_sharpness_collapses(capl
             "src.application.services.deep_learning.dl_training.fit_calibrator",
             return_value=collapsing,
         ),
-        caplog.at_level(logging.WARNING, logger="AETH"),
+        caplog.at_level(logging.WARNING),
     ):
         result = train_model_walkforward(
             model,
@@ -65,7 +65,7 @@ def test_train_walkforward_falls_back_identity_when_oos_sharpness_collapses(capl
     assert result is not None
     assert result.calibrator.method == "identity"
     assert result.oos_sharpness >= 0.01
-    assert any("usando identity" in r.message for r in caplog.records)
+    assert "usando identity" in caplog.text or any("usando identity" in r.message for r in caplog.records)
 
 
 def test_train_walkforward_reports_progress():
