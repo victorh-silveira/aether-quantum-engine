@@ -1,3 +1,18 @@
+## [4.0.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v3.1.0...v4.0.0) (2026-10-03)
+
+### ⚠ BREAKING CHANGES
+
+* **infra:** expurga os scripts de terminal do monitor legado e
+centraliza a observabilidade no Prometheus e Grafana.
+
+### Funcionalidades
+
+* **infra:** substitui monitor de terminal por telemetria prometheus e grafana ([2e61b50](https://github.com/victorh-silveira/aether-quantum-engine/commit/2e61b5026c981e759657e3c66f72018c74fbbb5b))
+
+### Correcoes de Bug
+
+* **infra:** trata colisao de porta no servidor de metricas do orquestrador ([0dc0077](https://github.com/victorh-silveira/aether-quantum-engine/commit/0dc0077b1a05856454dfe562a0b1ea4a516fc4d0))
+
 ## [3.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v3.0.0...v3.1.0) (2026-10-03)
 
 ### Funcionalidades
