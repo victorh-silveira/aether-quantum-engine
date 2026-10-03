@@ -62,17 +62,17 @@ Arquivo: [`config/settings.json`](config/settings.json)
 
 ## Ambiente híbrido Docker
 
-O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB, MinIO, **meta-regressor** e **loss-classifier** sobem via Docker em `localhost`:
+O motor (`run.py` / `train.py`) roda no host Conda/WSL. Redis, TimescaleDB, MinIO, **meta-regressor**, **loss-classifier**, **Prometheus** e **Grafana** sobem via Docker em `localhost`:
 
 ```bash
 make docker-up
 ```
 
-Pipeline: `host-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,ml`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` → `docker-smoke`. Redis sobe com AOF `everysec`.
+Pipeline: `host-prereq` → `compose up` (profiles `DOCKER_PROFILES`, padrão `core,ml,telemetry`) → wait healthy → `timescale-lifecycle` → `docker-hydrate` → `docker-smoke`. Redis sobe com AOF `everysec`.
 
 | Target | Uso |
 |--------|-----|
-| `make docker-up` | Stack completa (core+ml) |
+| `make docker-up` | Stack completa (core+ml+telemetry) |
 | `make docker-up-core` | Só Redis, Timescale e MinIO |
 | `make docker-rebuild` | Rebuild meta/loss e recarrega pkls (preserva TCN) |
 | `make docker-smoke` | Valida endpoints da stack |

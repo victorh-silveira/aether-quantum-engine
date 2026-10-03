@@ -291,6 +291,13 @@ services:
       - aether_prom_data:/prometheus
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    logging: *aether-logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - aether-net
 
@@ -309,6 +316,13 @@ services:
       - aether_grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+    logging: *aether-logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
     networks:
       - aether-net
 

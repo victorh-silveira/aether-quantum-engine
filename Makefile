@@ -6,11 +6,11 @@ SHELL := /bin/bash
 APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
-DOCKER_PROFILES ?= core,ml
+DOCKER_PROFILES ?= core,ml,telemetry
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= 200
-DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier
+DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier prometheus grafana
 
 define docker_service_name
 $(strip $(or \
@@ -19,6 +19,8 @@ $(strip $(or \
 	$(if $(filter minio aether-minio,$(1)),minio),\
 	$(if $(filter meta meta-classifier aether-meta-classifier,$(1)),aether-meta-classifier),\
 	$(if $(filter loss loss-classifier aether-loss-classifier,$(1)),aether-loss-classifier),\
+	$(if $(filter prom prometheus aether-prometheus,$(1)),prometheus),\
+	$(if $(filter grafana aether-grafana,$(1)),grafana),\
 	$(1)))
 endef
 
@@ -60,7 +62,7 @@ help:
 	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa pre-commit em todos os arquivos"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe a stack completa (core + ml)"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe a stack completa (core + ml + telemetry)"
 	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuilda meta/loss e recarrega pkls (preserva TCN e meta_lgbm)"
 	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
 	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): para e remove containers, redes e volumes da stack"

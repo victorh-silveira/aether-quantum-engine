@@ -105,6 +105,28 @@ if profile_active ml; then
   fi
 fi
 
+if profile_active telemetry; then
+  require_service prometheus Prometheus || true
+  if service_running prometheus; then
+    checked=$((checked + 1))
+    if ! curl -sf "http://127.0.0.1:9090/-/healthy" >/dev/null 2>&1; then
+      smoke_fail "Prometheus" "/-/healthy"
+    else
+      docker_ui_ok "Prometheus"
+    fi
+  fi
+
+  require_service grafana Grafana || true
+  if service_running grafana; then
+    checked=$((checked + 1))
+    if ! curl -sf "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
+      smoke_fail "Grafana" "/api/health"
+    else
+      docker_ui_ok "Grafana"
+    fi
+  fi
+fi
+
 docker_ui_nl
 
 if [ "$fail" -ne 0 ]; then

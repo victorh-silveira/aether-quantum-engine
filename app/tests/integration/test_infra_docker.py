@@ -160,7 +160,7 @@ def test_compose_lib_and_env_example_document_ml_knobs():
     assert "AETHER_TRITON_HTTP" not in env
     assert "AETHER_META_CLASSIFIER_HTTP" in env
     assert "AETHER_LOSS_CLASSIFIER_HTTP" in env
-    assert "DOCKER_PROFILES=core,ml" in env
+    assert "DOCKER_PROFILES=core,ml,telemetry" in env
 
 
 def test_compose_loss_classifier_env_ssot():

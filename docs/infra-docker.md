@@ -29,7 +29,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 
 | Target | Profiles | Quando usar |
 |--------|----------|-------------|
-| `make docker-up` | `core,ml` (padrao) | Stack completa: Redis/TS/MinIO + meta + loss |
+| `make docker-up` | `core,ml,telemetry` (padrao) | Stack completa: Redis/TS/MinIO + meta + loss + Prometheus + Grafana |
 | `make docker-up-core` | `core` | So Redis/TS/MinIO |
 
 Pipeline `docker-up`: `host-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate (1HZ75V micro/macro) → smoke.
@@ -58,7 +58,7 @@ Imagem: Python 3.13-slim, user nao-root `aether`.
 | `AETHER_META_CLASSIFIER_HTTP` | `http://localhost:8005` |
 | `AETHER_LOSS_CLASSIFIER_HTTP` | `http://localhost:8006` |
 | `AETHER_DOCKER_HEALTH_TIMEOUT` | `300` |
-| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,ml` |
+| `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,ml,telemetry` |
 
 Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.meta_classifier`, `infra.loss_classifier` — sempre **localhost** no hibrido.
 
