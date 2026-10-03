@@ -9,58 +9,49 @@
   "panels": [
     {
       "collapsed": false,
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
       "id": 1,
-      "title": "Banca Operacional (USD)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_trading_balance_usd",
-          "legendFormat": "Banca ($)",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
-      "id": 2,
-      "title": "PnL Acumulado (USD)",
+      "title": "Saldo da Conta ($)",
       "type": "stat",
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_trading_pnl_usd",
-          "legendFormat": "PnL ($)",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
-      "id": 3,
-      "title": "Calibração (Brier Score Móvel)",
-      "type": "gauge",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_trading_brier_score",
-          "legendFormat": "Brier Score",
+          "expr": "aether_session_balance_usd",
+          "legendFormat": "Saldo ($)",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 0.5,
+          "color": { "mode": "palette-classic" },
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
+      "id": 2,
+      "title": "Lucro da Sessão ($)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_profit_usd",
+          "legendFormat": "Lucro ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "currencyUSD",
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.2 },
-              { "color": "red", "value": 0.25 }
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 0.01 }
             ]
           }
         }
@@ -68,9 +59,330 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 0 },
+      "id": 3,
+      "title": "ROI da Sessão (%)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_roi_pct",
+          "legendFormat": "ROI (%)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0 },
+              { "color": "green", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 0 },
       "id": 4,
-      "title": "Contratos Executados por Resultado (WIN / LOSS)",
+      "title": "Progresso Stop-Win",
+      "type": "gauge",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_progress_pct",
+          "legendFormat": "Meta (%)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 100,
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "green", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 0 },
+      "id": 5,
+      "title": "Meta Stop-Win ($)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_target_win_usd",
+          "legendFormat": "Alvo ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 0 },
+      "id": 6,
+      "title": "Saldo Alvo Final ($)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_target_balance_usd",
+          "legendFormat": "Alvo Final ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "super-light-blue" },
+          "unit": "currencyUSD"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 0 },
+      "id": 7,
+      "title": "Faltando para Meta ($)",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_remaining_usd",
+          "legendFormat": "Restante ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "unit": "currencyUSD",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 0 },
+      "id": 8,
+      "title": "Trades Ativos",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_active_trades",
+          "legendFormat": "Ativos",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "blue", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 4 },
+      "id": 9,
+      "title": "Trajetória de Banca e Alvo Stop-Win",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_balance_usd",
+          "legendFormat": "Saldo Atual",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_target_balance_usd",
+          "legendFormat": "Saldo Alvo",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_start_balance_usd",
+          "legendFormat": "Banca Inicial",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 4 },
+      "id": 10,
+      "title": "Curva de Lucro da Sessão (USD)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_profit_usd",
+          "legendFormat": "Lucro ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "gradientMode": "opacity",
+            "fillOpacity": 20
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "id": 11,
+      "title": "Radar Inferencial — Probabilidades TCN",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_inference_prob",
+          "legendFormat": "Prob Raw ({{symbol}})",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_inference_calibrated",
+          "legendFormat": "Prob Calibrada ({{symbol}})",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_inference_conviction",
+          "legendFormat": "Convicção ({{symbol}})",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "id": 12,
+      "title": "Edge e Margem Direcional",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_inference_directional_margin",
+          "legendFormat": "Margem Direcional",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_inference_payoff_edge",
+          "legendFormat": "Payoff Edge (Meta)",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "id": 13,
+      "title": "Loss Classifier & Proteções (FLIP / Anti-Trend)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_loss_classifier_p_eff",
+          "legendFormat": "P(Eficaz)",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_loss_classifier_p_loss",
+          "legendFormat": "P(Loss)",
+          "refId": "B"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_loss_classifier_flip_active",
+          "legendFormat": "FLIP Ativo (1/0)",
+          "refId": "C"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_anti_trend_lock_active",
+          "legendFormat": "Anti-Trend Lock (1/0)",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
+      "id": 14,
+      "title": "Contratos Executados (WIN / LOSS)",
       "type": "barchart",
       "targets": [
         {
@@ -83,8 +395,8 @@
     },
     {
       "collapsed": false,
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "id": 5,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
+      "id": 15,
       "title": "Vereditos dos Gates de Decisão (EXEC vs SKIP)",
       "type": "piechart",
       "targets": [
@@ -95,16 +407,39 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
+      "id": 16,
+      "title": "Stake Executada por Ordem (USD)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_trading_stake_usd",
+          "legendFormat": "Stake ($)",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "custom": {
+            "lineWidth": 2
+          }
+        }
+      }
     }
   ],
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["aether", "trading", "m5", "quant"],
+  "tags": ["aether", "trading", "m5", "quant", "telemetry"],
   "time": { "from": "now-6h", "to": "now" },
   "timepicker": { "refresh_intervals": ["1s", "5s", "10s", "30s", "1m"] },
   "timezone": "browser",
-  "title": "Aether Quantum Engine — Métricas de Negócio M5 (1HZ75V)",
+  "title": "Aether Quantum Engine — Telemetria de Negócio & Radar M5 (1HZ75V)",
   "uid": "aether-business-m5",
-  "version": 1
+  "version": 2
 }

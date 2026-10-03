@@ -14,7 +14,6 @@ Mapa SSOT das fontes de log. Contrato normativo: [`engineering-observability.md`
 | SETTLE | `settle_log.py` + orquestrador | `SETTLE.{canal}:` | rate-limit por canal+tick |
 | Scripts treino | `train_meta_*`, `check_dl_deploy_gate` | logger `AETH.meta` / `AETH.train` | sem print no caminho critico |
 | Scripts QA | `clean_workspace.py` | `print` (~22) | fora do escopo de polimento live |
-| Monitor | `live_monitor.py` | logger `MONITOR` | parseia `[CLUSTER]` em `engine.log` |
 | Infra meta | `infra/docker/meta-classifier/app.py` | ~18 logs | sidecar; inventario apenas |
 
 ## Hotspots runtime (poluicao historica)
@@ -35,10 +34,9 @@ Mapa SSOT das fontes de log. Contrato normativo: [`engineering-observability.md`
 | `AETH.meta` | treino meta offline |
 | `AETH.train` | gate deploy DL / scripts de treino pontuais |
 | `AETH.ops` | ensure_timescale e ops auxiliares |
-| `MONITOR` | live_monitor (arquivo dedicado) |
 
-## Fora de escopo deste inventario operacional
+## Telemetria nativa
 
-- OpenTelemetry / Prometheus
-- JSON puro (quebraria regex do monitor)
-- Migrar `print` de `clean_workspace.py`
+- OpenTelemetry / Prometheus embutido (:9100 no host, :9090 Prometheus)
+- Dashboards Grafana provisionados (:3000)
+- Migrar `print` de `clean_workspace.py` fora de escopo operacional

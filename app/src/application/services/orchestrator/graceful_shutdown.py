@@ -148,6 +148,12 @@ async def close_infrastructure_connections(orch: Any) -> None:
     infra = getattr(orch, "infra", None)
     if infra is not None:
         await close_infra_services(infra)
+    ms = getattr(orch, "metrics_server", None)
+    if ms is not None and hasattr(ms, "stop"):
+        with contextlib.suppress(Exception):
+            stop_res = ms.stop()
+            if asyncio.iscoroutine(stop_res):
+                await stop_res
     ws = getattr(orch, "ws", None)
     if ws is not None:
         try:

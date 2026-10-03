@@ -31,6 +31,7 @@ from src.application.services.orchestrator.settlement_backfill import reconcile_
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.trading_cycle_entry_guards import trading_cycle_entry_allowed
 from src.application.services.orchestrator.training_run import run_orchestrator_training
+from src.application.services.quant_metrics_collector import QuantMetricsCollector
 from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
@@ -41,6 +42,8 @@ from src.infrastructure.state.json_state_store import JsonStateStore
 from src.infrastructure.state.persistence_manager import PersistenceManager
 from src.infrastructure.state.state_manager import StateManager
 from src.infrastructure.state.trading_state import TradingState
+from src.infrastructure.telemetry.metrics_server import MetricsServer
+from src.infrastructure.telemetry.otel_business_instrumentor import BusinessMetricsInstrumentor
 
 
 class Orchestrator:
@@ -105,6 +108,15 @@ class Orchestrator:
         self._streams_ever_started = False
         self._ingestion_watchdog = None
         self._profit_table_audit_task: asyncio.Task | None = None
+        self.quant_collector = QuantMetricsCollector()
+        self.business_metrics = BusinessMetricsInstrumentor()
+        m_cfg = config.get("telemetry", {}).get("metrics", {}) if isinstance(config, dict) else {}
+        self.metrics_server = MetricsServer(
+            self.quant_collector,
+            instrumentor=self.business_metrics,
+            host=str(m_cfg.get("host", "127.0.0.1")),
+            port=int(m_cfg.get("port", 9100)),
+        )
 
     @property
     def loss_tracker(self) -> DirectionLossTracker:

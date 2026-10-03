@@ -26,11 +26,8 @@ if "%CONDA_ACTIVATE%"=="" (
 echo [AETHER] Iniciando Infraestrutura Aether Engine (MODO DEMO)...
 cd /d "%REPO_ROOT%"
 
-start "AETHER MONITOR" cmd /k ""%~dp0_run_monitor.bat" "%CONDA_ACTIVATE%""
-timeout /t 3 /nobreak > nul
-
 start "AETHER DEMO" cmd /k ""%~dp0_run_engine.bat" "%CONDA_ACTIVATE%""
 
-echo [OK] Monitor e motor DEMO em execucao.
+echo [OK] Motor DEMO em execucao. Acompanhe a telemetria no Grafana: http://localhost:3000
 timeout /t 3 /nobreak > nul
 exit /b 0

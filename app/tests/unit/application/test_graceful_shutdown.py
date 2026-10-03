@@ -177,3 +177,36 @@ async def test_stop_orchestrator_delegates_shutdown():
     ) as close_mock:
         await stop_orchestrator(orch)
     close_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_close_infrastructure_stops_metrics_server_coroutine():
+    orch = MagicMock()
+    orch._infra_shutdown_done = False
+    orch.running = True
+    orch.config = {"infra": {}}
+    orch.infra = None
+    orch.ws = AsyncMock()
+
+    class AsyncMetricsServer:
+        def __init__(self):
+            self.stopped = False
+
+        async def stop(self):
+            self.stopped = True
+
+    ms = AsyncMetricsServer()
+    orch.metrics_server = ms
+    with (
+        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
+            new_callable=AsyncMock,
+        ),
+        patch(
+            "src.application.services.orchestrator.graceful_shutdown.clear_current_session_redis_keys",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await close_infrastructure_connections(orch)
+    assert ms.stopped is True

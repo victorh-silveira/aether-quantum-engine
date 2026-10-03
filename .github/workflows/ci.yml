@@ -55,10 +55,6 @@ jobs:
           fetch-tags: true
       - name: Setup Python
         uses: ./.github/actions/ci/setup-python
-      - name: Liberar espaco em disco no runner
-        shell: bash
-        run: |
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/powershell /usr/share/swift || true
       - name: Instalar Gitleaks
         shell: bash
         run: |
@@ -149,7 +145,10 @@ jobs:
           install_app_deps: "false"
       - name: Instalar shellcheck
         shell: bash
-        run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+        run: |
+          if ! command -v shellcheck >/dev/null 2>&1; then
+            sudo apt-get update -y && sudo apt-get install -y shellcheck
+          fi
       - name: Shell | Lint
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area shell --stage lint
@@ -184,6 +183,10 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - name: Rust | Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/aether_core
       - name: Rust | Lint
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area rust --stage lint

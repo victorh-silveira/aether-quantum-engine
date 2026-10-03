@@ -96,7 +96,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Sweep horizonte N / promote | `docs/engineering-deep-learning.md` (secao Sweep) + skill `aether-dl-train` |
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Endurecimento Compose / Redis / Timescale / MinIO | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
-| Launch-train / sanitize / monitores | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
+| Launch-train / sanitize / telemetria | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + `.github/README.md` + skill `aether-precommit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` (WS max_size/ping, httpx singleton, Polars, MinIO `to_thread`) |

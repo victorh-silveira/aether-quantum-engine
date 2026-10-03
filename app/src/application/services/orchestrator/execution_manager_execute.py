@@ -157,6 +157,15 @@ async def execute_cluster_orders(
                     order_n=order_n,
                     contract_id=int(res.contract_id),
                 )
+                bm = getattr(executor.orch, "business_metrics", None)
+                if bm is not None:
+                    bm.update_active_contracts_count(len(executor.orch.risk_manager.active_contract_ids))
+                    bm.record_inference_radar(
+                        symbol=str(symbol),
+                        direction=direction.name,
+                        stake=executed_stake,
+                        metrics=order_metrics,
+                    )
                 executed_count += 1
         except Exception as e:
             if handle_broker_maintenance_error(executor.orch, e):

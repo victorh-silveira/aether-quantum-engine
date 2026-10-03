@@ -25,14 +25,14 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 
 | Tag | Nivel tipico | Frequencia | Consumidor |
 |-----|--------------|------------|------------|
-| CLUSTER / GATES / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, live_monitor |
+| CLUSTER / GATES / KELLY / EXEC* / RESOLVED | INFO | ≤1/ciclo (dedupe) | session-review, telemetria Prometheus |
 | SETTLE.{canal} | INFO em estado; DEBUG se quiet | rate-limit canal+tick | settlement-debug |
 | WSS / AUTH / MINIO | INFO no boot; DEBUG em reconexao (exceto AVISO/ERRO) | evento | deriv-connect / infra |
 | RECOV (restaurado / ciclo liberado) | INFO | reconexao | cycle-debug |
 | CICLO pos-liq / SRE / RECONCILE portfolio | DEBUG | rotina settle | settlement-debug |
 | EXECUTION_FLOW / WARMUP | INFO se mudou; quiet → DEBUG | dedupe | cycle-debug |
 
-Prefixo opcional de correlacao: `[cN|SYM]` (nao quebra regex `[CLUSTER]` do monitor).
+Prefixo opcional de correlacao: `[cN|SYM]`.
 
 ## Tags tipicas do ciclo
 

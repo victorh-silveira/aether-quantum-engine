@@ -99,3 +99,80 @@ def test_business_metrics_instrumentor_reload_with_mock(monkeypatch):
     monkeypatch.delitem(sys.modules, "opentelemetry.metrics", raising=False)
     monkeypatch.delitem(sys.modules, "opentelemetry", raising=False)
     importlib.reload(otel_mod)
+
+
+def test_business_metrics_instrumentor_session_targets_and_financials():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.set_session_targets(100.0, 4.31)
+    instrumentor.update_balance(102.15)
+    instrumentor.update_active_contracts_count(2)
+
+    payload = instrumentor.format_prometheus_metrics()
+    assert "aether_session_start_balance_usd 100.0" in payload
+    assert "aether_session_target_win_usd 4.31" in payload
+    assert "aether_session_balance_usd 102.15" in payload
+    assert "aether_session_target_balance_usd 104.31" in payload
+    assert "aether_session_profit_usd 2.15" in payload
+    assert "aether_session_remaining_usd 2.16" in payload
+    assert "aether_session_active_trades 2" in payload
+    assert "aether_session_progress_pct" in payload
+    assert "aether_session_roi_pct" in payload
+
+
+def test_business_metrics_instrumentor_inference_radar():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_inference_radar(
+        symbol="1HZ75V",
+        direction="CALL",
+        stake=1.50,
+        metrics={
+            "prob": 0.62,
+            "calibrated_prob": 0.58,
+            "directional_margin": 0.08,
+            "payoff_edge": 0.045,
+            "conviction": 0.70,
+            "p_loss": 0.35,
+            "p_eff": 0.65,
+            "loss_clf_flip": True,
+            "anti_trend_lock_active": False,
+        },
+    )
+
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_trading_direction{symbol="1HZ75V"} 1' in payload
+    assert 'aether_trading_stake_usd{symbol="1HZ75V"} 1.5' in payload
+    assert 'aether_inference_prob{symbol="1HZ75V"} 0.62' in payload
+    assert 'aether_inference_calibrated{symbol="1HZ75V"} 0.58' in payload
+    assert 'aether_inference_directional_margin{symbol="1HZ75V"} 0.08' in payload
+    assert 'aether_inference_payoff_edge{symbol="1HZ75V"} 0.045' in payload
+    assert 'aether_inference_conviction{symbol="1HZ75V"} 0.7' in payload
+    assert 'aether_loss_classifier_p_loss{symbol="1HZ75V"} 0.35' in payload
+    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"} 0.65' in payload
+    assert 'aether_loss_classifier_flip_active{symbol="1HZ75V"} 1' in payload
+    assert 'aether_anti_trend_lock_active{symbol="1HZ75V"} 0' in payload
+
+
+def test_business_metrics_instrumentor_radar_put_and_empty_metrics():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_inference_radar(
+        symbol="1HZ75V",
+        direction="PUT",
+        stake=2.0,
+        metrics={},
+    )
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_trading_direction{symbol="1HZ75V"} -1' in payload
+    assert 'aether_trading_stake_usd{symbol="1HZ75V"} 2.0' in payload
+
+
+def test_business_metrics_instrumentor_flat_and_trade_variants():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_inference_radar(
+        symbol="1HZ75V",
+        direction="FLAT",
+        stake_usd=0.0,
+    )
+    instrumentor.record_trade(won=False, profit=-10.0, stake=10.0)
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_trading_direction{symbol="1HZ75V"} 0.0' in payload
+    assert 'aether_trading_contracts_total{symbol="1HZ75V",direction="CALL",outcome="LOSS"} 1' in payload

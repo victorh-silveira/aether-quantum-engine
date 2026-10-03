@@ -163,7 +163,7 @@ Logs em `logs/engine.log` (formato `AetherFormatter`):
 
 Mensagens repetidas são deduplicadas (`log_dedupe`, `CooldownDeduplicationFilter`). Cada ciclo e bloco de treino são separados por linha em branco.
 
-Monitor opcional: `python app/scripts/monitor/live_monitor.py`
+Telemetria nativa: Prometheus em `http://localhost:9090` e painéis analíticos no Grafana em `http://localhost:3000`.
 
 ---
 

@@ -14,7 +14,6 @@ aether-quantum-engine/
 │   ├── requirements-dev.txt
 │   ├── scripts/
 │   │   ├── batch/                      # launch-all-demo, launch-train(.bat/.sh), _run_*
-│   │   ├── monitor/                    # live_monitor, monitor_redis, monitor_state, monitor_ui
 │   │   ├── operations/                 # clean_workspace, deriv_pat_connect, train_meta_*
 │   │   └── wsl/setup.sh
 │   ├── src/                            # 246 módulos Python (DDD)
@@ -429,10 +428,6 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
 | `batch/launch-train.bat` | Launcher treino Windows: sanitize → sweep H15–H60 + promote → gate → Timescale → meta (logs densos) |
 | `wsl/launch-train-wsl.sh` | Mesmo pipeline via WSL (python Conda `deriv-api` no host Windows) |
-| `monitor/live_monitor.py` | Monitor Rich ao vivo |
-| `monitor/monitor_redis.py` | Inspeção Redis |
-| `monitor/monitor_state.py` | Inspeção de estado |
-| `monitor/monitor_ui.py` | UI de monitoramento |
 | `operations/clean_workspace.py` | Matriz QA `--area/--stage` (python, docker, shell; JSON/YAML via `--config-text json|yaml`) |
 | `operations/qa/` | Gates docker/shell e validacao JSON/YAML do job Python |
 | `operations/sanitize_fresh_run.py` | Limpa checkpoints/artefactos da run anterior |

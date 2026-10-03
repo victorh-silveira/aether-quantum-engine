@@ -39,6 +39,10 @@ async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> No
     orch.risk_manager.daily_stop_win_target = float(target_win)
     orch.risk_manager.total_session_profit = 0.0
     orch._session_targets_bootstrapped = True
+    bm = getattr(orch, "business_metrics", None)
+    if bm is not None:
+        bm.set_session_targets(start_balance, target_win)
+        bm.update_balance(start_balance)
     if swm.is_small_account(start_balance):
         orch.logger.info(
             "SESSAO INICIADA | Alvo fixo micro-banca: $%.2f | Stop Loss: DESATIVADO | banca=$%.2f",
@@ -78,6 +82,9 @@ async def restore_current_session_targets(orch: Any) -> None:
     if hasattr(orch, "risk_manager"):
         orch.risk_manager.initial_bankroll = start_balance
         orch.risk_manager.daily_stop_win_target = target_win
+    bm = getattr(orch, "business_metrics", None)
+    if bm is not None:
+        bm.set_session_targets(start_balance, target_win)
     await _restore_dlambert_session_keys(orch, store)
 
 

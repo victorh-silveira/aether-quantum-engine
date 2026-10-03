@@ -171,6 +171,12 @@ def process_contract_outcome(
         orch._last_loss_symbol = sym
         orch._last_loss_direction = dir_name or ""
 
+    bm = getattr(orch, "business_metrics", None)
+    if bm is not None:
+        bm.record_trade(profit=float(profit), stake=float(executed_buy), won=bool(profit >= 0.0))
+        bm.update_balance(float(orch.state.balance))
+        bm.update_active_contracts_count(len(orch.risk_manager.active_contract_ids))
+
     if not orch.risk_manager.active_contract_ids:
         log_cluster_summary(orch)
 

@@ -23,6 +23,9 @@ class BusinessMetricsInstrumentor:
         """Inicializa medidores compativeis com OpenTelemetry e buffers locais."""
         self._service_name = service_name
         self._current_balance: float = 0.0
+        self._session_start_balance: float = 0.0
+        self._session_target_win: float = 0.0
+        self._active_contracts_count: int = 0
         self._total_pnl: float = 0.0
         self._high_water_mark: float = 0.0
         self._max_drawdown_pct: float = 0.0
@@ -30,6 +33,7 @@ class BusinessMetricsInstrumentor:
         self._recent_outcomes: list[int] = []
         self._contract_counts: dict[tuple[str, str, str], int] = {}
         self._gate_verdicts: dict[tuple[str, str, str], int] = {}
+        self._radar: dict[str, dict[str, float]] = {}
 
         self._meter = None
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:
@@ -43,6 +47,17 @@ class BusinessMetricsInstrumentor:
     def is_otel_sdk_available() -> bool:
         """Indica se a biblioteca oficial OpenTelemetry Metrics esta instalada."""
         return _OTEL_SDK_AVAILABLE
+
+    def set_session_targets(self, start_balance: float, target_win: float) -> None:
+        """Define o saldo de abertura e a meta de stop win financeiro da sessao."""
+        self._session_start_balance = float(start_balance)
+        self._session_target_win = float(target_win)
+        if self._current_balance <= 0.0 and self._session_start_balance > 0.0:
+            self.update_balance(self._session_start_balance)
+
+    def update_active_contracts_count(self, count: int) -> None:
+        """Atualiza contagem instantanea de contratos em aberto no broker."""
+        self._active_contracts_count = max(0, int(count))
 
     def update_balance(self, balance_usd: float) -> None:
         """Atualiza a banca operacional e recalcula o drawdown instantaneo."""
@@ -68,34 +83,89 @@ class BusinessMetricsInstrumentor:
         key = (str(symbol), verdict, clean_reason)
         self._gate_verdicts[key] = self._gate_verdicts.get(key, 0) + 1
 
-    def record_trade(
+    def record_inference_radar(
         self,
         symbol: str,
-        direction: str,
         *,
-        is_win: bool,
-        profit_usd: float,
-        predicted_prob: float,
+        prob: float = 0.5,
+        cal: float = 0.5,
+        margin: float = 0.0,
+        edge: float = 0.0,
+        conviction: float = 0.0,
+        p_loss: float = 0.5,
+        p_eff: float = 0.5,
+        is_flip: bool = False,
+        anti_trend_lock: bool = False,
+        direction: str = "FLAT",
+        stake_usd: float = 0.0,
+        stake: float | None = None,
+        metrics: dict | None = None,
+    ) -> None:
+        """Armazena snapshot inferencial e de risco do ultimo ciclo para o radar Grafana."""
+        if metrics is not None:
+            prob = float(metrics.get("prob", prob))
+            cal = float(metrics.get("calibrated_prob", metrics.get("cal", cal)))
+            margin = float(metrics.get("directional_margin", metrics.get("margin", margin)))
+            edge = float(metrics.get("payoff_edge", metrics.get("edge", edge)))
+            conviction = float(metrics.get("conviction", conviction))
+            p_loss = float(metrics.get("p_loss", p_loss))
+            p_eff = float(metrics.get("p_eff", p_eff))
+            is_flip = bool(metrics.get("loss_clf_flip", metrics.get("is_flip", is_flip)))
+            anti_trend_lock = bool(
+                metrics.get("anti_trend_lock_active", metrics.get("anti_trend_lock", anti_trend_lock))
+            )
+        if stake is not None:
+            stake_usd = float(stake)
+
+        dir_upper = str(direction).upper()
+        dir_val = 1.0 if dir_upper == "CALL" else (-1.0 if dir_upper == "PUT" else 0.0)
+        self._radar[str(symbol)] = {
+            "prob": float(prob),
+            "cal": float(cal),
+            "margin": float(margin),
+            "edge": float(edge),
+            "conviction": float(conviction),
+            "p_loss": float(p_loss),
+            "p_eff": float(p_eff),
+            "is_flip": 1.0 if is_flip else 0.0,
+            "anti_trend_lock": 1.0 if anti_trend_lock else 0.0,
+            "direction_num": dir_val,
+            "stake_usd": float(stake_usd),
+        }
+
+    def record_trade(
+        self,
+        symbol: str = "1HZ75V",
+        direction: str = "CALL",
+        *,
+        is_win: bool | None = None,
+        won: bool | None = None,
+        profit_usd: float | None = None,
+        profit: float | None = None,
+        predicted_prob: float = 0.5,
+        stake: float = 0.0,
     ) -> None:
         """Registra liquidacao contratual atualizando PnL e Brier Score de negocio."""
-        outcome = "WIN" if is_win else "LOSS"
+        _ = stake
+        win = is_win if is_win is not None else (won if won is not None else True)
+        pnl = float(profit_usd if profit_usd is not None else (profit if profit is not None else 0.0))
+        outcome = "WIN" if win else "LOSS"
         dir_name = str(direction).upper()
         sym_name = str(symbol)
         key = (sym_name, dir_name, outcome)
         self._contract_counts[key] = self._contract_counts.get(key, 0) + 1
 
-        pnl = float(profit_usd)
         self._total_pnl += pnl
         self.update_balance(self._current_balance + pnl)
 
         self._recent_probs.append(max(0.0, min(1.0, float(predicted_prob))))
-        self._recent_outcomes.append(1 if is_win else 0)
+        self._recent_outcomes.append(1 if win else 0)
         if len(self._recent_outcomes) > 20:
             self._recent_probs.pop(0)
             self._recent_outcomes.pop(0)
 
     def compute_rolling_brier_score(self) -> float:
-        """Calcula o Brier Score de calibração sobre os últimos 20 contratos."""
+        """Calcula o Brier Score de calibracao sobre os ultimos 20 contratos."""
         if not self._recent_outcomes:
             return 0.0
         sq_errors = [(p - y) ** 2 for p, y in zip(self._recent_probs, self._recent_outcomes, strict=False)]
@@ -103,12 +173,45 @@ class BusinessMetricsInstrumentor:
 
     def format_prometheus_metrics(self) -> str:
         """Serializa todas as metricas de negocio no formato OpenMetrics com labels semanticos."""
+        target_bal = self._session_start_balance + self._session_target_win
+        profit = (
+            (self._current_balance - self._session_start_balance)
+            if self._session_start_balance > 0.0
+            else self._total_pnl
+        )
+        rem = max(0.0, self._session_target_win - profit)
+        prog = (
+            min(100.0, max(0.0, (profit / self._session_target_win * 100.0))) if self._session_target_win > 0.0 else 0.0
+        )
+        roi = (profit / self._session_start_balance * 100.0) if self._session_start_balance > 0.0 else 0.0
         lines: list[str] = [
             f"aether_trading_balance_usd {round(self._current_balance, 2)}",
+            f"aether_session_balance_usd {round(self._current_balance, 2)}",
             f"aether_trading_pnl_usd {round(self._total_pnl, 4)}",
             f"aether_trading_max_drawdown_pct {round(self._max_drawdown_pct, 2)}",
             f"aether_trading_brier_score {round(self.compute_rolling_brier_score(), 4)}",
+            f"aether_session_start_balance_usd {round(self._session_start_balance, 2)}",
+            f"aether_session_profit_usd {round(profit, 4)}",
+            f"aether_session_target_win_usd {round(self._session_target_win, 2)}",
+            f"aether_session_target_balance_usd {round(target_bal, 2)}",
+            f"aether_session_remaining_usd {round(rem, 2)}",
+            f"aether_session_progress_pct {round(prog, 2)}",
+            f"aether_session_roi_pct {round(roi, 2)}",
+            f"aether_session_active_trades {self._active_contracts_count}",
         ]
+
+        for sym, data in self._radar.items():
+            lines.append(f'aether_inference_prob{{symbol="{sym}"}} {round(data["prob"], 4)}')
+            lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(data["cal"], 4)}')
+            lines.append(f'aether_inference_directional_margin{{symbol="{sym}"}} {round(data["margin"], 4)}')
+            lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(data["edge"], 4)}')
+            lines.append(f'aether_inference_conviction{{symbol="{sym}"}} {round(data["conviction"], 4)}')
+            lines.append(f'aether_loss_classifier_p_loss{{symbol="{sym}"}} {round(data["p_loss"], 4)}')
+            lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(data["p_eff"], 4)}')
+            lines.append(f'aether_loss_classifier_flip_active{{symbol="{sym}"}} {int(data["is_flip"])}')
+            lines.append(f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(data["anti_trend_lock"])}')
+            lines.append(f'aether_trading_direction{{symbol="{sym}"}} {round(data["direction_num"], 1)}')
+            lines.append(f'aether_trading_stake_usd{{symbol="{sym}"}} {round(data["stake_usd"], 2)}')
 
         for (sym, direction, outcome), count in self._contract_counts.items():
             line = (
@@ -121,3 +224,6 @@ class BusinessMetricsInstrumentor:
             lines.append(line)
 
         return "\n".join(lines) + "\n"
+
+
+OtelBusinessInstrumentor = BusinessMetricsInstrumentor
