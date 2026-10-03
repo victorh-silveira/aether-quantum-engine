@@ -79,9 +79,9 @@ def run_rust(stage: str, root: Path) -> None:
 
     if stage == "test":
         run_cmd(
-            [cargo, "test", "--manifest-path", str(manifest)],
+            [cargo, "test", "--manifest-path", str(manifest), "--no-default-features"],
             cwd=root,
-            description="cargo test",
+            description="cargo test --no-default-features",
             env=rust_env,
         )
         return

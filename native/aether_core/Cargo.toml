@@ -5,8 +5,13 @@ edition = "2021"
 
 [lib]
 name = "aether_core_rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-pyo3 = { version = "0.20.3", features = ["extension-module", "abi3-py38"] }
+pyo3 = { version = "0.20.3", features = ["abi3-py38"] }
+
+[features]
+default = ["extension-module"]
+extension-module = ["pyo3/extension-module"]
+
 
