@@ -48,9 +48,22 @@ def require_tool(name: str, *, area: str) -> str | None:
     return None
 
 
-def run_cmd(command: list[str], *, cwd: Path, description: str) -> None:
+def run_cmd(
+    command: list[str],
+    *,
+    cwd: Path,
+    description: str,
+    env: dict[str, str] | None = None,
+) -> None:
     """Executa comando e propaga codigo de saida diferente de zero."""
     print(f"\n>>> Executando: {description}")
-    completed = subprocess.run(command, check=False, text=True, cwd=str(cwd), shell=False)
+    completed = subprocess.run(
+        command,
+        check=False,
+        text=True,
+        cwd=str(cwd),
+        shell=False,
+        env=env,
+    )
     if completed.returncode != 0:
         raise subprocess.CalledProcessError(completed.returncode, command)

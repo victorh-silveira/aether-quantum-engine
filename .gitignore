@@ -86,3 +86,7 @@ dist/
 *.feather
 *.ipynb
 research/
+
+# ---- RUST: ARTEFATOS DE COMPILACAO ----
+target/
+**/target/

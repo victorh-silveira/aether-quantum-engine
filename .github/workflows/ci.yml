@@ -171,6 +171,8 @@ jobs:
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
     steps:
       - name: Obter codigo fonte
         uses: actions/checkout@v4

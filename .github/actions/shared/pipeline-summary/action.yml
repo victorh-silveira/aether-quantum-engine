@@ -7,6 +7,8 @@ inputs:
     required: true
   shell:
     required: true
+  rust:
+    required: true
   workflows:
     required: true
   release:
@@ -31,6 +33,7 @@ runs:
           echo "| Python | ${{ inputs.python }} |"
           echo "| Docker | ${{ inputs.docker }} |"
           echo "| Shell | ${{ inputs.shell }} |"
+          echo "| Rust | ${{ inputs.rust }} |"
           echo "| Workflows | ${{ inputs.workflows }} |"
           echo "| Release | ${{ inputs.release }} |"
           echo ""
@@ -40,3 +43,4 @@ runs:
             echo "Nenhuma tag nova neste push."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
+

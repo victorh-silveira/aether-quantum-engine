@@ -1,3 +1,5 @@
+#![allow(non_local_definitions)]
+
 use pyo3::prelude::*;
 
 #[pyclass]
@@ -78,4 +80,48 @@ fn aether_core_rs(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<RustRingBuffer>()?;
     m.add_function(wrap_pyfunction!(compute_realized_volatility_rust, m)?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ring_buffer_invalid_capacity() {
+        assert!(RustRingBuffer::new(0).is_err());
+        assert!(RustRingBuffer::new(3).is_err());
+        assert!(RustRingBuffer::new(100).is_err());
+    }
+
+    #[test]
+    fn test_ring_buffer_push_and_query() {
+        let mut buf = RustRingBuffer::new(4).expect("valid power of 2");
+        assert_eq!(buf.count(), 0);
+        assert_eq!(buf.latest_tick(), None);
+
+        buf.push_tick(1000, 10.5);
+        assert_eq!(buf.count(), 1);
+        assert_eq!(buf.latest_tick(), Some((1000, 10.5)));
+
+        buf.push_tick(2000, 11.0);
+        assert_eq!(buf.count(), 2);
+        assert_eq!(buf.latest_tick(), Some((2000, 11.0)));
+
+        buf.clear();
+        assert_eq!(buf.count(), 0);
+        assert_eq!(buf.latest_tick(), None);
+    }
+
+    #[test]
+    fn test_realized_volatility() {
+        assert_eq!(compute_realized_volatility_rust(vec![]), 0.0);
+        assert_eq!(compute_realized_volatility_rust(vec![10.0]), 0.0);
+
+        let prices = vec![10.0, 10.0, 10.0];
+        assert_eq!(compute_realized_volatility_rust(prices), 0.0);
+
+        let prices = vec![100.0, 110.0];
+        let vol = compute_realized_volatility_rust(prices);
+        assert!(vol > 0.0);
+    }
 }

@@ -1,5 +1,6 @@
 """Gates de qualidade para o crate Rust nativo aether_core_rs."""
 
+import os
 from pathlib import Path
 
 from scripts.operations.qa.common import require_tool, run_cmd, skip, which
@@ -8,6 +9,13 @@ from scripts.operations.qa.common import require_tool, run_cmd, skip, which
 def _manifest_path(root: Path) -> Path:
     """Localiza o arquivo de manifesto Cargo.toml do crate Rust nativo."""
     return root / "native" / "aether_core" / "Cargo.toml"
+
+
+def _rust_env() -> dict[str, str]:
+    """Configura ambiente com suporte estavel ao Python 3.13 via CPython Stable ABI."""
+    env = os.environ.copy()
+    env.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+    return env
 
 
 def run_rust(stage: str, root: Path) -> None:
@@ -21,6 +29,8 @@ def run_rust(stage: str, root: Path) -> None:
     if cargo is None:
         return
 
+    rust_env = _rust_env()
+
     if stage == "lint":
         rustfmt = which("rustfmt")
         if rustfmt:
@@ -28,6 +38,7 @@ def run_rust(stage: str, root: Path) -> None:
                 [cargo, "fmt", "--manifest-path", str(manifest), "--", "--check"],
                 cwd=root,
                 description="cargo fmt --check",
+                env=rust_env,
             )
         else:
             skip("rust", "rustfmt ausente")
@@ -38,6 +49,7 @@ def run_rust(stage: str, root: Path) -> None:
                 [cargo, "clippy", "--manifest-path", str(manifest), "--", "-D", "warnings"],
                 cwd=root,
                 description="cargo clippy -D warnings",
+                env=rust_env,
             )
         else:
             skip("rust", "clippy ausente")
@@ -48,6 +60,7 @@ def run_rust(stage: str, root: Path) -> None:
             [cargo, "check", "--manifest-path", str(manifest)],
             cwd=root,
             description="cargo check",
+            env=rust_env,
         )
         return
 
@@ -58,6 +71,7 @@ def run_rust(stage: str, root: Path) -> None:
                 [cargo, "audit", "--file", str(manifest.parent / "Cargo.lock")],
                 cwd=root,
                 description="cargo audit",
+                env=rust_env,
             )
         else:
             skip("rust", "cargo-audit ausente")
@@ -68,6 +82,7 @@ def run_rust(stage: str, root: Path) -> None:
             [cargo, "test", "--manifest-path", str(manifest)],
             cwd=root,
             description="cargo test",
+            env=rust_env,
         )
         return
 
@@ -76,6 +91,7 @@ def run_rust(stage: str, root: Path) -> None:
             [cargo, "build", "--release", "--manifest-path", str(manifest)],
             cwd=root,
             description="cargo build --release",
+            env=rust_env,
         )
         return
 
