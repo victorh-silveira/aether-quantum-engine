@@ -1,3 +1,18 @@
+## [3.0.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.82.0...v3.0.0) (2026-10-03)
+
+### ⚠ BREAKING CHANGES
+
+* **app:** Reformulacao arquitetural com novos contratos de telemetria e validacao estrita.
+
+### Funcionalidades
+
+* **app:** unifica motor quantico com aceleracao nativa e telemetria ([b1c1a60](https://github.com/victorh-silveira/aether-quantum-engine/commit/b1c1a60a32d030ef1cff2808aa9f7113b50ccf19))
+
+### Correcoes de Bug
+
+* **infra:** ajusta inputs de pipeline, testes e compatibilidade rust ([4a41fdb](https://github.com/victorh-silveira/aether-quantum-engine/commit/4a41fdbaac2ff36fb019ab2890bbe942d9a34d5f))
+* **infra:** corrige linkagem dos testes nativos rust com pyo3 em ambiente linux ([e4d0a22](https://github.com/victorh-silveira/aether-quantum-engine/commit/e4d0a22607e74321f12587a828d4aa51abc74eac))
+
 ## [2.82.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.81.1...v2.82.0) (2026-10-02)
 
 ### Funcionalidades
