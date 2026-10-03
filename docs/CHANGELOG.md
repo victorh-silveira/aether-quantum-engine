@@ -1,3 +1,9 @@
+## [3.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v3.0.0...v3.1.0) (2026-10-03)
+
+### Funcionalidades
+
+* **infra:** integra observabilidade prometheus e grafana por padrao no docker-up ([2b12260](https://github.com/victorh-silveira/aether-quantum-engine/commit/2b12260b962e4eb3fb19d3329c4b83cf6e469ca3))
+
 ## [3.0.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v2.82.0...v3.0.0) (2026-10-03)
 
 ### ⚠ BREAKING CHANGES
