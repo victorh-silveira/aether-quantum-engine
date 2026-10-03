@@ -102,3 +102,28 @@ def test_tensor_from_numpy_sanitizes_non_finite():
     batch = np.array([[[np.nan, np.inf, -np.inf] + [0.0] * (FEATURE_DIM - 3)]], dtype=np.float32)
     tensor = tensor_from_numpy(batch, torch.device("cpu"))
     assert torch.isfinite(tensor).all()
+
+
+def test_ensure_windows_cuda_dlls_non_win32():
+    with patch("sys.platform", "linux"):
+        dl_device._ensure_windows_cuda_dlls()
+
+
+def test_ensure_windows_cuda_dlls_win32():
+    with (
+        patch("sys.platform", "win32"),
+        patch.dict("os.environ", {"CUDA_PATH": "C:\\cuda"}),
+        patch("pathlib.Path.is_dir", return_value=True),
+        patch("os.add_dll_directory") as mock_add_dll,
+    ):
+        dl_device._ensure_windows_cuda_dlls()
+        assert mock_add_dll.call_count >= 1
+
+
+def test_ensure_windows_cuda_dlls_win32_os_error_suppressed():
+    with (
+        patch("sys.platform", "win32"),
+        patch("pathlib.Path.is_dir", return_value=True),
+        patch("os.add_dll_directory", side_effect=OSError("invalid path")),
+    ):
+        dl_device._ensure_windows_cuda_dlls()

@@ -59,6 +59,7 @@ Imagem: Python 3.13-slim, user nao-root `aether`.
 | `AETHER_LOSS_CLASSIFIER_HTTP` | `http://localhost:8006` |
 | `AETHER_DOCKER_HEALTH_TIMEOUT` | `300` |
 | `DOCKER_PROFILES` / `COMPOSE_PROFILES` | `core,ml,telemetry` |
+| `AETHER_METRICS_HOST_IP` | Gateway Windows detectado no WSL por `make docker-up`; use `host-gateway` quando o motor rodar no WSL |
 
 Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.meta_classifier`, `infra.loss_classifier` — sempre **localhost** no hibrido.
 

@@ -95,7 +95,7 @@ def test_resolve_execution_direction_skips_acc_floor():
         }
     }
     orch = MagicMock()
-    orch.config = {"deep_learning": {"deploy_gate": {"soft_min_val_accuracy": 0.53}}}
+    orch.config = {"deep_learning": {"training_quality": {"soft_min_val_accuracy": 0.53}}}
     orch._log_dedupe = {}
     orch._active_cycle_id = 1
     result = resolve_execution_direction(

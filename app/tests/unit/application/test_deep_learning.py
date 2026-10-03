@@ -17,7 +17,7 @@ from src.application.services.deep_learning.dl_features import (
     precompute_price_series,
 )
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
-from src.application.services.deep_learning.dl_splits import purged_temporal_splits, settlement_train_sample_count
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier, _Chomp1d
 from src.application.services.deep_learning.dl_training import train_model_online, train_model_walkforward
 from src.application.services.deep_learning.model import (
@@ -75,7 +75,7 @@ def test_sequence_price_deltas_aligns_with_labels():
     assert deltas.dtype == np.float32
 
 
-def test_training_reserves_untouched_settlement_window():
+def test_training_uses_full_available_temporal_sample():
     prices = 100.0 + np.sin(np.linspace(0, 20, 180))
     model = create_direction_model(arch="tcn")
     sample_count = len(extract_sequences(prices, 18, label_horizon_bars=1)[0])
@@ -91,16 +91,10 @@ def test_training_reserves_untouched_settlement_window():
             epochs=1,
             lr=0.001,
             validation_bars=14,
-            dl_config={"deploy_gate": {"enabled": True, "mini_bars": 24}},
+            dl_config={},
         )
     assert result is not None
-    assert split_spy.call_args.args[0] == sample_count - 27
-
-
-def test_settlement_holdout_reservation_disabled_or_missing():
-    assert settlement_train_sample_count(100, 1, None) == 100
-    assert settlement_train_sample_count(100, 1, {"enabled": False, "mini_bars": 24}) == 100
-    assert settlement_train_sample_count(100, 1, {"enabled": True}) == 100
+    assert split_spy.call_args.args[0] == sample_count
 
 
 def test_sanitize_feature_batch_replaces_non_finite():
@@ -247,12 +241,12 @@ def test_checkpoint_save_load():
             arch="tcn",
             granularity=60,
             label_horizon_bars=3,
-            deploy_settlement_source="m5_close_proxy",
+            label_mode="spot_forward",
         )
         payload = torch.load(path, map_location=torch.device("cpu"), weights_only=False)
         assert payload["granularity"] == 60
         assert payload["label_horizon_bars"] == 3
-        assert payload["deploy_settlement_source"] == "m5_close_proxy"
+        assert payload["label_mode"] == "spot_forward"
         assert payload["tcn_channels"] == (64, 64, 32)
         loaded = load_model_checkpoint(path)
         assert loaded is not None
@@ -265,6 +259,10 @@ def test_checkpoint_save_load():
         assert val_ece == pytest.approx(1.0)
         assert np.allclose(s2.mean, stats.mean)
         assert load_model_checkpoint(Path(tmp) / "missing.pth") is None
+        assert load_model_checkpoint(path, params={"label_horizon_bars": 1}) is None
+        payload["state_dict"] = {"invalid": torch.ones(1)}
+        torch.save(payload, path)
+        assert load_model_checkpoint(path) is None
 
 
 def test_normalize_features():

@@ -110,7 +110,7 @@ class Orchestrator:
         self._profit_table_audit_task: asyncio.Task | None = None
         self.quant_collector = QuantMetricsCollector()
         self.business_metrics = BusinessMetricsInstrumentor()
-        m_cfg = config.get("telemetry", {}).get("metrics", {}) if isinstance(config, dict) else {}
+        m_cfg = config.get("telemetry", {}) if isinstance(config, dict) else {}
         self.metrics_server = MetricsServer(
             self.quant_collector,
             instrumentor=self.business_metrics,

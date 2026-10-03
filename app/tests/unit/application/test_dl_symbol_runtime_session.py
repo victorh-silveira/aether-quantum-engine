@@ -126,7 +126,7 @@ def test_get_symbol_runtime_torch_load_failure_rejects_deploy():
     assert runtime["deploy_ok"] is False
 
 
-def test_get_symbol_runtime_checks_settlement_payload_from_file():
+def test_get_symbol_runtime_does_not_promote_legacy_payload():
     orch = MagicMock()
     orch.config = {"data_handler": {"granularity": 60}, "deep_learning": {}}
     orch._dl_runtime = {}
@@ -149,7 +149,7 @@ def test_get_symbol_runtime_checks_settlement_payload_from_file():
         ),
     ):
         runtime = get_symbol_runtime(orch, "R_10", dl_config, params)
-    assert runtime["deploy_ok"] is True
+    assert runtime["deploy_ok"] is False
 
 
 def test_get_symbol_runtime_discards_lookback_mismatch():

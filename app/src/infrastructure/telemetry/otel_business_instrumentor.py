@@ -31,9 +31,31 @@ class BusinessMetricsInstrumentor:
         self._max_drawdown_pct: float = 0.0
         self._recent_probs: list[float] = []
         self._recent_outcomes: list[int] = []
-        self._contract_counts: dict[tuple[str, str, str], int] = {}
-        self._gate_verdicts: dict[tuple[str, str, str], int] = {}
-        self._radar: dict[str, dict[str, float]] = {}
+        self._contract_counts: dict[tuple[str, str, str], int] = {
+            ("1HZ75V", "CALL", "WIN"): 0,
+            ("1HZ75V", "PUT", "WIN"): 0,
+            ("1HZ75V", "CALL", "LOSS"): 0,
+            ("1HZ75V", "PUT", "LOSS"): 0,
+        }
+        self._gate_verdicts: dict[tuple[str, str, str], int] = {
+            ("1HZ75V", "EXECUTE", "READY"): 0,
+            ("1HZ75V", "SKIP", "WARMUP"): 0,
+        }
+        self._radar: dict[str, dict[str, float]] = {
+            "1HZ75V": {
+                "prob": 0.5,
+                "cal": 0.5,
+                "margin": 0.0,
+                "edge": 0.0,
+                "conviction": 0.0,
+                "p_loss": 0.0,
+                "p_eff": 0.0,
+                "is_flip": 0.0,
+                "anti_trend_lock": 0.0,
+                "direction_num": 0.0,
+                "stake_usd": 0.0,
+            }
+        }
 
         self._meter = None
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:

@@ -219,8 +219,7 @@ presentation  →  application  →  domain
 | `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
 | `dl_cycle_log.py` | Logs compactos do ciclo DL |
 | `dl_deferred_train.py` | Retreino em background |
-| `dl_deploy.py` | Gate de deploy e persistência no runtime |
-| `dl_deploy_eval.py` | Mini walk-forward de deploy (`force_local=True`) |
+| `dl_runtime_deploy_gate.py` | Verificacao tecnica do checkpoint e teto inicial de stake |
 | `dl_device.py` | Seleção CPU/CUDA |
 | `dl_feature_build.py` | Séries de preço e indicadores ortogonais (14D) |
 | `dl_feature_indicators.py` | Indicadores técnicos normalizados |
@@ -426,7 +425,7 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 | Caminho | Função |
 |---------|--------|
 | `batch/launch-all-demo.bat` | Launcher demo Windows |
-| `batch/launch-train.bat` | Launcher treino Windows: sanitize → sweep H15–H60 + promote → gate → Timescale → meta (logs densos) |
+| `batch/launch-train.bat` | Launcher treino Windows: sanitize → TCN → checkpoint tecnico → Timescale → meta |
 | `wsl/launch-train-wsl.sh` | Mesmo pipeline via WSL (python Conda `deriv-api` no host Windows) |
 | `operations/clean_workspace.py` | Matriz QA `--area/--stage` (python, docker, shell; JSON/YAML via `--config-text json|yaml`) |
 | `operations/qa/` | Gates docker/shell e validacao JSON/YAML do job Python |

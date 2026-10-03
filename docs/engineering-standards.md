@@ -17,7 +17,7 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 
 | Area | Stage | Pre-commit / CI |
 |------|-------|-----------------|
-| python | lint | Ruff, Interrogate, Vulture, 300 linhas |
+| python | lint | Ruff, Interrogate, Vulture com confiança 100 e allowlist auditada, 300 linhas |
 | python | JSON / YAML | steps `Python \| JSON *` e `Python \| YAML *` (`--config-text json\|yaml`) |
 | python | validate / build | compileall `app/src` |
 | python | security | Bandit + pip-audit dos requirements do projeto + Gitleaks (fail-closed local e CI) |

@@ -9,6 +9,7 @@ alwaysApply: true
 - **SSOT CloudOps**: `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops`; ops diárias: `docs/infra-docker.md`
 - **Ambiente Híbrido**: Motor asyncio no host (WSL/Conda, Python 3.13, CUDA local); Redis, TimescaleDB, MinIO, meta-classifier e loss-classifier em Docker (`core,ml`)
 - **Host / WSL**: alinhar driver NVIDIA Windows ↔ CUDA Conda; `vm.overcommit_memory=1` via `sh/host-prereq.sh`; segredos só env/secret store
+- **Telemetria**: motor lê `telemetry.host`/`port` do SSOT e expõe `/metrics`; Prometheus no Docker WSL resolve `host.docker.internal` para `AETHER_METRICS_HOST_IP` (gateway Windows detectado pelo Makefile). Com motor no WSL, usar `AETHER_METRICS_HOST_IP=host-gateway`.
 - **Isolamento e Segurança de Containers**:
   - Binds estritamente em loopback `127.0.0.1` (processo interno em `0.0.0.0`)
   - Non-root `aether` UID 10001; `security_opt: [no-new-privileges:true]`; `read_only` + tmpfs em meta/loss

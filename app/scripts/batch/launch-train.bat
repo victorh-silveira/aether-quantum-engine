@@ -1,16 +1,30 @@
 @echo off
 TITLE Aether Engine - Treino Rise-Fall TCN + Meta
-set PYTHONASYNCIODEBUG=
-set PYTHONDEVMODE=
-set PYTHONUNBUFFERED=1
+set "PYTHONASYNCIODEBUG="
+set "PYTHONDEVMODE="
+set "PYTHONUNBUFFERED=1"
 
 pushd "%~dp0..\..\.."
-SET REPO_ROOT=%CD%
+SET "REPO_ROOT=%CD%"
 popd
-SET ENV_NAME=deriv-api
-set PYTHON_EXE=%USERPROFILE%\anaconda3\envs\%ENV_NAME%\python.exe
-if not exist "%PYTHON_EXE%" set PYTHON_EXE=%USERPROFILE%\miniconda3\envs\%ENV_NAME%\python.exe
-if not exist "%PYTHON_EXE%" set PYTHON_EXE=python
+SET "ENV_NAME=deriv-api"
+
+set "CONDA_ACTIVATE="
+if exist "%USERPROFILE%\anaconda3\Scripts\activate.bat" (
+    set "CONDA_ACTIVATE=%USERPROFILE%\anaconda3\Scripts\activate.bat"
+) else if exist "C:\ProgramData\anaconda3\Scripts\activate.bat" (
+    set "CONDA_ACTIVATE=C:\ProgramData\anaconda3\Scripts\activate.bat"
+) else if exist "%USERPROFILE%\miniconda3\Scripts\activate.bat" (
+    set "CONDA_ACTIVATE=%USERPROFILE%\miniconda3\Scripts\activate.bat"
+)
+
+if not "%CONDA_ACTIVATE%"=="" (
+    call "%CONDA_ACTIVATE%" %ENV_NAME%
+)
+
+set "PYTHON_EXE=%USERPROFILE%\anaconda3\envs\%ENV_NAME%\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=%USERPROFILE%\miniconda3\envs\%ENV_NAME%\python.exe"
+if not exist "%PYTHON_EXE%" set "PYTHON_EXE=python"
 
 cd /d "%REPO_ROOT%"
 echo [AETHER] launch-train Rise/Fall - TCN M5 + meta LightGBM
@@ -25,11 +39,11 @@ if errorlevel 1 (
 )
 popd
 
-"%PYTHON_EXE%" -u app/scripts/operations/run_launch_train_tf_pipeline.py %*
+"%PYTHON_EXE%" -u app/train.py
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --allow-unqualified
-if errorlevel 1 echo [AVISO] TCN sem qualificacao de deploy; checkpoint local permanece sujeito ao teto de risco.
+"%PYTHON_EXE%" -u app/scripts/operations/check_dl_checkpoint.py
+if errorlevel 1 exit /b 1
 
 "%PYTHON_EXE%" -u app/scripts/operations/ensure_timescale.py
 if errorlevel 1 echo [AVISO] Timescale seed indisponivel; meta tentara API Deriv.
@@ -37,14 +51,5 @@ if errorlevel 1 echo [AVISO] Timescale seed indisponivel; meta tentara API Deriv
 "%PYTHON_EXE%" -u app/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality --export-min-zscore -0.05 --export-min-ir -0.50
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -u app/scripts/operations/check_dl_deploy_gate.py --with-meta --allow-unqualified
-if errorlevel 1 (
-    if exist "%REPO_ROOT%\infra\docker\meta-models\meta_lgbm.pkl" (
-        echo [AVISO] Meta exportado em meta-models, mas gate conjunto TCN + meta nao qualificado.
-    ) else (
-        echo [AVISO] Meta nao exportado; somente candidato diagnostico. Gate conjunto TCN + meta nao qualificado.
-    )
-) else (
-    echo [AETHER] TCN + meta Rise/Fall qualificados - operacao sob teto de stake.
-)
+echo [AETHER] Treino concluido; checkpoint TCN compativel sob teto de 1%% da banca.
 exit /b 0

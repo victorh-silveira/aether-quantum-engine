@@ -65,12 +65,12 @@ def _pend_waives(metrics: dict[str, Any], exec_cfg: dict[str, Any] | None) -> bo
 
 
 def resolve_soft_min_val_accuracy(orch: Any | None = None) -> float:
-    """Le soft_min_val_accuracy do deploy_gate SSOT (default 0.53)."""
+    """Le soft_min_val_accuracy da qualidade do treino."""
     if orch is not None:
         cfg = getattr(orch, "config", None)
         if isinstance(cfg, dict):
             dl = cfg.get("deep_learning")
-            gate = dl.get("deploy_gate") if isinstance(dl, dict) else None
+            gate = dl.get("training_quality") if isinstance(dl, dict) else None
             if isinstance(gate, dict) and gate.get("soft_min_val_accuracy") is not None:
                 return float(gate["soft_min_val_accuracy"])
     return 0.53

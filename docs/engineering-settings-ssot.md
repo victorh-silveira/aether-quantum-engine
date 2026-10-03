@@ -1,33 +1,24 @@
-# Settings SSOT (pos-purge + FLIP no piso)
+# Configuração operacional SSOT
 
-Politica de mercado atual: `orchestrator.execution.four_market_vetoes=true`
-substitui os knobs individuais legados de mercado; `market_direction_trigger=true`
-habilita reavaliacao anterior ao edge, sem alterar probabilidades do TCN.
-Ambos exigem booleano `true` (default desligado). Piso economico compartilhado:
-`min_edge_execute`. Contrato e limitacoes: [catalogo](engineering-indicator-gates.md).
+`config/settings.json` define as opções de runtime. Parsers em `app/src/domain/config_knobs.py` e nas camadas consumidoras validam os blocos necessários. Uma mudança de parâmetro operacional exige ajuste do parser, teste e documentação.
 
-Leitura: `app/settings_io.py` + parsers em `domain/config_knobs.py`. Knob novo = settings + `resolve_*` + teste + doc se mudar semantica.
+## Contrato ativo
 
-## Blocos vivos (execucao)
+| Bloco | Valor atual |
+|---|---|
+| `data_handler` | Micro/MINI M5 de 300 s; macro D1 de 86.400 s |
+| `deep_learning` | TCN, lookback 32, 25.000 barras M5, label `spot_forward`, horizonte 1 barra, `online_training=false` |
+| `deep_learning.training_quality` | Métricas de treino e detecção de colapso de classe; não qualificam deploy |
+| `deep_learning.checkpoint_max_stake_pct` | **0.01**, teto inicial de 1% da banca por ordem |
+| `orchestrator.execution` | Ciclo M5, `four_market_vetoes=true`, `market_direction_trigger=true`, `force_trade_every_cycle=false`, `require_quote_edge=true`, `min_payout_rate=0` |
+| `risk_management.kelly` | Kelly fracionário; payout de referência 0,85; stop win 4,31% |
+| `risk_management.soft_recovery` | `cover_enabled=true`, `cover_multiple=1.0`, amortização 1/1, cap `cover_l0` 3,5% antes do teto do checkpoint |
+| `infra.loss_classifier` | FLIP após auto aprendizado, `flip_min_n_train=1`, jovem `p_eff>=0.58`, maduro `p_eff>=0.70` |
 
-| Bloco | Papel |
-|-------|--------|
-| `orchestrator.execution` | mandatory/force off; `invert_exec_side` **false**; confluencia senior nao e knob direcional; `skip_neg_edge` **true** sem smart waive em EXPLORE; `skip_exec_vs_candle` / `skip_scale_candle_discord` / `skip_doji` **false**; `skip_below_soft_min_acc` **false**; settlement; SIDE_EQ soft sizing; `scale_vision` (adapt off); sample_size_policy; `counter_trend_min_edge` **0.08** |
-| `orchestrator.execution.meta_payoff` | LEARN/telemetria; soft Kelly **inerte** (nao comprime stake) |
-| `orchestrator.execution.scale_vision` | `adapt_retract_enabled` **false**; knobs de retract/tape/explos permanecem no JSON mas nao viram lado |
-| `infra.loss_classifier` | HTTP :8006; `veto_mode` **hard**; `hard_p_loss_floor` **0.70**; `flip_young_p_eff_floor` **0.58**; FLIP so apos auto_learn; `flip_min_n_train` **1**; `flip_trust_n` **64**; `flip_young_shrink` **0.50**; `ready_n` **32**; `retrain_min_n` / `retrain_on_loss_min_n` **12** e `min_win_for_loss_retrain` **4**; o seed e apenas telemetria ate haver dados reais das duas classes; **sem** Soft Kelly / HARD SKIP |
-| `infra.meta_classifier` | HTTP :8005; `retrain_min_n` **32** |
-| `risk_management` | Kelly Single-Strike 4.31% so com `live_n >= 12` e conviction ≥ **0.58**; `cover_enabled` **true** (`cover_multiple` **1.0**); `amort_cycles_min/max` **1/1**; stake recovery = `min(max(PEND/payout, 1% banca), cap_L0)`; cover usa L0 **3.5%** (`cover_l0`, ignora L2/L3); a primeira proposta valida atualiza o payout liquido somente para a sessao e o edge/BE dos ciclos seguintes; PEND nao force-explore por near-stop; piso **1%** soberano; caps EXPLORE L2/L3 |
+O checkpoint passa por verificação técnica de pesos, normalização e geometria. Não existe qualificação estatística de deploy nem simulação de liquidação por closes M5. Um checkpoint inválido impede a operação. Com checkpoint válido, o teto de 1% é aplicado também a `cover_l0`, na preparação do cluster e imediatamente antes da proposta. Limites menores ainda podem reduzir a stake.
 
-**Removido:** `orchestrator.execution.signal_skip`, `senior_confluence_flip`, `cal_soft_edge_*`, `scale_vision.fusion_*` / `adapt_direction_enabled` legado amplo, familia `flip_*` de guards legados.
+A política mantém stop win, **sem stop loss e sem teto acumulado de perda**. O bloqueio de compra por dados, checkpoint, cotação ou edge continua ativo. DEMO e REAL usam o mesmo contrato operacional.
 
-## Doutrina fail-closed
+Na proposta final, o motor calcula `quote_ev = p(lado) × (1 + payout_rate_cotado) − 1` com a taxa líquida do broker. `min_payout_rate=0` desativa o piso fixo que rejeitava cotações lucrativas abaixo de 0,80; `min_edge_execute=0` e `quote_safety_margin=0.01` continuam exigidos antes da compra. Proposta sem preço ou payout válido permanece bloqueada.
 
-- TCN live: sempre CALL se Cal ≥**0.5** senao PUT; `confidence_call_threshold` **0.57** / `confidence_put_threshold` **0.43** nao skipam; `calibration_neutral_drift` **[0.45, 0.55]** / `neutral_half_width` / `min_calibration_margin_floor` **0.05** (live: raw se Cal mole e raw nitido; sem stretch); `apply_calibrator_stable` prefere raw se mais nitido; `temperature_min` **0.75**; `force_ok` **true** so exporta para diagnostico; execucao exige ACC anti-colapso >=**0.50**, Brier settlement **<0.260**, minimo **120** e LCB Wilson 90% >= breakeven do payout, alem de anti-collapse
-- `deep_learning.deploy_gate.provisional_*`: modo controlado quando taxa OOS >=**0.57**, N>=**120** e Brier <**0.260**, mas LCB Wilson pleno ainda falha; stake soberanamente limitada a **1%** da banca, sem waiver por recovery/PEND
-- Loss-clf = **FLIP** young `p_eff` >=0.58 / mature >=0.70 (so apos auto_learn; `flip_young_shrink` **0.50**); tape so telemetria; nao HARD SKIP
-- Nao reabrir quality gate amplo / signal_skip multi-gate / Soft do loss-clf
-- `force_trade_every_cycle` / `mandatory_trade_each_cycle` **false**
-- Catalogo vivo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md)
-
-Skill: `aether-settings-change`. Testes: `test_doctrine_settings_ssot.py` + `doctrine_invariants.py`.
+Consulte [treino TCN](engineering-deep-learning.md), [arquitetura](arquitetura.md) e [gates de indicadores](engineering-indicator-gates.md).

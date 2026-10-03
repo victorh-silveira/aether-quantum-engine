@@ -288,6 +288,42 @@ async def test_final_buy_proposal_blocks_degraded_payout_rate(trade_handler, moc
 
 
 @pytest.mark.asyncio
+async def test_final_buy_accepts_positive_ev_below_old_fixed_payout_floor(trade_handler, mock_ws):
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote_783", "ask_price": "10.00", "payout": "17.83"}},
+        {"buy": {"contract_id": 783, "buy_price": "10.00", "payout": "17.83"}},
+    ]
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "min_payout_rate": 0.0,
+        "_quote_guard_side_probability": 0.6752,
+        "_quote_guard_min_edge": 0.0,
+        "_quote_guard_safety_margin": 0.01,
+    }
+    contract = await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.PUT, 10.0, params=params)
+    assert contract.contract_id == 783
+    assert trade_handler.latest_payout_rate == pytest.approx(0.783)
+    assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_final_buy_still_blocks_negative_ev_with_same_payout(trade_handler, mock_ws):
+    mock_ws.send.return_value = {"proposal": {"id": "quote_783", "ask_price": "10.00", "payout": "17.83"}}
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "min_payout_rate": 0.0,
+        "_quote_guard_side_probability": 0.53247,
+        "_quote_guard_min_edge": 0.0,
+        "_quote_guard_safety_margin": 0.01,
+    }
+    with pytest.raises(RuntimeError, match=r"quote_ev=-0\.0506.*payout_rate=0\.7830"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "proposal",
     [

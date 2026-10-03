@@ -81,33 +81,12 @@
     },
     "confidence_call_threshold": 0.51,
     "confidence_put_threshold": 0.49,
-    "deploy_gate": {
-      "enabled": true,
-      "enforce_settle_gate": true,
-      "eval_call_threshold_cap": 0.65,
-      "eval_call_threshold_default": 0.75,
-      "eval_put_threshold_default": 0.25,
-      "eval_put_threshold_floor": 0.01,
-      "eval_relaxed_gating": true,
-      "force_ok": true,
-      "max_brier": 0.26,
-      "max_eval_steps": 240,
-      "min_trades": 120,
-      "min_win_rate": 0.540541,
-      "provisional_enabled": true,
-      "provisional_max_brier": 0.26,
-      "provisional_max_stake_pct": 0.01,
-      "provisional_min_trades": 120,
-      "provisional_min_win_rate": 0.57,
-      "mini_bars": 512,
-      "soft_max_brier": 0.26,
+    "checkpoint_max_stake_pct": 0.01,
+    "training_quality": {
       "soft_min_val_accuracy": 0.5,
-      "settlement_confidence": 0.9,
       "reject_majority_collapse": true,
-      "require_broker_settlement": true,
       "max_label_call_frac_bias": 0.15,
-      "min_minority_recall": 0.45,
-      "unqualified_max_stake_pct": 0.01
+      "min_minority_recall": 0.45
     },
     "early_stopping_patience": 12,
     "min_epochs": 15,
@@ -193,7 +172,7 @@
         "zscore_micro_window": 30
       }
     },
-    "inference_device": "auto",
+    "inference_device": "cuda",
     "label_horizon_bars": 1,
     "label_ma_window": 3,
     "label_mode": "spot_forward",
@@ -240,7 +219,7 @@
     ],
     "train_timeframe": "micro",
     "training_batch_size": 128,
-    "training_device": "auto",
+    "training_device": "cuda",
     "training_epochs": 300,
     "training_history_bars": 25000,
     "inference_history_bars": 384,
@@ -255,35 +234,6 @@
       "class_balance_eps": 0.0,
       "recency_enabled": true,
       "recency_half_life_n": 500
-    },
-    "horizon_sweep": {
-      "enabled": false,
-      "run_in_launch_train": false,
-      "auto_promote": false,
-      "ops_contract_duration_minutes": 5,
-      "quiet_train_logs": true,
-      "train_deploy_retries": 1,
-      "disable_infra_during_sweep": true,
-      "duration_minutes": [
-        5,
-        10,
-        15,
-        20
-      ],
-      "n_bars": [
-        1,
-        2,
-        3,
-        4
-      ],
-      "symbols": [
-        "1HZ75V"
-      ],
-      "min_edge_vs_breakeven": 0.03,
-      "min_settle_n": 16,
-      "min_history_bars": 800,
-      "leaderboard_path": "data/dl/sweep/leaderboard.json",
-      "artifact_root": "data/dl/sweep"
     }
   },
   "infra": {
@@ -463,7 +413,7 @@
       "require_quote_edge": true,
       "min_edge_execute": 0.0,
       "min_edge": 0.0,
-      "min_payout_rate": 0.80,
+      "min_payout_rate": 0.0,
       "quote_safety_margin": 0.01,
       "veto_weak_regime_flip": true,
       "conformal_uncertainty_gate": true,
@@ -619,7 +569,6 @@
         "mandatory_score": 0.65,
         "min_edge": 0.03
       },
-      "bypass_deploy_gate": false,
       "allow_undeployed": false,
       "scale_vision": {
         "enabled": true,
@@ -805,6 +754,10 @@
   "symbols": [
     "1HZ75V"
   ],
+  "telemetry": {
+    "host": "0.0.0.0",
+    "port": 9100
+  },
   "trading": {
     "mode": "demo"
   }

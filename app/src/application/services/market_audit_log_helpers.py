@@ -147,9 +147,6 @@ def resolve_cluster_timeframe(metrics: dict[str, Any] | None) -> str:
                 return f"M{dur}"
             if unit.startswith("s"):
                 return _granularity_to_tf(dur)
-    sweep = metrics.get("horizon_sweep")
-    if isinstance(sweep, dict) and sweep.get("ops_contract_duration_minutes") is not None:
-        return f"M{int(sweep['ops_contract_duration_minutes'])}"
     data_handler = metrics.get("data_handler")
     if isinstance(data_handler, dict):
         micro = data_handler.get("micro_granularity")

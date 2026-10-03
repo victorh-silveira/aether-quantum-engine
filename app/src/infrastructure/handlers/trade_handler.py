@@ -123,16 +123,27 @@ class TradeHandler:
                 self.latest_payout_rate = rate
         min_payout = float(p_cfg.get("min_payout_rate") or 0.0)
         if rate is not None and min_payout > 0.0 and rate + 1e-9 < min_payout:
-            raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
+            raise RuntimeError(
+                f"Cotacao final Rise/Fall perdeu vantagem: payout_rate={rate:.4f} "
+                f"piso_payout={min_payout:.4f}; compra bloqueada"
+            )
         if "_quote_guard_side_probability" in p_cfg:
             p_side = float(p_cfg["_quote_guard_side_probability"])
             min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))
             margin = float(p_cfg.get("_quote_guard_safety_margin", 0.0) or 0.0)
-            if rate is None or (rate <= 0.0) or (p_side * (1.0 + rate) - 1.0 <= min_edge):
-                raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
+            if rate is None or rate <= 0.0:
+                raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem: payout liquido invalido; compra bloqueada")
+            quote_ev = p_side * (1.0 + rate) - 1.0
+            if quote_ev <= min_edge:
+                raise RuntimeError(
+                    f"Cotacao final Rise/Fall perdeu vantagem: quote_ev={quote_ev:+.4f} "
+                    f"min_edge={min_edge:+.4f} p_side={p_side:.4f} payout_rate={rate:.4f}; compra bloqueada"
+                )
             if margin > 0.0 and p_side < (1.0 / (1.0 + rate) + margin):
                 raise RuntimeError(
-                    "Cotacao final Rise/Fall perdeu margem de seguranca sobre break-even; compra bloqueada"
+                    f"Cotacao final Rise/Fall perdeu margem de seguranca sobre break-even: "
+                    f"p_side={p_side:.4f} minimo={1.0 / (1.0 + rate) + margin:.4f} "
+                    f"payout_rate={rate:.4f}; compra bloqueada"
                 )
 
         request_epoch_ms = time.time_ns() // 1_000_000

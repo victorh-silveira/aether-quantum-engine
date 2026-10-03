@@ -5,7 +5,6 @@ from typing import Any
 import numpy as np
 
 from src.application.services.deep_learning.dl_feature_indicators import feature_windows
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_horizon import (
     contract_duration_seconds,
     resolve_implied_vol_bars,
@@ -280,10 +279,6 @@ def parse_dl_params(
     base["exhaustion_rsi_upper"] = float(exhaustion["rsi_upper"])
     base["exhaustion_keltner_lower"] = float(exhaustion["keltner_lower"])
     base["exhaustion_keltner_upper"] = float(exhaustion["keltner_upper"])
-    gate = parse_deploy_gate_config(dl_config)
-    min_eval_bars = lookback + 5
-    gate = {**gate, "mini_bars": max(min_eval_bars, int(gate.get("mini_bars", 120)))}
-    base["deploy_gate"] = gate
     base["indicator_gating"] = parse_indicator_gating_config(dl_config)
     base["calibration"] = parse_calibration_config(dl_config)
     base["sample_weighting"] = parse_sample_weighting_config(dl_config)

@@ -7,7 +7,6 @@ import torch
 
 from src.application.services.deep_learning.dl_device import device_label, resolve_torch_device
 from src.application.services.deep_learning.dl_features import extract_sequences
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_outcomes import sample_weights_for_symbol
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_symbol_train_success import apply_successful_symbol_train
@@ -88,7 +87,6 @@ def run_symbol_training(
     runtime["session_trained"] = False
     runtime["deploy_ok"] = False
     runtime["deploy_provisional_ok"] = False
-    gate_cfg = parse_deploy_gate_config(dl_config)
     level = logging.INFO
     started = time.monotonic()
     logger.log(level, "")
@@ -174,7 +172,6 @@ def run_symbol_training(
                     norm_stats=norm_stats,
                     params=params,
                     dl_config=dl_config,
-                    gate_cfg=gate_cfg,
                     candle_epoch_value=candle_epoch_value,
                     granularity=granularity,
                     level=level,

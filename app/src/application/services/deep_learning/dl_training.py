@@ -26,7 +26,6 @@ from src.application.services.deep_learning.dl_device import (
     tensor_from_numpy,
 )
 from src.application.services.deep_learning.dl_features import extract_sequences
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
 from src.application.services.deep_learning.dl_sample_weighting import (
     compose_train_weights,
     label_call_fraction,
@@ -35,7 +34,7 @@ from src.application.services.deep_learning.dl_sample_weighting import (
 )
 from src.application.services.deep_learning.dl_sequence_extract import sequence_price_deltas
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness, resolve_calibration_sharpness_cfg
-from src.application.services.deep_learning.dl_splits import purged_temporal_splits, settlement_train_sample_count
+from src.application.services.deep_learning.dl_splits import purged_temporal_splits
 from src.application.services.deep_learning.dl_training_epochs import fit_training_epochs
 from src.application.services.deep_learning.model import (
     TrainResult,
@@ -95,8 +94,7 @@ def train_model_walkforward(
         low=low,
         micro=micro,
     )
-    gate_cfg = (dl_config or {}).get("deploy_gate") if isinstance(dl_config, dict) else None
-    split_count = settlement_train_sample_count(len(x_all), label_horizon_bars, gate_cfg)
+    split_count = len(x_all)
     splits = purged_temporal_splits(
         split_count,
         validation_bars,
@@ -177,11 +175,11 @@ def train_model_walkforward(
             )["min_oos_sharpness"]
         ),
         min_val_accuracy=float(
-            (((dl_config or {}).get("deploy_gate") or {}).get("soft_min_val_accuracy", 0.53))
+            (((dl_config or {}).get("training_quality") or {}).get("soft_min_val_accuracy", 0.53))
             if isinstance(dl_config, dict)
             else 0.53
         ),
-        deploy_gate_cfg=(parse_deploy_gate_config(dl_config) if isinstance(dl_config, dict) else None),
+        deploy_gate_cfg=((dl_config or {}).get("training_quality") if isinstance(dl_config, dict) else None),
     )
     if best_state is not None:
         model.load_state_dict(best_state)

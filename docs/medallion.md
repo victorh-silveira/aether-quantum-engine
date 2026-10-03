@@ -13,7 +13,7 @@ Doutrina do copiloto LLM/Cursor (9 livros → constraints de engenharia): [`llm-
 | Princípio | No motor atual |
 |-----------|----------------|
 | Sinais, não histórias | Direção CALL/PUT pela TCN; inversões somente pelo loss-clf (`p_eff` no piso, apos auto-learn) ou anti-trend-lock pos-loss |
-| Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / **2000** barras de treino); contrato RISE_FALL **5 m** (ops fixo); label `quantum_multi_barrier` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
+| Horizonte e Timeframe | Contexto DL macro **86400 s** (D1 / 365 barras); micro/MINI OHLC **300 s** (M5 / **25000** barras de treino); contrato RISE_FALL **5 m** (ops fixo); label `spot_forward` (horizonte N=1 vela M5); proporção multi-timeframe **1:288** (300:86400) |
 | Acoplamento temporal | Inferências e rotações seguem `signature_boundary_seconds` (**300 s**) com ciclo em **300 s** |
 | Esteira contínua | `mandatory_trade_each_cycle: false`; TCN → LOSS_CLF FLIP (so P_LOSS) → Kelly |
 | Force trade | `force_trade_every_cycle: false` — sem síntese forçada de candidato |
@@ -93,27 +93,27 @@ Indicadores macro (Hurst, ADX, bandas) permanecem em `metrics["indicators"]` / `
 
 | Camada | Comportamento |
 |--------|---------------|
-| Bloqueio técnico | `data`, `predict_error`, `training`, `deploy_ok=false` |
+| Bloqueio técnico | `data`, `predict_error`, `training`, checkpoint TCN ausente ou incompatível |
 | Calibração | Zona neutra **off** (`neutral_half_width: 0.0`); thresholds **0.62/0.38**; override TCN macro se raw&gt;0.65 ou &lt;0.35 |
 | Veto cruzado TCN-GBDT | Soft comprime score; hard com shadow; soft não hard-blocka o resolve |
-| Classificação macro | TCN processa lookback **30** em M5 (**300 s**) com contexto D1 (**86400 s**) (`[1, 30, 14]`); define direção (`dl_direction`) |
+| Classificação macro | TCN processa lookback **32** em M5 (**300 s**) com contexto D1 (**86400 s**) (`[1, 32, 14]`); define direção (`dl_direction`) |
 | Stacking tabular | Meta-regressor LightGBM (micro **300 s**) sobre vetor **23D** + probabilidade TCN; saída `predicted_payoff_edge`; meta **opcional** |
 | Z-Score de payoff | `payoff_edge_zscore`: janela adaptativa 15–45; classificação estatística do micro-edge |
 | Scoring de ranking | `market_decision_score = tcn × max(0.1, 1 + z)` |
 | Margem direcional | `direction_margin = abs(P(lado) − 0.50)`; thresholds adaptativos |
 | Anti-Loss M5 | Microestrutura estrita: EMA slope 9/21 em barras de 5m, RSI momentum e confirmação de 3 barras |
-| Rotulagem | SSOT `quantum_multi_barrier` (barreiras assimetricas + Expiry; alt. `triple_barrier`) |
-| Gerenciamento de risco | Kelly Single-Strike 4.31% (`kelly.fraction: 0.08`, cap 5.0%); cover de recovery em um ciclo |
+| Rotulagem | SSOT `spot_forward`: direcao do close uma vela M5 adiante |
+| Gerenciamento de risco | Kelly Single-Strike 4.31% (`kelly.fraction: 0.08`, cap geral 5.0%); checkpoint TCN local limitado a 1% por ordem, inclusive no cover de recovery |
 
 ---
 
 ## 3. Blindagem multi-timeframe
 
-**Invariante 1:288:** o relógio operacional micro (`data_handler.micro_granularity` = **300 s**) e o contexto macro DL (`data_handler.granularity` = **86400 s**) mantêm proporção **1:288**. Cada bloco diário cobre duzentas e oitenta e oito barras M5. A assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` e `seconds_until_next_signature_boundary` ancoram a invalidação de cache na cadência da barra M5 (**300 s**). Contrato Deriv **5 m** (ops fixo); label TCN **N=1** vela M5 (`quantum_multi_barrier`).
+**Invariante 1:288:** o relógio operacional micro (`data_handler.micro_granularity` = **300 s**) e o contexto macro DL (`data_handler.granularity` = **86400 s**) mantêm proporção **1:288**. Cada bloco diário cobre duzentas e oitenta e oito barras M5. A assinatura `m5b:{boundary};m5:{sym}@{epoch};m15:...` e `seconds_until_next_signature_boundary` ancoram a invalidação de cache na cadência da barra M5 (**300 s**). Contrato Deriv **5 m** (ops fixo); label TCN **N=1** vela M5 (`spot_forward`).
 
 | Camada | Timeframe | Papel |
 |--------|-----------|-------|
-| Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **30**) | Tensor `[1, 30, 14]`; proporção 1:288 |
+| Deep Learning / TCN | Micro **300 s** / macro **86400 s** (lookback **32**) | Tensor `[1, 32, 14]`; proporção 1:288 |
 | Meta-regressor GBDT | Micro **300 s** | Regressão tabular **23D**; edge contínuo via `/v2/predict_meta` |
 | Orquestrador / contrato | Ciclo **300 s** / RISE_FALL **5 m** | Settle ops em T+5 min; label TCN em N=1 vela M5 |
 | Resolução direcional | TCN + FLIP so por P_LOSS efetivo (>=0.58 no jovem) | Unica inversao de ordem; sem fusao/persistence/candle |
@@ -143,11 +143,11 @@ Ordem lógica de uma entrada:
 8. **Resolução direcional** — `execution_direction_resolver` + `execution_direction_checks` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
 9. **Gate de qualidade** — dual soft TCN+meta + HARD microestrutura; starvation a partir de **6** skips; stubs sniper não vetam.
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
-11. **Deploy** — `deploy_ok=false` bloqueia execução; mini-deploy de treino usa `force_local=True` (modelo em memória).
+11. **Checkpoint** — pesos, normalização e geometria são validados; um checkpoint local compatível opera com teto inicial de 1% da banca por ordem, inclusive em recuperação.
 12. **Seleção** — `market_decision_score` multiplicativo (TCN × fator Z-Score); redirect inter-símbolo quando âncora degradada.
-13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`, teto 3,5%); Soft Recovery com cover do pending em 1 ciclo (`amort_cycles` **1/1**, `cover_multiple` **1.0**, teto `max_safe_stake_pct`); stop win por sessão (4,31% composto ou $10 fixo se banca < $100). Stop loss interno desativado.
+13. **Risco** — Kelly em EXPLORE (`fraction: 0.08`); Soft Recovery com cover do pending em 1 ciclo (`amort_cycles` **1/1**, `cover_multiple` **1.0**, cap L0 `max_safe_stake_pct=3.5%` subordinado ao teto inicial de 1% do checkpoint); stop win por sessão (4,31% composto ou $10 fixo se banca < $100). Sem stop loss nem teto acumulado de perda.
 
-Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, `deploy_ok=false`) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
+Bloqueio absoluto para falhas técnicas (`data`, `predict_error`, `training`, checkpoint incompatível) e reconciliação pendente. Vetoes HARD de microestrutura bloqueiam independentemente do soft. Não há vetos táticos autônomos de quality guard soft, cooldown pós-LOSS, blackout de broker ou stubs sniper.
 
 Perfil em `config/settings.json` (settings atuais):
 
@@ -161,7 +161,7 @@ Perfil em `config/settings.json` (settings atuais):
 | `min_val_accuracy` | 0.60 | Piso de acurácia de validação (treino/deploy) |
 | `min_validation_accuracy_gate` | — | Sem piso hard nos settings atuais |
 | `min_edge_execute` | 0.0 | Edge base (advisory) |
-| `label_mode` | `quantum_multi_barrier` | Rotulagem SSOT; `triple_barrier` / `spot_forward` / `ma_trend` via config |
+| `label_mode` | `spot_forward` | Rotulagem SSOT; troca exige retreino |
 | `label_vol_window_bars` | 15 | Janela de σ para largura de barreira (tunável por símbolo) |
 | `label_vol_multiplier` | 1.0 | Multiplicador da barreira de volatilidade |
 | `indicator_gating.*` | removido | Vetos de sinal retirados do codigo (escopo 1) |
@@ -365,7 +365,7 @@ Com `soft_recovery.enabled: true`, o switch em `calculate_stake_for_manager` usa
 | Regime | Condição | Sizer | Tag |
 |--------|----------|-------|-----|
 | **EXPLORE** | `pending_total == 0` e `linear == 0` | Kelly fracionário (`fraction: 0.08`, tetos 3,5%) | `EXPLORE_KELLY` |
-| **RECOVER** | `pending_total > 0` ou `linear >= 1` | Soft Recovery cover (`amort_cycles` **1/1**, teto L0 `max_safe_stake_pct` **3.5%** / `cover_l0`) | `RECOVER_DAL_Ln` / `D'ALEMBERT` |
+| **RECOVER** | `pending_total > 0` ou `linear >= 1` | Soft Recovery cover (`amort_cycles` **1/1**, cap L0 `max_safe_stake_pct` **3.5%** / `cover_l0`, subordinado ao teto inicial do checkpoint de **1%**) | `RECOVER_DAL_Ln` / `D'ALEMBERT` |
 
 #### Soft Recovery (path canônico)
 
@@ -514,7 +514,7 @@ Parâmetros em `risk_management` / `risk_management.params`:
 | `session_start_balance` | `null` | Override manual da banca inicial (senão usa saldo Deriv) |
 | `small_account_threshold` | `100.0` | Limiar abaixo do qual o stop win é fixo |
 | `small_account_stop_win` | `10.0` | Stop win fixo em dólares para micro-banca |
-| `duration` | `5` | Duração do contrato RISE_FALL (**m**); ops fixo via `ops_contract_duration_minutes`; ciclo **120 s** / micro OHLC **300 s** (M5); label TCN = `label_horizon_bars` (**1** vela M5; grade sweep H1–H4 em M5) |
+| `duration` | `5` | Duração do contrato RISE_FALL (**m**); ciclo **300 s** / micro OHLC **300 s** (M5); label TCN = `label_horizon_bars` (**1** vela M5) |
 
 Com `compounding_enabled: false`, o motor recorre ao alvo legado (`small_account_stop_win` / `large_account_stop_win_pct`).
 

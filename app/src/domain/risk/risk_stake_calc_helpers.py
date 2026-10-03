@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.kelly_f_star_adjustments import (
     apply_consensus_entropy_f_star,
@@ -270,16 +271,12 @@ def cap_provisional_stake(
     *,
     safe_cap: float | None = None,
 ) -> float:
-    """Impõe teto soberano para checkpoint provisório; sob cover_l0 respeita o safe_cap de recovery."""
+    """Impõe teto soberano de checkpoint provisório também no recovery."""
     if not isinstance(metrics, dict) or not bool(metrics.get("deploy_provisional", False)):
         return float(final_stake)
-    if metrics.get("recovery_cap_mode") == "cover_l0":
-        recovery_cap = (
-            float(safe_cap)
-            if safe_cap is not None and float(safe_cap) > 0.0
-            else float(bankroll) * float(metrics.get("max_stake_pct", 0.035) or 0.035)
-        )
-        return min(float(final_stake), recovery_cap)
-    pct = max(0.0, float(metrics.get("provisional_max_stake_pct", 0.0) or 0.0))
+    pct = checkpoint_stake_cap_pct(metrics)
     metrics["provisional_stake_cap_applied"] = True
-    return min(float(final_stake), float(bankroll) * pct)
+    caps = [float(final_stake), float(bankroll) * pct]
+    if safe_cap is not None and float(safe_cap) > 0.0:
+        caps.append(float(safe_cap))
+    return min(caps)

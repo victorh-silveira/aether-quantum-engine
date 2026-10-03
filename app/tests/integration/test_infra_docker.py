@@ -51,6 +51,13 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "minio/mc:" not in text
 
 
+def test_prometheus_routes_to_configured_host_gateway():
+    compose = _compose_text()
+    scrape = _resolve_infra_file("prometheus", "prometheus.yml").read_text(encoding="utf-8")
+    assert "host.docker.internal:${AETHER_METRICS_HOST_IP:-host-gateway}" in compose
+    assert "host.docker.internal:9100" in scrape
+
+
 def test_compose_gpu_overlay_removed():
     assert not repo_path("infra", "docker", "docker-compose.gpu.yml").is_file()
 

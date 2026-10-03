@@ -13,7 +13,6 @@ from src.application.services.deep_learning.dl_calibration import (
     calibrator_to_dict,
 )
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.application.services.deep_learning.dl_model_factory import create_direction_model
 from src.application.services.deep_learning.dl_model_types import CHECKPOINT_VERSION, DEFAULT_ARCH, FeatureNormStats
 
@@ -33,7 +32,7 @@ def should_replace_checkpoint(
 
 
 def checkpoint_meta_ready(path: Path) -> bool:
-    """True se o arquivo em disco permite seguir para meta (deploy_ok ou soft gate)."""
+    """True se o checkpoint possui pesos e normalizacao para treino meta."""
     try:
         if not path.is_file():
             return False
@@ -43,19 +42,18 @@ def checkpoint_meta_ready(path: Path) -> bool:
         return False
     if not isinstance(payload, dict):
         return False
-    if bool(payload.get("deploy_ok", False)) and payload.get("deploy_settlement_wilson_lcb") is not None:
-        return True
-    gate_cfg = parse_deploy_gate_config({})
-    return bool(
-        resolve_deploy_ok(
-            mini_ok=False,
-            val_accuracy=float(payload.get("val_accuracy", 0.0) or 0.0),
-            val_brier=float(payload.get("val_brier", 1.0) or 1.0),
-            gate_cfg=gate_cfg,
-            label_call_frac=payload.get("label_call_frac"),
-            pred_call_frac=payload.get("pred_call_frac"),
-            minority_recall=payload.get("minority_recall"),
-        )
+    return isinstance(payload.get("state_dict"), dict) and bool(payload["state_dict"]) and _normalization_ready(payload)
+
+
+def _normalization_ready(payload: dict) -> bool:
+    """Exige vetores de normalizacao com dimensao compativel."""
+    mean = payload.get("norm_mean")
+    std = payload.get("norm_std")
+    return (
+        isinstance(mean, (list, tuple, torch.Tensor))
+        and isinstance(std, (list, tuple, torch.Tensor))
+        and len(mean) == FEATURE_DIM
+        and len(std) == FEATURE_DIM
     )
 
 
@@ -89,14 +87,7 @@ def save_model_checkpoint(
     val_brier: float | None = None,
     val_ece: float | None = None,
     deploy_ok: bool | None = None,
-    deploy_provisional_ok: bool | None = None,
     deploy_win_rate: float | None = None,
-    deploy_settlement_win_rate: float | None = None,
-    deploy_settlement_brier: float | None = None,
-    deploy_settlement_n: int | None = None,
-    deploy_settlement_wilson_lcb: float | None = None,
-    deploy_settlement_source: str | None = None,
-    oos_sharpness: float | None = None,
     granularity: int | None = None,
     training_history_bars: int | None = None,
     label_horizon_bars: int | None = None,
@@ -131,22 +122,8 @@ def save_model_checkpoint(
         payload["val_ece"] = float(val_ece)
     if deploy_ok is not None:
         payload["deploy_ok"] = bool(deploy_ok)
-    if deploy_provisional_ok is not None:
-        payload["deploy_provisional_ok"] = bool(deploy_provisional_ok)
     if deploy_win_rate is not None:
         payload["deploy_win_rate"] = float(deploy_win_rate)
-    if deploy_settlement_win_rate is not None:
-        payload["deploy_settlement_win_rate"] = float(deploy_settlement_win_rate)
-    if deploy_settlement_brier is not None:
-        payload["deploy_settlement_brier"] = float(deploy_settlement_brier)
-    if deploy_settlement_n is not None:
-        payload["deploy_settlement_n"] = int(deploy_settlement_n)
-    if deploy_settlement_wilson_lcb is not None:
-        payload["deploy_settlement_wilson_lcb"] = float(deploy_settlement_wilson_lcb)
-    if deploy_settlement_source is not None:
-        payload["deploy_settlement_source"] = str(deploy_settlement_source)
-    if oos_sharpness is not None:
-        payload["oos_sharpness"] = float(oos_sharpness)
     if granularity is not None:
         payload["granularity"] = int(granularity)
     if training_history_bars is not None:
@@ -178,11 +155,17 @@ def load_model_checkpoint(
     except Exception as exc:
         logger.debug("DL: Checkpoint corrompido em %s; sera reiniciado. Erro: %s", path, exc)
         return None
-    if not isinstance(payload, dict) or "state_dict" not in payload:
+    if not isinstance(payload, dict) or not isinstance(payload.get("state_dict"), dict) or not payload["state_dict"]:
+        return None
+    if not _normalization_ready(payload):
         return None
     expected_label = (params or {}).get("label_mode")
     if expected_label is not None and str(payload.get("label_mode") or "") != str(expected_label):
         logger.info("DL: Checkpoint %s com label_mode incompativel; retreino necessario.", path)
+        return None
+    expected_horizon = (params or {}).get("label_horizon_bars")
+    if expected_horizon is not None and int(payload.get("label_horizon_bars") or 0) != int(expected_horizon):
+        logger.info("DL: Checkpoint %s com label_horizon_bars incompativel; retreino necessario.", path)
         return None
     feature_dim = int(payload.get("feature_dim", payload.get("input_dim", FEATURE_DIM)))
     if feature_dim != FEATURE_DIM:

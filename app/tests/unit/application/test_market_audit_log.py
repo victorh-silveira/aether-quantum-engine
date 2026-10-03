@@ -35,7 +35,6 @@ def test_resolve_cluster_timeframe_branches():
     assert resolve_cluster_timeframe({"data_handler": "x"}) == "M5"
     assert resolve_cluster_timeframe({"risk_management": {"params": {"duration": 5, "duration_unit": "m"}}}) == "M5"
     assert resolve_cluster_timeframe({"risk_management": {"params": {"duration": 300, "duration_unit": "s"}}}) == "M5"
-    assert resolve_cluster_timeframe({"horizon_sweep": {"ops_contract_duration_minutes": 5}}) == "M5"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 900}}) == "M15"
     assert resolve_cluster_timeframe({"data_handler": {"micro_granularity": 300}}) == "M5"
     assert resolve_cluster_timeframe({"data_handler": {"granularity": 300, "micro_granularity": 60}}) == "M1"

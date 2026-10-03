@@ -10,10 +10,10 @@ Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ati
 |------|--------|
 | Simbolo API | `1HZ75V` |
 | Contrato | `RISE_FALL` **5 m** (`duration=5`, `duration_unit=m`, `label_horizon_bars=1`) |
-| Micro / MINI OHLC | **300 s** (M5, **2000** velas de treino) |
+| Micro / MINI OHLC | **300 s** (M5, **25000** velas de treino) |
 | Macro OHLC | **86400 s** (D1 / 365 velas de treino - 1 ano) |
 | Ciclo / assinatura | **300 s** / **300 s** (alinhado ao fecho da vela M5); `exec_empty_retry` **300 s** |
-| Lookback TCN | **30** barras |
+| Lookback TCN | **32** barras |
 | Payout SSOT | **0.85** (85% payout base) |
 | Soft Recovery | amort **1/1**, `cover_multiple` **1.0** |
 | Stop-win | `compounding_rate_daily` **4.31%** / Single-Strike 1 trade |
@@ -36,7 +36,7 @@ SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
 
 1. Invalidar checkpoints de gran **180** (legado M3) e contratos **3/6/9/15 m** da grade antiga `{1,2,3,5}`.
 2. Re-hidratar Timescale **300/86400**; retreinar TCN/meta/loss-clf (`launch-train` + `make docker-rebuild`).
-3. Confirmar `contracts_for` autenticado: Rise/Fall **5/10/15/20 m** (grade sweep N=1..4) disponivel na grade N.
+3. Confirmar `contracts_for` autenticado para Rise/Fall **5 m** antes de operar.
 
 ---
 

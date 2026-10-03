@@ -87,14 +87,11 @@ def _apply_brier_ece_penalties(composite: float, metrics: dict, *, live_n: int) 
     """Resolve ou aplica  apply brier ece penalties."""
     cfg = _composite()
     brier = metrics.get("val_brier")
-    settlement_brier = metrics.get("deploy_settlement_brier")
     live_brier = metrics.get("live_brier")
     if live_n >= int(cfg["live_n_min"]) and live_brier is not None:
         effective_brier = float(live_brier)
     else:
-        effective_brier = (
-            float(settlement_brier) if settlement_brier is not None else (float(brier) if brier is not None else None)
-        )
+        effective_brier = float(brier) if brier is not None else None
     if effective_brier is not None and effective_brier > float(cfg["live_brier_hard_above"]):
         composite += float(cfg["live_brier_hard_penalty"])
     elif effective_brier is not None and effective_brier > float(cfg["live_brier_soft_above"]):
@@ -125,7 +122,7 @@ def market_decision_score(
     val = float(metrics.get("val_accuracy", 0.0))
     edge = float(metrics.get("edge", abs(raw_side - 0.5)))
     live_n = int(metrics.get("live_n", 0) or 0)
-    settlement_wr = metric_float(metrics, "deploy_settlement_win_rate", "deploy_win_rate", default=0.0)
+    settlement_wr = metric_float(metrics, "deploy_win_rate", default=0.0)
     live_wr = metrics.get("live_wr")
     effective_wr = float(live_wr) if live_n >= int(cfg["live_n_min"]) and live_wr is not None else float(settlement_wr)
     composite = (

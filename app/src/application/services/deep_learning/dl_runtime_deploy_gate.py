@@ -1,31 +1,24 @@
 """Autorizacao de checkpoint identica para contas virtuais e reais."""
 
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config
+from src.domain.risk.checkpoint_stake_cap import MAX_CHECKPOINT_STAKE_PCT
 
 
 def apply_deploy_gate(entry: dict, runtime: dict, dl_config: dict, orch=None) -> dict:
-    """Separa validade tecnica do checkpoint da qualificacao estatistica OOS."""
+    """Exige checkpoint carregado e limita a stake a 1% da banca."""
     del orch
-    gate_cfg = parse_deploy_gate_config(dl_config)
     metrics = entry["metrics"]
     checkpoint_ready = bool(runtime.get("checkpoint_loaded", False)) and bool(runtime.get("session_trained", False))
-    qualified = checkpoint_ready and bool(runtime.get("deploy_ok", False))
-    provisional = (
-        checkpoint_ready
-        and not qualified
-        and bool(runtime.get("deploy_provisional_ok", False))
-        and bool(gate_cfg["provisional_enabled"])
-    )
-    exploration = checkpoint_ready and not qualified and not provisional
+    exploration = checkpoint_ready
     if not checkpoint_ready and metrics.get("execute"):
         metrics["execute"] = False
         metrics["gate_reason"] = "model_unavailable"
     metrics["deploy_ok"] = checkpoint_ready
-    metrics["model_deploy_qualified"] = qualified
+    metrics["model_deploy_qualified"] = False
     metrics["checkpoint_exploration"] = exploration
-    metrics["deploy_provisional"] = provisional or exploration
+    metrics["deploy_provisional"] = exploration
     if exploration:
-        metrics["provisional_max_stake_pct"] = min(0.01, max(0.0, float(gate_cfg["unqualified_max_stake_pct"])))
-    elif provisional:
-        metrics["provisional_max_stake_pct"] = float(gate_cfg["provisional_max_stake_pct"])
+        metrics["provisional_max_stake_pct"] = min(
+            MAX_CHECKPOINT_STAKE_PCT,
+            max(0.0, float(dl_config.get("checkpoint_max_stake_pct", MAX_CHECKPOINT_STAKE_PCT))),
+        )
     return entry

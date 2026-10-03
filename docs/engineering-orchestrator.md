@@ -8,10 +8,10 @@ Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.m
 - Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
 - Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
 - `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
-- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; schema_hash; FLIP apos auto_learn; young pe>=**0.58** / mature **0.58**
+- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; schema_hash; FLIP apos auto_learn; young pe>=**0.58** / mature **0.70**
 - MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
-- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / **2000** barras de histórico)
-- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`quantum_multi_barrier`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
+- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / **25000** barras de histórico)
+- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`spot_forward`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
 - Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
 - MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5
 - MILI: tick flow (velocity/acceleration), nao barra OHLC

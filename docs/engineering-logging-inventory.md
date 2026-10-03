@@ -12,7 +12,7 @@ Mapa SSOT das fontes de log. Contrato normativo: [`engineering-observability.md`
 | SSOT knobs | `config/settings.json` → `logging` | `resolve_logging_config` | level, log_file, quiet_channels |
 | Audit ciclo | `market_audit_log.py`, `dl_cycle_log.py` | tags CLUSTER/IND/EXEC/RESOLVED | CLUSTER SKIP (incl. `NEUTRAL_ZONE`) leva Margin/Edge/raw_edge/be; dedupe via `log_dedupe.py` |
 | SETTLE | `settle_log.py` + orquestrador | `SETTLE.{canal}:` | rate-limit por canal+tick |
-| Scripts treino | `train_meta_*`, `check_dl_deploy_gate` | logger `AETH.meta` / `AETH.train` | sem print no caminho critico |
+| Scripts treino | `train_meta_*`, `check_dl_checkpoint` | logger `AETH.meta` / `AETH.train` | sem print no caminho critico |
 | Scripts QA | `clean_workspace.py` | `print` (~22) | fora do escopo de polimento live |
 | Infra meta | `infra/docker/meta-classifier/app.py` | ~18 logs | sidecar; inventario apenas |
 

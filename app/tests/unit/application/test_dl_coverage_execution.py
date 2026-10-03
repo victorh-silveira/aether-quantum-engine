@@ -1,15 +1,14 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
 import torch
 
-from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
 from src.application.services.deep_learning.dl_feature_build import attach_microstructure
 from src.application.services.deep_learning.dl_hurst import hurst_exponent
 from src.application.services.deep_learning.dl_outcomes import live_win_rate
-from src.application.services.deep_learning.dl_params import optional_float, parse_dl_params
+from src.application.services.deep_learning.dl_params import optional_float
 from src.application.services.deep_learning.dl_tcn import TemporalDirectionClassifier
 from src.application.services.deep_learning.model import (
     INPUT_DIM,
@@ -165,59 +164,3 @@ def test_save_torchscript_failure(tmp_path):
             lookback=8,
         )
     assert not path.with_name(path.stem + "_ts.pt").exists()
-
-
-def test_evaluate_mini_deploy_micro_slice_runs():
-    orch = MagicMock()
-    model = create_direction_model(arch="tcn", input_dim=INPUT_DIM)
-    prices = np.linspace(100.0, 110.0, 200)
-    n = len(prices)
-    micro = {
-        k: np.linspace(0.0, 1.0, n)
-        for k in (
-            "tick_count",
-            "mean_inter_tick_ms",
-            "price_velocity",
-            "price_acceleration",
-            "consecutive_diff_std",
-        )
-    }
-    stats = FeatureNormStats(
-        mean=np.zeros(INPUT_DIM, dtype=np.float32),
-        std=np.ones(INPUT_DIM, dtype=np.float32),
-    )
-    runtime = {"lookback": 48, "val_accuracy": 0.55, "val_brier": 0.2, "deploy_ok": True}
-    params = parse_dl_params(
-        {
-            "lookback": 48,
-            "confidence_call_threshold": 0.75,
-            "confidence_put_threshold": 0.25,
-            "deploy_gate": {
-                "enabled": True,
-                "mini_bars": 120,
-                "min_trades": 1,
-                "max_brier": 0.99,
-                "min_win_rate": 0.0,
-                "max_eval_steps": 10,
-                "require_broker_settlement": False,
-            },
-        },
-        {},
-    )
-    with patch(
-        "src.application.services.deep_learning.dl_deploy_eval.predict_symbol_decision",
-        return_value={"direction": TradeDirection.CALL, "metrics": {"execute": True, "raw_prob": 0.9}},
-    ) as mock_predict:
-        ok, wr, brier = evaluate_mini_deploy(
-            orch,
-            "R_10",
-            model,
-            prices,
-            stats,
-            runtime,
-            params,
-            micro=micro,
-        )
-    assert mock_predict.called
-    assert ok is True
-    assert runtime["deploy_settlement_source"] == "m5_close_proxy"

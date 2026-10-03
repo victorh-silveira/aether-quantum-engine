@@ -36,25 +36,23 @@ def test_production_settings_pass_doctrine_invariants():
     assert int(inv["loss_clf_min_win_for_loss_retrain"]) == 4
 
 
-def test_production_deploy_gate_armed():
+def test_production_checkpoint_policy():
     from src.domain.config_knobs import load_settings_json
 
     settings = load_settings_json()
     dl = settings["deep_learning"]
-    gate = dl["deploy_gate"]
-    assert gate["enabled"] is True
-    assert gate["force_ok"] is True
-    assert float(gate["soft_min_val_accuracy"]) == pytest.approx(0.50)
-    assert float(gate["soft_max_brier"]) == pytest.approx(0.26)
-    assert bool(gate["reject_majority_collapse"]) is True
-    assert float(gate["max_label_call_frac_bias"]) == pytest.approx(0.15)
+    quality = dl["training_quality"]
+    assert "deploy_gate" not in dl
+    assert float(dl["checkpoint_max_stake_pct"]) == pytest.approx(0.01)
+    assert float(quality["soft_min_val_accuracy"]) == pytest.approx(0.50)
+    assert bool(quality["reject_majority_collapse"]) is True
+    assert float(quality["max_label_call_frac_bias"]) == pytest.approx(0.15)
     assert bool(dl.get("allow_undeployed_inference")) is False
     assert int(dl.get("training_history_bars", 0)) == 25000
     assert int(dl.get("lookback", 0)) == 32
     assert int(dl.get("label_horizon_bars", 0)) == 1
     assert int(settings["risk_management"]["params"]["duration"]) == 5
     assert str(settings["risk_management"]["params"]["duration_unit"]) == "m"
-    assert settings["orchestrator"]["execution"]["bypass_deploy_gate"] is False
     assert "quality_gate" not in settings["orchestrator"]["execution"]
     assert "signal_skip" not in settings["orchestrator"]["execution"]
     assert settings["orchestrator"]["execution"]["invert_exec_side"] is False
@@ -72,14 +70,15 @@ def test_production_deploy_gate_armed():
     assert "barrier_contracts" not in settings["risk_management"]
     assert "touch" not in settings
     assert dl["calibration"]["sharpening_enabled"] is False
-    assert gate["max_eval_steps"] >= gate["min_trades"]
-    assert gate["mini_bars"] > gate["max_eval_steps"]
     assert float(dl["calibration"]["sharpening_tau"]) == pytest.approx(0.40)
     assert settings["orchestrator"]["execution"]["skip_exec_vs_candle"] is False
     assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False
     assert settings["orchestrator"]["execution"]["skip_scale_candle_discord"] is False
     assert settings["orchestrator"]["execution"]["skip_neg_edge"] is False
     assert settings["orchestrator"]["execution"]["min_edge_execute"] >= 0.0
+    assert settings["orchestrator"]["execution"]["require_quote_edge"] is True
+    assert settings["orchestrator"]["execution"]["min_payout_rate"] == pytest.approx(0.0)
+    assert settings["orchestrator"]["execution"]["quote_safety_margin"] == pytest.approx(0.01)
     assert settings["orchestrator"]["execution"]["skip_doji"] is False
     assert settings["risk_management"]["soft_recovery"]["amort_cycles_min"] == 1
     assert settings["risk_management"]["soft_recovery"]["amort_cycles_max"] == 1

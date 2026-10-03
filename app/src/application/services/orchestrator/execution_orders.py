@@ -15,6 +15,7 @@ from src.application.services.market_audit_log import (
 )
 from src.application.services.micro_hedge_monitor import register_contract_for_hedge
 from src.application.services.rise_fall_quote_guard import quoted_edge
+from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
@@ -170,13 +171,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
     if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
-        max_limit = 0.035 if metrics.get("recovery_cap_mode") == "cover_l0" else 0.01
-        raw_cap = (
-            max_limit
-            if metrics.get("recovery_cap_mode") == "cover_l0"
-            else float(metrics.get("provisional_max_stake_pct", 0.0))
-        )
-        cap_pct = min(max_limit, max(0.0, raw_cap))
+        cap_pct = checkpoint_stake_cap_pct(metrics)
         cap = float(executor.orch.state.balance) * cap_pct
         if cap + 1e-9 < stake_min:
             raise RuntimeError("Checkpoint nao qualificado: stake minimo excede teto")
@@ -205,7 +200,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             last_error = exc
             if "perdeu vantagem" in str(exc).lower() or "compra bloqueada" in str(exc).lower():
                 logger.warning(
-                    "[PROPOSAL] || Cotacao Deriv sem EV para %s (%s): %s",
+                    "[PROPOSAL] || Cotacao Deriv rejeitada para %s (%s): %s",
                     symbol,
                     getattr(direction, "name", str(direction)),
                     exc,

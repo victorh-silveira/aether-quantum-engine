@@ -36,14 +36,13 @@ def test_rise_fall_launchers_train_tcn_and_meta_without_candidate_promotion():
     )
     for path in launchers:
         script = path.read_text(encoding="utf-8")
-        assert "run_launch_train_tf_pipeline.py" in script
+        assert "app/train.py" in script
         assert "train_meta_classifier.py" in script
         assert "train_loss_classifier" in script
-        assert "check_dl_deploy_gate.py" in script
+        assert "check_dl_checkpoint.py" in script
         assert "train_touch_classifier.py" not in script
         assert "meta_candidate.joblib" not in script
-        assert "Meta exportado em meta-models" in script
-        assert "Meta nao exportado; somente candidato diagnostico" in script
+        assert "checkpoint TCN compativel" in script
         assert "Nenhum candidato meta foi promovido" not in script
 
 

@@ -2,6 +2,7 @@ from pathlib import Path
 
 import torch
 
+from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import should_replace_checkpoint
 
 
@@ -35,11 +36,14 @@ def test_should_replace_when_val_accuracy_none(tmp_path: Path):
     assert should_replace_checkpoint(path, deploy_ok=False, val_accuracy=None) is True
 
 
-def test_checkpoint_meta_ready_true_when_deploy_ok(tmp_path: Path):
+def test_checkpoint_meta_ready_when_technically_complete(tmp_path: Path):
     from src.application.services.deep_learning.dl_model_checkpoint import checkpoint_meta_ready
 
     path = tmp_path / "R_10.pth"
-    torch.save({"deploy_ok": True, "val_accuracy": 0.556, "deploy_settlement_wilson_lcb": 0.56}, path)
+    torch.save(
+        {"state_dict": {"weight": torch.ones(1)}, "norm_mean": [0.0] * FEATURE_DIM, "norm_std": [1.0] * FEATURE_DIM},
+        path,
+    )
     assert checkpoint_meta_ready(path) is True
 
 
@@ -60,18 +64,14 @@ def test_checkpoint_meta_ready_false_on_corrupt_or_non_dict(tmp_path: Path):
     assert checkpoint_meta_ready(not_dict) is False
 
 
-def test_checkpoint_meta_ready_rejects_soft_gate_without_settlement(tmp_path: Path):
+def test_checkpoint_meta_ready_rejects_missing_weights(tmp_path: Path):
     from src.application.services.deep_learning.dl_model_checkpoint import checkpoint_meta_ready
 
     path = tmp_path / "R_10.pth"
     torch.save(
         {
-            "deploy_ok": False,
-            "val_accuracy": 0.556,
-            "val_brier": 0.24,
-            "label_call_frac": 0.48,
-            "pred_call_frac": 0.52,
-            "minority_recall": 0.38,
+            "norm_mean": [],
+            "norm_std": [],
         },
         path,
     )

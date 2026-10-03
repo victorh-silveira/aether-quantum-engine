@@ -11,7 +11,6 @@ import pytest
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState, apply_calibrator_stable
 from src.application.services.deep_learning.dl_calibration_fit import _select_best_calibrator
-from src.application.services.deep_learning.dl_gate_config import describe_deploy_block
 from src.application.services.deep_learning.dl_sharpness import (
     assert_export_sharpness_floor,
     assert_export_sharpness_value,
@@ -185,15 +184,6 @@ def test_dl_sharpness_gate_and_persist_errors():
     assert assert_export_sharpness_value(0.01, floor=0.0) == pytest.approx(0.01)
     with pytest.raises(RuntimeError):
         assert_export_sharpness_floor([0.51], floor=0.05)
-    assert describe_deploy_block(
-        mini_ok=True, val_accuracy=0.56, val_brier=0.20, gate_cfg={"soft_min_val_accuracy": 0.53}
-    ) == ("mini_ok mas gate rejeitou (inesperado)")
-    assert describe_deploy_block(
-        mini_ok=False,
-        val_accuracy=0.56,
-        val_brier=0.20,
-        gate_cfg={"soft_min_val_accuracy": 0.53, "soft_max_brier": 0.26},
-    ) == ("settlement OOS nao qualificou (val_brier=0.2000; soft_max_brier=0.2600)")
 
 
 def test_dl_calibration_fit_and_stable_margin():

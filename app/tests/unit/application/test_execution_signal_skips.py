@@ -17,7 +17,7 @@ from src.domain.models.trade import TradeDirection
 
 def test_should_skip_acc_floor_below_soft_min():
     metrics = {"val_accuracy": 0.5242}
-    orch = SimpleNamespace(config={"deep_learning": {"deploy_gate": {"soft_min_val_accuracy": 0.53}}})
+    orch = SimpleNamespace(config={"deep_learning": {"training_quality": {"soft_min_val_accuracy": 0.53}}})
     assert should_skip_acc_floor(metrics, {"skip_below_soft_min_acc": True}, orch=orch) is True
     assert metrics["skip_reason"] == "acc_floor"
     assert metrics["signal_status"] == "SKIP:acc_floor"
@@ -30,7 +30,7 @@ def test_should_skip_acc_floor_passes_at_soft_min():
         should_skip_acc_floor(
             metrics,
             {"skip_below_soft_min_acc": True},
-            orch=SimpleNamespace(config={"deep_learning": {"deploy_gate": {"soft_min_val_accuracy": 0.53}}}),
+            orch=SimpleNamespace(config={"deep_learning": {"training_quality": {"soft_min_val_accuracy": 0.53}}}),
         )
         is False
     )

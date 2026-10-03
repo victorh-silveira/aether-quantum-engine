@@ -136,6 +136,12 @@ def align_exec_empty_recovery_signature_cooldown(orch: Any) -> float:
 
 async def run_orchestrator_main_loop(orch: Any) -> None:
     """Loop principal assincrono com reconexao, persistencia e ciclos M5."""
+    ms = getattr(orch, "metrics_server", None)
+    if ms is not None and hasattr(ms, "start"):
+        with contextlib.suppress(Exception):
+            start_res = ms.start()
+            if asyncio.iscoroutine(start_res):
+                await start_res
     if not await setup_session(orch):
         orch.logger.error("INIT: Abortando motor (falha em PAT, OTP ou WebSocket).")
         return
@@ -143,12 +149,6 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
         orch.logger.error("INIT: Abortando motor (falha ao sincronizar velas OHLC).")
         return
     prepare_orchestrator_run_loop(orch)
-    ms = getattr(orch, "metrics_server", None)
-    if ms is not None and hasattr(ms, "start"):
-        with contextlib.suppress(Exception):
-            start_res = ms.start()
-            if asyncio.iscoroutine(start_res):
-                await start_res
     await await_stream_warm_up_gate(orch)
     await start_settlement_worker(orch)
     await start_ingestion_watchdog(orch)

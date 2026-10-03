@@ -21,6 +21,12 @@ Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engine
 | `log_file` | `logs/engine.log` | Persistencia |
 | `quiet_channels` | settle_enqueue, settle_process, settle_tolerance, settle_read, ws_ping, warmup_poll, execution_flow | Canal → DEBUG via `log_settle` |
 
+## Prometheus e Grafana
+
+O motor lê `telemetry.host` e `telemetry.port` de `config/settings.json` e expõe `/metrics` na porta 9100 enquanto está em execução. O bind `0.0.0.0` permite o scrape pelo Docker; o dashboard usa o datasource `http://prometheus:9090` dentro da rede Compose.
+
+Com Docker nativo no WSL e motor Python no Windows, `make docker-up` detecta o gateway Windows pela rota padrão do WSL e o passa ao container Prometheus como `AETHER_METRICS_HOST_IP`. O alvo `host.docker.internal:9100` aponta então ao processo Windows. Para motor rodando no próprio WSL, execute `AETHER_METRICS_HOST_IP=host-gateway make docker-up`. Após reiniciar o motor e o Prometheus, confirme `up{job="aether_quantum_engine"}=1` na API do Prometheus; com o motor parado, o alvo fica DOWN por definição.
+
 ## Contrato de tags
 
 | Tag | Nivel tipico | Frequencia | Consumidor |

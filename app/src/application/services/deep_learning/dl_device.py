@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
+import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -13,6 +17,23 @@ from torch import nn
 logger = logging.getLogger("AETH")
 
 _DEVICE_LOGGED: set[str] = set()
+
+
+def _ensure_windows_cuda_dlls() -> None:
+    """Registra diretorios de DLL do CUDA no Windows para permitir deteccao de GPU."""
+    if sys.platform != "win32":
+        return
+    candidates = [
+        Path(sys.prefix) / "Library" / "bin",
+        Path(sys.prefix) / "bin",
+    ]
+    cuda_path = os.environ.get("CUDA_PATH")
+    if cuda_path:
+        candidates.append(Path(cuda_path) / "bin")
+    for path in candidates:
+        if path.is_dir():
+            with contextlib.suppress(OSError, AttributeError):
+                os.add_dll_directory(str(path))
 
 
 def _config_device(dl_config: dict[str, Any] | None, key: str, default: str = "auto") -> str:
@@ -27,6 +48,7 @@ def _config_device(dl_config: dict[str, Any] | None, key: str, default: str = "a
 
 def resolve_torch_device(dl_config: dict[str, Any] | None, *, kind: str) -> torch.device:
     """Resolve cpu ou cuda conforme config e disponibilidade de GPU."""
+    _ensure_windows_cuda_dlls()
     config_key = "training_device" if kind == "training" else "inference_device"
     preference = _config_device(dl_config, config_key, "auto")
     if preference in ("cpu", "off", "false", "0"):

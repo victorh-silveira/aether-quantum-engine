@@ -23,6 +23,7 @@ from src.application.services.meta_classifier_vectors import (
 from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
 from src.application.services.orchestrator.execution_proposal import is_proposal_runtime_error
 from src.domain.models.trade import TradeDirection
+from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 
 
@@ -102,13 +103,7 @@ async def execute_cluster_orders(
             pct = max(neutral_pct, 0.008) if _in_recovery else neutral_pct
             stake = max(0.0, bankroll_snapshot * pct)
         if metrics.get("checkpoint_exploration"):
-            max_limit = 0.035 if metrics.get("recovery_cap_mode") == "cover_l0" else 0.01
-            raw_cap = (
-                max_limit
-                if metrics.get("recovery_cap_mode") == "cover_l0"
-                else float(metrics.get("provisional_max_stake_pct", 0.0))
-            )
-            cap_pct = min(max_limit, max(0.0, raw_cap))
+            cap_pct = checkpoint_stake_cap_pct(metrics)
             stake = min(stake, bankroll_snapshot * cap_pct)
             stake_min = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
             if stake + 1e-9 < stake_min:

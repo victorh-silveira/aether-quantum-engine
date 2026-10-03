@@ -24,7 +24,7 @@ Ler `docs/llm-trading-doctrine.md`, `docs/binary-senior-playbook.md` e `docs/eng
 $$\text{Lucro Alvo} = \text{Banca} \times 0.0431$$
 $$\text{Stake} = \frac{\text{Banca} \times 0.0431}{0.85} \approx 0.0507 \times \text{Banca} \implies \text{cap } 5.0\%$$
 
-Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_live_n_min` **12**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**; stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `recovery_cap_mode=cover_l0` (L0 **3.5%**, ignora L2/L3); PEND material nao force-explore por near-stop; skips de sinal waived com PEND; piso Kelly **1%** soberano tambem em RECOVER residual. Sem revenge sizing. Cold start (`live_n < 12`): Kelly × `explore_stake_scale` (piso **0.40**), sem boost Single-Strike.
+Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout` **0.85**; `stop_win_kelly_cycles_target` **1**; `stop_win_kelly_live_n_min` **12**; `max_stake_pct` **0.05**. Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**; stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `recovery_cap_mode=cover_l0` (L0 **3.5%**, ignora L2/L3), subordinado ao teto inicial do checkpoint TCN de **1% da banca por ordem**; PEND material nao force-explore por near-stop; skips de sinal waived com PEND. Sem revenge sizing, stop loss ou teto acumulado de perda. Cold start (`live_n < 12`): Kelly × `explore_stake_scale` (piso **0.40**), sem boost Single-Strike.
 
 ## Pre-trade (PlayBook)
 

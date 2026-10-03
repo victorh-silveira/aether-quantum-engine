@@ -13,7 +13,6 @@ from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
-from src.application.services.deep_learning.dl_gate_config import parse_deploy_gate_config, resolve_deploy_ok
 from src.application.services.deep_learning.dl_params import resolve_dl_granularity
 from src.application.services.deep_learning.model import (
     create_direction_model,
@@ -37,42 +36,6 @@ def checkpoint_fingerprint(path: Path) -> str | None:
     except OSError:
         return None
     return digest.hexdigest()
-
-
-def _effective_deploy_ok(
-    *,
-    stored_ok: bool,
-    val_accuracy: float,
-    val_brier: float,
-    dl_config: dict,
-    label_call_frac: float | None = None,
-    pred_call_frac: float | None = None,
-    minority_recall: float | None = None,
-    checkpoint_payload: dict | None = None,
-    settings: dict | None = None,
-) -> bool:
-    """Valida checkpoint promovido pela evidencia OOS de settlement."""
-    gate_cfg = parse_deploy_gate_config(dl_config)
-    _ = settings
-    if not bool(stored_ok) or not isinstance(checkpoint_payload, dict):
-        return False
-    if (
-        bool(gate_cfg.get("require_broker_settlement", False))
-        and checkpoint_payload.get("deploy_settlement_source") != "broker_tick_audit"
-    ):
-        return False
-    lcb = checkpoint_payload.get("deploy_settlement_wilson_lcb")
-    if lcb is None or float(lcb) + 1e-9 < float(gate_cfg["min_win_rate"]):
-        return False
-    return resolve_deploy_ok(
-        mini_ok=True,
-        val_accuracy=float(val_accuracy),
-        val_brier=float(val_brier),
-        gate_cfg=gate_cfg,
-        label_call_frac=label_call_frac,
-        pred_call_frac=pred_call_frac,
-        minority_recall=minority_recall,
-    )
 
 
 @contextmanager
@@ -164,29 +127,9 @@ def get_symbol_runtime(orch, symbol: str, dl_config: dict, params: dict) -> dict
                 checkpoint_granularity = expected_granularity
         if loaded is not None:
             lookback = int(ckpt_lookback)
-            session_trained = float(val_brier) + 1e-9 < 0.99
-            stored_ok = bool(deploy_ok)
-            collapse_meta: dict = {}
-            if path.is_file():
-                try:
-                    payload = torch.load(path, map_location=torch.device("cpu"), weights_only=True)
-                    if isinstance(payload, dict):
-                        collapse_meta = payload
-                except Exception:
-                    collapse_meta = {}
-            settings = orch.config if isinstance(getattr(orch, "config", None), dict) else None
-            deploy_ok = _effective_deploy_ok(
-                stored_ok=stored_ok,
-                val_accuracy=float(val_accuracy),
-                val_brier=float(val_brier),
-                dl_config=dl_config,
-                label_call_frac=collapse_meta.get("label_call_frac"),
-                pred_call_frac=collapse_meta.get("pred_call_frac"),
-                minority_recall=collapse_meta.get("minority_recall"),
-                checkpoint_payload=collapse_meta if isinstance(collapse_meta, dict) else None,
-                settings=settings,
-            )
-            deploy_provisional_ok = bool(collapse_meta.get("deploy_provisional_ok", False)) and not deploy_ok
+            session_trained = True
+            deploy_ok = False
+            deploy_provisional_ok = False
             logger.debug("DL: Checkpoint carregado para %s em %s", symbol, path)
         else:
             model = create_direction_model(

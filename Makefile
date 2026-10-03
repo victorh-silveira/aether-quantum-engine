@@ -8,6 +8,7 @@ CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
 DOCKER_PROFILES ?= core,ml,telemetry
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
+export AETHER_METRICS_HOST_IP ?= $(shell ip -4 route show default 2>/dev/null | awk 'NR==1 {print $$3}')
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= 200
 DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier prometheus grafana
@@ -112,7 +113,7 @@ app-run:
 	$(PYTHON) run.py
 
 app-train:
-	$(PYTHON) $(APP_DIR)/scripts/operations/run_launch_train_tf_pipeline.py
+	$(PYTHON) $(APP_DIR)/train.py
 
 app-pre-commit:
 	bash linters/git-hooks/install.sh

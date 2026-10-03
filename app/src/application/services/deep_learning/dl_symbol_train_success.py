@@ -1,26 +1,13 @@
-"""Persistencia de checkpoint e metricas apos treino walk-forward."""
+"""Persistencia do checkpoint tecnico apos treino temporal."""
 
 import logging
 import time
-from pathlib import Path
 
 import numpy as np
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState
-from src.application.services.deep_learning.dl_deploy import apply_deploy_to_runtime
-from src.application.services.deep_learning.dl_deploy_eval import evaluate_mini_deploy
-from src.application.services.deep_learning.dl_gate_config import (
-    describe_deploy_block,
-    resolve_deploy_ok,
-    resolve_provisional_deploy_ok,
-)
 from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
-from src.application.services.deep_learning.dl_model_artifacts import schedule_model_upload
 from src.application.services.deep_learning.dl_retrain import clear_force_retrain, reset_bars_since_train
-from src.application.services.deep_learning.dl_sharpness import (
-    assert_export_sharpness_value,
-    resolve_calibration_sharpness_cfg,
-)
 from src.application.services.deep_learning.dl_symbol_runtime import resolve_dl_model_path
 from src.application.services.deep_learning.model import save_model_checkpoint
 from src.application.services.live_signal_metrics import live_signal_snapshot
@@ -29,49 +16,19 @@ from src.application.services.live_signal_metrics import live_signal_snapshot
 logger = logging.getLogger("AETH")
 
 
-def _settlement_log_summary(runtime: dict) -> str:
-    """Nao apresenta taxa ou Brier de settlement quando nenhum contrato foi medido."""
-    n = int(runtime.get("deploy_settlement_n", 0) or 0)
-    source = str(runtime.get("deploy_settlement_source") or "unknown")
-    if n <= 0:
-        return f"settle_n=0 source={source} settle_wr=NA settle_lcb90=NA settle_brier=NA label_wr=NA"
-    return (
-        f"settle_n={n} source={source} "
-        f"settle_wr={float(runtime.get('deploy_settlement_win_rate', 0.0)):.2f} "
-        f"settle_lcb90={float(runtime.get('deploy_settlement_wilson_lcb', 0.0)):.2f} "
-        f"settle_brier={float(runtime.get('deploy_settlement_brier', 1.0)):.3f} "
-        f"label_wr={float(runtime.get('deploy_label_win_rate', 0.0)):.2f}"
-    )
-
-
-def _log_horizon_gap(
-    *,
-    level: int,
-    symbol: str,
-    granularity: int,
-    params: dict,
-    orch,
-) -> None:
-    """Loga gap entre horizonte de label e duracao do contrato."""
-    label_horizon_bars = max(1, int(params.get("label_horizon_bars", 1)))
-    label_horizon_seconds = int(label_horizon_bars) * max(1, int(granularity))
-    risk_cfg = getattr(orch, "config", {}) if orch is not None else {}
-    risk = risk_cfg.get("risk_management") if isinstance(risk_cfg, dict) else {}
-    risk_params = risk.get("params") if isinstance(risk, dict) else {}
-    if not isinstance(risk_params, dict):
-        risk_params = params.get("risk_params") if isinstance(params.get("risk_params"), dict) else {}
-    contract_sec = (
-        contract_duration_seconds(risk_params) if risk_params else int(params.get("contract_duration_seconds", 0) or 0)
-    )
+def _log_horizon_gap(*, level: int, symbol: str, granularity: int, params: dict, orch) -> None:
+    """Registra alinhamento do horizonte do label com a duracao do contrato."""
+    label_bars = max(1, int(params.get("label_horizon_bars", 1)))
+    risk = getattr(orch, "config", {}).get("risk_management", {}) if orch is not None else {}
+    risk_params = risk.get("params", {}) if isinstance(risk, dict) else {}
+    contract_seconds = contract_duration_seconds(risk_params) if risk_params else 0
     logger.log(
         level,
-        "DL TREINO | %s | horizonte label=%ds (%d barras x %ds) | contrato=%ds | gap=%ds",
+        "DL TREINO | %s | horizonte label=%ds | contrato=%ds | gap=%ds",
         symbol,
-        label_horizon_seconds,
-        label_horizon_bars,
-        int(granularity),
-        int(contract_sec),
-        int(label_horizon_seconds - contract_sec),
+        label_bars * granularity,
+        contract_seconds,
+        label_bars * granularity - contract_seconds,
     )
 
 
@@ -86,7 +43,6 @@ def apply_successful_symbol_train(
     norm_stats,
     params: dict,
     dl_config: dict,
-    gate_cfg: dict,
     candle_epoch_value: int,
     granularity: int,
     level: int,
@@ -96,95 +52,26 @@ def apply_successful_symbol_train(
     low: np.ndarray | None = None,
     micro=None,
 ) -> tuple[object, float]:
-    """Persiste checkpoint, deploy gate e metricas apos treino walk-forward valido."""
+    """Salva modelo compativel para uso limitado sem qualificacao estatistica."""
+    _ = (prices, norm_stats, open_, high, low, micro)
     runtime["norm_stats"] = train_result.norm_stats
-    norm_stats = train_result.norm_stats
     runtime["val_accuracy"] = train_result.val_accuracy
     runtime["calibrator"] = train_result.calibrator or CalibratorState()
     runtime["val_brier"] = train_result.val_brier
     runtime["val_ece"] = train_result.val_ece
-    runtime["calibrated_entropy"] = float(getattr(train_result, "calibrated_entropy", 0.0))
-    runtime["entropy_violation"] = bool(getattr(train_result, "entropy_violation", False))
-    train_loss = train_result.avg_loss
     runtime["last_candle_epoch"] = candle_epoch_value
-    _log_horizon_gap(level=level, symbol=symbol, granularity=granularity, params=params, orch=orch)
-    mini_ok, deploy_wr, mini_brier = evaluate_mini_deploy(
-        orch,
-        symbol,
-        model,
-        prices,
-        norm_stats,
-        runtime,
-        params,
-        gate_cfg=gate_cfg,
-        open_=open_,
-        high=high,
-        low=low,
-        micro=micro,
-    )
-    deploy_ok = resolve_deploy_ok(
-        mini_ok=mini_ok,
-        val_accuracy=float(train_result.val_accuracy),
-        val_brier=float(train_result.val_brier),
-        gate_cfg=gate_cfg,
-        label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
-        pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
-        minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
-    )
-    provisional_ok = resolve_provisional_deploy_ok(
-        provisional_ok=bool(runtime.get("deploy_provisional_ok", False)),
-        val_accuracy=float(train_result.val_accuracy),
-        gate_cfg=gate_cfg,
-        label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
-        pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
-        minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
-    )
-    apply_deploy_to_runtime(
-        runtime,
-        deploy_ok=deploy_ok,
-        deploy_win_rate=deploy_wr,
-        val_brier=mini_brier if mini_ok else float(train_result.val_brier),
-        provisional_ok=provisional_ok,
-    )
-    calib_cfg = dl_config.get("calibration") if isinstance(dl_config, dict) else None
-    sharpness_cfg = resolve_calibration_sharpness_cfg(calib_cfg if isinstance(calib_cfg, dict) else None)
-    oos_sharpness = float(getattr(train_result, "oos_sharpness", 0.0))
-    raw_sharpness = float(getattr(train_result, "raw_sharpness", 0.0))
-    try:
-        assert_export_sharpness_value(
-            oos_sharpness,
-            floor=float(sharpness_cfg["min_oos_sharpness"]),
-            label="holdout",
-        )
-    except RuntimeError as exc:
-        if bool(gate_cfg.get("force_ok", False)):
-            logger.warning(
-                "DL TREINO | %s | sharpness abaixo do piso — export segue (force_ok) | %s "
-                "(raw_sharpness=%.4f method=%s)",
-                symbol,
-                exc,
-                raw_sharpness,
-                getattr(runtime.get("calibrator"), "method", "?"),
-            )
-        else:
-            logger.warning(
-                "DL TREINO | %s | sharpness abaixo do piso — deploy_ok=false | %s (raw_sharpness=%.4f method=%s)",
-                symbol,
-                exc,
-                raw_sharpness,
-                getattr(runtime.get("calibrator"), "method", "?"),
-            )
-            runtime["deploy_ok"] = False
-    runtime["oos_sharpness"] = oos_sharpness
-    runtime["raw_sharpness"] = raw_sharpness
+    runtime["deploy_ok"] = False
+    runtime["deploy_provisional_ok"] = False
+    runtime["deploy_win_rate"] = 0.0
     runtime["label_call_frac"] = float(getattr(train_result, "label_call_frac", 0.5))
     runtime["pred_call_frac"] = float(getattr(train_result, "pred_call_frac", 0.5))
     runtime["minority_recall"] = float(getattr(train_result, "minority_recall", 1.0))
-    path = Path(resolve_dl_model_path(dl_config, symbol))
+    _log_horizon_gap(level=level, symbol=symbol, granularity=granularity, params=params, orch=orch)
+    path = resolve_dl_model_path(dl_config, symbol)
     save_model_checkpoint(
         path,
         model,
-        norm_stats,
+        runtime["norm_stats"],
         candle_epoch_value,
         lookback=params["lookback"],
         calibrator=runtime["calibrator"],
@@ -192,84 +79,33 @@ def apply_successful_symbol_train(
         val_accuracy=runtime["val_accuracy"],
         val_brier=runtime["val_brier"],
         val_ece=runtime["val_ece"],
-        deploy_ok=runtime["deploy_ok"],
-        deploy_provisional_ok=bool(runtime.get("deploy_provisional_ok", False)),
-        deploy_win_rate=runtime["deploy_win_rate"],
-        deploy_settlement_win_rate=float(runtime.get("deploy_settlement_win_rate", 0.0)),
-        deploy_settlement_brier=float(runtime.get("deploy_settlement_brier", runtime.get("val_brier", 1.0))),
-        deploy_settlement_n=int(runtime.get("deploy_settlement_n", 0) or 0),
-        deploy_settlement_wilson_lcb=float(runtime.get("deploy_settlement_wilson_lcb", 0.0)),
-        deploy_settlement_source=str(runtime.get("deploy_settlement_source", "m5_close_proxy")),
-        oos_sharpness=float(runtime.get("oos_sharpness", 0.0)),
+        deploy_ok=False,
         granularity=granularity,
         training_history_bars=int(params.get("training_history_bars") or 0) or None,
         label_horizon_bars=max(1, int(params.get("label_horizon_bars", 1))),
         label_mode=str(params.get("label_mode", "spot_forward")),
-        label_call_frac=float(runtime.get("label_call_frac", 0.5)),
-        pred_call_frac=float(runtime.get("pred_call_frac", 0.5)),
-        minority_recall=float(runtime.get("minority_recall", 1.0)),
+        label_call_frac=runtime["label_call_frac"],
+        pred_call_frac=runtime["pred_call_frac"],
+        minority_recall=runtime["minority_recall"],
     )
-    deployable = bool(runtime.get("deploy_ok", False)) or bool(runtime.get("deploy_provisional_ok", False))
-    if deployable:
-        schedule_model_upload(
-            orch,
-            symbol,
-            path,
-            arch=str(params["arch"]),
-            metadata={
-                "val_accuracy": runtime["val_accuracy"],
-                "calibrated_entropy": runtime.get("calibrated_entropy"),
-                "entropy_violation": runtime.get("entropy_violation"),
-            },
-        )
     runtime["checkpoint_loaded"] = True
-    runtime["session_trained"] = float(runtime.get("val_brier", 1.0)) + 1e-9 < 0.99
+    runtime["session_trained"] = True
     runtime["export_ok"] = True
     runtime["checkpoint_preserved"] = False
     clear_force_retrain(orch, symbol)
     reset_bars_since_train(orch, symbol)
-    live_snap = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
-    live_wr = float(live_snap.get("live_wr", 0.0))
-    live_n = int(live_snap.get("live_n", 0))
-    settlement_summary = _settlement_log_summary(runtime)
+    live = live_signal_snapshot(orch, symbol) if orch is not None else {"live_wr": 0.0, "live_n": 0}
     logger.log(
         level,
-        "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | brier=%.3f | "
-        "deploy=%s | provisional=%s | %s | live_wr=%.2f | live_n=%d | "
-        "label_call=%.2f | pred_call=%.2f | minority_rec=%.2f",
+        "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | "
+        "brier=%.3f | checkpoint local com teto de 1%% | live_wr=%.2f | live_n=%d",
         symbol,
         time.monotonic() - started,
         int(getattr(train_result, "epochs_ran", 0)),
-        float(train_loss or 0.0),
-        float(runtime.get("val_accuracy", 0.0)),
-        float(runtime.get("val_brier", 1.0)),
-        bool(runtime.get("deploy_ok", False)),
-        bool(runtime.get("deploy_provisional_ok", False)),
-        settlement_summary,
-        live_wr,
-        live_n,
-        float(runtime.get("label_call_frac", 0.5)),
-        float(runtime.get("pred_call_frac", 0.5)),
-        float(runtime.get("minority_recall", 1.0)),
+        float(train_result.avg_loss or 0.0),
+        float(runtime["val_accuracy"]),
+        float(runtime["val_brier"]),
+        float(live.get("live_wr", 0.0)),
+        int(live.get("live_n", 0)),
     )
-    if not bool(runtime.get("deploy_ok", False)) and not bool(runtime.get("deploy_provisional_ok", False)):
-        reason = describe_deploy_block(
-            mini_ok=bool(mini_ok),
-            val_accuracy=float(train_result.val_accuracy),
-            val_brier=float(train_result.val_brier),
-            gate_cfg=gate_cfg,
-            label_call_frac=float(getattr(train_result, "label_call_frac", 0.5)),
-            pred_call_frac=float(getattr(train_result, "pred_call_frac", 0.5)),
-            minority_recall=float(getattr(train_result, "minority_recall", 1.0)),
-        )
-        if runtime.get("deploy_settlement_source") == "broker_audit_required":
-            reason = "settlement auditado ausente"
-        logger.warning(
-            "DL TREINO | %s | deploy_ok=false (%s; %s; min=%.4f) — meta pode treinar; checkpoint local com stake limitada",
-            symbol,
-            reason,
-            settlement_summary,
-            float(gate_cfg.get("min_win_rate", 0.0)),
-        )
-    logger.log(level, "")
-    return norm_stats, train_loss
+    return runtime["norm_stats"], train_result.avg_loss

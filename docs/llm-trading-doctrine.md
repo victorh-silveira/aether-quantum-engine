@@ -26,7 +26,7 @@ Ops: `invert_exec_side` **false**; `skip_neg_edge` **true**; `skip_exec_vs_candl
 
 ## Sempre fazer
 
-1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, amort **1** → `min(max(PEND/payout, 1% banca), cap_L0)`); cover L0 **3.5%**; PEND nao force-explore por near-stop; piso **1%** soberano
+1. Distinguir EXPLORE vs RECOVER; `cover_enabled` **true** (`cover_multiple` **1.0**, amort **1** → `min(max(PEND/payout, 1% banca), cap_L0)`); cover L0 **3.5%** subordinado ao teto inicial do checkpoint TCN de **1% por ordem**; PEND nao force-explore por near-stop
 2. SKIP tecnico / `neg_edge` = processo ok quando coerente (EXPLORE); FLIP young/mature `pe>=0.58` (apos auto_learn e `n_train>=4`); Cal~0.52 + Edge≤0 = `neg_edge` correto — limpar exige **retreino + export** (`force_ok`), nao Soft Kelly no TCN
 3. Evidencia: `live_n`, Cal/Edge (EV vs BE), `val_accuracy`, telemetria `LOSS_CLF` (`p=` / `pe=` / `floor=` / `boot=N/4` / `n=`) e `QUALITY` pos-settle se houve FLIP
 4. Com PEND material, `neg_edge` e waived; recover prioriza zerar divida (skips de vela/scale/doji desativados no hot path)

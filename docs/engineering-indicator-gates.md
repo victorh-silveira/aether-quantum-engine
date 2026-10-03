@@ -24,6 +24,8 @@ houver extremo contrario ao candidato. EV = p(lado) * (1 + payout) - 1.
 Registra `market_trigger_status`, `market_trigger_candidate`, setup e edge.
 Nao estima uma nova probabilidade a partir do desenho do candle.
 
+A proposta final usa o payout liquido efetivamente cotado: `quote_ev = p(lado) × (1 + payout_rate) − 1`. O piso fixo `min_payout_rate` esta em zero; permanecem `min_edge_execute=0`, a margem de 0,01 sobre break-even e o bloqueio de payout ausente ou invalido. Assim, payout abaixo de 0,80 nao e confundido com EV negativo.
+
 Limitacao deliberada: um TCN CALL com P(CALL)=0.52 nao autoriza PUT; P(PUT)=0.48.
 Se o lado inicial ja e o argmax do TCN, o gatilho nao o inverte contra essa
 distribuicao. Pode reconciliar um lado previamente alterado com o modelo.
@@ -68,4 +70,4 @@ Vetor causal in-place: Cal/raw, `cal_raw_discord`, regime SCALE (telemetria), me
 
 ### Ocioso (calculado, nao no 14D)
 
-`cci`, `williams_r`, `roc`, etc. Candidatos a substituicao no 14D so com evidencia OOS — nunca gate novo.
+`cci`, `williams_r`, `roc`, etc. Substituicoes no vetor 14D exigem estudo separado e retreino; nao se tornam gate live automaticamente.

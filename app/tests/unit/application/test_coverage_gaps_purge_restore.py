@@ -15,7 +15,6 @@ from src.application.services.deep_learning.dl_cycle_log import _log_scale_lines
 from src.application.services.deep_learning.dl_predict_telemetry import stamp_macro_frame_telemetry
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
 from src.application.services.deep_learning.dl_training_epochs import _shuffled_batch_indices
-from src.application.services.deep_learning.horizon_sweep import build_horizon_candidates
 from src.application.services.doctrine_invariants import (
     assert_production_doctrine,
     load_doctrine_invariants,
@@ -127,11 +126,6 @@ def test_shuffled_batch_indices_single_batch_when_large_batch_size():
     batches = _shuffled_batch_indices(8, batch_size=16)
     assert len(batches) == 1
     assert len(batches[0]) == 8
-
-
-def test_build_horizon_candidates_from_n_bars_list():
-    rows = build_horizon_candidates({"deep_learning": {"horizon_sweep": {"n_bars": [2, 4]}}})
-    assert [r["label_horizon_bars"] for r in rows] == [2, 4]
 
 
 def test_load_doctrine_invariants_cache_and_validation_errors():

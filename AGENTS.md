@@ -20,13 +20,13 @@ indice 1HZ75V. Indicadores de tendencia, momentum, volatilidade e regime
 entram no pipeline direcional conforme `settings.json`; ausencia de modelo
 valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
 
-Atualizacao 27/09/2026: prevalecem `settings.json` e a secao "Adequacao de
-contrato e qualificacao" de `docs/engineering-deep-learning.md` sobre os
+Atualizacao 03/10/2026: prevalecem `settings.json` e
+`docs/engineering-deep-learning.md` sobre os
 valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras/sharpening/
 Alpha Flip/micro-hedging desativados. Esses parametros se referem ao caminho
 direcional. `kelly.max_stake=0`
 significa sem teto absoluto adicional, e Kelly fracionario segue 0,25.
-Nenhum desses limites equivale a aprovacao OOS.
+O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial de 1% da banca por ordem.
 
 - Politica de mercado vigente: `four_market_vetoes=true` e
   `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.
@@ -37,8 +37,9 @@ Nenhum desses limites equivale a aprovacao OOS.
 - Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao do close no vencimento; retreino obrigatorio apos mudanca de label).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
-- Treino DL em velas M5 (25000 barras, verificadas na API Deriv; D1 e contexto macro). O label `spot_forward` e proxy por closes, nao spot executado. `require_broker_settlement=true` impede promocao TCN por esse proxy ate haver avaliacao OOS auditada por ticks/contratos; `launch-train` persiste apenas checkpoint diagnostico nesse caso. `force_ok` nao concede qualificacao. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura; checkpoint nao qualificado tem teto soberano de 0,1% da banca em ambas as contas. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
+- Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` e proxy por closes, nao spot executado. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
 - Runtime: `online_training` **false** — ambas as contas usam checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
+- Cotacao final: `require_quote_edge=true`; calcular EV com payout liquido confirmado pela proposta, `min_edge_execute=0` e margem sobre break-even de `0.01`. `min_payout_rate=0` desativa o piso fixo de 80% que rejeitava cotacoes com EV positivo; payout ausente ou invalido segue bloqueado.
 - Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`, `stop_win_kelly_min_conviction` **0.58**). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; saida do seed live N=**2**, nao `ready_n` **32**; `flip_min_n_train` **1**; young pe>=**0.58**; mature pe>=**0.70**; shrink N ate 64 com `flip_young_shrink` **0.50**; anti-trend lock ativo com inversao rapida pos-loss; sem `candle_holds`; inverte CALL↔PUT e executa). Edge CLUSTER = EV; **SKIP** `neg_edge` se ≤ 0 em EXPLORE (waive com PEND material ou smart waive se Edge>=-0.030 com loss_clf pe<=0.485 ou loss-clf sob bootstrap com margem direcional ativa; waivado em flips). Recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**, stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `cover_l0`; PEND material waiva `neg_edge` e nao force-explore por near-stop; piso Kelly **1%** soberano.
 
 ## O que o LLM e / nao e
@@ -55,11 +56,12 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
 - Revenge sizing apos LOSS; “operar mais para aprender” com N baixo
 - Remover caps de stake, fila de settlement ou timeouts “temporariamente”
+- Introduzir stop loss ou teto acumulado de perda sem mandato do operador
 - Arquivos `app/src/**/*.py` acima de **300 linhas**
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M5**): pipeline: TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **2**, `n_train>=1`) e pe no piso → **anti-trend-lock** flip pos-loss → `invert_exec_side` **false** → SKIP `neg_edge` em EXPLORE (**waive** com PEND material ou flip ativo) → Kelly / cover_l0 amort **1** → EXEC. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly. SKIP tecnico: treino/dados/deploy/predict/stop-win / cooldown / pausa. Recovery: `cover_enabled` **true**, amort **1/1**, cap L0 **3.5%**, PEND nao force-explore por near-stop, piso **1%** soberano.
+Nota operacional (**Volatility 75 (1s) M5**): pipeline: TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **2**, `n_train>=1`) e pe no piso → **anti-trend-lock** flip pos-loss → `invert_exec_side` **false** → SKIP `neg_edge` em EXPLORE (**waive** com PEND material ou flip ativo) → Kelly / cover_l0 amort **1** → EXEC. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly. SKIP tecnico: treino/dados/checkpoint/predict/stop-win / cooldown / pausa. Recovery: `cover_enabled` **true**, amort **1/1**, cap L0 **3.5%** subordinado ao teto do checkpoint de **1%**, PEND nao force-explore por near-stop. Nao ha stop loss nem teto acumulado de perda.
 
 ## Escopos commitlint
 
@@ -93,7 +95,6 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Scale vision / raw_extreme | `docs/engineering-orchestrator.md` + playbook + skills `aether-cycle-debug` / `aether-binary-senior` |
 | Settlement | `docs/engineering-settlement.md` + skill `aether-settlement-debug` |
 | DL / treino / vies de classe | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
-| Sweep horizonte N / promote | `docs/engineering-deep-learning.md` (secao Sweep) + skill `aether-dl-train` |
 | Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Endurecimento Compose / Redis / Timescale / MinIO | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
 | Launch-train / sanitize / telemetria | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |

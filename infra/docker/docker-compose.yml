@@ -290,7 +290,7 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - aether_prom_data:/prometheus
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:${AETHER_METRICS_HOST_IP:-host-gateway}"
     logging: *aether-logging
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
@@ -336,4 +336,3 @@ volumes:
 networks:
   aether-net:
     driver: bridge
-
