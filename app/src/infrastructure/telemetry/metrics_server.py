@@ -70,8 +70,12 @@ class MetricsServer:
 
     async def start(self) -> None:
         """Inicia socket assincrono no loop do host."""
-        self._server = await asyncio.start_server(self._handle_client, self._host, self._port)
-        logger.info("METRICS_SERVER: Rodando em http://%s:%d/metrics", self._host, self._port)
+        try:
+            self._server = await asyncio.start_server(self._handle_client, self._host, self._port)
+            logger.info("METRICS_SERVER: Rodando em http://%s:%d/metrics", self._host, self._port)
+        except OSError as exc:
+            logger.warning("METRICS_SERVER: Nao foi possivel vincular porta %d: %s", self._port, exc)
+            self._server = None
 
     async def stop(self) -> None:
         """Encerra servidor liberando o socket."""

@@ -91,3 +91,17 @@ async def test_metrics_server_handle_client_exception():
             raise OSError("Falha ao fechar socket")
 
     await server._handle_client(BrokenReader(), BrokenWriter())
+
+
+@pytest.mark.asyncio
+async def test_metrics_server_start_bind_oserror():
+    collector = QuantMetricsCollector()
+    server1 = MetricsServer(collector, host="127.0.0.1", port=9195)
+    await server1.start()
+
+    server2 = MetricsServer(collector, host="127.0.0.1", port=9195)
+    await server2.start()
+    assert server2._server is None
+
+    await server2.stop()
+    await server1.stop()

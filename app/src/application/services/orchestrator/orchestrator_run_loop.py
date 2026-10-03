@@ -145,9 +145,10 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
     prepare_orchestrator_run_loop(orch)
     ms = getattr(orch, "metrics_server", None)
     if ms is not None and hasattr(ms, "start"):
-        start_res = ms.start()
-        if asyncio.iscoroutine(start_res):
-            await start_res
+        with contextlib.suppress(Exception):
+            start_res = ms.start()
+            if asyncio.iscoroutine(start_res):
+                await start_res
     await await_stream_warm_up_gate(orch)
     await start_settlement_worker(orch)
     await start_ingestion_watchdog(orch)
