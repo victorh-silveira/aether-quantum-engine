@@ -113,23 +113,24 @@ def _model_raw_prob_and_aux(model: nn.Module, batch: np.ndarray) -> tuple[np.nda
         tensor = torch.as_tensor(_sanitize_feature_batch(batch), dtype=torch.float32, device=device)
         try:
             preds, aux = model(tensor, return_aux=True)
-            flat_prob = preds.squeeze(-1)
+            flat_prob = torch.atleast_1d(preds.view(-1))
             flat_prob = torch.nan_to_num(flat_prob, nan=0.5, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
-            flat_aux = aux.squeeze(-1)
+            flat_aux = torch.atleast_1d(aux.view(-1))
             flat_aux = torch.nan_to_num(flat_aux, nan=0.0, posinf=0.0, neginf=0.0)
-            probs = flat_prob.detach().cpu().numpy().astype(np.float32)
-            auxes = flat_aux.detach().cpu().numpy().astype(np.float32)
+            probs = np.atleast_1d(flat_prob.detach().cpu().numpy().astype(np.float32))
+            auxes = np.atleast_1d(flat_aux.detach().cpu().numpy().astype(np.float32))
             if len(auxes):
                 with contextlib.suppress(Exception):
                     model._last_predicted_delta = float(auxes[-1])
             return probs, auxes
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, RuntimeError):
             preds = model(tensor)
-            flat_prob = preds.squeeze(-1)
+            flat_prob = torch.atleast_1d(preds.view(-1))
             flat_prob = torch.nan_to_num(flat_prob, nan=0.5, posinf=1.0, neginf=0.0).clamp(0.0, 1.0)
+            probs = np.atleast_1d(flat_prob.detach().cpu().numpy().astype(np.float32))
             with contextlib.suppress(Exception):
                 model._last_predicted_delta = 0.0
-            return flat_prob.detach().cpu().numpy().astype(np.float32), np.zeros(len(flat_prob), dtype=np.float32)
+            return probs, np.zeros(len(probs), dtype=np.float32)
 
 
 def _model_raw_prob(model: nn.Module, batch: np.ndarray) -> np.ndarray:

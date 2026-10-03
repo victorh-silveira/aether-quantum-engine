@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from typing import Any
 
 import redis.asyncio as aioredis
 
+from src.infrastructure.serialization import fast_json
 from src.infrastructure.state.redis_state_pipeline import write_state_bundle
 
 
@@ -111,9 +111,9 @@ class RedisStateStore:
         if not raw:
             return None
         try:
-            data = json.loads(raw)
+            data = fast_json.loads(raw)
             return data if isinstance(data, dict) else None
-        except json.JSONDecodeError:
+        except Exception:
             return None
 
     async def set_hash(self, key: str, mapping: dict[str, Any]) -> None:

@@ -130,7 +130,7 @@ def eager_local_predict(
 ) -> tuple[TradeDirection | None, float, float]:
     """Executa inferencia local eager com lock do modelo."""
     with guard_symbol_model(runtime):
-        return predict_next_direction(
+        pred_res = predict_next_direction(
             model,
             prices,
             lookback=int(runtime.get("lookback", params["lookback"])),
@@ -145,7 +145,12 @@ def eager_local_predict(
             call_threshold=float(ctx["call_threshold"]),
             put_threshold=float(ctx["put_threshold"]),
             calibrator=ctx["calibrator"],
+            return_movement=True,
         )
+        side, prob, raw_prob = pred_res[0], pred_res[1], pred_res[2]
+        delta = pred_res[3] if len(pred_res) >= 4 else 0.0
+        runtime["last_predicted_delta"] = float(delta)
+        return side, prob, raw_prob
 
 
 def build_prediction_entry(
@@ -264,8 +269,7 @@ def build_prediction_entry(
         )
     entry["metrics"]["indicators"] = indicators_data
     if len(series.get("log_return", [])) > 0:
-        idx = len(series["log_return"]) - 1
-        entry["metrics"]["feature_vector"] = build_feature_row(series, idx).tolist()
+        entry["metrics"]["feature_vector"] = build_feature_row(series, len(series["log_return"]) - 1).tolist()
     entry["metrics"]["indicator_timeframe_seconds"] = int(params.get("granularity", 3600))
     stamp_micro_frame_telemetry(_orch, str(symbol), entry["metrics"], params, precomputed_series=series)
     if not isinstance(entry["metrics"].get("macro_indicators"), dict):

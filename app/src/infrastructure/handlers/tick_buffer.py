@@ -8,6 +8,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from src.infrastructure.handlers.disruptor_ring_buffer import DisruptorRingBuffer
+
 
 @dataclass(frozen=True)
 class BarMicrostructure:
@@ -33,6 +35,7 @@ class TickBuffer:
         self._max_bars = max(64, int(max_bars))
         self.symbols = list(symbols)
         self._live: dict[str, deque[tuple[int, float]]] = {s: deque(maxlen=self._max_ticks) for s in symbols}
+        self._ring_buffers: dict[str, DisruptorRingBuffer] = {s: DisruptorRingBuffer(capacity=4096) for s in symbols}
         self._bar_stats: dict[str, deque[BarMicrostructure]] = {s: deque(maxlen=self._max_bars) for s in symbols}
         self._current_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_tick_monotonic: float = 0.0
@@ -43,6 +46,9 @@ class TickBuffer:
             bucket = self._live.get(symbol)
             if bucket is not None:
                 bucket.clear()
+            rb = self._ring_buffers.get(symbol)
+            if rb is not None:
+                rb.clear()
         self._last_tick_monotonic = 0.0
 
     def mark_activity(self) -> None:
@@ -66,10 +72,24 @@ class TickBuffer:
         except (TypeError, ValueError, IndexError):
             return None
 
+    def latest_tick_epoch(self, symbol: str) -> float | None:
+        """Retorna o timestamp em segundos do ultimo tick live do simbolo, se houver."""
+        ticks = self._live.get(str(symbol))
+        if not ticks:
+            return None
+        try:
+            return float(ticks[-1][0]) / 1000.0
+        except (TypeError, ValueError, IndexError):
+            return None
+
     def live_tick_count(self, symbol: str) -> int:
         """Quantidade de ticks live acumulados no simbolo."""
         ticks = self._live.get(str(symbol))
         return int(len(ticks)) if ticks is not None else 0
+
+    def get_ring_buffer(self, symbol: str) -> DisruptorRingBuffer | None:
+        """Retorna a instancia do buffer disruptor contiguo para o simbolo."""
+        return self._ring_buffers.get(str(symbol))
 
     def forming_bar_micro_stats(self, symbol: str) -> BarMicrostructure:
         """Agrega microestrutura dos ticks live da barra em formacao."""
@@ -80,6 +100,9 @@ class TickBuffer:
         if symbol not in self._live:
             return
         self._live[symbol].append((int(epoch_ms), float(price)))
+        rb = self._ring_buffers.get(symbol)
+        if rb is not None:
+            rb.push_tick(int(epoch_ms), float(price))
         self.mark_activity()
 
     def on_bar_close(self, symbol: str, bar_epoch: int) -> BarMicrostructure:
@@ -89,6 +112,9 @@ class TickBuffer:
             self._bar_stats[symbol].append(stats)
         self._current_epoch[symbol] = int(bar_epoch)
         self._live[symbol].clear()
+        rb = self._ring_buffers.get(symbol)
+        if rb is not None:
+            rb.clear()
         return stats
 
     def on_bar_update(self, symbol: str, bar_epoch: int) -> None:

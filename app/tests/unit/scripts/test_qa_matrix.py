@@ -21,7 +21,7 @@ def test_posix_for_tool_windows_drive():
 
 
 def test_matrix_areas_and_stages():
-    assert AREAS == ("python", "docker", "shell")
+    assert AREAS == ("python", "docker", "shell", "rust")
     assert "lint" in STAGES and "validate" in STAGES and "build" in STAGES
 
 

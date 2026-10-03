@@ -97,3 +97,23 @@ def test_should_skip_explosion_discord_configurable_and_pend_waiver():
         "pending_loss_total": 5.0,
     }
     assert should_skip_explosion_discord(metrics_pend, TradeDirection.CALL, exec_cfg={"cover_enabled": True}) is False
+
+
+def test_apply_senior_execution_skips_trend_discord_with_candle_ohlc():
+    metrics = {
+        "trend_direction": "PUT",
+        "closed_candle_ohlc": (105, 106, 99, 100),
+        "cal_side_edge": 0.03,
+    }
+    cfg = {"four_market_vetoes": True, "skip_trend_discord": True, "counter_trend_min_edge": 0.08}
+    direction, blocked = apply_senior_execution_skips(TradeDirection.CALL, metrics, exec_cfg=cfg)
+    assert direction == TradeDirection.CALL
+    assert blocked is True
+    assert metrics["skip_reason"] == "counter_trend_unconfirmed"
+
+
+def test_closed_candle_dir_corrupt_ohlc():
+    from src.application.services.execution_signal_skips import _closed_candle_dir
+
+    res = _closed_candle_dir({"closed_candle_ohlc": ["corrupt", 1, 2, "error"]})
+    assert res is None

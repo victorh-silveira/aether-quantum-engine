@@ -1,12 +1,14 @@
 """Coleta de candidatos com boletamento continuo, sem veto de qualidade."""
 
+from src.application.services.deep_learning.dl_conformal_uncertainty import evaluate_conformal_gate
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
-from src.application.services.execution_gate_verdict import metrics_block_execution
+from src.application.services.execution_gate_verdict import metrics_block_execution, stamp_hard_skip
 from src.application.services.execution_loss_protection import apply_loss_protection_penalties
 from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
 from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
+from src.domain.analytics.regime_ensemble import apply_regime_ensemble_gate
 
 
 def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
@@ -31,6 +33,11 @@ def _sync_entry_metrics(entry: dict, metrics: dict) -> None:
         "meta_veto_mode",
         "exec_direction",
         "resolved_direction",
+        "gate_verdict",
+        "gate_verdict_reason",
+        "conformal_uncertainty_excessive",
+        "regime_ensemble",
+        "regime_ensemble_doji_risk",
     ):
         if key in metrics:
             entry_metrics[key] = metrics[key]
@@ -99,6 +106,28 @@ def gather_cluster_candidates(
             skipped_cycles_counter=int(getattr(exec_mgr.orch, "_quality_skipped_cycles_counter", 0) or 0),
             orch=exec_mgr.orch,
         )
+        if bool(exec_cfg.get("conformal_uncertainty_gate", True)):
+            cal_p = metrics.get("calibrated_prob")
+            if cal_p is not None:
+                is_unc, _ = evaluate_conformal_gate(metrics, float(cal_p))
+                if is_unc:
+                    stamp_hard_skip(metrics, "conformal_uncertainty_excessive")
+        if bool(exec_cfg.get("regime_ensemble_gate", True)):
+            rv_ratio = metrics.get("micro_vol_ratio") or metrics.get("vol_ratio")
+            adx_val = metrics.get("adx")
+            hurst_val = metrics.get("hurst")
+            bbw_val = metrics.get("bb_width") or metrics.get("bb_w")
+            veto_comp = bool(exec_cfg.get("veto_compression_doji", True))
+            vetoed, reg_reason = apply_regime_ensemble_gate(
+                metrics,
+                rv_ratio,
+                adx=adx_val,
+                hurst=hurst_val,
+                bb_width=bbw_val,
+                veto_on_compression=veto_comp,
+            )
+            if vetoed:
+                stamp_hard_skip(metrics, reg_reason)
         apply_loss_protection_penalties(metrics, exec_direction=built[1])
         if metrics_block_execution(metrics):
             _sync_entry_metrics(entry, metrics)

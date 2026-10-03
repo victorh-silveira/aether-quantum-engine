@@ -13,6 +13,7 @@ on:
       - "docs/**"
       - "config/**"
       - "infra/**"
+      - "native/**"
       - "app/**"
       - "run.py"
       - "train.py"
@@ -27,6 +28,7 @@ on:
       - "docs/**"
       - "config/**"
       - "infra/**"
+      - "native/**"
       - "app/**"
       - "run.py"
       - "train.py"
@@ -164,6 +166,38 @@ jobs:
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area shell --stage build
 
+  rust:
+    name: CI - Rust
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: ./.github/actions/ci/setup-python
+        with:
+          install_app_deps: "false"
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Rust | Lint
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area rust --stage lint
+      - name: Rust | Validate
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area rust --stage validate
+      - name: Rust | Seguranca
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area rust --stage security
+      - name: Rust | Testes
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area rust --stage test
+      - name: Rust | Build
+        shell: bash
+        run: python app/scripts/operations/clean_workspace.py --area rust --stage build
+
   workflows:
     name: CI - Workflows
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
@@ -177,7 +211,7 @@ jobs:
 
   release:
     name: CI - Release
-    needs: [python, docker, shell, workflows]
+    needs: [python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -223,7 +257,7 @@ jobs:
 
   pipeline-summary:
     name: CI - Resumo
-    needs: [python, docker, shell, workflows, release]
+    needs: [python, docker, shell, rust, workflows, release]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -236,6 +270,7 @@ jobs:
           python: ${{ needs.python.result }}
           docker: ${{ needs.docker.result }}
           shell: ${{ needs.shell.result }}
+          rust: ${{ needs.rust.result }}
           workflows: ${{ needs.workflows.result }}
           release: ${{ needs.release.result }}
           release_tag: ${{ needs.release.outputs.tag }}

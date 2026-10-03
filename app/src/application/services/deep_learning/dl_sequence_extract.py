@@ -51,6 +51,7 @@ def extract_sequences(
         smooth_bars=smooth,
         label_mode=label_mode,
         ma_window=label_ma_window,
+        open_=open_,
     )
     count = len(targets)
     if count == 0:
@@ -84,6 +85,7 @@ def sequence_price_deltas(
         smooth_bars=max(1, int(label_smooth_bars)),
         label_mode=label_mode,
         ma_window=label_ma_window,
+        open_=open_,
     )
     count = len(masks)
     if count == 0:

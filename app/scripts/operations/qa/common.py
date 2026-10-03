@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 
-AREAS = ("python", "docker", "shell")
+AREAS = ("python", "docker", "shell", "rust")
 STAGES = ("lint", "validate", "security", "test", "build", "clean")
 
 

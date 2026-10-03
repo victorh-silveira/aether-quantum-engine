@@ -255,7 +255,7 @@ def revive_ready_cluster_candidates(exec_mgr, decisions) -> list[tuple[str, Trad
         metrics = entry.get("metrics")
         if not isinstance(metrics, dict) or not metrics.get("execution_candidate_ready"):
             continue
-        if metrics.get("quality_guard_reject"):
+        if metrics.get("quality_guard_reject") or str(metrics.get("gate_verdict") or "").upper() == "HARD_SKIP":
             continue
         name = str(metrics.get("exec_direction") or metrics.get("resolved_direction") or "").upper()
         if name not in {TradeDirection.CALL.name, TradeDirection.PUT.name}:

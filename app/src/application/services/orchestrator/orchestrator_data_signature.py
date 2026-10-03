@@ -19,10 +19,27 @@ __all__ = [
 ]
 
 
-def _resolve_now(now: float | None) -> float:
-    """Resolve instante de referencia para fronteira temporal com fallback ao relogio."""
+def _resolve_now(now: float | None, orch: Any = None) -> float:
+    """Resolve instante de referencia para fronteira temporal ancorado ao broker com fallback ao relogio."""
     if now is not None:
         return float(now)
+    if orch is not None:
+        stream = getattr(orch, "stream", None)
+        tick_buf = getattr(stream, "tick_buffer", None)
+        symbols = getattr(orch, "symbols", [])
+        if tick_buf is not None and symbols:
+            get_epoch = getattr(tick_buf, "latest_tick_epoch", None)
+            if callable(get_epoch):
+                tick_epoch = get_epoch(symbols[0])
+                if tick_epoch is not None and tick_epoch > 0:
+                    local_now = time.time()
+                    if abs(local_now - tick_epoch) <= 30.0:
+                        return float(tick_epoch)
+        last_epoch = float(getattr(orch, "_last_epoch", 0.0) or 0.0)
+        if last_epoch > 0:
+            local_now = time.time()
+            if abs(local_now - last_epoch) <= 30.0:
+                return float(last_epoch)
     return time.time()
 
 
@@ -60,15 +77,17 @@ def resolve_signature_boundary_seconds(orch: Any) -> int:
 def seconds_until_next_signature_boundary(orch: Any, *, now: float | None = None) -> float:
     """Calcula segundos restantes ate a proxima fronteira de assinatura (multiplo de boundary; SSOT 120s M2)."""
     boundary = resolve_signature_boundary_seconds(orch)
-    now_ts = _resolve_now(now)
-    next_boundary = (int(now_ts) // boundary + 1) * boundary
-    return max(0.0, float(next_boundary) - now_ts)
+    now_ts = _resolve_now(now, orch=orch)
+    offset = now_ts % boundary
+    if offset == 0.0:
+        return 0.0
+    return max(0.0, float(boundary - offset))
 
 
 def at_signature_boundary(orch: Any, *, now: float | None = None, tolerance: float = 1.0) -> bool:
     """True quando o instante corrente esta sobre a fronteira temporal configurada."""
     boundary = resolve_signature_boundary_seconds(orch)
-    now_ts = _resolve_now(now)
+    now_ts = _resolve_now(now, orch=orch)
     epoch = int(now_ts)
     offset = epoch % boundary
     tol = max(0.0, float(tolerance))
@@ -78,7 +97,7 @@ def at_signature_boundary(orch: Any, *, now: float | None = None, tolerance: flo
 def at_m5_open_window(orch: Any, *, now: float | None = None, tolerance: float = 20.0) -> bool:
     """True apenas nos primeiros `tolerance` segundos apos a abertura da vela (multiplo de boundary)."""
     boundary = resolve_signature_boundary_seconds(orch)
-    now_ts = _resolve_now(now)
+    now_ts = _resolve_now(now, orch=orch)
     offset = int(now_ts) % boundary
     tol = max(1.0, float(tolerance))
     return float(offset) <= tol
@@ -87,7 +106,7 @@ def at_m5_open_window(orch: Any, *, now: float | None = None, tolerance: float =
 def m5_boundary_epoch(orch: Any, *, now: float | None = None) -> int:
     """Retorna epoch Unix truncado em multiplos exatos da fronteira operacional (nome legado m5; SSOT M2 120s)."""
     boundary = resolve_signature_boundary_seconds(orch)
-    now_ts = _resolve_now(now)
+    now_ts = _resolve_now(now, orch=orch)
     clock_boundary = int(now_ts // boundary) * boundary
     anchor_epoch = int(getattr(orch, "_last_epoch", 0) or 0)
     if anchor_epoch > 0:

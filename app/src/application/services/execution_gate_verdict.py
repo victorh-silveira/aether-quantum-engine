@@ -23,6 +23,9 @@ def stamp_hard_skip(metrics: dict[str, Any], reason: str) -> None:
     """Marca veto tecnico HARD; limpa soft de sizing do mesmo ciclo."""
     metrics["gate_verdict"] = VERDICT_HARD_SKIP
     metrics["gate_verdict_reason"] = str(reason or "hard_skip")
+    metrics["execution_candidate_ready"] = False
+    metrics["execute"] = False
+    metrics["gate_reason"] = str(reason or "hard_skip")
 
 
 def stamp_soft_size(metrics: dict[str, Any], reason: str) -> None:
@@ -62,9 +65,11 @@ def is_skip_signal_status(status: object) -> bool:
 
 
 def metrics_block_execution(metrics: dict[str, Any] | None) -> bool:
-    """True quando candidato nao pode EXEC (ready=False ou SKIP)."""
+    """True quando candidato nao pode EXEC (ready=False, HARD_SKIP ou SKIP)."""
     if not isinstance(metrics, dict):
         return False
     if metrics.get("execution_candidate_ready") is False:
+        return True
+    if str(metrics.get("gate_verdict") or "").upper() == VERDICT_HARD_SKIP:
         return True
     return is_skip_signal_status(metrics.get("signal_status"))

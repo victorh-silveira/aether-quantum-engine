@@ -66,7 +66,9 @@ def attach_dynamic_metrics(
     if runtime.get("entropy_violation") is not None:
         metrics["entropy_violation"] = bool(runtime.get("entropy_violation"))
     model_obj = runtime.get("model")
-    delta = getattr(model_obj, "_last_predicted_delta", None)
+    delta = runtime.get("last_predicted_delta")
+    if delta is None:
+        delta = getattr(model_obj, "_last_predicted_delta", None)
     if delta is not None:
         attach_movement_prediction_metrics(
             metrics,

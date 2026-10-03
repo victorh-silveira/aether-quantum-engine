@@ -1,7 +1,6 @@
 """Gerencia conexoes WebSocket assincronas e ciclos de vida de subscricao."""
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -13,6 +12,7 @@ from src.infrastructure.api.websocket_connect import (
     apply_websocket_connect_defaults,
     connect_wss_with_ip_failover,
 )
+from src.infrastructure.serialization import fast_json
 
 
 class WebSocketManager:
@@ -149,7 +149,7 @@ class WebSocketManager:
         """Loop interno que escuta as mensagens WebSocket recebidas e as roteia."""
         try:
             async for message in self.ws:
-                data = json.loads(message)
+                data = fast_json.loads(message)
                 msg_type = data.get("msg_type")
                 if not msg_type:
                     if "ohlc" in data:
@@ -228,7 +228,7 @@ class WebSocketManager:
         self.callbacks[self.req_id_counter] = future
 
         started = loop.time()
-        await self.ws.send(json.dumps(request))
+        await self.ws.send(fast_json.dumps(request))
         try:
             result = await asyncio.wait_for(future, timeout=actual_timeout)
             self.last_rtt_seconds = max(0.001, loop.time() - started)

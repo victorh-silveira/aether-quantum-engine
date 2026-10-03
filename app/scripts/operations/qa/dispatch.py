@@ -5,6 +5,7 @@ from pathlib import Path
 from scripts.operations.qa.common import STAGES
 from scripts.operations.qa.docker import run_docker
 from scripts.operations.qa.json_area import run_json
+from scripts.operations.qa.rust import run_rust
 from scripts.operations.qa.shell import run_shell
 from scripts.operations.qa.yaml_area import run_yaml
 
@@ -28,5 +29,8 @@ def run_area_stage(area: str, stage: str, root: Path) -> None:
         return
     if area == "shell":
         run_shell(stage, root)
+        return
+    if area == "rust":
+        run_rust(stage, root)
         return
     raise ValueError(f"area desconhecida: {area}")

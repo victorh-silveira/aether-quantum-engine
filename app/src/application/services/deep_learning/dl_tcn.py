@@ -70,6 +70,7 @@ class TemporalDirectionClassifier(nn.Module):
         for idx, out_ch in enumerate(channels):
             layers.append(_TemporalBlock(in_ch, out_ch, kernel_size=3, dilation=2**idx, dropout=dropout))
             in_ch = out_ch
+        self.channels = tuple(channels)
         self.network = nn.Sequential(*layers)
         self.attn_pool = _TemporalAttention(in_ch)
         self.input_proj = nn.Linear(input_dim, in_ch)

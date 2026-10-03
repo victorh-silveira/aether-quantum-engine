@@ -23,10 +23,18 @@ def _mark_skip(metrics: dict[str, Any], reason: str, **extra: Any) -> None:
 
 def _closed_candle_dir(metrics: dict[str, Any]) -> str | None:
     """Vela M5 fechada stampada CALL/PUT ou None."""
-    if not bool(metrics.get("closed_micro_candle_stamped")):
-        return None
-    candle = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
-    return candle if candle in _VALID else None
+    if bool(metrics.get("closed_micro_candle_stamped")):
+        candle = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
+        if candle in _VALID:
+            return candle
+    raw_ohlc = metrics.get("closed_candle_ohlc")
+    if isinstance(raw_ohlc, (list, tuple)) and len(raw_ohlc) >= 4:
+        try:
+            diff = float(raw_ohlc[3]) - float(raw_ohlc[0])
+            return "CALL" if diff > 0 else ("PUT" if diff < 0 else None)
+        except (TypeError, ValueError):
+            pass
+    return None
 
 
 def _material_pending_floor(exec_cfg: dict[str, Any] | None) -> float:

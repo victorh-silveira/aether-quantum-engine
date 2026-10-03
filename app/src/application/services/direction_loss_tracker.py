@@ -143,10 +143,17 @@ def should_anti_trend_lock_flip(
     micro_regime: str | None = None,
     regime_side: str | None = None,
     closed_candle: str | None = None,
+    rsi: float | None = None,
 ) -> bool:
     """Indica se a direcao proposta deve sofrer inversao por perdas acumuladas, exaustao OU ou contra-explosao."""
     if not symbol:
         return False
+    if rsi is not None:
+        r_val = float(rsi)
+        if direction == TradeDirection.CALL and r_val <= 0.30:
+            return False
+        if direction == TradeDirection.PUT and r_val >= 0.70:
+            return False
     zeta = float(elastic_zeta)
     if direction == TradeDirection.CALL and zeta > 2.0:
         return True

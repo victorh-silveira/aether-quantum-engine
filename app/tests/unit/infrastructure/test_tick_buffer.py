@@ -95,3 +95,35 @@ async def test_tick_buffer_last_tick_monotonic_updates_on_record():
     before = buf.last_tick_monotonic()
     buf.mark_activity()
     assert buf.last_tick_monotonic() >= before
+
+
+def test_tick_buffer_latest_price_and_epoch():
+    buf = TickBuffer(["R_10"])
+    assert buf.latest_price("R_10") is None
+    assert buf.latest_tick_epoch("R_10") is None
+    buf.record_tick("R_10", 1700000000123, 105.5)
+    assert buf.latest_price("R_10") == 105.5
+    assert buf.latest_tick_epoch("R_10") == pytest.approx(1700000000.123)
+    assert buf.latest_tick_epoch("UNKNOWN") is None
+
+
+def test_tick_buffer_ring_buffer_integration():
+    buf = TickBuffer(["1HZ75V"])
+    rb = buf.get_ring_buffer("1HZ75V")
+    assert rb is not None
+    assert rb.count == 0
+
+    buf.record_tick("1HZ75V", 2000, 5000.0)
+    assert rb.count == 1
+    assert rb.latest_tick() == (2000, 5000.0)
+
+    buf.on_bar_close("1HZ75V", 60)
+    assert rb.count == 0
+    assert buf.get_ring_buffer("UNKNOWN") is None
+
+
+def test_tick_buffer_latest_price_and_epoch_corrupted():
+    buf = TickBuffer(["R_10"])
+    buf._live["R_10"].append(("invalid_epoch", "invalid_price"))
+    assert buf.latest_price("R_10") is None
+    assert buf.latest_tick_epoch("R_10") is None

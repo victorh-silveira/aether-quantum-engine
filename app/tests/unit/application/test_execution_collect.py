@@ -243,3 +243,96 @@ def test_mandatory_fallback_if_empty_returns_early_when_not_mandatory():
         min_val=0.5,
     )
     assert kept == []
+
+
+def test_collect_cluster_orders_blocks_on_compression_doji_risk():
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR],
+        config={
+            "orchestrator": {
+                "execution": {
+                    "include_anchor_trades": True,
+                    "regime_ensemble_gate": True,
+                    "veto_compression_doji": True,
+                    "conformal_uncertainty_gate": False,
+                }
+            },
+            "deep_learning": {},
+            "infra": {},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={},
+            consecutive_losses_linear=0,
+            total_session_profit=0.0,
+            initial_bankroll=100.0,
+        ),
+        _active_cycle_id=1,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: False,
+        _trade_symbols=lambda: [ANCHOR],
+    )
+    decisions = {
+        ANCHOR: {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "execute": True,
+                "trade_score": 0.70,
+                "raw_prob": 0.70,
+                "calibrated_prob": 0.70,
+                "deploy_ok": True,
+                "micro_vol_ratio": 0.20,
+            },
+        }
+    }
+    orders = collect_cluster_orders(exec_mgr, decisions)
+    assert len(orders) == 0
+    assert decisions[ANCHOR]["metrics"]["regime_ensemble"] == "COMPRESSION_RISK"
+
+
+def test_gather_post_process_conformal_gate_veto(monkeypatch):
+    from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
+
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.execution_collect_gather.evaluate_conformal_gate",
+        lambda _metrics, _prob: (True, {"reason": "conformal_uncertainty_excessive"}),
+    )
+
+    orch = SimpleNamespace(
+        anchor=ANCHOR,
+        symbols=[ANCHOR],
+        config={
+            "orchestrator": {"execution": {"conformal_uncertainty_gate": True, "include_anchor_trades": True}},
+            "deep_learning": {"recovery_gating": {}},
+        },
+        risk_manager=SimpleNamespace(
+            pending_loss={}, last_loss_symbol=None, consecutive_losses=0, recovery_symbol_loss_streak={}
+        ),
+        _active_cycle_id=1,
+    )
+    exec_mgr = SimpleNamespace(
+        orch=orch,
+        logger=MagicMock(),
+        _mandatory_trade_each_cycle=lambda: True,
+        _trade_symbols=lambda: [ANCHOR],
+    )
+    m = asymmetric_gate_safe_metrics()
+    m["calibrated_prob"] = 0.501
+    m["raw_prob"] = 0.501
+    decisions = {ANCHOR: {"direction": TradeDirection.CALL, "metrics": m}}
+
+    cands = gather_cluster_candidates(
+        exec_mgr,
+        decisions,
+        recovery_active=False,
+        cid=1,
+        min_signal=0.50,
+        min_val=0.50,
+        min_edge=-1.0,
+    )
+    assert len(cands) == 0
+    assert m.get("gate_verdict") == "HARD_SKIP"
+    assert m.get("gate_reason") == "conformal_uncertainty_excessive"

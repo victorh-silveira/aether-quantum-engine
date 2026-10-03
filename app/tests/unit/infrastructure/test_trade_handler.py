@@ -348,3 +348,18 @@ async def test_trade_handler_rejects_invalid_proposal_prices(trade_handler, mock
     mock_ws.send.return_value = {"proposal": proposal}
     with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall sem preco ou payout valido"):
         await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0)
+
+
+@pytest.mark.asyncio
+async def test_final_buy_proposal_blocks_quote_safety_margin(trade_handler, mock_ws):
+    mock_ws.send.return_value = {"proposal": {"id": "quote_sm", "ask_price": "10.00", "payout": "18.00"}}
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "_quote_guard_side_probability": 0.56,
+        "_quote_guard_min_edge": -0.10,
+        "_quote_guard_safety_margin": 0.03,
+    }
+    with pytest.raises(RuntimeError, match="perdeu margem de seguranca sobre break-even"):
+        await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_awaited_once()

@@ -120,6 +120,9 @@ def save_model_checkpoint(
         "last_candle_epoch": last_candle_epoch,
         "calibrator": calibrator_to_dict(cal),
     }
+    channels = getattr(model, "channels", None)
+    if channels is not None:
+        payload["tcn_channels"] = tuple(int(c) for c in channels)
     if val_accuracy is not None:
         payload["val_accuracy"] = float(val_accuracy)
     if val_brier is not None:
@@ -187,10 +190,11 @@ def load_model_checkpoint(
         return None
     arch = str(payload.get("arch", DEFAULT_ARCH))
     cfg = params or {}
+    tcn_ch = payload.get("tcn_channels") or cfg.get("tcn_channels")
     model = create_direction_model(
         arch=arch,
         input_dim=feature_dim,
-        tcn_channels=cfg.get("tcn_channels"),
+        tcn_channels=tcn_ch,
         tcn_dropout=float(cfg.get("tcn_dropout", 0.2)),
         rnn_hidden_size=int(cfg.get("rnn_hidden_size", 64)),
         rnn_num_layers=int(cfg.get("rnn_num_layers", 2)),

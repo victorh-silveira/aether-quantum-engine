@@ -232,3 +232,14 @@ def test_label_and_mask_all_modes_deadzone():
     )
     assert len(m_all_dead) > 0
     assert (m_all_dead == 1.0).all()
+
+
+def test_spot_forward_with_open_array():
+    prices = np.array([100.0, 99.0, 105.0], dtype=np.float64)
+    open_ = np.array([100.0, 98.0, 106.0], dtype=np.float64)
+    assert binary_label_at_index(prices, 0, 1, label_mode=LABEL_MODE_SPOT, open_=open_) is True
+    assert binary_label_at_index(prices, 1, 1, label_mode=LABEL_MODE_SPOT, open_=open_) is False
+    targets, masks = sequence_labels(prices, lookback=1, horizon_bars=1, label_mode=LABEL_MODE_SPOT, open_=open_)
+    assert len(targets) == 1
+    assert targets[0] == 0.0
+    assert masks[0] == 1.0

@@ -270,3 +270,17 @@ def test_four_vetoes_honors_counter_trend_with_opposing_candle():
     assert blocked is True
     assert res_dir == Side.CALL
     assert metrics["gate_reason"] == "counter_trend_unconfirmed"
+
+
+def test_calibrated_rejection_at_realistic_thresholds():
+    metrics_call = {
+        "closed_candle_ohlc": (100, 106, 99, 103),
+        "indicators": {"rsi": 0.69, "bb_pct_b": 0.89},
+    }
+    assert policy.market_veto_reason(Side.CALL, metrics_call) == "call_top_rejection"
+
+    metrics_put = {
+        "closed_candle_ohlc": (100, 101, 94, 97),
+        "indicators": {"rsi": 0.31, "bb_pct_b": 0.11},
+    }
+    assert policy.market_veto_reason(Side.PUT, metrics_put) == "put_bottom_rejection"

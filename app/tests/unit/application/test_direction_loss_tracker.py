@@ -313,3 +313,14 @@ def test_should_anti_trend_lock_flip_chop_single_loss_whipsaw_guard():
         )
         is True
     )
+
+
+def test_should_anti_trend_lock_flip_rsi_exhaustion_guard():
+    record_direction_outcome("1HZ75V", "CALL", won=False)
+    record_direction_outcome("1HZ75V", "CALL", won=False)
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, rsi=0.28) is False
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.CALL, rsi=0.45) is True
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    record_direction_outcome("1HZ75V", "PUT", won=False)
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, rsi=0.72) is False
+    assert should_anti_trend_lock_flip("1HZ75V", TradeDirection.PUT, rsi=0.45) is True

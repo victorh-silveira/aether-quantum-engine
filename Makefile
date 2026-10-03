@@ -88,6 +88,21 @@ app-test:
 app-security:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage security
 
+app-rust-lint:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage lint
+
+app-rust-validate:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage validate
+
+app-rust-security:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage security
+
+app-rust-test:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage test
+
+app-rust-build:
+	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage build
+
 app-clean:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
 

@@ -493,3 +493,41 @@ def test_resolve_execution_direction_fast_reversal_on_single_loss():
     assert direction == TradeDirection.CALL
     assert metrics["anti_trend_lock_flip"] is True
     tracker.reset()
+
+
+def test_resolve_execution_direction_vetoes_flip_on_rsi_exhaustion():
+    """Verifica que exaustao por RSI impede inversao cega em fundo/topo."""
+    from types import SimpleNamespace
+
+    from src.application.services.direction_loss_tracker import get_direction_loss_tracker
+
+    tracker = get_direction_loss_tracker()
+    tracker.reset()
+    tracker.record_outcome("1HZ75V", "CALL", won=False)
+    tracker.record_outcome("1HZ75V", "CALL", won=False)
+
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "raw_prob": 0.53,
+            "calibrated_prob": 0.53,
+            "val_accuracy": 0.60,
+            "deploy_ok": True,
+            "elastic_distance_ou": 0.0,
+            "trend_direction": "PUT",
+            "indicators": {"rsi": 0.28},
+            "cal_side_edge": 0.02,
+        },
+    }
+    orch = SimpleNamespace(
+        risk_manager=SimpleNamespace(risk_params={"payout_estimate": 0.85}, pending_loss_total=lambda: 50.0),
+        config={"infra": {"loss_classifier": {"enabled": False}}},
+    )
+    res = resolve_execution_direction(
+        entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False, "veto_weak_regime_flip": False}
+    )
+    assert res is not None
+    direction, metrics = res
+    assert direction == TradeDirection.CALL
+    assert "anti_trend_lock_flip" not in metrics
+    tracker.reset()

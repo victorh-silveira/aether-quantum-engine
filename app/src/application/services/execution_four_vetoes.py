@@ -56,26 +56,28 @@ def market_veto_reason(
     call = direction == TradeDirection.CALL
     wick = (h - max(o, c)) / span if call else (min(o, c) - low) / span
     extreme = (
-        rsi is not None and bb is not None and ((rsi >= 0.70 and bb >= 0.95) if call else (rsi <= 0.30 and bb <= 0.05))
+        rsi is not None and bb is not None and ((rsi >= 0.68 and bb >= 0.88) if call else (rsi <= 0.32 and bb <= 0.12))
     )
-    if extreme and wick >= 0.40:
+    if extreme and wick >= 0.30:
         return "call_top_rejection" if call else "put_bottom_rejection"
     exhaustion_turn = (
-        (rsi is not None and rsi >= 0.72 and c < o and (bb is None or bb >= 0.85))
+        (rsi is not None and rsi >= 0.68 and c < o and (bb is None or bb >= 0.80))
         if call
-        else (rsi is not None and rsi <= 0.28 and c > o and (bb is None or bb <= 0.15))
+        else (rsi is not None and rsi <= 0.32 and c > o and (bb is None or bb <= 0.20))
     )
     if exhaustion_turn:
         return "call_top_rejection" if call else "put_bottom_rejection"
     opposite = "PUT" if call else "CALL"
-    momentum = di is not None and (di <= -0.15 if call else di >= 0.15)
+    momentum = di is not None and (di <= -0.12 if call else di >= 0.12)
     body_opposite = c < o if call else c > o
+    body_ratio = abs(c - o) / span
+    prev_side = _previous_closed_side(metrics, orch, symbol)
     if (
         momentum
         and body_opposite
-        and abs(c - o) / span >= 0.8
+        and body_ratio >= 0.70
         and metrics.get("trend_direction") == opposite
-        and _previous_closed_side(metrics, orch, symbol) == opposite
+        and prev_side == opposite
     ):
         return "call_down_continuation" if call else "put_up_continuation"
     return None

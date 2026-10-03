@@ -253,6 +253,7 @@ def test_checkpoint_save_load():
         assert payload["granularity"] == 60
         assert payload["label_horizon_bars"] == 3
         assert payload["deploy_settlement_source"] == "m5_close_proxy"
+        assert payload["tcn_channels"] == (64, 64, 32)
         loaded = load_model_checkpoint(path)
         assert loaded is not None
         m2, s2, epoch, cal, lookback, val_acc, val_brier, val_ece, deploy_ok, deploy_wr = loaded
@@ -320,3 +321,15 @@ def test_load_corrupted_checkpoint(tmp_path):
     bad = tmp_path / "corrupt.pth"
     bad.write_bytes(b"not-a-checkpoint")
     assert load_model_checkpoint(bad) is None
+
+
+def test_model_raw_prob_and_aux_batch_1():
+    model = create_direction_model(arch="tcn")
+    x = np.random.randn(1, 18, INPUT_DIM).astype(np.float32)
+    from src.application.services.deep_learning.model import _model_raw_prob_and_aux
+
+    probs, auxes = _model_raw_prob_and_aux(model, x)
+    assert probs.shape == (1,)
+    assert auxes.shape == (1,)
+    assert hasattr(model, "_last_predicted_delta")
+    assert isinstance(model._last_predicted_delta, float)

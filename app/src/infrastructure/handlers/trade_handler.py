@@ -127,8 +127,14 @@ class TradeHandler:
         if "_quote_guard_side_probability" in p_cfg:
             p_side = float(p_cfg["_quote_guard_side_probability"])
             min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))
-            if rate is None or p_side * (1.0 + rate) - 1.0 <= min_edge:
+            margin = float(p_cfg.get("_quote_guard_safety_margin", 0.0) or 0.0)
+            if rate is None or (rate <= 0.0) or (p_side * (1.0 + rate) - 1.0 <= min_edge):
                 raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem; compra bloqueada")
+            if margin > 0.0 and p_side < (1.0 / (1.0 + rate) + margin):
+                raise RuntimeError(
+                    "Cotacao final Rise/Fall perdeu margem de seguranca sobre break-even; compra bloqueada"
+                )
+
         request_epoch_ms = time.time_ns() // 1_000_000
         buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
         ack_epoch_ms = time.time_ns() // 1_000_000

@@ -110,6 +110,7 @@ def _finalize_execution_metrics(
         reg_side = str(metrics.get("scale_micro_side") or "").strip().upper()
         veto_weak = bool((exec_cfg or {}).get("veto_weak_regime_flip", False))
         closed_cd = str(metrics.get("closed_micro_candle_dir") or "").strip().upper()
+        ind_map = metrics.get("indicators") if isinstance(metrics.get("indicators"), dict) else {}
         if should_anti_trend_lock_flip(
             symbol,
             exec_dir,
@@ -121,6 +122,7 @@ def _finalize_execution_metrics(
             micro_regime=micro_reg,
             regime_side=reg_side,
             closed_candle=closed_cd,
+            rsi=ind_map.get("rsi"),
         ):
             flipped = TradeDirection.PUT if exec_dir == TradeDirection.CALL else TradeDirection.CALL
             metrics["anti_trend_lock_flip"] = True
@@ -164,15 +166,17 @@ def _finalize_execution_metrics(
                 p_eff = float(metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss") or 0.58)
                 metrics["cal_side_edge"] = float((p_eff * (1.0 + payout)) - 1.0)
             elif bool(metrics.get("anti_trend_lock_flip")):
+                cal_p = float(metrics.get("calibrated_prob") or 0.5)
+                p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
                 t_val = str(metrics.get("trend_direction") or "").strip().upper()
                 if t_val in {TradeDirection.CALL.name, TradeDirection.PUT.name} and exec_dir.name == t_val:
                     metrics["cal_side_edge"] = float((0.58 * (1.0 + payout)) - 1.0)
                     metrics["conviction"] = 0.58
                     metrics["trade_score"] = 0.58
                 else:
-                    cal_p = float(metrics.get("calibrated_prob") or 0.5)
-                    p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
                     metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
+                    metrics["conviction"] = p_dir
+                    metrics["trade_score"] = p_dir
             elif bool(metrics.get("alpha_flip_applied")):
                 cal_p = float(metrics.get("calibrated_prob") or 0.5)
                 p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p

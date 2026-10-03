@@ -110,6 +110,7 @@ def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: An
     if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", False)):
         params.pop("_quote_guard_side_probability", None)
         params.pop("_quote_guard_min_edge", None)
+        params.pop("_quote_guard_safety_margin", None)
         params.pop("min_payout_rate", None)
         return
     cal_prob = metrics.get("calibrated_prob")
@@ -128,11 +129,11 @@ def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: An
         haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
         p_eff = max(0.0, p_side - haircut)
         is_rec = float(metrics.get("pending_loss_total", 0.0) or 0.0) > 0.5
-        min_edge = float(
-            exec_cfg.get("recovery_neg_edge_floor", 0.0) if is_rec else exec_cfg.get("min_edge_execute", 0.0)
-        )
+        raw_floor = exec_cfg.get("recovery_neg_edge_floor", 0.0) if is_rec else exec_cfg.get("min_edge_execute", 0.0)
+        min_edge = float(raw_floor or 0.0)
         params["_quote_guard_side_probability"] = p_eff
         params["_quote_guard_min_edge"] = min_edge
+        params["_quote_guard_safety_margin"] = float(exec_cfg.get("quote_safety_margin", 0.0) or 0.0)
         params["min_payout_rate"] = float(exec_cfg.get("min_payout_rate", 0.76) or 0.0)
     except (TypeError, ValueError):
         pass

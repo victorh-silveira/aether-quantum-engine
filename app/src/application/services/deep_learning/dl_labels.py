@@ -205,6 +205,7 @@ def label_and_mask_at_index(
     smooth_bars: int = 1,
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
+    open_: np.ndarray | None = None,
 ) -> tuple[bool, float]:
     """Retorna direcao binaria e mascara de atividade para a barra index."""
     forward = _forward_mean(prices, index, horizon_bars, smooth_bars)
@@ -227,8 +228,10 @@ def label_and_mask_at_index(
         th = _regime_threshold(ma_window, horizon_bars) * float(prices[index])
         diff = forward - current
         return (diff > 0.0, 0.0) if abs(diff) < th * 0.25 else (diff > th, 1.0)
-    diff = forward - float(prices[index])
-    dead = 0.00005 * float(prices[index])
+    future_idx = index + max(1, int(horizon_bars))
+    base = float(open_[future_idx]) if open_ is not None and future_idx < len(open_) else float(prices[index])
+    diff = forward - base
+    dead = 0.00005 * base
     return (diff >= 0.0, 0.0) if abs(diff) < dead else (diff > 0.0, 1.0)
 
 
@@ -240,6 +243,7 @@ def binary_label_at_index(
     smooth_bars: int = 1,
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
+    open_: np.ndarray | None = None,
 ) -> bool:
     """Retorna True para CALL conforme quantum_multi_barrier, triple_barrier, supertrend_atr ou ma_trend."""
     up, _ = label_and_mask_at_index(
@@ -249,6 +253,7 @@ def binary_label_at_index(
         smooth_bars=smooth_bars,
         label_mode=label_mode,
         ma_window=ma_window,
+        open_=open_,
     )
     return up
 
@@ -261,6 +266,7 @@ def sequence_labels(
     smooth_bars: int = 1,
     label_mode: str = LABEL_MODE_SPOT,
     ma_window: int = 5,
+    open_: np.ndarray | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Gera targets binarios e mascara ativa para indices validos."""
     n = len(prices)
@@ -280,6 +286,7 @@ def sequence_labels(
             smooth_bars=smooth,
             label_mode=label_mode,
             ma_window=ma_window,
+            open_=open_,
         )
         targets.append(1.0 if up else 0.0)
         masks.append(mask)

@@ -254,3 +254,13 @@ def test_apply_stop_win_kelly_boost_soft_early_return_without_boost_flags():
         live_metrics=soft,
     )
     assert out_off == pytest.approx(7.0)
+
+
+def test_metrics_block_execution():
+    from src.application.services.execution_gate_verdict import metrics_block_execution
+
+    assert metrics_block_execution(None) is False
+    assert metrics_block_execution({"execution_candidate_ready": False}) is True
+    assert metrics_block_execution({"execution_candidate_ready": True, "gate_verdict": "HARD_SKIP"}) is True
+    assert metrics_block_execution({"signal_status": "SKIP:CONVERGENCE"}) is True
+    assert metrics_block_execution({"execution_candidate_ready": True, "gate_verdict": "ALLOW"}) is False

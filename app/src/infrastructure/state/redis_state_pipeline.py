@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -16,6 +15,7 @@ from src.domain.risk.stop_win_target import (
     REDIS_SESSION_START_BALANCE_KEY,
     REDIS_SESSION_TARGET_WIN_KEY,
 )
+from src.infrastructure.serialization import fast_json
 from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 
 
@@ -75,7 +75,7 @@ async def write_state_bundle(
     linear_key = f"{pfx}:{REDIS_DLAMBERT_LINEAR_LOSSES_KEY}"
     risk = snapshot.get("risk")
     async with client.pipeline(transaction=True) as pipe:
-        pipe.set(snapshot_key, json.dumps(snapshot))
+        pipe.set(snapshot_key, fast_json.dumps(snapshot))
         _queue_risk_hashes(pipe, pfx, risk if isinstance(risk, dict) else None)
         session_flat = _flat_mapping(session_hash)
         if session_flat:
