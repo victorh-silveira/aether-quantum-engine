@@ -97,6 +97,7 @@ presentation  →  application  →  domain
 | `direction_persistence_guard.py` | Anti-trend-lock com flip cross-symbol e telemetria `REGIME_GUARD` |
 | `direction_persistence_guard_helpers.py` | Auxiliares de probabilidade cross-symbol e deduplicação de logs do guard |
 | `direction_persistence_guard_part2.py` | Continuacao do anti-trend-lock |
+| `tick_microstructure_frame.py` | Agregação tabular de ticks com Polars fora do domínio puro |
 | `execution_direction.py` | Resolução CALL/PUT e elegibilidade mandatory/recovery |
 | `execution_direction_checks.py` | Pré-checagens, clamps, sniper stubs, price zone prévia |
 | `execution_direction_cross_corr.py` | Peso DL via correlação cruzada |
@@ -291,6 +292,7 @@ presentation  →  application  →  domain
 | Módulo | Responsabilidade |
 |--------|------------------|
 | `side_equilibrium.py` | Leis dos pequenos/grandes números CALL/PUT; hard skip / soft Kelly |
+| `tick_microstructure.py` | Métricas puras do buffer de ticks em memória |
 
 ### Symbols (`domain/symbols/`)
 

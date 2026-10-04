@@ -127,3 +127,23 @@ def test_tick_buffer_latest_price_and_epoch_corrupted():
     buf._live["R_10"].append(("invalid_epoch", "invalid_price"))
     assert buf.latest_price("R_10") is None
     assert buf.latest_tick_epoch("R_10") is None
+
+
+def test_tick_buffer_microstructure_expanded_fields():
+    buf = TickBuffer(["1HZ75V"])
+    buf.record_tick("1HZ75V", 1000, 100.0)
+    buf.record_tick("1HZ75V", 2000, 101.0)
+    buf.record_tick("1HZ75V", 3000, 100.5)
+    buf.record_tick("1HZ75V", 4000, 102.0)
+    stats = buf.on_bar_close("1HZ75V", 60)
+    assert stats.buy_tick_ratio > 0.0
+    assert stats.buy_tick_ratio <= 1.0
+    assert stats.realized_volatility > 0.0
+    assert stats.final_momentum != 0.0
+    assert -1.0 <= stats.wick_rejection_asymmetry <= 1.0
+    arrays = buf.microstructure_arrays("1HZ75V", 1)
+    assert "buy_tick_ratio" in arrays
+    assert "final_momentum" in arrays
+    assert "realized_volatility" in arrays
+    assert "wick_rejection_asymmetry" in arrays
+    assert len(arrays["buy_tick_ratio"]) == 1

@@ -22,6 +22,7 @@ from src.application.services.deep_learning.dl_feature_oscillators import (
 )
 from src.application.services.deep_learning.dl_hurst import hurst_exponent, variance_ratio
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.domain.math.fractional_diff import frac_diff_causal
 
 
 _feature_windows = feature_windows
@@ -64,8 +65,13 @@ def _default_micro(n: int) -> dict[str, np.ndarray]:
         "consecutive_diff_std",
         "micro_bid_ask_spread_momentum",
         "volatility_shadow_ratio",
+        "return_autocorr",
+        "final_momentum",
+        "realized_volatility",
     )
-    return {k: np.zeros(n, dtype=np.float64) for k in keys}
+    res = {k: np.zeros(n, dtype=np.float64) for k in keys}
+    res["buy_tick_ratio"] = np.full(n, 0.5, dtype=np.float64)
+    return res
 
 
 def attach_microstructure(
@@ -213,6 +219,7 @@ def precompute_price_series(
         "ema_dist_20": ema_dist_20,
         "ema_dist_50": ema_dist_50,
         "hurst": hurst,
+        "frac_diff": frac_diff_causal(close, d=0.45),
         "implied_vol_ratio": implied_vol,
         "log_return": log_return,
         "macd": osc["macd"],

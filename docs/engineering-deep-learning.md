@@ -2,20 +2,34 @@
 
 ## Runtime atual
 
-O fluxo ativo usa TCN em velas M5 do índice `1HZ75V`. A configuração em `config/settings.json` define 25.000 barras de treino, lookback 32, 14 features, label `spot_forward`, horizonte de uma vela e contrato Rise/Fall de 5 minutos. D1 fornece contexto macro. O motor usa o checkpoint local produzido por `launch-train`; `online_training=false` impede retreino TCN durante a sessão.
+O fluxo ativo usa TCN em velas M5 do índice `1HZ75V`. A configuração em `config/settings.json` define 25.000 barras de treino, lookback 32, 14 features, label `spot_forward`, horizonte de uma vela e contrato Rise/Fall de 5 minutos. D1 fornece contexto macro ao motor; o treino TCN lean carrega apenas M5. O motor usa o checkpoint local produzido por `launch-train`; `online_training=false` impede retreino TCN durante a sessão.
 
-O label por fechamento é uma aproximação da direção do contrato. O treino usa validação interna para ajuste, calibração e detecção de colapso de classe. **Não há qualificação estatística da TCN, avaliação diagnóstica de liquidação por closes M5 nem promoção da TCN baseada nessas métricas.** Um checkpoint com pesos, normalização e geometria incompatíveis não é carregado. O verificador `app/scripts/operations/check_dl_checkpoint.py` confere esses requisitos após o treino.
+O label `spot_forward` usa a direção da próxima vela fechada. Esse label não equivale ao resultado confirmado de um contrato Rise/Fall. O treino usa validação interna para ajuste, calibração e detecção de colapso de classe. O benchmark linear compara uma regressão logística a um classificador majoritário nesse mesmo recorte temporal; é apenas telemetria. **Não há qualificação estatística da TCN nem promoção baseada nessas métricas.** Um checkpoint com pesos, normalização e geometria incompatíveis não é carregado. O verificador `app/scripts/operations/check_dl_checkpoint.py` confere esses requisitos após o treino.
 
 Com checkpoint técnico válido, DEMO e REAL usam a mesma inferência e a mesma abertura. O teto inicial de stake é **1% da banca por ordem**, inclusive em recuperação `cover_l0`; outros limites podem reduzi-lo. Sem checkpoint válido, a execução fica bloqueada. A validação do treino não demonstra vantagem preditiva.
 
 ## Sequência de treino
 
 1. `launch-train` prepara o ambiente e treina o loss-classifier.
-2. O TCN ajusta pesos em velas M5 com splits temporais para treino, validação e calibração. O label continua alinhado à duração de 5 minutos.
+2. O TCN ajusta pesos em velas M5 com splits temporais para treino, validação e calibração. O horizonte do label e a duração do contrato são de 300 segundos.
 3. O checkpoint local guarda pesos, normalização, arquitetura, lookback, granularidade, label e horizonte. O verificador pós-treino falha se o arquivo estiver ausente, corrompido ou incompatível com o SSOT.
 4. O treino meta LightGBM usa o checkpoint como teacher e dados disponíveis de mercado. Os sidecars continuam independentes da validade técnica do checkpoint TCN.
 
 Alterar timeframe, lookback, horizonte, features ou semântica do label exige novo treino. Manter 14 colunas não garante compatibilidade semântica após mudar a transformação de indicadores.
+
+## Diagnóstico e experimento offline
+
+Os resultados obtidos no experimento anterior em M1 com `triple_barrier` pertencem à configuração anterior e não descrevem a qualidade do novo checkpoint M5. A acurácia de treino e validação, Brier, ECE e o benchmark linear servem para diagnosticar ajuste e colapso de classe. Essas métricas não demonstram EV positivo de contratos.
+
+`app/scripts/operations/compare_dl_losses.py` compara perda ponderada por payout e BCE com a mesma inicialização, amostras e split temporal. A ferramenta lê a granularidade ativa de `settings.json`, não exporta checkpoint e exige histórico M5 contínuo no Timescale.
+
+```bash
+python app/scripts/operations/compare_dl_losses.py --bars 5000 --epochs 40 --seed 42
+```
+
+É necessário repetir a comparação com dados M5 antes de concluir qual perda se ajusta melhor. Nenhum resultado antigo em M1 deve ser atribuído à configuração M5.
+
+No retreino M5 de 04/10/2026, a TCN usou 25.000 velas, lookback 32 e 300 épocas. A validação temporal teve acurácia 0,505, abaixo da maioria de 0,508, Brier 0,316 e ECE 0,216; o treino teve acurácia 0,544. O checkpoint passou na verificação técnica, e o meta foi treinado sobre 5.000 velas M5, mas esses números não demonstram sinal preditivo ou EV positivo.
 
 ## Inferência e decisão
 
@@ -25,7 +39,9 @@ O cálculo de features e normalização precisa ser causal: acrescentar candles 
 
 ## Captura de mercado e contratos
 
-`infra.timescale.capture_enabled=true` liga o writer Timescale quando o motor está ativo. A captura registra ticks e contratos confirmados e mantém proveniência do resultado (`broker`, `profit_table` ou `inferred_rest`). A view `contract_label_audit` cruza apenas contratos Rise/Fall com resultados confirmados; spots ausentes permanecem `NULL`. A view `contract_model_outcomes` agrega contratos por versão do checkpoint, símbolo, tipo e conta. Essas views servem à auditoria operacional e não qualificam automaticamente modelos nem alteram o teto de stake.
+`infra.timescale.capture_enabled=true` liga o writer Timescale quando o motor está ativo. A captura registra ticks e contratos confirmados e mantém proveniência do resultado (`broker`, `profit_table` ou `inferred_rest`). A view `contract_label_audit` cruza contratos Rise/Fall de aproximadamente 300 segundos com resultado `broker` confirmado e compara a direção da próxima vela M5 (`close` versus `open`) com o lucro confirmado. A direção da vela é um proxy de mercado, não o resultado do contrato. Velas ausentes permanecem `NULL`. A migração `009_contract_label_audit_m5.sql` atualiza a view em volumes existentes; `make docker-timescale-lifecycle` a reaplica. A view `contract_model_outcomes` agrega contratos por versão do checkpoint, símbolo, tipo e conta. Nenhuma dessas views qualifica modelos ou altera o teto de stake.
+
+Na observação anterior em 04/10/2026 havia somente 3 contratos `broker` atribuídos, insuficientes para concluir que existe EV positivo. O histórico M1 coletado naquela ocasião não constitui uma avaliação M5.
 
 Para coletar ticks públicos sem abrir trades, use `python app/scripts/operations/collect_public_ticks.py`. A coleta não faz backfill automático; a retenção de ticks é de 30 dias. Ao comparar labels com resultados reais, verifique timestamps, payout e fonte do settlement antes de interpretar diferenças.
 

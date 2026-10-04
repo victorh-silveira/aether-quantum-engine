@@ -66,7 +66,7 @@ def _settings_dsn(settings: dict | None = None) -> str:
 
 def _required_granularities(settings: dict) -> list[int]:
     data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
-    micro = int(data.get("micro_granularity", 60) or 60)
+    micro = int(data.get("micro_granularity", 300) or 300)
     macro = int(data.get("granularity", 300) or 300)
     sync_macro = data.get("sync_macro_history", True) if isinstance(data, dict) else True
     if not bool(sync_macro) or macro == micro:
@@ -145,7 +145,7 @@ def _seed_timescale(symbols: list[str]) -> int:
     seed_script = str(_REPO_ROOT / "app" / "scripts" / "operations" / "seed_timescale_ohlc.py")
     cmd = [sys.executable, seed_script, "--bars", str(MIN_BARS_MICRO), "--symbols"] + symbols
     logger.info(
-        "TIMESCALE | Sementeando via Deriv (timeout=%ds, M5=%d)...",
+        "TIMESCALE | Sementeando via Deriv (timeout=%ds, micro=%d velas)...",
         _SEED_TIMEOUT_SECONDS,
         MIN_BARS_MICRO,
     )

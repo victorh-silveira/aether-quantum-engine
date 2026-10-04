@@ -7,7 +7,7 @@ Stack local **hibrida**: motor no host (Conda/WSL, Python 3.13, CUDA local) com 
 | Servico | Porta (localhost) | Profile | Limite tipico | Uso |
 |---------|-------------------|---------|---------------|-----|
 | Redis | `127.0.0.1:6379` | `core` | 256m | Estado, risco, `settlement:queue:priority` (AOF everysec, `maxmemory`/`noeviction`) |
-| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **86400 s** (D1) / micro **300 s** (M5); chunk 1d; CRAG `candle_m5` analytics |
+| TimescaleDB | `127.0.0.1:5432` | `core` | 1g | Ticks + OHLC macro **86400 s** (D1) / micro **300 s** (M5); chunk 1d; CRAG `candle_m5` para analytics |
 | MinIO | `127.0.0.1:9000` / `9001` | `core` | 512m | Checkpoints / TorchScript; imagem `pgsty/minio`; bucket `dl-models`; `minio-init` + ILM `optuna/` ~7d |
 | MinIO init (`aether-minio-init`) | — | `core` | oneshot | Imagem `pgsty/mc`; cria bucket/ILM e **sai com Exit 0**; `Exited (0)` em `docker ps -a` e **sucesso**, nao falha. Meta/loss esperam `service_completed_successfully`. |
 | Meta (`aether-meta-classifier`) | `127.0.0.1:8005` | `ml` | 512m | LGBMRegressor **23D**; schema_hash; `/v2/predict_meta` aplica `label_scale` e clamp **[-1, +0.85]**; `/v1/learn` idempotente por `contract_id`; nao promove `meta_online_*` sobre `meta_lgbm.pkl` sem gate N>=32 e MAE; fit fora do loop |
@@ -66,7 +66,7 @@ Settings app: `infra.redis.url`, `infra.timescale.dsn`, `infra.minio`, `infra.me
 ## Redis / Timescale / MinIO
 
 - Redis AOF `appendfsync everysec` (`config/redis.conf`); health com `start_period`
-- Timescale: init `sql/003_*.sql` + lifecycle `sql/004_*.sql` (`ohlc_bars` compress `segmentby=symbol,granularity`, `orderby=time DESC, epoch DESC`); `sh/docker-hydrate.sh` apenas verifica a quantidade de OHLC alinhado e nunca fabrica velas. Para popular dados reais: `launch-train` → `ensure_timescale.py` → seed Deriv **M5×5000 + D1×365** (timeout **900s**).
+- Timescale: init `sql/003_*.sql` + lifecycle `sql/004_*.sql` (`ohlc_bars` compress `segmentby=symbol,granularity`, `orderby=time DESC, epoch DESC`); `sh/docker-hydrate.sh` apenas verifica a quantidade de OHLC alinhado e nunca fabrica velas. Para popular dados reais: `launch-train` → `ensure_timescale.py` → seed Deriv **M5×5000 + D1×365** (timeout **900s**). A migração `009_contract_label_audit_m5.sql` atualiza a auditoria de contratos em volumes existentes.
 - `make docker-logs`: default servicos **running** (exclui `minio-init` oneshot); `DOCKER_SERVICE=minio-init` para oneshot; `DOCKER_LOGS_TAIL` default **200**
 - Volume Timescale ja inicializado nao reaplica `002`/`004` no boot: `make docker-timescale-lifecycle` reaplica compress/CRAG; first-init limpo apos `docker-reset` / volume novo
 - MinIO: bucket `dl-models`; health live + `start_period`

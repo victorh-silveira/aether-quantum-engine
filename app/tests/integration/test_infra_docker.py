@@ -96,6 +96,17 @@ def test_contract_audit_view_excludes_other_option_types():
     assert "c.settlement_source='broker'" in sql
 
 
+def test_contract_audit_m5_migration_matches_active_horizon():
+    sql = _resolve_infra_file("sql", "009_contract_label_audit_m5.sql").read_text(encoding="utf-8")
+    lifecycle = _resolve_infra_file("sh", "timescale-lifecycle.sh").read_text(encoding="utf-8")
+    assert "granularity=300" in sql
+    assert "c.date_expiry - c.date_start BETWEEN 295 AND 305" in sql
+    assert "b1.close > b1.open" in sql
+    assert "c.settlement_source='broker'" in sql
+    assert "c.contract_type IN ('CALL', 'PUT')" in sql
+    assert "009_contract_label_audit_m5.sql" in lifecycle
+
+
 def test_minio_init_script_bucket_ilm():
     script = _resolve_infra_file("sh", "minio-init.sh").read_text(encoding="utf-8")
     assert "dl-models" in script
@@ -237,6 +248,7 @@ def test_infra_docker_files_organized_by_extension_family():
         "006_contract_executions.sql",
         "007_contract_executions_resilience.sql",
         "008_contract_model_attribution.sql",
+        "009_contract_label_audit_m5.sql",
     ]
     for name in sql_files:
         assert repo_path("infra", "docker", "sql", name).is_file()

@@ -87,7 +87,7 @@ def test_fit_training_epochs_respects_min_epochs():
             min_epochs=5,
             min_val_accuracy=0.53,
         )
-    assert ran == 7
+    assert ran == 6
 
 
 def test_fit_training_epochs_stops_without_acc_gain_under_floor():
@@ -258,4 +258,4 @@ def test_aux_regression_weight_success_in_dl_training_epochs():
     from src.application.services.deep_learning.dl_training_epochs import _aux_regression_weight
 
     val = _aux_regression_weight()
-    assert val > 0.0
+    assert val == 0.0

@@ -77,11 +77,13 @@ services:
       - ./sql/006_contract_executions.sql:/docker-entrypoint-initdb.d/006_contract_executions.sql:ro
       - ./sql/007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
       - ./sql/008_contract_model_attribution.sql:/docker-entrypoint-initdb.d/008_contract_model_attribution.sql:ro
+      - ./sql/009_contract_label_audit_m5.sql:/docker-entrypoint-initdb.d/009_contract_label_audit_m5.sql:ro
       - ./sql/004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
       - ./sql/005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
       - ./sql/006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
       - ./sql/007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
       - ./sql/008_contract_model_attribution.sql:/docker-scripts/008_contract_model_attribution.sql:ro
+      - ./sql/009_contract_label_audit_m5.sql:/docker-scripts/009_contract_label_audit_m5.sql:ro
     mem_limit: 1g
     mem_swappiness: 0
     cpus: 1.0

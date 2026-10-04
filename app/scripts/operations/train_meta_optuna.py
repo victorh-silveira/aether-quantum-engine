@@ -332,7 +332,7 @@ def _lgbm_search_bounds(train_rows: int, *, use_cv: bool) -> tuple[int, int, int
         min_child_lo = max(2, min(40, min_child_hi // 2))
         return min(min_child_lo, min_child_hi), min_child_hi, 4, 0.1
     min_child_lo = max(32, min(80, min_child_hi // 2))
-    return min(min_child_lo, min_child_hi), min_child_hi, 1, 16.0
+    return min(min_child_lo, min_child_hi), min_child_hi, 4, 1.0
 
 
 def _set_mae_user_attrs(
@@ -493,8 +493,8 @@ def run_optuna_study(
     use_cv = sample_count < 150
     min_child_lo, min_child_hi, depth_hi, lambda_lo = _lgbm_search_bounds(train_rows, use_cv=use_cv)
     boost_rounds = _boost_round_budget(use_cv=use_cv)
-    lr_hi = 0.12 if use_cv else 0.02
-    leaves_hi = 10 if use_cv else 4
+    lr_hi = 0.12 if use_cv else 0.08
+    leaves_hi = 16 if use_cv else 12
     if use_cv:
         cv_splits = 3
         tscv = TimeSeriesSplit(n_splits=cv_splits)
@@ -512,8 +512,9 @@ def run_optuna_study(
             "subsample_freq": trial.suggest_int("subsample_freq", 1, 10),
             "n_jobs": OPTUNA_N_JOBS,
         }
+        p_threshold = trial.suggest_float("p_threshold", 0.520, 0.650)
         if use_cv:
-            fold_z, fold_ir, fold_gaps, fold_tr, fold_va, fold_iter = [], [], [], [], [], []
+            fold_z, fold_ir, fold_gaps, fold_tr, fold_va, fold_iter, fold_ev = [], [], [], [], [], [], []
             for tr_idx, v_idx in tscv.split(frame_np):
                 f_tr, f_v = frame[tr_idx], frame[v_idx]
                 y_tr, y_v, _ = _scale_targets_from_train(y[tr_idx], y[v_idx])
@@ -542,8 +543,19 @@ def run_optuna_study(
                 preds = _predict_with_export(m_fold, f_v.to_numpy())
                 fold_z.append(payoff_zscore_mean(y_v, preds))
                 fold_ir.append(information_ratio_from_predictions(y_v, preds))
+                prob_preds = 0.5 + 0.5 * np.tanh(preds)
+                trades = prob_preds > p_threshold
+                n_tr = int(np.sum(trades))
+                if n_tr < 5:
+                    fold_ev.append(-1.0)
+                else:
+                    wins = int(np.sum(y_v[trades] > 0))
+                    losses = int(np.sum(y_v[trades] <= 0))
+                    payout_rate = 0.85
+                    fold_ev.append((wins * payout_rate - losses * 1.0) / float(n_tr))
             mean_z = float(np.mean(fold_z))
             mean_ir = float(np.mean(fold_ir))
+            mean_ev = float(np.mean(fold_ev))
             _set_mae_user_attrs(
                 trial,
                 float(np.mean(fold_tr)),
@@ -553,7 +565,9 @@ def run_optuna_study(
             )
             trial.set_user_attr("oos_payoff_zscore_mean", mean_z)
             trial.set_user_attr("oos_information_ratio", mean_ir)
-            return mean_z + OPTUNA_IR_TIEBREAK_WEIGHT * mean_ir
+            trial.set_user_attr("oos_net_ev", mean_ev)
+            trial.set_user_attr("best_p_threshold", float(p_threshold))
+            return mean_z + OPTUNA_IR_TIEBREAK_WEIGHT * mean_ir + max(-1.0, mean_ev)
 
         model, train_mae, val_mae = train_lgbm_candidate(
             x_train,
@@ -581,10 +595,27 @@ def run_optuna_study(
         val_pred = _predict_with_export(model, x_val_np)
         oos_zscore = payoff_zscore_mean(y_val, val_pred)
         oos_ir = information_ratio_from_predictions(y_val, val_pred)
+        prob_val = 0.5 + 0.5 * np.tanh(val_pred)
+        trades = prob_val > p_threshold
+        n_tr = int(np.sum(trades))
+        min_trades_req = max(10, min(30, int(len(y_val) * 0.10)))
+        if n_tr < min_trades_req:
+            net_ev = -1.0
+        else:
+            wins = int(np.sum(y_val[trades] > 0))
+            losses = int(np.sum(y_val[trades] <= 0))
+            payout_rate = 0.85
+            net_profit = float(wins * payout_rate - losses * 1.0)
+            net_ev = net_profit / float(n_tr)
         trial.set_user_attr("oos_payoff_zscore_mean", float(oos_zscore))
         trial.set_user_attr("oos_information_ratio", float(oos_ir))
+        trial.set_user_attr("oos_net_ev", float(net_ev))
+        trial.set_user_attr("oos_trades", int(n_tr))
+        trial.set_user_attr("best_p_threshold", float(p_threshold))
         confidence_scale = min(1.0, math.sqrt(max(1, n_val) / 64.0))
-        return (float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir)) * confidence_scale
+        return (
+            float(oos_zscore) + OPTUNA_IR_TIEBREAK_WEIGHT * float(oos_ir) + max(-1.0, float(net_ev))
+        ) * confidence_scale
 
     study = optuna.create_study(direction="maximize")
     study.optimize(objective, n_trials=trials, show_progress_bar=False, n_jobs=OPTUNA_N_JOBS)

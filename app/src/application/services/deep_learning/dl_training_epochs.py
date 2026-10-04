@@ -46,6 +46,7 @@ def _validation_loss(
     device: torch.device,
     *,
     focal_gamma: float = 0.0,
+    asymmetric_payout_loss: bool | None = None,
 ) -> float:
     """Calcula perda de validacao mascarada sem gradiente."""
     model.eval()
@@ -60,6 +61,7 @@ def _validation_loss(
             device,
             label_smoothing=0.0,
             focal_gamma=focal_gamma,
+            asymmetric_payout_loss=asymmetric_payout_loss,
         )
         value = float(loss.item())
     model.train()
@@ -97,6 +99,7 @@ def _mean_epoch_loss(
     focal_gamma: float,
     optimizer: optim.Optimizer,
     delta_train: np.ndarray | None = None,
+    asymmetric_payout_loss: bool | None = None,
 ) -> tuple[float, int]:
     """Executa uma epoca completa e retorna loss media e contagem de batches."""
     epoch_loss = 0.0
@@ -114,6 +117,7 @@ def _mean_epoch_loss(
             label_smoothing=label_smoothing,
             focal_gamma=focal_gamma,
             delta_batch=None if delta_train is None else delta_train[batch_idx],
+            asymmetric_payout_loss=asymmetric_payout_loss,
         )
         loss_value = float(loss.item())
         if not math.isfinite(loss_value):
@@ -152,6 +156,7 @@ def fit_training_epochs(
     min_oos_sharpness: float = 0.01,
     min_val_accuracy: float = 0.53,
     deploy_gate_cfg: dict | None = None,
+    asymmetric_payout_loss: bool | None = None,
 ) -> tuple[float, None | dict, int]:
     """Executa epocas de treino com early stopping."""
     optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=max(0.0, weight_decay))
@@ -164,6 +169,7 @@ def fit_training_epochs(
     )
     model.train()
     total_loss, patience_counter, epochs_ran = 0.0, 0, 0
+    last_epoch_loss = 0.0
     best_state, best_sharp_state = None, None
     best_val_loss, best_sharp_loss, best_val_acc, best_sharp_acc = float("inf"), float("inf"), -1.0, -1.0
     best_sharp_value = -1.0
@@ -184,13 +190,23 @@ def fit_training_epochs(
             focal_gamma=focal_gamma,
             optimizer=optimizer,
             delta_train=delta_train,
+            asymmetric_payout_loss=asymmetric_payout_loss,
         )
         if batch_count == 0 or not math.isfinite(mean_epoch_loss):
             if best_state is not None:
                 model.load_state_dict(best_state)
             continue
         total_loss += mean_epoch_loss
-        val_loss = _validation_loss(model, x_val, y_val, mask_val, device, focal_gamma=0.0)
+        last_epoch_loss = mean_epoch_loss
+        val_loss = _validation_loss(
+            model,
+            x_val,
+            y_val,
+            mask_val,
+            device,
+            focal_gamma=0.0,
+            asymmetric_payout_loss=asymmetric_payout_loss,
+        )
         val_acc, val_sharp, collapse_hit = val_collapse_hit(model, x_val, y_val, mask_val, deploy_gate_cfg)
         model.train()
         if progress_cb is not None:
@@ -217,7 +233,7 @@ def fit_training_epochs(
             patience_counter = 0
         elif epochs_ran >= min_ep:
             patience_counter += 1
-            eff = max(3, patience // 3) if (best_sharp_state or sharp_state) else patience
+            eff = patience
             if patience > 0 and patience_counter >= eff:
                 break
         if sharp_state is not None:
@@ -230,4 +246,7 @@ def fit_training_epochs(
         sharp_acc=float(best_sharp_acc),
         min_val_accuracy=float(acc_floor),
     )
-    return total_loss / max(epochs_ran, 1), chosen, epochs_ran
+    final_loss = (
+        last_epoch_loss if math.isfinite(last_epoch_loss) and last_epoch_loss > 0 else (total_loss / max(epochs_ran, 1))
+    )
+    return final_loss, chosen, epochs_ran

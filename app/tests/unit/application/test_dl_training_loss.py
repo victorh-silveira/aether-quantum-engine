@@ -220,3 +220,69 @@ def test_calculate_masked_loss_tuple_logits_without_aux():
     assert isinstance(loss, torch.Tensor)
     assert loss.ndim == 0
     assert torch.isfinite(loss)
+
+
+def test_binary_option_asymmetric_loss():
+    from src.application.services.deep_learning.dl_training_loss import (
+        BinaryOptionAsymmetricLoss,
+        dl_asymmetric_loss_enabled,
+        dl_payout_rate,
+    )
+
+    loss_fn = BinaryOptionAsymmetricLoss(payout_rate=0.85)
+    logits = torch.tensor([2.0, -2.0])
+    targets = torch.tensor([1.0, 0.0])
+    out = loss_fn(logits, targets)
+    assert out.shape == torch.Size([2])
+    assert torch.all(torch.isfinite(out))
+
+    with patch("src.application.services.deep_learning.dl_training_loss._read_dl_settings", return_value={}):
+        assert dl_payout_rate() == 0.85
+        assert dl_asymmetric_loss_enabled() is True
+
+    custom = {"loss_payout_rate": 0.78, "asymmetric_payout_loss": False}
+    with patch("src.application.services.deep_learning.dl_training_loss._read_dl_settings", return_value=custom):
+        assert dl_payout_rate() == 0.78
+        assert dl_asymmetric_loss_enabled() is False
+
+    invalid = {"loss_payout_rate": "invalid"}
+    with patch("src.application.services.deep_learning.dl_training_loss._read_dl_settings", return_value=invalid):
+        assert dl_payout_rate() == 0.85
+
+
+def test_calculate_masked_loss_asymmetric_flag():
+    model = nn.Linear(4, 1)
+    x = np.random.randn(4, 4).astype(np.float32)
+    y = np.array([1.0, 0.0, 1.0, 0.0], dtype=np.float32)
+    mask = np.ones(4, dtype=np.float32)
+    weights = [1.0] * 4
+    device = torch.device("cpu")
+
+    loss_asym = calculate_masked_loss(
+        model,
+        x,
+        y,
+        mask,
+        weights,
+        device,
+        label_smoothing=0.0,
+        focal_gamma=0.0,
+        asymmetric_payout_loss=True,
+        payout_rate=0.85,
+    )
+    assert isinstance(loss_asym, torch.Tensor)
+    assert torch.isfinite(loss_asym)
+
+    loss_sym = calculate_masked_loss(
+        model,
+        x,
+        y,
+        mask,
+        weights,
+        device,
+        label_smoothing=0.0,
+        focal_gamma=0.0,
+        asymmetric_payout_loss=False,
+    )
+    assert isinstance(loss_sym, torch.Tensor)
+    assert torch.isfinite(loss_sym)

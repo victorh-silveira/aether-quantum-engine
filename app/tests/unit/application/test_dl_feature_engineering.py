@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from src.application.services.deep_learning.dl_feature_build import (
     FEATURE_DIM,
@@ -24,7 +23,7 @@ from src.application.services.deep_learning.dl_feature_matrix import (
 from src.application.services.deep_learning.dl_feature_normalize import causal_robust_scale
 from src.application.services.deep_learning.dl_feature_orthogonal import (
     ORTHOGONAL_FEATURE_NAMES,
-    _hurst_centered,
+    _frac_diff_feature,
 )
 
 
@@ -69,7 +68,7 @@ def test_causal_norm_no_lookahead():
     assert np.allclose(scaled[:40], scaled_prefix)
 
 
-def test_hurst_centered_changes_last_feature():
+def test_fractional_diff_changes_last_feature():
     prices = np.linspace(100.0, 120.0, 60)
     series = precompute_price_series(prices, granularity=60, symbol="R_10")
     row = build_feature_row(series, 50)
@@ -84,13 +83,13 @@ def test_precompute_attaches_macro_closes():
     assert np.allclose(series["macro_closes"], macro)
 
 
-def test_hurst_centered_pads_short_series():
-    padded = _hurst_centered({"hurst": np.array([0.6, 0.7])}, 4)
-    assert padded.shape == (4,)
-    assert padded[0] == pytest.approx(0.1)
-    assert padded[2] == pytest.approx(0.0)
-    aligned = _hurst_centered({"hurst": np.array([0.4, 0.5, 0.6])}, 3)
-    assert aligned.tolist() == pytest.approx([-0.1, 0.0, 0.1])
+def test_fractional_diff_feature_uses_precomputed_or_causal_close():
+    precomputed = np.array([0.1, 0.2, 0.3], dtype=np.float64)
+    assert np.array_equal(_frac_diff_feature({"frac_diff": precomputed}, 3), precomputed)
+    close = np.linspace(100.0, 110.0, 8)
+    result = _frac_diff_feature({"close": close}, len(close))
+    assert result.shape == close.shape
+    assert np.isfinite(result).all()
 
 
 def test_calculate_stochastic_flat_prices():

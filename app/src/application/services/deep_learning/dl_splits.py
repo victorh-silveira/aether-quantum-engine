@@ -17,12 +17,13 @@ def purged_temporal_splits(
     """Divide amostras em treino, validacao e calibracao com embargo e stride."""
     if sample_count < 20:
         return None
-    val_size = max(5, int(validation_bars))
+    val_target = min(int(validation_bars), max(5, int(sample_count * 0.20)))
+    val_size = max(5, val_target)
     calib_size = max(3, int(sample_count * calib_ratio))
     holdout = val_size + calib_size + embargo * 2
     if sample_count <= holdout + 10:
         calib_size = max(3, sample_count // 10)
-        val_size = max(5, validation_bars)
+        val_size = max(5, min(val_size, sample_count // 5))
         holdout = val_size + calib_size + embargo * 2
     if sample_count <= holdout + 10:
         return None

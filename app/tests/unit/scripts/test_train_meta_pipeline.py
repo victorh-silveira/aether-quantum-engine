@@ -64,6 +64,7 @@ from scripts.operations.train_meta_vector import (
     _resolve_training_labels,
     _scale_targets_from_train,
     _trim_degenerate_target_prefix,
+    resolve_contract_duration_seconds,
     teacher_sample_weights,
 )
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
@@ -574,8 +575,8 @@ def test_purged_split_keeps_teacher_sample_weights():
 
 def test_lgbm_search_bounds_regularize_large_n():
     min_child_lo, min_child_hi, depth_hi, lambda_lo = _lgbm_search_bounds(4000, use_cv=False)
-    assert depth_hi == 1
-    assert lambda_lo >= 16.0
+    assert depth_hi == 4
+    assert lambda_lo >= 1.0
     assert min_child_lo >= 32
     assert min_child_lo <= min_child_hi
     cv_lo, cv_hi, cv_depth, cv_lambda = _lgbm_search_bounds(80, use_cv=True)
@@ -624,9 +625,9 @@ def test_run_optuna_study_overfit_message_includes_label_mode(monkeypatch, caplo
     params = captured["params"]
     assert isinstance(params, dict)
     assert "bagging_fraction" in params
-    assert int(params["max_depth"]) <= 1
-    assert int(params["num_leaves"]) <= 4
-    assert float(params["learning_rate"]) <= 0.02 + 1e-12
+    assert int(params["max_depth"]) <= 4
+    assert int(params["num_leaves"]) <= 12
+    assert float(params["learning_rate"]) <= 0.08 + 1e-12
     joined = " ".join(rec.message for rec in caplog.records)
     if "label_mode=2" in joined:
         assert "y_std=" in joined
@@ -902,3 +903,8 @@ def test_train_lgbm_candidate_skips_early_stop_when_disabled(monkeypatch):
             early_stopping=False,
         )
     assert len(mock_train.call_args.kwargs["callbacks"]) == 1
+
+
+def test_meta_contract_duration_matches_m5_settings():
+    settings = {"risk_management": {"params": {"duration": 5, "duration_unit": "m"}}}
+    assert resolve_contract_duration_seconds(settings) == 300

@@ -13,6 +13,17 @@ from aether_paths import repo_path
 from src.application.services.deep_learning.dl_device import tensor_from_numpy
 
 
+__all__ = (
+    "BinaryOptionAsymmetricLoss",
+    "calculate_masked_loss",
+    "aux_regression_weight",
+    "anti_collapse_loss_knobs",
+    "dl_payout_rate",
+    "dl_asymmetric_loss_enabled",
+    "model_core",
+)
+
+
 def _read_dl_settings() -> dict[str, Any]:
     """Le o bloco deep_learning de settings.json."""
     path = repo_path("config", "settings.json")
@@ -39,9 +50,43 @@ def anti_collapse_loss_knobs() -> tuple[float, float, float]:
     return margin_w, entropy_w, margin_floor
 
 
+def dl_payout_rate() -> float:
+    """Le taxa de payout para ponderacao da perda assimetrica."""
+    dl = _read_dl_settings()
+    raw = dl.get("loss_payout_rate")
+    if raw is None:
+        raw = dl.get("payout_base", 0.85)
+    try:
+        val = float(raw)
+        return max(0.01, min(2.0, val))
+    except (TypeError, ValueError):
+        return 0.85
+
+
+def dl_asymmetric_loss_enabled() -> bool:
+    """True quando a perda assimetrica ponderada por payout estiver ativa."""
+    dl = _read_dl_settings()
+    return bool(dl.get("asymmetric_payout_loss", True))
+
+
 def model_core(model: Any) -> Any:
     """Extrai o modelo interno se ele for envelopado."""
     return getattr(model, "inner", model)
+
+
+class BinaryOptionAsymmetricLoss(nn.Module):
+    """Funcao de perda assimetrica ponderada pelo payout real de opcoes binarias."""
+
+    def __init__(self, payout_rate: float = 0.85, eps: float = 1e-7) -> None:
+        super().__init__()
+        self.payout_rate = float(payout_rate)
+        self.eps = float(eps)
+
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Calcula perda penalizando erro com custo 1.0 e acerto com payout."""
+        preds = torch.sigmoid(logits).clamp(self.eps, 1.0 - self.eps)
+        payout = self.payout_rate
+        return -(payout * targets * torch.log(preds) + 1.0 * (1.0 - targets) * torch.log(1.0 - preds))
 
 
 def calculate_masked_loss(
@@ -59,13 +104,19 @@ def calculate_masked_loss(
     confidence_margin_weight: float | None = None,
     entropy_penalty_weight: float | None = None,
     confidence_margin_floor: float | None = None,
+    asymmetric_payout_loss: bool | None = None,
+    payout_rate: float | None = None,
 ) -> torch.Tensor:
-    """Calcula perda de classificacao, margem de nitidez, entropia e regressao auxiliar."""
+    """Calcula perda ponderada por payout, nitidez, entropia e regressao auxiliar."""
     smooth = max(0.0, min(0.2, float(label_smoothing)))
     targets = y_batch * (1.0 - smooth) + 0.5 * smooth
     core = model_core(model)
     x_tensor = tensor_from_numpy(x_batch, device)
-    use_aux = delta_batch is not None and hasattr(core, "regression_head")
+
+    if aux_regression_weight_val is None:
+        aux_regression_weight_val = aux_regression_weight()
+    use_aux = float(aux_regression_weight_val) > 0.0 and delta_batch is not None and hasattr(core, "regression_head")
+
     if use_aux:
         try:
             logits, aux_pred = core(x_tensor, logits=True, return_aux=True)
@@ -82,8 +133,6 @@ def calculate_masked_loss(
             logits = logits[0]
         logits = logits.squeeze(-1).clamp(-30.0, 30.0)
 
-    if aux_regression_weight_val is None:
-        aux_regression_weight_val = aux_regression_weight()
     def_margin_w, def_ent_w, def_floor = anti_collapse_loss_knobs()
     m_weight = def_margin_w if confidence_margin_weight is None else float(confidence_margin_weight)
     e_weight = def_ent_w if entropy_penalty_weight is None else float(entropy_penalty_weight)
@@ -91,7 +140,15 @@ def calculate_masked_loss(
 
     target_t = tensor_from_numpy(targets, device).clamp(0.0, 1.0)
     mask_t = tensor_from_numpy(mask_batch, device)
-    loss_vec = nn.functional.binary_cross_entropy_with_logits(logits, target_t, reduction="none")
+
+    use_asym = dl_asymmetric_loss_enabled() if asymmetric_payout_loss is None else bool(asymmetric_payout_loss)
+    p_rate = dl_payout_rate() if payout_rate is None else float(payout_rate)
+
+    if use_asym and p_rate > 0.0:
+        loss_fn = BinaryOptionAsymmetricLoss(payout_rate=p_rate)
+        loss_vec = loss_fn(logits, target_t)
+    else:
+        loss_vec = nn.functional.binary_cross_entropy_with_logits(logits, target_t, reduction="none")
 
     preds = torch.sigmoid(logits)
     if focal_gamma > 0.0:

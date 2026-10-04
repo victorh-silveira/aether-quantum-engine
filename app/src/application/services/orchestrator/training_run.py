@@ -1,6 +1,7 @@
 """Sessao dedicada de treino DL acionada por train.py."""
 
 from src.application.services.deep_learning.dl_bootstrap_train import run_dl_training_session
+from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 
 
@@ -10,7 +11,7 @@ async def run_orchestrator_training(orch) -> bool:
     if not await orch._setup_session():
         orch.logger.error("INIT: Abortando treino (falha em infra, REST ou WebSocket publico).")
         return False
-    fetch_count = orch.stream._resolve_fetch_count()
+    fetch_count, _ = resolve_startup_fetch_bars(orch.config, orch.symbols)
     orch.logger.info(
         "INIT: Treino DL | sincronizando %d simbolos | alvo %d velas",
         len(orch.symbols),

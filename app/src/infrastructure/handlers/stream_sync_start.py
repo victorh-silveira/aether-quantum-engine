@@ -78,8 +78,10 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
             await handler._fetch_symbol_history(
                 symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
             )
-        if macro_count == 0:
+        if macro_count == 0 and handler.macro_granularity == handler.micro_granularity:
             handler.macro_candles[symbol] = list(handler.micro_candles.get(symbol, []))
+        elif macro_count == 0:
+            handler.macro_candles.setdefault(symbol, [])
         if mini_count > 0:
             await handler._fetch_symbol_history(
                 symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet

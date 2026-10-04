@@ -158,7 +158,7 @@ def _guard_sharpness(
 ) -> CalibratorState:
     """Se o calibrador preferido colapsa nitidez, cai para identity quando raw passa o piso."""
     _, _, sharp = _candidate_score(preferred, probs, labels)
-    floor = max(0.04, float(min_sharpness))
+    floor = max(0.035, float(min_sharpness))
     if sharp + 1e-12 >= floor:
         return preferred
     identity = _build_identity()
@@ -184,7 +184,7 @@ def maybe_identity_on_oos_collapse(
     """Se o fit colapsa nitidez no OOS e o raw OOS passa o piso, usa identity."""
     if not val_probs:
         return preferred, 0.0
-    floor = max(0.04, float(min_oos_sharpness))
+    floor = max(0.035, float(min_oos_sharpness))
     raw_oos = mean_sharpness(val_probs)
     unstable = mean_sharpness(_calibrated_probs(val_probs, preferred))
     stable = mean_sharpness([float(apply_calibrator_stable(float(p), preferred)) for p in val_probs])

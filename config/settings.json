@@ -41,9 +41,9 @@
   },
   "deep_learning": {
     "arch": "tcn",
-    "aux_regression_weight": 0.08,
-    "confidence_margin_penalty_weight": 0.25,
-    "entropy_penalty_weight": 0.15,
+    "aux_regression_weight": 0.0,
+    "confidence_margin_penalty_weight": 0.0,
+    "entropy_penalty_weight": 0.0,
     "confidence_margin_floor": 0.08,
     "bootstrap_max_wait_rounds": 16,
     "bootstrap_history_wait_cap_seconds": 30,
@@ -63,7 +63,7 @@
       "method": "auto",
       "min_calibration_margin_floor": 0.05,
       "min_calibration_sharpness": 0.0,
-      "min_oos_sharpness": 0.0,
+      "min_oos_sharpness": 0.035,
       "neutral_calibration_half_width": 0.05,
       "neutral_half_width": 0.05,
       "platt_a_default": 1.0,
@@ -86,12 +86,13 @@
       "soft_min_val_accuracy": 0.5,
       "reject_majority_collapse": true,
       "max_label_call_frac_bias": 0.15,
-      "min_minority_recall": 0.45
+      "min_minority_recall": 0.45,
+      "min_linear_preflight_acc": 0.0
     },
     "early_stopping_patience": 12,
-    "min_epochs": 15,
+    "min_epochs": 10,
     "enabled": true,
-    "focal_gamma": 1.0,
+    "focal_gamma": 0.0,
     "implied_vol_bars": 20,
     "indicators": {
       "congestion": {
@@ -177,7 +178,7 @@
     "label_ma_window": 3,
     "label_mode": "spot_forward",
     "label_smooth_bars": 1,
-    "label_smoothing": 0.0,
+    "label_smoothing": 0.03,
     "learning_rate": 0.001,
     "live_signal_metrics": {
       "drift_min_score": 0.52,
@@ -229,6 +230,10 @@
     "validation_ratio": 0.2,
     "weight_decay": 0.01,
     "allow_undeployed_inference": false,
+    "asymmetric_payout_loss": true,
+    "loss_payout_rate": 0.85,
+    "fractional_diff_enabled": true,
+    "fractional_diff_d": 0.45,
     "sample_weighting": {
       "class_balance_enabled": true,
       "class_balance_eps": 0.0,

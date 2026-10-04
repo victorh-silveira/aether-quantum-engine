@@ -308,7 +308,7 @@ def _granularity_candidates(
     if require_exact:
         return [int(preferred)]
     data_cfg = settings.get("data_handler", {}) if isinstance(settings.get("data_handler"), dict) else {}
-    micro = int(data_cfg.get("micro_granularity", 60)) if isinstance(data_cfg, dict) else 60
+    micro = int(data_cfg.get("micro_granularity", 300)) if isinstance(data_cfg, dict) else 300
     macro = int(data_cfg.get("granularity", 300)) if isinstance(data_cfg, dict) else 300
     ordered = [int(preferred), micro, macro, 120, 3600, 60, 300, 900]
     unique: list[int] = []

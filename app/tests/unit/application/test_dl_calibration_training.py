@@ -214,7 +214,8 @@ def test_purged_splits_edge_cases():
 
 def test_purged_splits_invalid_holdout_returns_none():
     assert purged_temporal_splits(26, 10) is not None
-    assert purged_temporal_splits(30, 28, calib_ratio=0.5) is None
+    assert purged_temporal_splits(30, 28, calib_ratio=0.5) is not None
+    assert purged_temporal_splits(20, 20, calib_ratio=0.9, embargo=3) is None
     assert splits_valid(10, 12, 20, 20) is False
 
 

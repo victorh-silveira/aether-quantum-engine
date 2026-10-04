@@ -27,7 +27,7 @@ async def main() -> int:
     if not ok:
         logger.error("Treino encerrou antes de concluir. Veja logs e historicos de velas.")
         return 1
-    logger.info("Treino TCN exportado em data/dl/. Verifique qualificacao OOS e teto de stake antes de operar.")
+    logger.info("Treino TCN exportado em data/dl/. Checkpoint tecnico valido; teto inicial de 1% por ordem.")
     return 0
 
 

@@ -14,15 +14,15 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 ## Universo operacional
 
 Rise/Fall CALL/PUT e o unico fluxo operacional ativo. `launch-train` treina
-TCN M5, loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
+TCN M5 (14D), loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
 e REAL com a mesma decisao e abertura. O contrato e de 300 segundos no
 indice 1HZ75V. Indicadores de tendencia, momentum, volatilidade e regime
 entram no pipeline direcional conforme `settings.json`; ausencia de modelo
 valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
 
-Atualizacao 03/10/2026: prevalecem `settings.json` e
+Atualizacao 04/10/2026: prevalecem `settings.json` e
 `docs/engineering-deep-learning.md` sobre os
-valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras/sharpening/
+valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras de contrato/sharpening/
 Alpha Flip/micro-hedging desativados. Esses parametros se referem ao caminho
 direcional. `kelly.max_stake=0`
 significa sem teto absoluto adicional, e Kelly fracionario segue 0,25.
@@ -34,10 +34,11 @@ O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial
   elimina bloqueios tecnicos/economicos nem demonstra vantagem historica de inversao.
 
 - Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
-- Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao do close no vencimento; retreino obrigatorio apos mudanca de label).
+- Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao da proxima vela fechada, calculada sem dados futuros; retreino obrigatorio apos mudanca de label).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
-- Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` e proxy por closes, nao spot executado. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
+- Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` usa a direcao da proxima vela fechada. Matriz ortogonal TCN 14D limpa sem proxies sinteticos, com diferenciacao fracionaria causal (d=0.45) e pre-flight linear benchmark telemetrico (`min_linear_preflight_acc=0.0` permite treino TCN e meta). Perda `BinaryOptionAsymmetricLoss` ponderada pelo payout real (0.85) com penalizacao integral de erro (1.0). Meta-Learner otimiza Net EV via Optuna. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
+- Comparacao offline entre perda ponderada e BCE: `app/scripts/operations/compare_dl_losses.py`; usa mesma inicializacao e nao exporta checkpoint. A view `contract_label_audit` compara M5 com resultado `broker` confirmado, sem qualificar modelo. Poucos contratos auditados nao sustentam treino supervisionado por resultado real.
 - Runtime: `online_training` **false** — ambas as contas usam checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
 - Cotacao final: `require_quote_edge=true`; calcular EV com payout liquido confirmado pela proposta, `min_edge_execute=0` e margem sobre break-even de `0.01`. `min_payout_rate=0` desativa o piso fixo de 80% que rejeitava cotacoes com EV positivo; payout ausente ou invalido segue bloqueado.
 - Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`, `stop_win_kelly_min_conviction` **0.58**). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; saida do seed live N=**2**, nao `ready_n` **32**; `flip_min_n_train` **1**; young pe>=**0.58**; mature pe>=**0.70**; shrink N ate 64 com `flip_young_shrink` **0.50**; anti-trend lock ativo com inversao rapida pos-loss; sem `candle_holds`; inverte CALL↔PUT e executa). Edge CLUSTER = EV; **SKIP** `neg_edge` se ≤ 0 em EXPLORE (waive com PEND material ou smart waive se Edge>=-0.030 com loss_clf pe<=0.485 ou loss-clf sob bootstrap com margem direcional ativa; waivado em flips). Recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**, stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `cover_l0`; PEND material waiva `neg_edge` e nao force-explore por near-stop; piso Kelly **1%** soberano.

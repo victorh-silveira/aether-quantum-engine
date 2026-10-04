@@ -1,4 +1,4 @@
--- Migracao de resiliencia: atualiza contract_label_audit com LEFT JOIN, COALESCE e is_label_mismatched.
+BEGIN;
 DROP VIEW IF EXISTS contract_label_audit;
 CREATE VIEW contract_label_audit AS
 SELECT c.contract_id, c.symbol, c.account_mode, c.direction,
@@ -12,14 +12,14 @@ SELECT c.contract_id, c.symbol, c.account_mode, c.direction,
        CASE c.direction WHEN 'CALL' THEN c.exit_tick > c.entry_tick
                         WHEN 'PUT' THEN c.exit_tick < c.entry_tick END AS spot_win,
        c.profit > 0 AS broker_win,
-       c.signal_prob,
-       CASE WHEN c.signal_prob BETWEEN 0 AND 1 THEN
-         power(c.signal_prob - (c.exit_tick > c.entry_tick)::int, 2)
+       c.signal_prob, c.calibrated_call_prob, c.model_version,
+       CASE WHEN COALESCE(c.calibrated_call_prob, c.signal_prob) BETWEEN 0 AND 1 THEN
+         power(COALESCE(c.calibrated_call_prob, c.signal_prob) - (c.exit_tick > c.entry_tick)::int, 2)
        END AS broker_brier,
        CASE
-         WHEN b0.close IS NOT NULL AND b1.close IS NOT NULL AND c.exit_tick IS NOT NULL AND c.entry_tick IS NOT NULL THEN
-           (CASE c.direction WHEN 'CALL' THEN b1.close > b1.open WHEN 'PUT' THEN b1.close < b1.open END) !=
-           (CASE c.direction WHEN 'CALL' THEN c.exit_tick > c.entry_tick WHEN 'PUT' THEN c.exit_tick < c.entry_tick END)
+         WHEN b1.open IS NOT NULL AND b1.close IS NOT NULL THEN
+           (CASE c.direction WHEN 'CALL' THEN b1.close > b1.open
+                             WHEN 'PUT' THEN b1.close < b1.open END) != (c.profit > 0)
          ELSE NULL
        END AS is_label_mismatched
 FROM contract_executions c
@@ -37,3 +37,4 @@ WHERE c.settlement_source='broker'
   AND COALESCE(c.request_epoch_ms / 1000, c.date_start) IS NOT NULL
   AND c.entry_tick IS NOT NULL AND c.exit_tick IS NOT NULL
   AND c.profit IS NOT NULL AND c.buy_price > 0;
+COMMIT;

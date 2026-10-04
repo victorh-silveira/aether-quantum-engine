@@ -22,3 +22,5 @@ precompute_price_series = _dl_feature_build.precompute_price_series
 symbol_vol_target = _dl_feature_build.symbol_vol_target
 extract_features = _dl_sequence_extract.extract_features
 extract_sequences = _dl_sequence_extract.extract_sequences
+extract_sequences_and_deltas = _dl_sequence_extract.extract_sequences_and_deltas
+sequence_price_deltas = _dl_sequence_extract.sequence_price_deltas

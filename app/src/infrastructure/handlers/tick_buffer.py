@@ -22,9 +22,13 @@ class BarMicrostructure:
     consecutive_diff_std: float
     micro_bid_ask_spread_momentum: float
     volatility_shadow_ratio: float
+    buy_tick_ratio: float = 0.5
+    final_momentum: float = 0.0
+    realized_volatility: float = 0.0
+    wick_rejection_asymmetry: float = 0.0
 
 
-_NEUTRAL = BarMicrostructure(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+_NEUTRAL = BarMicrostructure(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0)
 
 
 class TickBuffer:
@@ -144,6 +148,10 @@ class TickBuffer:
                 [s.micro_bid_ask_spread_momentum for s in series], dtype=np.float64
             ),
             "volatility_shadow_ratio": np.array([s.volatility_shadow_ratio for s in series], dtype=np.float64),
+            "buy_tick_ratio": np.array([s.buy_tick_ratio for s in series], dtype=np.float64),
+            "final_momentum": np.array([s.final_momentum for s in series], dtype=np.float64),
+            "realized_volatility": np.array([s.realized_volatility for s in series], dtype=np.float64),
+            "wick_rejection_asymmetry": np.array([s.wick_rejection_asymmetry for s in series], dtype=np.float64),
         }
 
     def live_tick_acceleration(self, symbol: str, *, window_ms: int = 5000) -> float:
@@ -200,6 +208,15 @@ class TickBuffer:
         lower_shadow = min(open_px, close_px) - low_px
         std_val = float(np.std(prices))
         shadow_ratio = (upper_shadow + lower_shadow) / (std_val + 1e-12)
+        up_ticks = float(np.sum(price_diffs > 0))
+        total_deltas = float(len(price_diffs))
+        buy_tick = (up_ticks / total_deltas) if total_deltas > 0 else 0.5
+        tail_k = max(2, int(len(prices) * 0.15))
+        fin_mom = float(prices[-1] - prices[-tail_k])
+        log_rets = np.log(np.maximum(prices[1:], 1e-12) / np.maximum(prices[:-1], 1e-12))
+        real_vol = float(np.sqrt(np.sum(log_rets**2))) if len(log_rets) > 0 else 0.0
+        hl_diff = max(high_px - low_px, 1e-10)
+        wick_asym = float(np.clip((lower_shadow - upper_shadow) / hl_diff, -1.0, 1.0))
         return BarMicrostructure(
             tick_count=float(len(ticks)),
             mean_inter_tick_ms=mean_ms,
@@ -208,4 +225,8 @@ class TickBuffer:
             consecutive_diff_std=diff_std,
             micro_bid_ask_spread_momentum=spread_momentum,
             volatility_shadow_ratio=shadow_ratio,
+            buy_tick_ratio=buy_tick,
+            final_momentum=fin_mom,
+            realized_volatility=real_vol,
+            wick_rejection_asymmetry=wick_asym,
         )

@@ -104,4 +104,4 @@ def test_sequence_price_deltas_breaks_when_future_index_out_of_bounds(monkeypatc
         lambda *args, **kwargs: (np.array([1.0, 1.0]), np.array([1.0, 1.0])),
     )
     deltas = sequence_price_deltas(prices, lookback=1, label_horizon_bars=5)
-    assert len(deltas) == 2
+    assert len(deltas) == 0

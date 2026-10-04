@@ -11,6 +11,7 @@ import polars as pl
 from scripts.operations.train_meta_data import META_TRAIN_DEFAULT_BARS, OhlcBundle
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_feature_matrix import build_feature_matrix
+from src.application.services.deep_learning.dl_horizon import contract_duration_seconds
 from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
 from src.application.services.meta_classifier_features import (
     clip_feature_zscore,
@@ -471,7 +472,7 @@ def _validate_sample_floor(rows: int, fetch_count: int) -> None:
 def build_paired_training_dataset(
     bundles: list[OhlcBundle],
     *,
-    micro_granularity: int = 60,
+    micro_granularity: int = 300,
     contract_duration_seconds: int | None = None,
     reference_stake: float = META_TRAIN_REFERENCE_STAKE,
     fetch_count: int = META_TRAIN_DEFAULT_BARS,
@@ -565,6 +566,6 @@ def resolve_contract_duration_seconds(settings: dict[str, Any]) -> int:
     risk = settings.get("risk_management") if isinstance(settings.get("risk_management"), dict) else {}
     params = risk.get("params") if isinstance(risk, dict) else {}
     if isinstance(params, dict) and params.get("duration") is not None:
-        return max(1, int(params["duration"]))
+        return contract_duration_seconds(params)
     data = settings.get("data_handler") if isinstance(settings.get("data_handler"), dict) else {}
-    return max(1, int(data.get("micro_granularity", 60))) if isinstance(data, dict) else 60
+    return max(1, int(data.get("micro_granularity", 300))) if isinstance(data, dict) else 300

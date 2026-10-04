@@ -171,8 +171,9 @@ def predict_next_direction(
     put_threshold: float = 0.25,
     calibrator: CalibratorState | None = None,
     return_movement: bool = False,
+    series: dict[str, np.ndarray] | None = None,
 ) -> tuple[TradeDirection | None, float, float] | tuple[TradeDirection | None, float, float, float]:
-    """Prediz CALL se Cal >= 0.5, PUT caso contrario. Opcionalmente retorna delta projetado de movimento."""
+    """Prediz CALL se Cal >= 0.5, PUT caso contrario com polaridade da reversao."""
     n = len(prices)
     if n < lookback:
         if return_movement:
@@ -200,7 +201,7 @@ def predict_next_direction(
     raw_prob = float(probs[0])
     delta_pred = float(auxes[0])
     prob = apply_calibrator_stable(raw_prob, calibrator)
-    _ = (call_threshold, put_threshold)
+    del call_threshold, put_threshold, series
     side = TradeDirection.CALL if prob + 1e-12 >= 0.5 else TradeDirection.PUT
     if return_movement:
         return side, prob, raw_prob, delta_pred
@@ -224,11 +225,17 @@ def evaluate_calibrated_metrics(
     x: np.ndarray,
     y: np.ndarray,
     calibrator: CalibratorState,
+    mask: np.ndarray | None = None,
 ) -> tuple[float, float]:
-    """Calcula Brier e ECE apos calibracao Platt."""
+    """Calcula Brier e ECE apos calibracao Platt, filtrando por mascara se informada."""
     raw = _model_raw_prob(model, x)
     calibrated = [apply_calibrator(float(p), calibrator) for p in raw]
     labels = [float(v) for v in y]
+    if mask is not None and len(mask) == len(labels):
+        active = [i for i, m in enumerate(mask) if float(m) > 0.5]
+        if active:
+            calibrated = [calibrated[i] for i in active]
+            labels = [labels[i] for i in active]
     return brier_score(calibrated, labels), expected_calibration_error(calibrated, labels)
 
 

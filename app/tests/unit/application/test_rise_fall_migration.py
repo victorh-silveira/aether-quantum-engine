@@ -19,12 +19,18 @@ def test_rise_fall_settings_and_indicators_are_consistent():
     assert settings["risk_management"]["params"]["duration_unit"] == "m"
     assert settings["deep_learning"]["label_horizon_bars"] == 1
     assert settings["data_handler"]["micro_granularity"] == 300
+    assert settings["data_handler"]["mini_granularity"] == 300
+    assert settings["deep_learning"]["lookback"] == 32
+    assert settings["deep_learning"]["label_mode"] == "spot_forward"
+    assert settings["orchestrator"]["signature_boundary_seconds"] == 300
     assert FEATURE_DIM == len(ORTHOGONAL_FEATURE_NAMES) == 14
-    for feature in ("rsi_centered", "norm_atr", "macd_hist_norm", "adx_scaled", "hurst_centered"):
+    for feature in ("rsi_centered", "norm_atr", "macd_hist_norm", "adx_scaled", "norm_frac_diff"):
         assert feature in ORTHOGONAL_FEATURE_NAMES
     for direction in (TradeDirection.CALL, TradeDirection.PUT):
         proposal = build_proposal_request("1HZ75V", direction, 1.0, settings["risk_management"]["params"])
         assert proposal["contract_type"] == direction.value
+        assert proposal["duration"] == 5
+        assert proposal["duration_unit"] == "m"
         assert "barrier" not in proposal
 
 

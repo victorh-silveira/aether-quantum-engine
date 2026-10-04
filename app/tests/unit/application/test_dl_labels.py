@@ -95,33 +95,31 @@ def test_binary_label_supertrend_atr():
 
 
 def test_binary_label_triple_barrier():
-    from src.application.services.deep_learning.dl_labels import (
-        LABEL_MODE_TRIPLE_BARRIER,
-        _triple_barrier_direction,
-    )
+    from src.application.services.deep_learning.dl_barrier_labels import triple_barrier_direction
+    from src.application.services.deep_learning.dl_labels import LABEL_MODE_TRIPLE_BARRIER
 
     prices_up = np.linspace(100.0, 150.0, 50)
-    assert _triple_barrier_direction(prices_up, 20, 5) is True
+    assert triple_barrier_direction(prices_up, 20, 5) is True
     assert binary_label_at_index(prices_up, 20, 5, label_mode=LABEL_MODE_TRIPLE_BARRIER) is True
 
     prices_down = np.linspace(150.0, 100.0, 50)
-    assert _triple_barrier_direction(prices_down, 20, 5) is False
+    assert triple_barrier_direction(prices_down, 20, 5) is False
     assert binary_label_at_index(prices_down, 20, 5, label_mode=LABEL_MODE_TRIPLE_BARRIER) is False
 
     # Primeiro toque inferior rápido
     prices_touch_lower = np.array([100.0] * 20 + [100.0, 95.0, 105.0, 105.0])
-    assert _triple_barrier_direction(prices_touch_lower, 20, 3) is False
+    assert triple_barrier_direction(prices_touch_lower, 20, 3) is False
 
     # Primeiro toque superior rápido
     prices_touch_upper = np.array([100.0] * 20 + [100.0, 105.0, 95.0, 95.0])
-    assert _triple_barrier_direction(prices_touch_upper, 20, 3) is True
+    assert triple_barrier_direction(prices_touch_upper, 20, 3) is True
 
     # Sem tocar barreiras, fechando no mesmo nivel
     prices_flat = np.full(50, 100.0)
-    assert _triple_barrier_direction(prices_flat, 20, 2) is True
+    assert triple_barrier_direction(prices_flat, 20, 2) is False
 
     # Teste de vol_seg <= 1 (linha 94)
-    assert _triple_barrier_direction(prices_flat[:1], 0, 1) is True
+    assert triple_barrier_direction(prices_flat[:1], 0, 1) is False
 
 
 def test_forward_mean_out_of_bounds_and_empty_sequence():
@@ -136,61 +134,57 @@ def test_forward_mean_out_of_bounds_and_empty_sequence():
 
 
 def test_triple_barrier_candlestick_patterns_and_noise_invariance():
-    from src.application.services.deep_learning.dl_labels import (
-        LABEL_MODE_TRIPLE_BARRIER,
-        _triple_barrier_direction,
-    )
+    from src.application.services.deep_learning.dl_barrier_labels import triple_barrier_direction
+    from src.application.services.deep_learning.dl_labels import LABEL_MODE_TRIPLE_BARRIER
 
     # Forte impulso de alta (Marubozu de alta): atinge barreira superior imediatamente
     prices_marubozu_bull = np.array([100.0] * 20 + [100.0, 108.0, 115.0])
-    assert _triple_barrier_direction(prices_marubozu_bull, 20, 2) is True
+    assert triple_barrier_direction(prices_marubozu_bull, 20, 2) is True
     assert binary_label_at_index(prices_marubozu_bull, 20, 2, label_mode=LABEL_MODE_TRIPLE_BARRIER) is True
 
     # Forte rejeição de baixa (Marubozu de baixa): atinge barreira inferior imediatamente
     prices_marubozu_bear = np.array([100.0] * 20 + [100.0, 92.0, 85.0])
-    assert _triple_barrier_direction(prices_marubozu_bear, 20, 2) is False
+    assert triple_barrier_direction(prices_marubozu_bear, 20, 2) is False
     assert binary_label_at_index(prices_marubozu_bear, 20, 2, label_mode=LABEL_MODE_TRIPLE_BARRIER) is False
 
     # Candle de indecisão (Doji) com micro ruído: avalia barreira temporal no horizonte
     prices_doji = np.array([100.0] * 20 + [100.0, 100.01, 100.02])
-    assert _triple_barrier_direction(prices_doji, 20, 2) is True
+    assert triple_barrier_direction(prices_doji, 20, 2) is True
 
 
-def test_quantum_multi_barrier_direction():
-    from src.application.services.deep_learning.dl_labels import (
-        LABEL_MODE_QUANTUM_MULTI_BARRIER,
-        _quantum_multi_barrier_direction,
-    )
+def testquantum_multi_barrier_direction():
+    from src.application.services.deep_learning.dl_barrier_labels import quantum_multi_barrier_direction
+    from src.application.services.deep_learning.dl_labels import LABEL_MODE_QUANTUM_MULTI_BARRIER
 
     # Caso 1: Impulso de alta rompendo barreira superior assimétrica
     prices_up = np.array([100.0] * 20 + [100.0, 105.0, 110.0])
-    assert _quantum_multi_barrier_direction(prices_up, 20, 2) is True
+    assert quantum_multi_barrier_direction(prices_up, 20, 2) is True
     assert binary_label_at_index(prices_up, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER) is True
 
     # Caso 2: Impulso de baixa rompendo barreira inferior assimétrica
     prices_down = np.array([100.0] * 20 + [100.0, 95.0, 90.0])
-    assert _quantum_multi_barrier_direction(prices_down, 20, 2) is False
+    assert quantum_multi_barrier_direction(prices_down, 20, 2) is False
     assert binary_label_at_index(prices_down, 20, 2, label_mode=LABEL_MODE_QUANTUM_MULTI_BARRIER) is False
 
     # Caso 3: Expiração na barreira vertical com deslocamento positivo expressivo sem tocar a barreira dinâmica
     prices_exp_call = np.array([100.0] * 20 + [100.0, 100.005])
-    assert _quantum_multi_barrier_direction(prices_exp_call, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is True
+    assert quantum_multi_barrier_direction(prices_exp_call, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is True
 
     # Caso 4: Expiração na barreira vertical com deslocamento negativo expressivo sem tocar a barreira dinâmica
     prices_exp_put = np.array([100.0] * 20 + [100.0, 99.995])
-    assert _quantum_multi_barrier_direction(prices_exp_put, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is False
+    assert quantum_multi_barrier_direction(prices_exp_put, 20, 1, min_viable_delta=0.00001, barrier_mult=50.0) is False
 
     # Caso 5: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (alta)
     prices_flat_uptrend = np.array(list(np.linspace(95.0, 100.0, 20)) + [100.0, 100.0, 100.0])
-    assert _quantum_multi_barrier_direction(prices_flat_uptrend, 20, 2, min_viable_delta=0.01) is True
+    assert quantum_multi_barrier_direction(prices_flat_uptrend, 20, 2, min_viable_delta=0.01) is True
 
     # Caso 6: Consolidação estagnada (delta < threshold) desempatada pela tendência prévia (baixa)
     prices_flat_downtrend = np.array(list(np.linspace(105.0, 100.0, 20)) + [100.0, 100.0, 100.0])
-    assert _quantum_multi_barrier_direction(prices_flat_downtrend, 20, 2, min_viable_delta=0.01) is False
+    assert quantum_multi_barrier_direction(prices_flat_downtrend, 20, 2, min_viable_delta=0.01) is False
 
     # Caso 7: Array de volatilidade curto
     prices_short = np.array([100.0, 100.1])
-    assert _quantum_multi_barrier_direction(prices_short, 0, 1) is True
+    assert quantum_multi_barrier_direction(prices_short, 0, 1) is True
 
     # Caso 8: Deslocamento direcional alem da dead zone sem tocar barreiras extremas
     from src.application.services.deep_learning.dl_labels import _quantum_multi_barrier_label_and_mask

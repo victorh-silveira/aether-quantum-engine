@@ -9,6 +9,7 @@ from src.application.services.deep_learning.dl_feature_normalize import (
     apply_causal_column_scale,
     center_unit_interval,
 )
+from src.domain.math.fractional_diff import frac_diff_causal
 
 
 FEATURE_DIM = 14
@@ -26,7 +27,7 @@ ORTHOGONAL_FEATURE_NAMES: tuple[str, ...] = (
     "stoch_k_centered",
     "adx_scaled",
     "realized_vol_ratio",
-    "hurst_centered",
+    "norm_frac_diff",
 )
 UNBOUNDED_COLS: tuple[int, ...] = (0, 1, 3, 5, 6, 7, 8, 9, 12, 13)
 
@@ -37,15 +38,12 @@ def _log_ret_n(log_return: np.ndarray, n: int) -> np.ndarray:
     return pl.Series(log_return.astype(np.float64)).rolling_sum(window_size=w, min_samples=1).to_numpy()
 
 
-def _hurst_centered(series: dict[str, np.ndarray], n: int) -> np.ndarray:
-    """Hurst centrado em 0.5 (persistencia vs mean-reversion)."""
-    hurst = np.asarray(series.get("hurst", np.full(n, 0.5)), dtype=np.float64)
-    if len(hurst) != n:
-        out = np.full(n, 0.0, dtype=np.float64)
-        take = min(len(hurst), n)
-        out[:take] = hurst[:take] - 0.5
-        return out
-    return hurst - 0.5
+def _frac_diff_feature(series: dict[str, np.ndarray], n: int) -> np.ndarray:
+    """Serie estacionaria com memoria longa via diferenciacao fracionaria causal."""
+    if "frac_diff" in series and len(series["frac_diff"]) == n:
+        return np.asarray(series["frac_diff"], dtype=np.float64)
+    close = np.asarray(series.get("close", np.zeros(n)), dtype=np.float64)
+    return frac_diff_causal(close, d=0.45)
 
 
 def build_orthogonal_raw_matrix(
@@ -79,7 +77,7 @@ def build_orthogonal_raw_matrix(
         center_unit_interval(stoch),
         np.clip(adx, 0.0, 1.0),
         np.asarray(series["vol_ratio_short_long"], dtype=np.float64),
-        _hurst_centered(series, n),
+        _frac_diff_feature(series, n),
     ]
     return np.stack(cols, axis=1).astype(np.float32)
 

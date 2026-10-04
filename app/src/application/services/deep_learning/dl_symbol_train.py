@@ -105,6 +105,7 @@ def run_symbol_training(
     progress_cb = _epoch_progress_logger(symbol, level, log_every)
     try:
         with guard_symbol_model(runtime):
+            sparse_training = str(params.get("label_mode", "")).lower() in ("triple_barrier", "quantum_multi_barrier")
             _, y_preview, _ = extract_sequences(
                 prices,
                 params["lookback"],
@@ -119,6 +120,7 @@ def run_symbol_training(
                 high=high,
                 low=low,
                 micro=micro,
+                filter_active=sparse_training,
             )
             if len(y_preview):
                 up_pct = float(y_preview.mean()) * 100.0

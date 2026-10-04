@@ -98,13 +98,18 @@ def apply_successful_symbol_train(
     logger.log(
         level,
         "DL TREINO | %s | concluido em %.0fs | epocas=%d | loss=%.4f | val_acc=%.2f | "
-        "brier=%.3f | checkpoint local com teto de 1%% | live_wr=%.2f | live_n=%d",
+        "brier=%.3f | ece=%.3f | label_call=%.2f | pred_call=%.2f | minority_rec=%.2f | "
+        "checkpoint tecnico com teto de 1%% | live_wr=%.2f | live_n=%d",
         symbol,
         time.monotonic() - started,
         int(getattr(train_result, "epochs_ran", 0)),
         float(train_result.avg_loss or 0.0),
         float(runtime["val_accuracy"]),
         float(runtime["val_brier"]),
+        float(runtime["val_ece"]),
+        float(runtime["label_call_frac"]),
+        float(runtime["pred_call_frac"]),
+        float(runtime["minority_recall"]),
         float(live.get("live_wr", 0.0)),
         int(live.get("live_n", 0)),
     )

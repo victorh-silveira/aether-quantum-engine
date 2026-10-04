@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from src.application.services.doctrine_invariants import assert_production_doctrine, reset_doctrine_invariants_cache
@@ -47,6 +50,7 @@ def test_production_checkpoint_policy():
     assert float(quality["soft_min_val_accuracy"]) == pytest.approx(0.50)
     assert bool(quality["reject_majority_collapse"]) is True
     assert float(quality["max_label_call_frac_bias"]) == pytest.approx(0.15)
+    assert float(quality["min_linear_preflight_acc"]) == pytest.approx(0.0)
     assert bool(dl.get("allow_undeployed_inference")) is False
     assert int(dl.get("training_history_bars", 0)) == 25000
     assert int(dl.get("lookback", 0)) == 32
@@ -84,6 +88,22 @@ def test_production_checkpoint_policy():
     assert settings["risk_management"]["soft_recovery"]["amort_cycles_max"] == 1
     assert "cal_soft_edge_skip_enabled" not in settings["orchestrator"]["execution"]
     assert "cal_soft_edge_margin_floor" not in settings["orchestrator"]["execution"]
+
+
+def test_settings_json_has_no_duplicate_keys():
+    path = Path(__file__).resolve().parents[4] / "config" / "settings.json"
+    duplicate_keys = []
+
+    def reject_duplicates(pairs):
+        seen = set()
+        for key, _ in pairs:
+            if key in seen:
+                duplicate_keys.append(key)
+            seen.add(key)
+        return dict(pairs)
+
+    json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=reject_duplicates)
+    assert duplicate_keys == []
 
 
 def test_production_logging_ssot():
@@ -157,13 +177,13 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert float(cal["min_calibration_margin_floor"]) == pytest.approx(0.05)
     assert float(cal["temperature_min"]) == pytest.approx(0.75)
     assert float(cal["min_calibration_sharpness"]) == pytest.approx(0.0)
-    assert float(cal["min_oos_sharpness"]) == pytest.approx(0.0)
+    assert float(cal["min_oos_sharpness"]) == pytest.approx(0.035)
     assert float(cal["max_calibrated_raw_gap"]) == pytest.approx(0.05)
-    assert float(dl["label_smoothing"]) == pytest.approx(0.0)
+    assert float(dl["label_smoothing"]) == pytest.approx(0.03)
     assert float(dl["tcn"]["dropout"]) == pytest.approx(0.25)
-    assert float(dl["focal_gamma"]) == pytest.approx(1.0)
+    assert float(dl["focal_gamma"]) == pytest.approx(0.0)
     assert float(dl["weight_decay"]) == pytest.approx(0.01)
-    assert float(dl["aux_regression_weight"]) == pytest.approx(0.08)
+    assert float(dl["aux_regression_weight"]) == pytest.approx(0.0)
     assert int(dl["early_stopping_patience"]) == 12
     assert str(dl["lr_scheduler"]) == "reduce_on_plateau"
     orch = settings["orchestrator"]
