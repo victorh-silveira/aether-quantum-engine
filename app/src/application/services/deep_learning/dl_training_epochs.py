@@ -170,8 +170,9 @@ def fit_training_epochs(
     model.train()
     total_loss, patience_counter, epochs_ran = 0.0, 0, 0
     last_epoch_loss = 0.0
-    best_state, best_sharp_state = None, None
+    best_state, best_sharp_state, best_fallback_state = None, None, None
     best_val_loss, best_sharp_loss, best_val_acc, best_sharp_acc = float("inf"), float("inf"), -1.0, -1.0
+    best_fallback_acc = -1.0
     best_sharp_value = -1.0
     patience, min_ep, total_epochs = max(0, int(early_stopping_patience)), max(0, int(min_epochs)), max(1, epochs)
     weight_arr = np.asarray(weights, dtype=np.float32)
@@ -209,6 +210,9 @@ def fit_training_epochs(
         )
         val_acc, val_sharp, collapse_hit = val_collapse_hit(model, x_val, y_val, mask_val, deploy_gate_cfg)
         model.train()
+        if collapse_hit and val_acc > best_fallback_acc:
+            best_fallback_acc = float(val_acc)
+            best_fallback_state = {k: v.detach().cpu().clone() for k, v in model.state_dict().items()}
         if progress_cb is not None:
             progress_cb(epochs_ran, total_epochs, mean_epoch_loss, float(val_acc))
         ck_res = checkpoint_if_improved(
@@ -246,6 +250,8 @@ def fit_training_epochs(
         sharp_acc=float(best_sharp_acc),
         min_val_accuracy=float(acc_floor),
     )
+    if chosen is None:
+        chosen = best_fallback_state
     final_loss = (
         last_epoch_loss if math.isfinite(last_epoch_loss) and last_epoch_loss > 0 else (total_loss / max(epochs_ran, 1))
     )

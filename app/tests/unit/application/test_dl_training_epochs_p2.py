@@ -167,7 +167,7 @@ def test_sharp_checkpoint_same_sharp_same_acc_prefers_lower_loss():
     assert sv2 == pytest.approx(0.04)
 
 
-def test_checkpoint_saves_acc_peak_even_with_majority_collapse():
+def test_checkpoint_excludes_collapsed_peak_from_primary_selection():
     from src.application.services.deep_learning.dl_training_checkpoint import checkpoint_if_improved
 
     model = create_direction_model(arch="tcn")
@@ -184,10 +184,10 @@ def test_checkpoint_saves_acc_peak_even_with_majority_collapse():
         best_sharp_loss=float("inf"),
         collapse_hit=True,
     )
-    assert state is not None
+    assert state is None
     assert sharp is None
     assert improved is True
-    assert _a == pytest.approx(0.58)
+    assert _a == pytest.approx(-1.0)
 
 
 def test_checkpoint_keeps_high_acc_even_with_elevated_ce():

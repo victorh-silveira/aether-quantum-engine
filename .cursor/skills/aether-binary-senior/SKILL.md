@@ -9,11 +9,11 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **4**, `n_train>=4`) e pe no piso → `invert_exec_side` **false** → SKIP `neg_edge` → Kelly / cover amort **1**. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly.
+Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **2**, `n_train>=1`) e pe no piso → `invert_exec_side` **false** → quatro vetos extremos → Kelly / cover amort **1** → proposta com EV positivo e margem. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly.
 
 ## Checklist (auditoria por ciclo)
 
-1. SKIP tecnico: treino/dados/deploy/predict/stop-win; SKIP sinal: `neg_edge` e `counter_trend_unconfirmed` (edge mínimo **0.08** contra tendência; FLIP/anti-trend-lock preservados)
+1. SKIP tecnico: treino/dados/checkpoint/predict/stop-win; SKIP sinal: quatro vetos extremos e cotacao final sem EV ou margem suficientes. Ruido/tendencia/conformal/compressao nao somam vetos no SSOT.
 2. CLUSTER → lado TCN (Cal≥0.5 CALL) + Edge EV
 3. `LOSS_CLF`: FLIP se pe no piso; `blocked=bootstrap|flip_min_n` → sem FLIP
 4. KELLY/EXEC lado = TCN(+FLIP); RESOLVED valida mercado

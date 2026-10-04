@@ -43,6 +43,14 @@ def test_business_metrics_instrumentor_cycle_recording():
     )
 
 
+def test_business_metrics_omit_unobserved_session_radar_and_events():
+    payload = BusinessMetricsInstrumentor().format_prometheus_metrics()
+    assert "aether_session_balance_usd" not in payload
+    assert "aether_inference_calibrated" not in payload
+    assert "aether_trading_contracts_total" not in payload
+    assert "aether_trading_gate_verdicts_total" not in payload
+
+
 def test_business_metrics_instrumentor_is_otel_sdk_available():
     available = BusinessMetricsInstrumentor.is_otel_sdk_available()
     assert isinstance(available, bool)
@@ -163,6 +171,21 @@ def test_business_metrics_instrumentor_radar_put_and_empty_metrics():
     payload = instrumentor.format_prometheus_metrics()
     assert 'aether_trading_direction{symbol="1HZ75V"} -1' in payload
     assert 'aether_trading_stake_usd{symbol="1HZ75V"} 2.0' in payload
+    assert 'aether_inference_calibrated{symbol="1HZ75V"}' not in payload
+    assert 'aether_inference_payoff_edge{symbol="1HZ75V"}' not in payload
+    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"}' not in payload
+
+
+def test_business_metrics_instrumentor_uses_execution_metric_names():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_inference_radar(
+        symbol="1HZ75V",
+        metrics={"calibrated_prob": 0.61, "predicted_payoff_edge": -0.02, "loss_clf_p_eff": 0.72},
+    )
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_inference_calibrated{symbol="1HZ75V"} 0.61' in payload
+    assert 'aether_inference_payoff_edge{symbol="1HZ75V"} -0.02' in payload
+    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"} 0.72' in payload
 
 
 def test_business_metrics_instrumentor_flat_and_trade_variants():

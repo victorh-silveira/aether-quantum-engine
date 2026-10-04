@@ -7,10 +7,10 @@ de mercado legada abaixo. Sao quatro categorias, nao uma cota de quatro ciclos:
 
 | Veto | Confluencia na ultima vela fechada |
 |------|------------------------------------|
-| `call_top_rejection` | RSI >= 0.70, BB %B >= 0.95 e pavio superior >= 40% do range |
-| `call_down_continuation` | Corpo vendedor >= 80%, DI diff <= -0.15, tendencia e vela anterior PUT |
-| `put_bottom_rejection` | RSI <= 0.30, BB %B <= 0.05 e pavio inferior >= 40% do range |
-| `put_up_continuation` | Corpo comprador >= 80%, DI diff >= 0.15, tendencia e vela anterior CALL |
+| `call_top_rejection` | RSI >= 0.68 e BB %B >= 0.88 com pavio superior >= 30%, ou vela de exaustao vendedora no extremo |
+| `call_down_continuation` | Corpo vendedor >= 70%, DI diff <= -0.12, tendencia e vela anterior PUT |
+| `put_bottom_rejection` | RSI <= 0.32 e BB %B <= 0.12 com pavio inferior >= 30%, ou vela de exaustao compradora no extremo |
+| `put_up_continuation` | Corpo comprador >= 70%, DI diff >= 0.12, tendencia e vela anterior CALL |
 
 RSI e DI diff sao normalizados; OHLC usa precos absolutos. Candle ausente ou
 invalido nao cria setup. Protecoes tecnicas de dados/deploy e caps permanecem
@@ -37,14 +37,14 @@ historica de rentabilidade. A lista abaixo descreve o fallback legado quando
 Hot path vivo:
 
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-2. SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived somente com PEND ≥ `material_pending_min`; `acc_floor` so quando `skip_below_soft_min_acc` **true** (ops **false**); `counter_trend_unconfirmed` quando o lado contraria a tendência sem edge ≥ **0.08** (FLIP e anti-trend-lock não são vetados); `trend_discord` (tendencia e vela M5 discordam simultaneamente em EXPLORE); confluencia de mercado senior (`skip_exhaustion`, `skip_chop_congestion`, `skip_directional_momentum_discord`, `skip_two_bar_counter_trend`) e salvaguardas de price action/fluxo (`skip_wick_rejection`, `skip_climactic_blowoff`, `skip_opposing_marubozu`, `skip_adverse_tick_flow`) bloqueiam a entrada: nunca escolhem CALL/PUT.
+2. SKIP sinal ativo: quatro vetos extremos de mercado e cotacao final sem EV positivo ou sem margem de 0,01 sobre break-even. `skip_neg_edge`, `skip_tcn_noise_discord`, `skip_trend_discord`, `conformal_uncertainty_gate` e `veto_compression_doji` estao desligados no SSOT. O regime continua como telemetria, sem veto de compressao. Os demais filtros legados permanecem desligados; nao criam lado CALL/PUT.
 3. TCN decide CALL/PUT (Cal ≥ 0.5 → CALL)
 4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 1` (young/mature 0.58; saida seed live N=2; ancora TCN) + **anti-trend-lock** ativo pos-loss
 5. SCALE adapt **off** (`adapt_retract_enabled` **false**); `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**
 6. `invert_exec_side` **false**
 7. Kelly + SIDE_EQ sizing (META **nao** soft Kelly)
 
-**Proibido:** quality gate amplo arbitrario / Soft Kelly do loss-clf ou META / HARD SKIP loss-clf descalibrado / fusao EV / `cal_soft_edge` / SCALE adapt de lado sem trigger. IND RSI/ADX/HURST fora do log salvo em salvaguardas ativas.
+**Proibido:** quality gate amplo arbitrario / Soft Kelly do loss-clf ou META / HARD SKIP loss-clf descalibrado / fusao EV / `cal_soft_edge` / SCALE adapt de lado sem trigger. Indicadores fora dos quatro vetos ativos alimentam features e telemetria.
 
 Telemetria ciclo: CLUSTER → `[GATES] || LOSS_CLF` → KELLY → EXEC → RESOLVED.
 

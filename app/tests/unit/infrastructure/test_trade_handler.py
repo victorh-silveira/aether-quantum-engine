@@ -80,6 +80,18 @@ async def test_trade_handler_rest_rejects_quote_guard_from_config_without_privat
 
 
 @pytest.mark.asyncio
+async def test_trade_handler_ws_requires_valid_quote_guard_before_proposal(mock_ws):
+    handler = TradeHandler(
+        mock_ws,
+        {"orchestrator": {"execution": {"require_quote_edge": True}}, "risk_management": {"params": {}}},
+    )
+    for params in ({}, {"_quote_guard_side_probability": "nan"}, {"_quote_guard_side_probability": "bad"}):
+        with pytest.raises(RuntimeError, match="sem probabilidade valida"):
+            await handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    mock_ws.send.assert_not_called()
+
+
+@pytest.mark.asyncio
 async def test_trade_handler_bulk_purchase_requires_auth_pat_account(mock_ws):
     mock_ws.request_timeout = 30
     handler = TradeHandler(mock_ws, {"risk_management": {"params": {}}}, auth=None)

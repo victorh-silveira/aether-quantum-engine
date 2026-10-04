@@ -9,6 +9,7 @@ from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.domain.risk.payout_observation import contract_profit_rate
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
+from src.infrastructure.handlers.trade_handler_quote_guard import validate_quote_guard_params
 from src.infrastructure.market.contract_audit import open_audit_row
 
 
@@ -82,6 +83,8 @@ class TradeHandler:
     ) -> Contract:
         """Compra um contrato via proposal e buy (API Deriv WebSocket autenticada)."""
         p_cfg = params if params is not None else self.config["risk_management"]["params"]
+        exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
+        validate_quote_guard_params(p_cfg, exec_cfg)
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
         proposal_resp = await self.ws.send(proposal_req, timeout=timeout)

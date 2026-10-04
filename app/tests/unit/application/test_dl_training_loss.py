@@ -238,7 +238,7 @@ def test_binary_option_asymmetric_loss():
 
     with patch("src.application.services.deep_learning.dl_training_loss._read_dl_settings", return_value={}):
         assert dl_payout_rate() == 0.85
-        assert dl_asymmetric_loss_enabled() is True
+        assert dl_asymmetric_loss_enabled() is False
 
     custom = {"loss_payout_rate": 0.78, "asymmetric_payout_loss": False}
     with patch("src.application.services.deep_learning.dl_training_loss._read_dl_settings", return_value=custom):

@@ -1,445 +1,975 @@
 {
-  "annotations": { "list": [] },
+  "annotations": {
+    "list": []
+  },
   "editable": true,
   "fiscalYearStartMonth": 0,
-  "graphTooltip": 1,
+  "graphTooltip": 0,
   "id": null,
-  "links": [],
-  "liveNow": true,
+  "links": [
+    {
+      "title": "Histórico M5",
+      "type": "dashboards",
+      "asDropdown": false,
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "aether-history-m5"
+      ],
+      "targetBlank": false
+    }
+  ],
+  "liveNow": false,
   "panels": [
     {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 0, "y": 0 },
       "id": 1,
-      "title": "Saldo da Conta ($)",
+      "title": "Coleta do motor",
+      "description": "1 = coleta ativa; 0 = motor inacessível.",
       "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_balance_usd",
-          "legendFormat": "Saldo ($)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "up{job=\"aether_quantum_engine\"}",
+          "instant": true,
+          "range": false,
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "color": { "mode": "palette-classic" },
-          "unit": "currencyUSD"
-        }
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     },
     {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 3, "y": 0 },
       "id": 2,
-      "title": "Lucro da Sessão ($)",
+      "title": "Saldo atual",
+      "description": "Saldo da sessão informado pelo motor.",
       "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_profit_usd",
-          "legendFormat": "Lucro ($)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "unit": "currencyUSD",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0 },
-              { "color": "green", "value": 0.01 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 6, "y": 0 },
-      "id": 3,
-      "title": "ROI da Sessão (%)",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_roi_pct",
-          "legendFormat": "ROI (%)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "yellow", "value": 0 },
-              { "color": "green", "value": 0.01 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 9, "y": 0 },
-      "id": 4,
-      "title": "Progresso Stop-Win",
-      "type": "gauge",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_progress_pct",
-          "legendFormat": "Meta (%)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "max": 100,
-          "unit": "percent",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null },
-              { "color": "yellow", "value": 50 },
-              { "color": "green", "value": 100 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 12, "y": 0 },
-      "id": 5,
-      "title": "Meta Stop-Win ($)",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_target_win_usd",
-          "legendFormat": "Alvo ($)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "green" },
-          "unit": "currencyUSD"
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 15, "y": 0 },
-      "id": 6,
-      "title": "Saldo Alvo Final ($)",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_target_balance_usd",
-          "legendFormat": "Alvo Final ($)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "fixed", "fixedColor": "super-light-blue" },
-          "unit": "currencyUSD"
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 18, "y": 0 },
-      "id": 7,
-      "title": "Faltando para Meta ($)",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_remaining_usd",
-          "legendFormat": "Restante ($)",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "unit": "currencyUSD",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green", "value": null },
-              { "color": "yellow", "value": 0.01 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 4, "w": 3, "x": 21, "y": 0 },
-      "id": 8,
-      "title": "Trades Ativos",
-      "type": "stat",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_active_trades",
-          "legendFormat": "Ativos",
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "thresholds" },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "blue", "value": null },
-              { "color": "yellow", "value": 1 }
-            ]
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 14, "x": 0, "y": 4 },
-      "id": 9,
-      "title": "Trajetória de Banca e Alvo Stop-Win",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "aether_session_balance_usd",
-          "legendFormat": "Saldo Atual",
+          "instant": true,
+          "range": false,
           "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_target_balance_usd",
-          "legendFormat": "Saldo Alvo",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_session_start_balance_usd",
-          "legendFormat": "Banca Inicial",
-          "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "custom": {
-            "lineWidth": 2
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
           }
-        }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     },
     {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 4 },
-      "id": 10,
-      "title": "Curva de Lucro da Sessão (USD)",
-      "type": "timeseries",
+      "id": 3,
+      "title": "Lucro da sessão",
+      "description": "Variação do saldo desde a abertura da sessão.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
           "expr": "aether_session_profit_usd",
-          "legendFormat": "Lucro ($)",
+          "instant": true,
+          "range": false,
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "custom": {
-            "gradientMode": "opacity",
-            "fillOpacity": 20
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "#C8D0D9",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.0001
+              }
+            ]
           }
-        }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     },
     {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "id": 4,
+      "title": "Contratos abertos",
+      "description": "Contratos ativos informados pelo motor.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_active_trades",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "ROI da sessão",
+      "description": "Lucro da sessão sobre o saldo inicial.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_roi_pct",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "#C8D0D9",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.0001
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 6,
+      "title": "Meta de lucro",
+      "description": "Alvo de lucro definido na abertura da sessão.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_target_win_usd",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 7,
+      "title": "Falta para a meta",
+      "description": "Valor restante até a meta da sessão.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_remaining_usd",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 8,
+      "title": "Meta atingida",
+      "description": "Progresso da meta, limitado a 100%.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 4
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_progress_pct",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 9,
+      "title": "P(CALL) calibrada",
+      "description": "Última probabilidade calibrada registrada para 1HZ75V.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_inference_calibrated{symbol=\"1HZ75V\"}",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Edge estimado",
+      "description": "Último edge inferencial registrado; não é lucro realizado.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_inference_payoff_edge{symbol=\"1HZ75V\"}",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "#C8D0D9",
+                "value": 0
+              },
+              {
+                "color": "green",
+                "value": 0.0001
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
       "id": 11,
-      "title": "Radar Inferencial — Probabilidades TCN",
-      "type": "timeseries",
+      "title": "P(eficaz) loss-clf",
+      "description": "Última probabilidade efetiva registrada pelo loss-classifier.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_inference_prob",
-          "legendFormat": "Prob Raw ({{symbol}})",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_loss_classifier_p_eff{symbol=\"1HZ75V\"}",
+          "instant": true,
+          "range": false,
           "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_inference_calibrated",
-          "legendFormat": "Prob Calibrada ({{symbol}})",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_inference_conviction",
-          "legendFormat": "Convicção ({{symbol}})",
-          "refId": "C"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 1,
-          "custom": {
-            "lineWidth": 2
+          "unit": "percentunit",
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
           }
-        }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     },
     {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
       "id": 12,
-      "title": "Edge e Margem Direcional",
-      "type": "timeseries",
+      "title": "Stake da última decisão",
+      "description": "Stake do último snapshot de decisão; não representa exposição atual.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_inference_directional_margin",
-          "legendFormat": "Margem Direcional",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_inference_payoff_edge",
-          "legendFormat": "Payoff Edge (Meta)",
-          "refId": "B"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "custom": {
-            "lineWidth": 2
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
-      "id": 13,
-      "title": "Loss Classifier & Proteções (FLIP / Anti-Trend)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_loss_classifier_p_eff",
-          "legendFormat": "P(Eficaz)",
-          "refId": "A"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_loss_classifier_p_loss",
-          "legendFormat": "P(Loss)",
-          "refId": "B"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_loss_classifier_flip_active",
-          "legendFormat": "FLIP Ativo (1/0)",
-          "refId": "C"
-        },
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_anti_trend_lock_active",
-          "legendFormat": "Anti-Trend Lock (1/0)",
-          "refId": "D"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "min": 0,
-          "max": 1,
-          "custom": {
-            "lineWidth": 2
-          }
-        }
-      }
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 20 },
-      "id": 14,
-      "title": "Contratos Executados (WIN / LOSS)",
-      "type": "barchart",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (outcome, direction) (aether_trading_contracts_total)",
-          "legendFormat": "{{direction}} - {{outcome}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 20 },
-      "id": 15,
-      "title": "Vereditos dos Gates de Decisão (EXEC vs SKIP)",
-      "type": "piechart",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by (reason) (aether_trading_gate_verdicts_total)",
-          "legendFormat": "{{reason}}",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 20 },
-      "id": 16,
-      "title": "Stake Executada por Ordem (USD)",
-      "type": "timeseries",
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "aether_trading_stake_usd",
-          "legendFormat": "Stake ($)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_trading_stake_usd{symbol=\"1HZ75V\"}",
+          "instant": true,
+          "range": false,
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
           "unit": "currencyUSD",
-          "custom": {
-            "lineWidth": 2
+          "decimals": 2,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
           }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 13,
+      "title": "Contratos WIN",
+      "description": "Liquidações WIN observadas desde o início do processo.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 0,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(aether_trading_contracts_total{outcome=\"WIN\"})",
+          "instant": true,
+          "range": false,
+          "refId": "A"
         }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 14,
+      "title": "Contratos LOSS",
+      "description": "Liquidações LOSS observadas desde o início do processo.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 6,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(aether_trading_contracts_total{outcome=\"LOSS\"})",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 15,
+      "title": "Ciclos EXEC",
+      "description": "Ciclos executados observados desde o início do processo.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 12,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"EXEC\"})",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 16,
+      "title": "Ciclos SKIP",
+      "description": "Ciclos bloqueados observados desde o início do processo.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 12
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"SKIP\"})",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#C8D0D9"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto"
       }
     }
   ],
   "refresh": "5s",
   "schemaVersion": 38,
   "style": "dark",
-  "tags": ["aether", "trading", "m5", "quant", "telemetry"],
-  "time": { "from": "now-6h", "to": "now" },
-  "timepicker": { "refresh_intervals": ["1s", "5s", "10s", "30s", "1m"] },
+  "tags": [
+    "aether",
+    "aether-overview-m5",
+    "m5",
+    "telemetry"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timepicker": {
+    "refresh_intervals": [
+      "5s",
+      "10s",
+      "30s",
+      "1m"
+    ]
+  },
   "timezone": "browser",
-  "title": "Aether Quantum Engine — Telemetria de Negócio & Radar M5 (1HZ75V)",
+  "title": "Aether | Visão operacional M5",
   "uid": "aether-business-m5",
-  "version": 2
+  "version": 4,
+  "description": "Snapshots reais do motor. Consultas instantâneas; ausência de medição aparece como —."
 }

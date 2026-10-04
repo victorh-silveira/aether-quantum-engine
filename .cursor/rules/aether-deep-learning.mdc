@@ -9,6 +9,7 @@ alwaysApply: true
 - SSOT: TCN 14D, lookback 32, 25.000 barras M5, label `spot_forward`, horizonte de uma barra e contrato Rise/Fall de cinco minutos.
 - O label por direcao da proxima vela nao equivale ao resultado confirmado do contrato. O benchmark linear na validacao temporal e telemetrico (`min_linear_preflight_acc=0`); comparar com o classificador majoritario antes de interpretar a acuracia.
 - Treino, validacao temporal e calibracao produzem um checkpoint local. Metricas de validacao servem ao diagnostico do ajuste e ao controle de colapso de classe; nao qualificam deploy nem elevam stake.
+- BCE simetrica e a perda ativa. A ponderacao assimetrica por payout desloca a probabilidade CALL em labels equilibrados; payout entra no EV da proposta. Selecionar epoca sem colapso quando existir, com fallback tecnico se todas colapsarem.
 - O verificador pos-treino exige pesos, normalizacao, feature_dim, lookback, granularidade, label e horizonte compativeis. Ausencia ou incompatibilidade bloqueia a execucao.
 - Com checkpoint valido, `checkpoint_max_stake_pct=0.01` limita a stake a 1% da banca por ordem em DEMO e REAL, inclusive em `cover_l0` e na proposta final.
 - O fluxo TCN no host usa CUDA quando disponivel e deve preservar o event loop. Meta e loss-classifier rodam em sidecars HTTP.

@@ -79,6 +79,13 @@ def test_production_checkpoint_policy():
     assert settings["orchestrator"]["execution"]["skip_below_soft_min_acc"] is False
     assert settings["orchestrator"]["execution"]["skip_scale_candle_discord"] is False
     assert settings["orchestrator"]["execution"]["skip_neg_edge"] is False
+    assert dl["asymmetric_payout_loss"] is False
+    assert settings["orchestrator"]["execution"]["four_market_vetoes"] is True
+    assert settings["orchestrator"]["execution"]["skip_tcn_noise_discord"] is False
+    assert settings["orchestrator"]["execution"]["skip_trend_discord"] is False
+    assert settings["orchestrator"]["execution"]["conformal_uncertainty_gate"] is False
+    assert settings["orchestrator"]["execution"]["regime_ensemble_gate"] is True
+    assert settings["orchestrator"]["execution"]["veto_compression_doji"] is False
     assert settings["orchestrator"]["execution"]["min_edge_execute"] >= 0.0
     assert settings["orchestrator"]["execution"]["require_quote_edge"] is True
     assert settings["orchestrator"]["execution"]["min_payout_rate"] == pytest.approx(0.0)

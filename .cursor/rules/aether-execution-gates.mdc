@@ -7,18 +7,17 @@ alwaysApply: true
 # Execution gates
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-- Sinal contra a tendência exige `counter_trend_min_edge` **0.08**; FLIP e anti-trend-lock preservam a execução.
-- SKIP sinal: `neg_edge` se Cal Edge ≤ 0 (`skip_neg_edge` **true**); waived com PEND ≥ `material_pending_min` (**0.5**); `acc_floor` so se `skip_below_soft_min_acc` **true** (ops **false**)
+- Quatro vetos de mercado extremos seguem ativos. `skip_tcn_noise_discord`, `skip_trend_discord`, `conformal_uncertainty_gate`, `veto_compression_doji` e `skip_neg_edge` estao desligados no SSOT; o regime permanece telemetrico.
 - TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**
 - Anti-loss loss-clf: **FLIP** CALL↔PUT se `p_eff` >= piso — ancora TCN; **sem** `candle_holds`; **sem HARD SKIP**, **sem Soft Kelly** do loss-clf
 - SCALE adapt **desligado** (`adapt_retract_enabled` **false**); vela/tape/regime **nao** viram lado nem SKIP
 - `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**
 - Confluencia de indicadores e telemetria; nunca sobrescreve a direcao TCN/loss-clf.
-- Edge CLUSTER = EV \(p_{\text{lado}}\times(1+payout)-1\), usando o payout configurado ate a primeira proposta e a taxa liquida cotada na sessao depois disso; **SKIP** se ≤ 0 em EXPLORE (`neg_edge`); waived somente com PEND material.
+- Edge CLUSTER = estimativa previa de EV \(p_{\text{lado}}\times(1+payout)-1\). A cotacao final revalida a probabilidade e o payout efetivo.
 - Na proposta final, `require_quote_edge=true`: usar payout liquido efetivamente cotado e aceitar somente EV acima de `min_edge_execute=0` com margem sobre break-even `0.01`. `min_payout_rate=0` evita veto fixo de 80% sobre uma cotacao com EV positivo. Payout ausente ou invalido bloqueia a compra.
 - `p_eff`: shrink de `p_loss` para 0.5 se `n_train < flip_trust_n` (**64**, `flip_young_shrink` **0.50**)
 - Piso: young **`flip_young_p_eff_floor` 0.51**; mature **`hard_p_loss_floor` 0.70**; FLIP so apos `auto_learn` (saida seed live **`LOSS_BOOTSTRAP_EXIT_N` 4**) e `n_train >= flip_min_n_train` (**12**)
-- Ordem: TCN → loss-clf FLIP → `invert_exec_side` (**false**) → **neg_edge** → Kelly / cover amort **1** (`cover_l0`)
+- Ordem: TCN → loss-clf FLIP → `invert_exec_side` (**false**) → quatro vetos extremos → Kelly / cover amort **1** (`cover_l0`) → proposta com EV e margem verificados.
 - META: telemetria/LEARN apenas; **sem** soft Kelly (`meta_soft_kelly` inerte)
 - **Proibido** reabrir quality gate amplo, Soft Kelly do loss-clf, fusao EV, SCALE adapt de lado, micro/regime/vol/exhaust generico, anti-loss EMA/RSI, trava `cal_soft_edge`
 - Catalogo: `docs/engineering-indicator-gates.md` + playbook

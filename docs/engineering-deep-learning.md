@@ -6,6 +6,8 @@ O fluxo ativo usa TCN em velas M5 do índice `1HZ75V`. A configuração em `conf
 
 O label `spot_forward` usa a direção da próxima vela fechada. Esse label não equivale ao resultado confirmado de um contrato Rise/Fall. O treino usa validação interna para ajuste, calibração e detecção de colapso de classe. O benchmark linear compara uma regressão logística a um classificador majoritário nesse mesmo recorte temporal; é apenas telemetria. **Não há qualificação estatística da TCN nem promoção baseada nessas métricas.** Um checkpoint com pesos, normalização e geometria incompatíveis não é carregado. O verificador `app/scripts/operations/check_dl_checkpoint.py` confere esses requisitos após o treino.
 
+A perda ativa de classificação é BCE simétrica (`asymmetric_payout_loss=false`). Pesar CALL por 0,85 e PUT por 1,0 desloca a probabilidade ótima para PUT mesmo com labels 50/50; o payout deve entrar no cálculo de EV da proposta, não na probabilidade CALL. Na seleção interna de épocas, estados sem colapso de classe têm prioridade; se todos colapsarem, o melhor estado colapsado permanece como fallback técnico e o diagnóstico continua explícito. Isso não qualifica o modelo nem demonstra vantagem. Após mudar a perda, retreine TCN e meta.
+
 Com checkpoint técnico válido, DEMO e REAL usam a mesma inferência e a mesma abertura. O teto inicial de stake é **1% da banca por ordem**, inclusive em recuperação `cover_l0`; outros limites podem reduzi-lo. Sem checkpoint válido, a execução fica bloqueada. A validação do treino não demonstra vantagem preditiva.
 
 ## Sequência de treino
@@ -30,6 +32,8 @@ python app/scripts/operations/compare_dl_losses.py --bars 5000 --epochs 40 --see
 É necessário repetir a comparação com dados M5 antes de concluir qual perda se ajusta melhor. Nenhum resultado antigo em M1 deve ser atribuído à configuração M5.
 
 No retreino M5 de 04/10/2026, a TCN usou 25.000 velas, lookback 32 e 300 épocas. A validação temporal teve acurácia 0,505, abaixo da maioria de 0,508, Brier 0,316 e ECE 0,216; o treino teve acurácia 0,544. O checkpoint passou na verificação técnica, e o meta foi treinado sobre 5.000 velas M5, mas esses números não demonstram sinal preditivo ou EV positivo.
+
+No log posterior enviado pelo operador, o treino com perda assimétrica produziu `val_acc=0.509` contra maioria `0.508`, `pred_call=0.01` e `minority_rec=0.01`. Esse checkpoint continua tecnicamente legível, mas os diagnósticos indicam colapso para PUT. O ajuste da perda corrige o viés matemático da função objetivo; não garante que as features M5 contenham sinal previsível ou que apareçam trades com EV positivo.
 
 ## Inferência e decisão
 

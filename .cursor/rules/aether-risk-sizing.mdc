@@ -14,5 +14,5 @@ alwaysApply: true
 - Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
 - Sem stop loss nem teto acumulado de perda por politica; manter caps por ordem.
 - Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.
-- Loss-clf: **FLIP** por `p_eff` >= **0.58** young / **0.70** mature (so apos auto_learn; exit live **2**; `n_train >= flip_min_n_train` **1**; sem `candle_holds`); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge TCN ≤ 0 → SKIP `neg_edge` em EXPLORE (`skip_neg_edge` **true**); com PEND material o SKIP e waived.
+- Loss-clf: **FLIP** por `p_eff` >= **0.58** young / **0.70** mature (so apos auto_learn; exit live **2**; `n_train >= flip_min_n_train` **1**; sem `candle_holds`); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge TCN e estimativa previa; a proposta final exige EV positivo e margem com payout cotado.
 - META participa do contexto de decisao, sem Soft Kelly ativo no caminho operacional atual.

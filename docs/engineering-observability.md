@@ -27,6 +27,10 @@ O motor lê `telemetry.host` e `telemetry.port` de `config/settings.json` e exp�
 
 Com Docker nativo no WSL e motor Python no Windows, `make docker-up` detecta o gateway Windows pela rota padrão do WSL e o passa ao container Prometheus como `AETHER_METRICS_HOST_IP`. O alvo `host.docker.internal:9100` aponta então ao processo Windows. Para motor rodando no próprio WSL, execute `AETHER_METRICS_HOST_IP=host-gateway make docker-up`. Após reiniciar o motor e o Prometheus, confirme `up{job="aether_quantum_engine"}=1` na API do Prometheus; com o motor parado, o alvo fica DOWN por definição.
 
+O dashboard provisionado `Aether | Visão operacional M5` apresenta apenas cartões numéricos. Todos usam consultas instantâneas do Prometheus, sem curvas, sparklines, preenchimento ou interpolação. `Coleta do motor` exibe `1` quando o scrape funciona e `0` quando falha; os demais cartões mostram `—` quando a série não existe. O exporter não emite sessão antes de conhecer saldo inicial e meta, nem radar ou contadores antes de observar o respectivo evento. `Stake da última decisão` e as probabilidades são snapshots da última decisão, não exposição atual nem resultados auditados; WIN/LOSS e EXEC/SKIP são contagens do processo atual, reiniciadas com o motor. O intervalo de atualização é 5 s, igual ao scrape.
+
+O dashboard separado `Aether | Histórico M5` contém somente quatro séries com histórico útil: saldo, lucro, P(CALL) calibrada e edge estimado. O Grafana escolhe automaticamente a resolução conforme a largura do painel e o intervalo de tempo selecionado, respeitando o mínimo de 5 s do scrape; ambos os dashboards atualizam a cada 5 s e oferecem navegação entre si preservando o período. As séries são pontos sem linhas, preenchimento, suavização ou conexão entre lacunas. Cada consulta descarta amostras cujo último scrape tem mais de 12 s; sem amostras recentes ou com o motor desligado, o gráfico fica sem dados. Valores de inferência são snapshots repetidos pelo exporter até a próxima decisão, não novas inferências em cada scrape.
+
 ## Contrato de tags
 
 | Tag | Nivel tipico | Frequencia | Consumidor |

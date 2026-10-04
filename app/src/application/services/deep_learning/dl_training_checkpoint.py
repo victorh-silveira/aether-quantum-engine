@@ -28,10 +28,10 @@ def checkpoint_if_improved(
     best_sharp_value: float = -1.0,
     collapse_hit: bool = False,
 ) -> tuple[float, float, float, float, float, dict | None, dict | None, bool]:
-    """Atualiza pico por maior val_acc; ramo sharp maximiza nitidez com ACC no piso.
+    """Atualiza pico sem colapso; ramo sharp maximiza nitidez com ACC no piso.
 
     O piso de export (`min_sharpness`) nao bloqueia o ramo sharp no treino — so o gate
-    final de export exige o piso. Collapse so bloqueia o ramo sharp.
+    final de export exige o piso. Estados colapsados ficam para fallback do loop.
     """
     _ = float(min_sharpness)
     loss_improved = val_loss + 1e-9 < best_val_loss
@@ -39,7 +39,7 @@ def checkpoint_if_improved(
         best_val_loss = val_loss
     best_state = None
     best_sharp_state = None
-    acc_improved = val_acc > best_val_acc + 1e-6
+    acc_improved = not bool(collapse_hit) and val_acc > best_val_acc + 1e-6
     loss_and_same_acc = loss_improved and abs(val_acc - best_val_acc) <= 1e-6 and not bool(collapse_hit)
     if acc_improved or loss_and_same_acc:
         best_val_acc = max(best_val_acc, val_acc)

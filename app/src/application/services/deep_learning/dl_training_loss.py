@@ -66,7 +66,7 @@ def dl_payout_rate() -> float:
 def dl_asymmetric_loss_enabled() -> bool:
     """True quando a perda assimetrica ponderada por payout estiver ativa."""
     dl = _read_dl_settings()
-    return bool(dl.get("asymmetric_payout_loss", True))
+    return bool(dl.get("asymmetric_payout_loss", False))
 
 
 def model_core(model: Any) -> Any:

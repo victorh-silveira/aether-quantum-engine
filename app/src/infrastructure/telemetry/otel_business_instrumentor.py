@@ -31,31 +31,9 @@ class BusinessMetricsInstrumentor:
         self._max_drawdown_pct: float = 0.0
         self._recent_probs: list[float] = []
         self._recent_outcomes: list[int] = []
-        self._contract_counts: dict[tuple[str, str, str], int] = {
-            ("1HZ75V", "CALL", "WIN"): 0,
-            ("1HZ75V", "PUT", "WIN"): 0,
-            ("1HZ75V", "CALL", "LOSS"): 0,
-            ("1HZ75V", "PUT", "LOSS"): 0,
-        }
-        self._gate_verdicts: dict[tuple[str, str, str], int] = {
-            ("1HZ75V", "EXECUTE", "READY"): 0,
-            ("1HZ75V", "SKIP", "WARMUP"): 0,
-        }
-        self._radar: dict[str, dict[str, float]] = {
-            "1HZ75V": {
-                "prob": 0.5,
-                "cal": 0.5,
-                "margin": 0.0,
-                "edge": 0.0,
-                "conviction": 0.0,
-                "p_loss": 0.0,
-                "p_eff": 0.0,
-                "is_flip": 0.0,
-                "anti_trend_lock": 0.0,
-                "direction_num": 0.0,
-                "stake_usd": 0.0,
-            }
-        }
+        self._contract_counts: dict[tuple[str, str, str], int] = {}
+        self._gate_verdicts: dict[tuple[str, str, str], int] = {}
+        self._radar: dict[str, dict[str, float | None]] = {}
 
         self._meter = None
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:
@@ -126,12 +104,15 @@ class BusinessMetricsInstrumentor:
         """Armazena snapshot inferencial e de risco do ultimo ciclo para o radar Grafana."""
         if metrics is not None:
             prob = float(metrics.get("prob", prob))
-            cal = float(metrics.get("calibrated_prob", metrics.get("cal", cal)))
+            cal_raw = metrics.get("calibrated_prob", metrics.get("cal"))
+            cal = float(cal_raw) if cal_raw is not None else None
             margin = float(metrics.get("directional_margin", metrics.get("margin", margin)))
-            edge = float(metrics.get("payoff_edge", metrics.get("edge", edge)))
+            edge_raw = metrics.get("predicted_payoff_edge", metrics.get("payoff_edge", metrics.get("edge")))
+            edge = float(edge_raw) if edge_raw is not None else None
             conviction = float(metrics.get("conviction", conviction))
             p_loss = float(metrics.get("p_loss", p_loss))
-            p_eff = float(metrics.get("p_eff", p_eff))
+            p_eff_raw = metrics.get("loss_clf_p_eff", metrics.get("p_eff"))
+            p_eff = float(p_eff_raw) if p_eff_raw is not None else None
             is_flip = bool(metrics.get("loss_clf_flip", metrics.get("is_flip", is_flip)))
             anti_trend_lock = bool(
                 metrics.get("anti_trend_lock_active", metrics.get("anti_trend_lock", anti_trend_lock))
@@ -143,12 +124,12 @@ class BusinessMetricsInstrumentor:
         dir_val = 1.0 if dir_upper == "CALL" else (-1.0 if dir_upper == "PUT" else 0.0)
         self._radar[str(symbol)] = {
             "prob": float(prob),
-            "cal": float(cal),
+            "cal": float(cal) if cal is not None else None,
             "margin": float(margin),
-            "edge": float(edge),
+            "edge": float(edge) if edge is not None else None,
             "conviction": float(conviction),
             "p_loss": float(p_loss),
-            "p_eff": float(p_eff),
+            "p_eff": float(p_eff) if p_eff is not None else None,
             "is_flip": 1.0 if is_flip else 0.0,
             "anti_trend_lock": 1.0 if anti_trend_lock else 0.0,
             "direction_num": dir_val,
@@ -208,28 +189,36 @@ class BusinessMetricsInstrumentor:
         roi = (profit / self._session_start_balance * 100.0) if self._session_start_balance > 0.0 else 0.0
         lines: list[str] = [
             f"aether_trading_balance_usd {round(self._current_balance, 2)}",
-            f"aether_session_balance_usd {round(self._current_balance, 2)}",
             f"aether_trading_pnl_usd {round(self._total_pnl, 4)}",
             f"aether_trading_max_drawdown_pct {round(self._max_drawdown_pct, 2)}",
             f"aether_trading_brier_score {round(self.compute_rolling_brier_score(), 4)}",
-            f"aether_session_start_balance_usd {round(self._session_start_balance, 2)}",
-            f"aether_session_profit_usd {round(profit, 4)}",
-            f"aether_session_target_win_usd {round(self._session_target_win, 2)}",
-            f"aether_session_target_balance_usd {round(target_bal, 2)}",
-            f"aether_session_remaining_usd {round(rem, 2)}",
-            f"aether_session_progress_pct {round(prog, 2)}",
-            f"aether_session_roi_pct {round(roi, 2)}",
-            f"aether_session_active_trades {self._active_contracts_count}",
         ]
+        if self._session_start_balance > 0.0 and self._session_target_win > 0.0:
+            lines.extend(
+                (
+                    f"aether_session_balance_usd {round(self._current_balance, 2)}",
+                    f"aether_session_start_balance_usd {round(self._session_start_balance, 2)}",
+                    f"aether_session_profit_usd {round(profit, 4)}",
+                    f"aether_session_target_win_usd {round(self._session_target_win, 2)}",
+                    f"aether_session_target_balance_usd {round(target_bal, 2)}",
+                    f"aether_session_remaining_usd {round(rem, 2)}",
+                    f"aether_session_progress_pct {round(prog, 2)}",
+                    f"aether_session_roi_pct {round(roi, 2)}",
+                    f"aether_session_active_trades {self._active_contracts_count}",
+                )
+            )
 
         for sym, data in self._radar.items():
             lines.append(f'aether_inference_prob{{symbol="{sym}"}} {round(data["prob"], 4)}')
-            lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(data["cal"], 4)}')
+            if data["cal"] is not None:
+                lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(data["cal"], 4)}')
             lines.append(f'aether_inference_directional_margin{{symbol="{sym}"}} {round(data["margin"], 4)}')
-            lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(data["edge"], 4)}')
+            if data["edge"] is not None:
+                lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(data["edge"], 4)}')
             lines.append(f'aether_inference_conviction{{symbol="{sym}"}} {round(data["conviction"], 4)}')
             lines.append(f'aether_loss_classifier_p_loss{{symbol="{sym}"}} {round(data["p_loss"], 4)}')
-            lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(data["p_eff"], 4)}')
+            if data["p_eff"] is not None:
+                lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(data["p_eff"], 4)}')
             lines.append(f'aether_loss_classifier_flip_active{{symbol="{sym}"}} {int(data["is_flip"])}')
             lines.append(f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(data["anti_trend_lock"])}')
             lines.append(f'aether_trading_direction{{symbol="{sym}"}} {round(data["direction_num"], 1)}')
