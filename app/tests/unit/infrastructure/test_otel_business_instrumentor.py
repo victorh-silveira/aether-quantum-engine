@@ -49,6 +49,7 @@ def test_business_metrics_omit_unobserved_session_radar_and_events():
     assert "aether_inference_calibrated" not in payload
     assert "aether_trading_contracts_total" not in payload
     assert "aether_trading_gate_verdicts_total" not in payload
+    assert "aether_trading_brier_score" not in payload
 
 
 def test_business_metrics_instrumentor_is_otel_sdk_available():
@@ -186,6 +187,44 @@ def test_business_metrics_instrumentor_uses_execution_metric_names():
     assert 'aether_inference_calibrated{symbol="1HZ75V"} 0.61' in payload
     assert 'aether_inference_payoff_edge{symbol="1HZ75V"} -0.02' in payload
     assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"} 0.72' in payload
+
+
+def test_confirmed_contract_uses_its_side_probability_and_direction():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.track_contract_probability(17, 0.72)
+    instrumentor.record_trade("1HZ75V", "PUT", contract_id=17, won=False, profit=-10.0)
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_trading_contracts_total{symbol="1HZ75V",direction="PUT",outcome="LOSS"} 1' in payload
+    assert "aether_trading_brier_score 0.5184" in payload
+    assert "aether_trading_brier_samples 1" in payload
+    assert instrumentor._contract_predictions == {}
+
+
+def test_unknown_prediction_does_not_create_fabricated_brier():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_trade("1HZ75V", "UNKNOWN", contract_id=18, won=True, profit=8.0)
+    assert instrumentor.compute_rolling_brier_score() is None
+    assert "aether_trading_brier_score" not in instrumentor.format_prometheus_metrics()
+
+
+def test_radar_uses_raw_probability_and_quoted_edge():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_inference_radar(
+        "1HZ75V",
+        direction="CALL",
+        metrics={
+            "raw_prob": 0.64,
+            "calibrated_prob": 0.63,
+            "predicted_payoff_edge": -0.3,
+            "quote_edge": 0.12,
+            "loss_clf_p_loss": 0.42,
+        },
+    )
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_inference_prob{symbol="1HZ75V"} 0.64' in payload
+    assert 'aether_inference_directional_margin{symbol="1HZ75V"} 0.13' in payload
+    assert 'aether_inference_payoff_edge{symbol="1HZ75V"} 0.12' in payload
+    assert 'aether_loss_classifier_p_loss{symbol="1HZ75V"} 0.42' in payload
 
 
 def test_business_metrics_instrumentor_flat_and_trade_variants():

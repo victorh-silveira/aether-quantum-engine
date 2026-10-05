@@ -18,6 +18,7 @@ alwaysApply: true
   - Meta/loss: Docker multi-stage `/opt/venv`, `tini`, CMD exec-form Uvicorn
 - **TimescaleDB / PostgreSQL 16**:
   - Hypertables chunks **1 day**; compressão `segmentby=symbol` (ticks) / `symbol,granularity` (ohlc_bars) / `orderby=time DESC`; retenção ticks 30d
+  - Persistir cada M5 micro fechada em `ohlc_bars` via fila asyncpg; conferir frescor da barra antes de usar `contract_label_audit`.
   - Continuous aggregate `candle_m5` = analytics (não substitui candle live Deriv)
   - asyncpg pool fail-closed; inserts em lote; gravação desacoplada da decisão
 - **Redis 7.4-Alpine**:

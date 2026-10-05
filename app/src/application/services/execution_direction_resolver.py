@@ -27,9 +27,11 @@ from src.application.services.execution_signal_skips import should_skip_acc_floo
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
 from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
+from src.application.services.loss_classifier_gate_support import stamp_loss_clf_flip_ctx
 from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
 from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
+from src.application.services.rise_fall_quote_guard import flip_candidate_has_edge
 from src.domain.models.trade import TradeDirection
 
 
@@ -136,8 +138,11 @@ def _finalize_execution_metrics(
             cal_p = float(metrics.get("calibrated_prob") or 0.5)
             p_flip = cal_p if flipped == TradeDirection.CALL else 1.0 - cal_p
             trend_aligned = trend in {TradeDirection.CALL.name, TradeDirection.PUT.name} and flipped.name == trend
-            if veto_weak and not trend_aligned and p_flip + 1e-9 < 0.50:
+            weak_regime = veto_weak and not trend_aligned and p_flip + 1e-9 < 0.50
+            candidate_has_edge = flip_candidate_has_edge(metrics, flipped.name, payout, exec_cfg)
+            if weak_regime or not candidate_has_edge:
                 metrics["anti_trend_lock_flip"] = False
+                metrics["anti_trend_lock_rejected"] = "weak_regime" if weak_regime else "candidate_without_quote_edge"
                 metrics.pop("anti_trend_lock_from", None)
                 metrics.pop("anti_trend_lock_to", None)
                 metrics.pop("anti_trend_lock_reason", None)
@@ -157,6 +162,8 @@ def _finalize_execution_metrics(
     metrics.pop("scale_adapt_reason", None)
     exec_dir = apply_invert_exec_side(exec_dir, metrics, exec_cfg)
     exec_dir = reevaluate_market_direction(exec_dir, metrics, exec_cfg, payout=payout, orch=orch, symbol=symbol)
+    if bool(metrics.get("market_trigger_applied")):
+        stamp_loss_clf_flip_ctx(orch, symbol, metrics)
     metrics["exec_direction"] = exec_dir.name
     metrics["resolved_direction"] = exec_dir.name
     cal_prob = metrics.get("calibrated_prob")
@@ -168,15 +175,9 @@ def _finalize_execution_metrics(
             elif bool(metrics.get("anti_trend_lock_flip")):
                 cal_p = float(metrics.get("calibrated_prob") or 0.5)
                 p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p
-                t_val = str(metrics.get("trend_direction") or "").strip().upper()
-                if t_val in {TradeDirection.CALL.name, TradeDirection.PUT.name} and exec_dir.name == t_val:
-                    metrics["cal_side_edge"] = float((0.58 * (1.0 + payout)) - 1.0)
-                    metrics["conviction"] = 0.58
-                    metrics["trade_score"] = 0.58
-                else:
-                    metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
-                    metrics["conviction"] = p_dir
-                    metrics["trade_score"] = p_dir
+                metrics["cal_side_edge"] = float((p_dir * (1.0 + payout)) - 1.0)
+                metrics["conviction"] = p_dir
+                metrics["trade_score"] = p_dir
             elif bool(metrics.get("alpha_flip_applied")):
                 cal_p = float(metrics.get("calibrated_prob") or 0.5)
                 p_dir = cal_p if exec_dir == TradeDirection.CALL else 1.0 - cal_p

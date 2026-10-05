@@ -22,6 +22,7 @@ Adapter de persistencia, inserts de ticks/velas, tuning de pool, hypertables/com
 6. Hypertables: chunk **1 day**, `compress_segmentby`/`compress_orderby`, politicas de retencao; CRAG `candle_m5` so analytics
 7. Bind Docker Timescale em `127.0.0.1`; segredos so env/secret store
 8. Domain puro: sem import asyncpg em `domain/`
+9. Auditar frescor de `ohlc_bars` M5 (`granularity=300`) antes de comparar contratos na view `contract_label_audit`; cada fechamento micro deve enfileirar a barra sem esperar flush no ciclo.
 
 ## Anti-padroes
 

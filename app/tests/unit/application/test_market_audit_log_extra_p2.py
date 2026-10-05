@@ -23,6 +23,13 @@ def test_format_cluster_neutral_zone_shows_edge_and_be():
     assert "p_call: 0.46814" in line and "p_put: 0.53186" in line
 
 
+def test_cluster_reports_closed_model_input():
+    entry = {"direction": "CALL", "metrics": {"calibrated_prob": 0.7, "model_input_forming_excluded": True}}
+    assert "input=closed" in format_cluster_audit_line({"1HZ75V": entry})
+    entry["metrics"]["model_input_forming_excluded"] = False
+    assert "input=latest" in format_cluster_audit_line({"1HZ75V": entry})
+
+
 def test_format_cluster_neg_edge_shows_raw_edge_and_be():
     decisions = {
         "R_10": {

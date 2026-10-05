@@ -115,7 +115,7 @@ def test_predict_cal_at_be_allows_call():
     assert entry["metrics"]["calibrated_prob"] == pytest.approx(0.55)
 
 
-def test_predict_preset_put_in_band_executes():
+def test_predict_preset_put_in_band_uses_final_call_probability():
     params = parse_dl_params(
         {
             "confidence_call_threshold": 0.55,
@@ -144,7 +144,7 @@ def test_predict_preset_put_in_band_executes():
             params,
             None,
         )
-    assert entry["direction"] == TradeDirection.PUT
+    assert entry["direction"] == TradeDirection.CALL
     assert entry["metrics"]["execute"] is True
     assert entry["metrics"]["gate_reason"] is None
     assert entry["metrics"]["calibration_mode"] == "calibrated"

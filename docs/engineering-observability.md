@@ -31,6 +31,10 @@ O dashboard provisionado `Aether | Visão operacional M5` apresenta apenas cart�
 
 O dashboard separado `Aether | Histórico M5` contém somente quatro séries com histórico útil: saldo, lucro, P(CALL) calibrada e edge estimado. O Grafana escolhe automaticamente a resolução conforme a largura do painel e o intervalo de tempo selecionado, respeitando o mínimo de 5 s do scrape; ambos os dashboards atualizam a cada 5 s e oferecem navegação entre si preservando o período. As séries são pontos sem linhas, preenchimento, suavização ou conexão entre lacunas. Cada consulta descarta amostras cujo último scrape tem mais de 12 s; sem amostras recentes ou com o motor desligado, o gráfico fica sem dados. Valores de inferência são snapshots repetidos pelo exporter até a próxima decisão, não novas inferências em cada scrape.
 
+O radar de inferencia reflete a ultima compra confirmada: `aether_inference_prob` e P(CALL) bruta, `aether_inference_calibrated` e P(CALL) calibrada, e `aether_inference_payoff_edge` prioriza o EV da cotacao aceita. A margem direcional deriva da probabilidade calibrada quando nao vier explicitamente nas metricas. `aether_trading_contracts_total` usa o simbolo e o lado real da liquidacao; contratos sem lado conhecido recebem `UNKNOWN`. O Brier usa P(WIN) do lado efetivamente comprado, vinculada ao ID do contrato, e so aparece quando existe ao menos uma previsao vinculada e liquidada. `aether_trading_brier_samples` informa o tamanho da janela (ate 20). O coletor quantitativo legado nao emite seus antigos zeros quando nenhum evento o alimentou.
+
+Na liquidacao com spots confirmados do broker, `[RESOLVED]` acrescenta `SPOT` de entrada/saida, deslocamento assinado, `REAL` (CALL, PUT ou FLAT) e a fase de entrada na vela M5. O resultado financeiro continua vindo do broker. A view `contract_label_audit` expoe `broker_spot_delta`, `m5_spot_delta`, `entry_phase_seconds` e `observed_duration_seconds` para investigar divergencias entre o contrato de 300 s e o proxy `spot_forward`; esses campos nao alteram a decisao de compra.
+
 ## Contrato de tags
 
 | Tag | Nivel tipico | Frequencia | Consumidor |

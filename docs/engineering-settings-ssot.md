@@ -7,7 +7,7 @@
 | Bloco | Valor atual |
 |---|---|
 | `data_handler` | Micro/MINI M5 de 300 s; macro D1 de 86.400 s |
-| `deep_learning` | TCN, lookback 32, 25.000 barras M5, label `spot_forward`, horizonte 1 barra, `online_training=false` |
+| `deep_learning` | TCN, lookback 32, 25.000 barras M5 no treino, 768 na inferencia, label `spot_forward`, horizonte 1 barra, `online_training=false` |
 | `deep_learning.training_quality` | Um único bloco: diagnóstico linear (`min_linear_preflight_acc=0`), piso de seleção de checkpoint e detecção de colapso de classe; não qualifica deploy |
 | `deep_learning.asymmetric_payout_loss` | `false`: BCE simétrica para preservar a probabilidade CALL; payout entra no EV da proposta |
 | `deep_learning.checkpoint_max_stake_pct` | **0.01**, teto inicial de 1% da banca por ordem |
@@ -17,6 +17,8 @@
 | `infra.loss_classifier` | FLIP após auto aprendizado, `flip_min_n_train=1`, jovem `p_eff>=0.58`, maduro `p_eff>=0.70` |
 
 O checkpoint passa por verificação técnica de pesos, normalização e geometria. Não existe qualificação estatística de deploy. Um checkpoint inválido impede a operação. Com checkpoint válido, o teto de 1% é aplicado também a `cover_l0`, na preparação do cluster e imediatamente antes da proposta. Limites menores ainda podem reduzir a stake.
+
+`inference_history_bars=768` preserva na inferencia o contexto exigido pela diferenciacao fracionaria e pela escala causal das features aprendidas com historico longo. A sincronizacao inicial carrega esse piso mais warmup. Esse ajuste de janela nao muda o label nem o checkpoint e nao comprova maior acuracia por si so.
 
 A política mantém stop win, **sem stop loss e sem teto acumulado de perda**. O bloqueio de compra por dados, checkpoint, cotação ou edge continua ativo. DEMO e REAL usam o mesmo contrato operacional.
 

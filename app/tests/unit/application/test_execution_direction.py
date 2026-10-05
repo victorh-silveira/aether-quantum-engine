@@ -164,9 +164,9 @@ def test_resolve_execution_direction_ou_exhaustion_flip():
     res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.PUT
-    assert metrics.get("anti_trend_lock_flip") is True
-    assert metrics.get("anti_trend_lock_reason") == "OU_ELASTIC_EXHAUSTION"
+    assert direction == TradeDirection.CALL
+    assert metrics.get("anti_trend_lock_flip") is False
+    assert metrics.get("anti_trend_lock_rejected") == "candidate_without_quote_edge"
 
 
 def test_resolve_execution_direction_anti_trend_lock_disabled():
@@ -244,9 +244,9 @@ def test_resolve_execution_direction_alpha_flip_active():
     res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.PUT
-    assert metrics["alpha_flip_applied"] is True
-    assert metrics["direction_origin"] == "FLIP_ERROR_DRIVEN_ALPHA"
+    assert direction == TradeDirection.CALL
+    assert metrics["alpha_flip_rejected"] == "candidate_without_quote_edge"
+    assert metrics["direction_origin"] == "TCN_DIRECT"
 
 
 def test_resolve_execution_direction_counter_explosion_alignment():
@@ -273,9 +273,8 @@ def test_resolve_execution_direction_counter_explosion_alignment():
     res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.PUT
-    assert metrics.get("anti_trend_lock_flip") is True
-    assert metrics.get("anti_trend_lock_reason") == "COUNTER_EXPLOSION_ALIGNMENT"
+    assert direction == TradeDirection.CALL
+    assert metrics.get("anti_trend_lock_flip") is False
 
 
 def test_resolve_execution_direction_counter_retraction_alignment():
@@ -303,9 +302,8 @@ def test_resolve_execution_direction_counter_retraction_alignment():
     res = resolve_execution_direction(entry, orch=orch, symbol="1HZ75V", exec_cfg={"skip_neg_edge": False})
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.CALL
-    assert metrics.get("anti_trend_lock_flip") is True
-    assert metrics.get("anti_trend_lock_reason") == "COUNTER_RETRACTION_ALIGNMENT"
+    assert direction == TradeDirection.PUT
+    assert metrics.get("anti_trend_lock_flip") is False
 
 
 def test_resolve_execution_direction_vetoes_weak_regime_flip():
@@ -405,13 +403,13 @@ def test_resolve_execution_direction_anti_trend_edge_reflects_real_probability()
     )
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.CALL
-    assert metrics["anti_trend_lock_flip"] is True
-    expected_edge = (0.45 * 1.85) - 1.0
+    assert direction == TradeDirection.PUT
+    assert metrics["anti_trend_lock_flip"] is False
+    expected_edge = (0.55 * 1.85) - 1.0
     import pytest
 
     assert metrics["cal_side_edge"] == pytest.approx(expected_edge)
-    assert metrics["cal_side_edge"] < 0.0
+    assert metrics["cal_side_edge"] > 0.0
     tracker.reset()
 
 
@@ -449,10 +447,9 @@ def test_resolve_execution_direction_accepts_trend_aligned_flip():
     )
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.PUT
-    assert metrics["anti_trend_lock_flip"] is True
-    assert metrics["conviction"] in (0.55, 0.58)
-    assert metrics["cal_side_edge"] == pytest.approx((0.58 * 1.85) - 1.0)
+    assert direction == TradeDirection.CALL
+    assert metrics["anti_trend_lock_flip"] is False
+    assert metrics["cal_side_edge"] == pytest.approx((0.65 * 1.85) - 1.0)
     assert metrics["cal_side_edge"] > 0.0
     tracker.reset()
 
@@ -490,8 +487,8 @@ def test_resolve_execution_direction_fast_reversal_on_single_loss():
     )
     assert res is not None
     direction, metrics = res
-    assert direction == TradeDirection.CALL
-    assert metrics["anti_trend_lock_flip"] is True
+    assert direction == TradeDirection.PUT
+    assert metrics["anti_trend_lock_flip"] is False
     tracker.reset()
 
 

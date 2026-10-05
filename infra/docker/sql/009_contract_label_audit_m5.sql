@@ -21,7 +21,11 @@ SELECT c.contract_id, c.symbol, c.account_mode, c.direction,
            (CASE c.direction WHEN 'CALL' THEN b1.close > b1.open
                              WHEN 'PUT' THEN b1.close < b1.open END) != (c.profit > 0)
          ELSE NULL
-       END AS is_label_mismatched
+       END AS is_label_mismatched,
+       c.exit_tick - c.entry_tick AS broker_spot_delta,
+       b1.close - b1.open AS m5_spot_delta,
+       c.entry_tick_time % 300 AS entry_phase_seconds,
+       c.exit_tick_time - c.entry_tick_time AS observed_duration_seconds
 FROM contract_executions c
 LEFT JOIN LATERAL (
   SELECT epoch, close FROM ohlc_bars

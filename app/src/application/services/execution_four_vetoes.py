@@ -8,6 +8,7 @@ from typing import Any
 from src.application.services.execution_price_action import _resolve_candle_ohlc
 from src.application.services.execution_signal_skips import _mark_skip
 from src.application.services.market_audit_candle import _all_closed_micro_candles, candle_binary_side
+from src.application.services.rise_fall_quote_guard import is_quote_edge_acceptable
 from src.domain.models.trade import TradeDirection
 
 
@@ -103,6 +104,13 @@ def reevaluate_market_direction(
 ) -> TradeDirection:
     """Reavalia lado com probabilidade calibrada existente e EV positivo do candidato."""
     metrics["market_trigger_applied"] = False
+    for key in (
+        "market_trigger_status",
+        "market_trigger_candidate",
+        "market_trigger_setup",
+        "market_trigger_candidate_edge",
+    ):
+        metrics.pop(key, None)
     if not resolve_four_vetoes_enabled(config) or (config or {}).get("market_direction_trigger") is not True:
         return direction
     reason = market_veto_reason(direction, metrics, orch=orch, symbol=symbol)
@@ -115,14 +123,38 @@ def reevaluate_market_direction(
     prob = _number(metrics.get("calibrated_prob"))
     rate = _number(payout)
     floor = _number((config or {}).get("min_edge_execute", 0.01))
-    if prob is None or not 0 <= prob <= 1 or rate is None or rate <= 0 or floor is None or floor < 0:
+    margin = _number((config or {}).get("quote_safety_margin", 0.0))
+    haircut = _number((config or {}).get("quote_probability_haircut", 0.0))
+    if (
+        prob is None
+        or not 0 <= prob <= 1
+        or rate is None
+        or rate <= 0
+        or floor is None
+        or floor < 0
+        or margin is None
+        or margin < 0
+        or haircut is None
+        or not 0 <= haircut < 0.5
+    ):
         metrics["market_trigger_status"] = "invalid_probability_or_payout"
         return direction
     side_prob = prob if candidate == TradeDirection.CALL else 1 - prob
-    edge = side_prob * (1 + rate) - 1
+    accepted, edge, quote_reason = is_quote_edge_acceptable(
+        {"calibrated_prob": prob},
+        candidate.name,
+        rate,
+        min_edge=floor,
+        safety_margin=margin,
+        probability_haircut=haircut,
+    )
     metrics["market_trigger_candidate_edge"] = edge
-    if edge <= floor:
-        metrics["market_trigger_status"] = "candidate_without_edge"
+    if not accepted:
+        metrics["market_trigger_status"] = (
+            "candidate_below_quote_margin"
+            if quote_reason == "below_payout_breakeven_margin"
+            else "candidate_without_edge"
+        )
         return direction
     if market_veto_reason(candidate, metrics, orch=orch, symbol=symbol) is not None:
         metrics["market_trigger_status"] = "candidate_vetoed"
@@ -138,5 +170,6 @@ def reevaluate_market_direction(
         trade_score=side_prob,
         loss_clf_flip=False,
         anti_trend_lock_flip=False,
+        alpha_flip_applied=False,
     )
     return candidate

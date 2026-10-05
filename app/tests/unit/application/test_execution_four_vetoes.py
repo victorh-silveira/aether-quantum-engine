@@ -84,6 +84,43 @@ def test_no_setup_records_status():
     assert metrics["market_trigger_status"] == "no_extreme_setup"
 
 
+def test_trigger_clears_previous_candidate_when_setup_disappears():
+    metrics = {
+        "market_trigger_status": "candidate_without_edge",
+        "market_trigger_candidate": "PUT",
+        "market_trigger_setup": "call_down_continuation",
+        "market_trigger_candidate_edge": -0.1,
+    }
+    assert policy.reevaluate_market_direction(Side.CALL, metrics, CONFIG, payout=0.85) == Side.CALL
+    assert metrics["market_trigger_status"] == "no_extreme_setup"
+    assert "market_trigger_candidate" not in metrics
+    assert "market_trigger_setup" not in metrics
+    assert "market_trigger_candidate_edge" not in metrics
+
+
+def test_trigger_respects_quote_safety_margin_before_switching_side():
+    metrics = {**setup_metrics(Side.PUT), "calibrated_prob": 0.57}
+    config = {**CONFIG, "quote_safety_margin": 0.01}
+    assert policy.reevaluate_market_direction(Side.PUT, metrics, config, payout=0.784) == Side.PUT
+    assert metrics["market_trigger_status"] == "candidate_below_quote_margin"
+    assert metrics["market_trigger_candidate_edge"] > config["min_edge_execute"]
+
+
+def test_market_trigger_cancels_prior_flip_flags_when_model_supports_candidate():
+    metrics = {
+        **setup_metrics(Side.PUT),
+        "calibrated_prob": 0.7,
+        "loss_clf_flip": True,
+        "anti_trend_lock_flip": True,
+        "alpha_flip_applied": True,
+    }
+    assert policy.reevaluate_market_direction(Side.PUT, metrics, CONFIG, payout=0.784) == Side.CALL
+    assert metrics["market_trigger_applied"] is True
+    assert metrics["loss_clf_flip"] is False
+    assert metrics["anti_trend_lock_flip"] is False
+    assert metrics["alpha_flip_applied"] is False
+
+
 @pytest.mark.parametrize(
     "prob,payout,floor",
     [

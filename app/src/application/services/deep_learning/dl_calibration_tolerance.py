@@ -44,15 +44,6 @@ def infer_direction_from_prob(
     return TradeDirection.CALL if float(calibrated_prob) + 1e-12 >= float(pivot) else TradeDirection.PUT
 
 
-def _in_neutral_zone(cal: float, neutral_lo: float | None, neutral_hi: float | None) -> bool:
-    """Verifica se a probabilidade calibrada cai na zona neutra."""
-    if neutral_lo is not None and neutral_hi is not None:
-        lo = min(float(neutral_lo), float(neutral_hi))
-        hi = max(float(neutral_lo), float(neutral_hi))
-        return lo < float(cal) < hi
-    return False
-
-
 def apply_calibration_neutral_tolerance(
     calibrated_prob: float,
     raw_prob: float,
@@ -62,19 +53,10 @@ def apply_calibration_neutral_tolerance(
     neutral_lo: float | None = None,
     neutral_hi: float | None = None,
 ) -> tuple[float, TradeDirection, str]:
-    """Resolve CALL/PUT apos raw_extreme; nunca devolve zona neutra. Kelly usa Cal."""
+    """Resolve CALL/PUT pela probabilidade final; raw_extreme e apenas telemetria."""
+    del direction, neutral_lo, neutral_hi
     raw = float(raw_prob)
     cal = float(calibrated_prob)
     tol = _tol()
-    half_width = float(tol["neutral_calibration_half_width"])
-    effective_neutral_lo = neutral_lo if neutral_lo is not None else 0.5 - half_width
-    effective_neutral_hi = neutral_hi if neutral_hi is not None else 0.5 + half_width
-    if raw > float(tol["tcn_macro_call_override"]) or raw < float(tol["tcn_macro_put_override"]):
-        raw_dir = TradeDirection.CALL if raw > float(tol["tcn_macro_call_override"]) else TradeDirection.PUT
-        if _in_neutral_zone(cal, effective_neutral_lo, effective_neutral_hi):
-            return cal, raw_dir, "raw_extreme"
-        cal_dir = TradeDirection.CALL if cal + 1e-12 >= 0.5 else TradeDirection.PUT
-        return cal, cal_dir, "raw_extreme"
-    if direction is not None:
-        return cal, direction, "calibrated"
-    return cal, infer_direction_from_prob(cal, None, pivot=pivot), "calibrated"
+    extreme = raw > float(tol["tcn_macro_call_override"]) or raw < float(tol["tcn_macro_put_override"])
+    return cal, infer_direction_from_prob(cal, None, pivot=pivot), "raw_extreme" if extreme else "calibrated"

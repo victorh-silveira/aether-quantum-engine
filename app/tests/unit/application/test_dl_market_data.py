@@ -1,6 +1,12 @@
+from types import SimpleNamespace
+
 import numpy as np
 
-from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, slice_ohlc_window
+from src.application.services.deep_learning.dl_market_data import (
+    closed_model_ohlc,
+    load_symbol_close_ohlc,
+    slice_ohlc_window,
+)
 
 
 class _Stream:
@@ -100,3 +106,26 @@ def test_slice_ohlc_window_close_only():
     close = np.arange(5.0)
     tc, to, th, tl = slice_ohlc_window(close, None, None, None, start=2)
     assert len(tc) == 3 and to is None
+
+
+def test_closed_model_ohlc_excludes_only_forming_contract_bar():
+    close = np.array([10.0, 11.0, 12.0])
+    orch = SimpleNamespace(
+        stream=SimpleNamespace(
+            micro_candles={
+                "1HZ75V": [SimpleNamespace(epoch=600), SimpleNamespace(epoch=900), SimpleNamespace(epoch=1200)]
+            }
+        )
+    )
+    result = closed_model_ohlc(orch, "1HZ75V", close, close, close, close, granularity=300, now_epoch=1212)
+    assert all(np.array_equal(part, close[:2]) for part in result)
+    closed = closed_model_ohlc(orch, "1HZ75V", close, close, close, close, granularity=300, now_epoch=1500)
+    assert all(np.array_equal(part, close) for part in closed)
+
+
+def test_closed_model_ohlc_keeps_series_without_aligned_candle_history():
+    close = np.array([10.0, 11.0, 12.0])
+    orch = SimpleNamespace(stream=SimpleNamespace(micro_candles={"1HZ75V": [SimpleNamespace(epoch=1200)]}))
+    assert closed_model_ohlc(orch, "1HZ75V", close, None, None, None, granularity=300, now_epoch=1212)[0] is close
+    orch.stream.micro_candles["1HZ75V"].append(SimpleNamespace(epoch=1500))
+    assert len(closed_model_ohlc(orch, "1HZ75V", close, None, None, None, granularity=300, now_epoch=1512)[0]) == 0

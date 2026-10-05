@@ -22,6 +22,7 @@ from src.application.services.meta_classifier_vectors import (
 )
 from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
 from src.application.services.orchestrator.execution_proposal import is_proposal_runtime_error
+from src.application.services.rise_fall_quote_guard import resolve_effective_side_probability
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.stake_sizing import resolve_stake_conviction
@@ -155,6 +156,9 @@ async def execute_cluster_orders(
                 bm = getattr(executor.orch, "business_metrics", None)
                 if bm is not None:
                     bm.update_active_contracts_count(len(executor.orch.risk_manager.active_contract_ids))
+                    side_probability = resolve_effective_side_probability(order_metrics, direction.name)
+                    if side_probability is not None:
+                        bm.track_contract_probability(int(res.contract_id), side_probability)
                     bm.record_inference_radar(
                         symbol=str(symbol),
                         direction=direction.name,

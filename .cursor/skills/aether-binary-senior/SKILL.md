@@ -9,7 +9,7 @@ description: >-
 
 Ler `docs/binary-senior-playbook.md` e `docs/engineering-indicator-gates.md`.
 
-Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **2**, `n_train>=1`) e pe no piso → `invert_exec_side` **false** → quatro vetos extremos → Kelly / cover amort **1** → proposta com EV positivo e margem. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly.
+Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn (exit **2**, `n_train>=1`), pe no piso configurado e candidato com EV e margem no payout observado → anti-trend-lock/Alpha Flip sob o mesmo criterio → `invert_exec_side` **false** → quatro vetos extremos e gatilho de reconciliacao sob o mesmo quote guard → Kelly / cover amort **1** → proposta com EV positivo e margem. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly.
 
 ## Checklist (auditoria por ciclo)
 
@@ -17,6 +17,7 @@ Pipeline: TCN 14D (CALL se Cal ≥0.5 senao PUT) → LOSS_CLF FLIP se auto_learn
 2. CLUSTER → lado TCN (Cal≥0.5 CALL) + Edge EV
 3. `LOSS_CLF`: FLIP se pe no piso; `blocked=bootstrap|flip_min_n` → sem FLIP
 4. KELLY/EXEC lado = TCN(+FLIP); RESOLVED valida mercado
+5. Inversao rejeitada deve preservar o lado anterior; a proposta deve usar P(lado) calibrada e payout cotado, sem conviccao fixa de recuperacao.
 
 ## Proibido
 

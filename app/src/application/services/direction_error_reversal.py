@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.rise_fall_quote_guard import flip_candidate_has_edge
 from src.domain.math.error_driven_reversal import (
     calculate_trade_brier_score,
     is_error_driven_reversal_armed,
@@ -125,6 +126,11 @@ def apply_error_reversal_to_direction(
         flipped = TradeDirection.PUT if current_dir == TradeDirection.CALL else TradeDirection.CALL
     else:
         flipped = TradeDirection[target_name]
+
+    payout = metrics.get("payout_assumed")
+    if payout is not None and not flip_candidate_has_edge(metrics, flipped.name, float(payout), exec_cfg):
+        metrics["alpha_flip_rejected"] = "candidate_without_quote_edge"
+        return current_dir, False
 
     metrics["alpha_flip_applied"] = True
     metrics["alpha_flip_brier"] = float(info.get("brier", 0.0))

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from src.application.services.execution_payout import resolve_execution_payout
 from src.application.services.execution_quality_gate import read_risk_session_state
 from src.application.services.log_dedupe import log_debug_if_changed
 from src.application.services.loss_classifier_features import build_loss_feature_vector
@@ -16,6 +17,7 @@ from src.application.services.loss_classifier_gate_support import (
     stamp_loss_clf_flip_ctx,
 )
 from src.application.services.loss_classifier_vectors import store_loss_feature_vector
+from src.application.services.rise_fall_quote_guard import is_quote_edge_acceptable
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.loss_classifier_client import (
     loss_classifier_enabled,
@@ -77,7 +79,9 @@ def apply_loss_classifier_gate(
     if not allow_flip:
         metrics["loss_clf_observe_only"] = True
         return False
-    cfg = resolve_loss_classifier_config(None)
+    infra = config.get("infra") if isinstance(config, dict) else None
+    runtime_block = infra.get("loss_classifier") if isinstance(infra, dict) else None
+    cfg = resolve_loss_classifier_config(runtime_block if isinstance(runtime_block, dict) else None)
     hard_floor = float(cfg["hard_p_loss_floor"])
     metrics["loss_clf_hard_p_loss_floor"] = hard_floor
     response = predict_loss_via_config_sync(
@@ -151,6 +155,18 @@ def apply_loss_classifier_gate(
     metrics.pop("loss_clf_flip_blocked", None)
     if p_eff + 1e-12 >= flip_floor:
         flipped = TradeDirection.PUT if ref_dir == TradeDirection.CALL else TradeDirection.CALL
+        quote_ok, _, quote_reason = is_quote_edge_acceptable(
+            {"calibrated_prob": metrics.get("calibrated_prob"), "loss_clf_flip": True, "loss_clf_p_eff": p_eff},
+            flipped.name,
+            resolve_execution_payout(orch),
+            min_edge=float(exec_cfg.get("min_edge_execute", 0.0) or 0.0),
+            safety_margin=float(exec_cfg.get("quote_safety_margin", 0.0) or 0.0),
+            probability_haircut=float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0),
+        )
+        if not quote_ok:
+            metrics["loss_clf_flip_blocked"] = quote_reason
+            stamp_loss_clf_flip_ctx(orch, symbol, metrics)
+            return False
         metrics["loss_clf_flip_from"] = ref_dir.name
         metrics["loss_clf_flip_to"] = flipped.name
         metrics["exec_direction"] = flipped.name

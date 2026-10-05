@@ -199,10 +199,55 @@ def test_resolve_execution_direction_anti_trend_lock_flips_direction():
         res = resolve_execution_direction(entry, exec_cfg={}, symbol="1HZ75V", orch=orch)
     assert res is not None
     direction, metrics = res
+    assert direction == TradeDirection.PUT
+    assert metrics["anti_trend_lock_flip"] is False
+    assert metrics["anti_trend_lock_rejected"] == "candidate_without_quote_edge"
+
+
+def test_anti_trend_flip_keeps_real_candidate_probability():
+    entry = {"metrics": {"calibrated_prob": 0.70, "raw_prob": 0.70, "deploy_ok": True}}
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
+            return_value=(TradeDirection.PUT, 0.70),
+        ),
+        patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False),
+        patch("src.application.services.execution_direction_resolver.should_anti_trend_lock_flip", return_value=True),
+    ):
+        result = resolve_execution_direction(entry, exec_cfg={"quote_safety_margin": 0.01}, symbol="1HZ75V", orch=orch)
+    assert result is not None
+    direction, metrics = result
     assert direction == TradeDirection.CALL
     assert metrics["anti_trend_lock_flip"] is True
-    assert metrics["anti_trend_lock_from"] == "PUT"
-    assert metrics["anti_trend_lock_to"] == "CALL"
+    assert metrics["direction_origin"] == "FLIP_ANTI_TREND_LOCK"
+    assert metrics["conviction"] == pytest.approx(0.70)
+    assert metrics["cal_side_edge"] == pytest.approx(0.70 * (1 + metrics["payout_assumed"]) - 1)
+
+
+def test_alpha_flip_with_edge_reaches_execution_metrics():
+    entry = {"metrics": {"calibrated_prob": 0.70, "raw_prob": 0.70, "deploy_ok": True}}
+    orch = MagicMock()
+    orch.config = {"infra": {"loss_classifier": {"enabled": False}}}
+    orch._log_dedupe = {}
+    orch._pending_alpha_reversal = {"1HZ75V": {"target_dir": "CALL", "from_dir": "PUT"}}
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
+            return_value=(TradeDirection.PUT, 0.70),
+        ),
+        patch("src.application.services.execution_direction_resolver.apply_loss_classifier_gate", return_value=False),
+        patch("src.application.services.execution_direction_resolver.should_anti_trend_lock_flip", return_value=False),
+    ):
+        result = resolve_execution_direction(entry, exec_cfg={"quote_safety_margin": 0.01}, symbol="1HZ75V", orch=orch)
+    assert result is not None
+    direction, metrics = result
+    assert direction == TradeDirection.CALL
+    assert metrics["alpha_flip_applied"] is True
+    assert metrics["direction_origin"] == "FLIP_ERROR_DRIVEN_ALPHA"
+    assert metrics["cal_side_edge"] == pytest.approx(0.70 * (1 + metrics["payout_assumed"]) - 1)
 
 
 def test_resolve_execution_direction_force():

@@ -385,3 +385,21 @@ async def test_stream_handler_equal_micro_mini_dispatch(mock_ws):
     sh.mini_candles["R_10"] = []
     fallback_series = sh.get_mini_numpy_series("R_10", "close")
     assert fallback_series.tolist() == [1.1]
+
+
+@pytest.mark.asyncio
+async def test_closed_micro_bar_is_persisted_once_with_closed_ohlc(mock_ws):
+    writer = MagicMock(enqueue_bar=AsyncMock())
+    sh = StreamHandler(mock_ws, ["R_10"], {"granularity": 86400, "micro_granularity": 300}, market_writer=writer)
+    first = Candle("R_10", 10.0, 12.0, 9.0, 11.0, datetime.now(), 1200)
+    update = Candle("R_10", 10.0, 13.0, 9.0, 12.0, datetime.now(), 1200)
+    next_bar = Candle("R_10", 12.0, 12.0, 11.0, 11.5, datetime.now(), 1500)
+    await sh._apply_micro_candle("R_10", first)
+    await sh._apply_micro_candle("R_10", update)
+    assert writer.enqueue_bar.await_count == 0
+    await sh._apply_micro_candle("R_10", next_bar)
+    writer.enqueue_bar.assert_awaited_once()
+    payload = writer.enqueue_bar.await_args.kwargs["bar"]
+    assert payload["epoch"] == 1200
+    assert payload["granularity"] == 300
+    assert payload["close"] == 12.0

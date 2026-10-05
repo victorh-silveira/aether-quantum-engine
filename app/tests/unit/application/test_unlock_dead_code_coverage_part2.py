@@ -195,11 +195,3 @@ def test_horizon_gap_bars():
     result = _horizon_gap_bars()
     assert isinstance(result, int)
     assert result >= 0
-
-
-def test_in_neutral_zone_none_branches():
-    from src.application.services.deep_learning.dl_calibration_tolerance import _in_neutral_zone
-
-    assert _in_neutral_zone(0.5, None, None) is False
-    assert _in_neutral_zone(0.5, 0.4, None) is False
-    assert _in_neutral_zone(0.5, None, 0.6) is False

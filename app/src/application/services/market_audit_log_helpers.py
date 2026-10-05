@@ -106,6 +106,8 @@ def cluster_symbol_token(symbol: str | None, entry: dict[str, Any] | None = None
         f"Margin: {margin:.3f} Edge: {display_edge:+.3f} "
         f"raw_edge: {raw_edge:+.3f} be={be:.3f}"
     )
+    if "model_input_forming_excluded" in metrics:
+        payload += " input=closed" if metrics["model_input_forming_excluded"] else " input=latest"
     if skip:
         return f"{payload} | {skip})"
     return f"{payload})"

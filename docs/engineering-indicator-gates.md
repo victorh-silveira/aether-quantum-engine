@@ -19,8 +19,9 @@ mercado. Os vetos extremos nao recebem waiver por PEND ou FLIP.
 
 `market_direction_trigger=true` reavalia o lado antes do gate economico.
 Um extremo contra o lado atual propoe o oposto, mas so o aceita se a
-probabilidade calibrada existente sustentar `EV > min_edge_execute` e nao
-houver extremo contrario ao candidato. EV = p(lado) * (1 + payout) - 1.
+probabilidade calibrada existente sustentar o piso de EV e a margem sobre
+break-even com o payout observado, e nao houver extremo contrario ao candidato.
+EV = p(lado) * (1 + payout) - 1. O haircut configurado tambem se aplica.
 Registra `market_trigger_status`, `market_trigger_candidate`, setup e edge.
 Nao estima uma nova probabilidade a partir do desenho do candle.
 
@@ -39,7 +40,7 @@ Hot path vivo:
 1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
 2. SKIP sinal ativo: quatro vetos extremos de mercado e cotacao final sem EV positivo ou sem margem de 0,01 sobre break-even. `skip_neg_edge`, `skip_tcn_noise_discord`, `skip_trend_discord`, `conformal_uncertainty_gate` e `veto_compression_doji` estao desligados no SSOT. O regime continua como telemetria, sem veto de compressao. Os demais filtros legados permanecem desligados; nao criam lado CALL/PUT.
 3. TCN decide CALL/PUT (Cal ≥ 0.5 → CALL)
-4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 1` (young/mature 0.58; saida seed live N=2; ancora TCN) + **anti-trend-lock** ativo pos-loss
+4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 1` (young 0.58, mature 0.70; saida seed live N=2; ancora TCN). O piso vem da configuracao resolvida do runtime. O FLIP exige EV e margem do candidato com o payout observado. Anti-trend-lock e Alpha Flip pos-loss seguem o mesmo criterio com P(lado) calibrada. Inversao rejeitada preserva o lado anterior; a proposta revalida com o payout cotado.
 5. SCALE adapt **off** (`adapt_retract_enabled` **false**); `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**
 6. `invert_exec_side` **false**
 7. Kelly + SIDE_EQ sizing (META **nao** soft Kelly)

@@ -18,7 +18,11 @@ from src.application.services.deep_learning.dl_live_bar_patch import (
     patch_forming_bar_with_live_tick,
     store_patched_ohlc_snapshot,
 )
-from src.application.services.deep_learning.dl_market_data import load_symbol_close_ohlc, load_symbol_microstructure
+from src.application.services.deep_learning.dl_market_data import (
+    closed_model_ohlc,
+    load_symbol_close_ohlc,
+    load_symbol_microstructure,
+)
 from src.application.services.deep_learning.dl_params import slice_dl_ohlc_window
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
 from src.application.services.deep_learning.dl_predict_build import prepare_meta_classifier_cross_symbol_bundle
@@ -159,6 +163,18 @@ async def _collect_symbol_decision(
     trained_granularity = runtime.get("trained_granularity", granularity)
     micro_full = load_symbol_microstructure(orch, symbol, len(prices_raw))
     micro_full = patch_forming_bar_microstructure(orch, symbol, micro_full)
+    raw_count = len(prices_raw)
+    prices_raw, open_raw, high_raw, low_raw = closed_model_ohlc(
+        orch,
+        symbol,
+        prices_raw,
+        open_raw,
+        high_raw,
+        low_raw,
+        granularity=trained_granularity,
+    )
+    if micro_full is not None and len(prices_raw) < raw_count:
+        micro_full = {key: values[:-1] if len(values) == raw_count else values for key, values in micro_full.items()}
     train_bars = int(params["training_history_bars"])
     prices, open_, high, low = slice_dl_ohlc_window(
         prices_raw,
@@ -225,6 +241,7 @@ async def _collect_symbol_decision(
         low=low_inf,
         micro=micro_inf,
     )
+    entry["metrics"]["model_input_forming_excluded"] = len(prices_raw) < raw_count
     entry = _apply_deploy_gate(entry, runtime, dl_config, orch=orch)
     entry = _apply_training_gate(entry, runtime, params)
     return entry, train_reason

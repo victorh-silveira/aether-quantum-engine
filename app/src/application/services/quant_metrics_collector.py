@@ -39,6 +39,17 @@ class QuantMetricsCollector:
         else:
             self._total_skips += 1
 
+    def has_observations(self) -> bool:
+        """Indica se o coletor recebeu dados reais desta sessao."""
+        return bool(
+            self._initial_balance > 0.0
+            or self._total_cycles
+            or self._total_wins
+            or self._total_losses
+            or self._tick_to_order_latencies
+            or self._ping_rtts
+        )
+
     def record_latency(self, tick_to_order_ms: float, ping_rtt_ms: float | None = None) -> None:
         """Armazena medidas pontuais de latencia de processamento e handshake."""
         if math.isfinite(tick_to_order_ms) and tick_to_order_ms >= 0.0:

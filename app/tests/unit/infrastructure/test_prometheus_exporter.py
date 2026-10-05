@@ -18,3 +18,10 @@ def test_prometheus_metrics_exporter_format():
     assert "aether_avg_tick_to_order_ms 12.5" in payload
     assert "aether_avg_ping_rtt_ms 45.0" in payload
     assert payload.endswith("\n")
+
+
+def test_prometheus_metrics_exporter_omits_unwired_collector():
+    collector = QuantMetricsCollector()
+    assert PrometheusMetricsExporter.format_metrics(collector) == ""
+    collector.record_cycle(is_execution=False)
+    assert "aether_total_cycles_total 1" in PrometheusMetricsExporter.format_metrics(collector)

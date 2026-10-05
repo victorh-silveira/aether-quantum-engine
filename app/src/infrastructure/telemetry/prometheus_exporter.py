@@ -15,6 +15,8 @@ class PrometheusMetricsExporter:
     @staticmethod
     def format_metrics(collector: QuantMetricsCollector) -> str:
         """Gera payload textual compativel com Prometheus scrape."""
+        if not collector.has_observations():
+            return ""
         summary = collector.get_summary()
 
         lines: list[str] = [

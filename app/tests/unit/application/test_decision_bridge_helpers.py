@@ -1,4 +1,5 @@
 import logging
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -219,6 +220,52 @@ async def test_collect_symbol_decision_full_path():
     assert reason == "bootstrap"
     assert out["direction"] == TradeDirection.CALL
     mock_enqueue.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_contract_prediction_uses_last_closed_bar_and_keeps_live_snapshot():
+    prices = np.linspace(10.0, 12.0, 90)
+    orch = MockOrchestrator(["R_10"], prices)
+    current_epoch = int(time.time()) // 300 * 300
+    orch.stream.micro_candles["R_10"] = [
+        SimpleNamespace(epoch=current_epoch - 300 * (89 - index)) for index in range(90)
+    ]
+    orch.stream.tick_buffer = SimpleNamespace(
+        latest_price=lambda _symbol: 13.0,
+        live_tick_count=lambda _symbol: 3,
+        microstructure_arrays=lambda _symbol, _length: {"tick_count": np.arange(90, dtype=np.float64)},
+    )
+    runtime = {"model": MagicMock(), "norm_stats": MagicMock(), "val_accuracy": 0.5, "trained_granularity": 300}
+    entry = {"direction": TradeDirection.CALL, "metrics": {"execute": True}}
+    with (
+        patch("src.application.services.deep_learning.decision_bridge.get_symbol_runtime", return_value=runtime),
+        patch("src.application.services.deep_learning.decision_bridge.should_retrain_symbol", return_value=(False, "")),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
+            new_callable=AsyncMock,
+            return_value=entry,
+        ) as predict,
+    ):
+        result, _ = await _collect_symbol_decision(
+            orch,
+            "R_10",
+            dl_config={},
+            params={
+                "train_timeframe": "micro",
+                "training_history_bars": 90,
+                "inference_history_bars": 90,
+                "lookback": 32,
+            },
+            min_len=40,
+            granularity=300,
+        )
+    assert predict.await_count == 1
+    model_input = predict.await_args.args[3]
+    assert model_input[-1] == prices[-2]
+    assert model_input[-1] != 13.0
+    assert predict.await_args.kwargs["micro"]["tick_count"][-1] == 88.0
+    assert orch._patched_ohlc["R_10"]["close"][-1] == 13.0
+    assert result["metrics"]["model_input_forming_excluded"] is True
 
 
 def test_resample_m1_to_m15():

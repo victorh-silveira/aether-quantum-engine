@@ -19,7 +19,7 @@ def calculate_payout_breakeven_prob(payout_rate: float | None) -> float | None:
     return 1.0 / (1.0 + rate)
 
 
-def _resolve_effective_side_probability(metrics: dict[str, Any], direction: str) -> float | None:
+def resolve_effective_side_probability(metrics: dict[str, Any], direction: str) -> float | None:
     """Resolve a probabilidade do lado considerando calibracao, loss_clf_flip e anti_trend_lock."""
     try:
         p_call = float(metrics["calibrated_prob"])
@@ -29,13 +29,10 @@ def _resolve_effective_side_probability(metrics: dict[str, Any], direction: str)
         return None
     if bool(metrics.get("loss_clf_flip")):
         try:
-            raw_pe = metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss")
+            raw_pe = metrics.get("loss_clf_p_eff")
+            if raw_pe is None:
+                raw_pe = metrics.get("loss_clf_p_loss")
             p_side = float(raw_pe) if raw_pe is not None else (p_call if direction == "CALL" else 1.0 - p_call)
-        except (TypeError, ValueError):
-            p_side = p_call if direction == "CALL" else 1.0 - p_call
-    elif bool(metrics.get("anti_trend_lock_flip")) and metrics.get("conviction") is not None:
-        try:
-            p_side = float(metrics["conviction"])
         except (TypeError, ValueError):
             p_side = p_call if direction == "CALL" else 1.0 - p_call
     else:
@@ -60,7 +57,7 @@ def quoted_edge(
         return None
     if not math.isfinite(rate) or rate <= 0.0 or not math.isfinite(haircut) or not 0.0 <= haircut < 0.5:
         return None
-    p_side = _resolve_effective_side_probability(metrics, direction)
+    p_side = resolve_effective_side_probability(metrics, direction)
     if p_side is None:
         return None
     return max(0.0, p_side - haircut) * (1.0 + rate) - 1.0
@@ -81,7 +78,7 @@ def is_quote_edge_acceptable(
         return False, None, "insufficient_evidence"
     if edge + 1e-12 < float(min_edge):
         return False, edge, "quote_edge_below_min"
-    p_side = _resolve_effective_side_probability(metrics or {}, direction)
+    p_side = resolve_effective_side_probability(metrics or {}, direction)
     p_be = calculate_payout_breakeven_prob(payout_rate)
     if p_side is not None and p_be is not None:
         margin_floor = float(safety_margin)
@@ -90,8 +87,25 @@ def is_quote_edge_acceptable(
     return True, edge, "ok"
 
 
+def flip_candidate_has_edge(metrics: dict[str, Any], direction: str, payout: float, exec_cfg: dict | None) -> bool:
+    """Valida uma inversao com a mesma probabilidade e margem da proposta."""
+    cfg = exec_cfg or {}
+    candidate = {"calibrated_prob": metrics.get("calibrated_prob")}
+    accepted, _, _ = is_quote_edge_acceptable(
+        candidate,
+        direction,
+        payout,
+        min_edge=float(cfg.get("min_edge_execute", 0.0) or 0.0),
+        safety_margin=float(cfg.get("quote_safety_margin", 0.0) or 0.0),
+        probability_haircut=float(cfg.get("quote_probability_haircut", 0.0) or 0.0),
+    )
+    return accepted
+
+
 __all__ = [
     "calculate_payout_breakeven_prob",
     "is_quote_edge_acceptable",
+    "flip_candidate_has_edge",
     "quoted_edge",
+    "resolve_effective_side_probability",
 ]

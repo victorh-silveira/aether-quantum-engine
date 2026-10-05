@@ -42,6 +42,7 @@ Knobs: `compounding_rate_daily` **0.0431**; `payout_estimate` / `default_payout`
 3. KELLY — p, live_wr, f*, mode; sem meta_soft; stake = explore/recover/cover
 4. EXEC — lado final: TCN ou FLIP; ticket em uma linha
 5. RESOLVED / RISK — `LIN:` pos-settle; pending; `QUALITY hit=` so pos-FLIP; pnl vs 4.31%; ACC ~0.53 = retreino TCN, nao “mais trades”
+6. Prometheus — conferir `up` e o scrape real. `aether_trading_contracts_total` deve refletir o lado liquidado; Brier so tem valor com P(WIN) vinculada por contract_id e `aether_trading_brier_samples` informa N. Nunca tratar Brier 0.25 sintetico ou contador zero sem eventos como evidencia de assertividade.
 
 ## Pos-mortem (9 perguntas)
 

@@ -21,9 +21,10 @@ from src.application.services.rise_fall_quote_guard import quoted_edge
         ({"calibrated_prob": 1.1}, "CALL", 0.8, None),
         ({"calibrated_prob": 0.6}, "CALL", 0.0, None),
         ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": 0.65}, "CALL", 0.8, 0.17),
+        ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_loss": 0.65}, "CALL", 0.8, 0.17),
         ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": "bad"}, "CALL", 0.8, -0.28),
         ({"calibrated_prob": 0.40, "loss_clf_flip": True, "loss_clf_p_eff": 1.5}, "CALL", 0.8, None),
-        ({"calibrated_prob": 0.52, "anti_trend_lock_flip": True, "conviction": 0.58}, "PUT", 0.8, 0.044),
+        ({"calibrated_prob": 0.52, "anti_trend_lock_flip": True, "conviction": 0.58}, "PUT", 0.8, -0.136),
         ({"calibrated_prob": 0.52, "anti_trend_lock_flip": True, "conviction": "bad"}, "PUT", 0.8, -0.136),
     ],
 )

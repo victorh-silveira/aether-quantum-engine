@@ -135,9 +135,13 @@ def test_side_equilibrium_redis_async_and_timescale_task():
 
 def test_settlement_outcome_planned_stake():
     from src.application.services.orchestrator.settlement_outcome import process_contract_outcome
+    from src.infrastructure.telemetry.otel_business_instrumentor import BusinessMetricsInstrumentor
 
     contract = SimpleNamespace(stake=2.5, contract_id=77, direction=None)
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.track_contract_probability(77, 0.6)
     orch = SimpleNamespace(
+        business_metrics=instrumentor,
         state=SimpleNamespace(balance=100.0),
         risk_manager=SimpleNamespace(
             contract_requested_stakes={},
@@ -194,6 +198,8 @@ def test_settlement_outcome_planned_stake():
             log_cluster_summary=MagicMock(),
         )
     assert orch.risk_manager.contract_requested_stakes[77] == pytest.approx(2.5)
+    assert instrumentor._contract_counts[("R_10", "CALL", "WIN")] == 1
+    assert instrumentor.compute_rolling_brier_score() == pytest.approx(0.16)
 
 
 def test_meta_payoff_veto_emergency_waiver_pending_map():

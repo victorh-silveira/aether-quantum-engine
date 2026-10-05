@@ -119,3 +119,31 @@ def test_apply_error_reversal_expires_on_stale_cycle():
     assert dir_res == TradeDirection.CALL
     assert "1HZ75V" not in orch._pending_alpha_reversal
     assert "alpha_flip_applied" not in metrics
+
+
+def test_alpha_flip_preserves_side_when_candidate_has_no_edge():
+    """Uma perda nao transforma o lado oposto em uma cotacao com vantagem."""
+    orch = SimpleNamespace(
+        _pending_alpha_reversal={"1HZ75V": {"from_dir": "PUT", "target_dir": "CALL", "brier": 0.5, "residual": -0.7}}
+    )
+    metrics = {"calibrated_prob": 0.33, "payout_assumed": 0.85}
+    direction, flipped = apply_error_reversal_to_direction(
+        orch, "1HZ75V", TradeDirection.PUT, metrics, exec_cfg={"quote_safety_margin": 0.01}
+    )
+    assert direction == TradeDirection.PUT
+    assert flipped is False
+    assert metrics["alpha_flip_rejected"] == "candidate_without_quote_edge"
+    assert orch._pending_alpha_reversal == {}
+
+
+def test_alpha_flip_accepts_candidate_with_edge():
+    """Uma inversao sustentada pela probabilidade calibrada segue elegivel."""
+    orch = SimpleNamespace(
+        _pending_alpha_reversal={"1HZ75V": {"from_dir": "PUT", "target_dir": "CALL", "brier": 0.5, "residual": -0.7}}
+    )
+    metrics = {"calibrated_prob": 0.7, "payout_assumed": 0.85}
+    direction, flipped = apply_error_reversal_to_direction(
+        orch, "1HZ75V", TradeDirection.PUT, metrics, exec_cfg={"quote_safety_margin": 0.01}
+    )
+    assert direction == TradeDirection.CALL
+    assert flipped is True

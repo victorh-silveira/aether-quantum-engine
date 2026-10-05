@@ -14,7 +14,7 @@ from src.application.services.market_audit_log import (
     store_contract_audit,
 )
 from src.application.services.micro_hedge_monitor import register_contract_for_hedge
-from src.application.services.rise_fall_quote_guard import quoted_edge
+from src.application.services.rise_fall_quote_guard import quoted_edge, resolve_effective_side_probability
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -114,19 +114,11 @@ def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: An
         params.pop("_quote_guard_safety_margin", None)
         params.pop("min_payout_rate", None)
         return
-    cal_prob = metrics.get("calibrated_prob")
-    if cal_prob is None:
+    dir_name = getattr(direction, "name", str(direction)).upper()
+    p_side = resolve_effective_side_probability(metrics, dir_name)
+    if p_side is None:
         return
     try:
-        p_c = float(cal_prob)
-        dir_name = getattr(direction, "name", str(direction)).upper()
-        if bool(metrics.get("loss_clf_flip")):
-            raw_pe = metrics.get("loss_clf_p_eff") or metrics.get("loss_clf_p_loss")
-            p_side = float(raw_pe) if raw_pe is not None else (p_c if dir_name == "CALL" else 1.0 - p_c)
-        elif bool(metrics.get("anti_trend_lock_flip")) and metrics.get("conviction") is not None:
-            p_side = float(metrics["conviction"])
-        else:
-            p_side = p_c if dir_name == "CALL" else 1.0 - p_c
         haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
         p_eff = max(0.0, p_side - haircut)
         is_rec = float(metrics.get("pending_loss_total", 0.0) or 0.0) > 0.5

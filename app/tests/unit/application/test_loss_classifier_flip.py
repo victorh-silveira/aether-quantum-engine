@@ -124,6 +124,38 @@ def test_loss_clf_flip_above_floor_mature(monkeypatch):
     assert metrics["execution_candidate_ready"] is True
 
 
+def test_loss_clf_preserves_tcn_side_when_flip_lacks_quote_margin(monkeypatch):
+    orch = _orch()
+    orch.config["orchestrator"] = {"execution": {"quote_safety_margin": 0.2}}
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.6,
+        "execution_candidate_ready": True,
+    }
+    _patch_predict(monkeypatch, p_loss=0.72, n_train=64)
+    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch) is False
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics.get("loss_clf_flip") is not True
+    assert metrics["loss_clf_flip_blocked"] == "below_payout_breakeven_margin"
+
+
+def test_loss_clf_uses_runtime_flip_floor(monkeypatch):
+    orch = _orch()
+    orch.config["infra"]["loss_classifier"]["hard_p_loss_floor"] = 0.8
+    metrics = {
+        "tcn_direction": "CALL",
+        "exec_direction": "CALL",
+        "calibrated_prob": 0.6,
+        "execution_candidate_ready": True,
+    }
+    _patch_predict(monkeypatch, p_loss=0.72, n_train=64)
+    assert apply_loss_classifier_gate(metrics, TradeDirection.CALL, orch=orch) is False
+    assert metrics["exec_direction"] == "CALL"
+    assert metrics["loss_clf_flip_floor"] == 0.8
+    assert metrics.get("loss_clf_flip") is not True
+
+
 def test_loss_clf_ok_below_floor_mature(monkeypatch):
     metrics = {
         "tcn_direction": "PUT",
@@ -175,6 +207,7 @@ def test_loss_clf_flips_even_when_candle_agrees_tcn(monkeypatch):
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "CALL",
+        "calibrated_prob": 0.6,
         "closed_micro_candle_stamped": True,
         "closed_micro_candle_dir": "CALL",
         "execution_candidate_ready": True,
@@ -190,6 +223,7 @@ def test_loss_clf_flip_allowed_when_candle_opposes_tcn(monkeypatch):
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "CALL",
+        "calibrated_prob": 0.6,
         "closed_micro_candle_stamped": True,
         "closed_micro_candle_dir": "PUT",
         "execution_candidate_ready": True,
@@ -205,6 +239,7 @@ def test_loss_clf_young_high_p_flips(monkeypatch):
     metrics = {
         "tcn_direction": "PUT",
         "exec_direction": "PUT",
+        "calibrated_prob": 0.4,
         "scale_tape_consensus": "PUT",
         "execution_candidate_ready": True,
     }
@@ -278,6 +313,7 @@ def test_stamp_flip_ctx_persists_on_gate(monkeypatch):
     metrics = {
         "tcn_direction": "CALL",
         "exec_direction": "CALL",
+        "calibrated_prob": 0.6,
         "execution_candidate_ready": True,
     }
     _patch_predict(monkeypatch, p_loss=0.72, n_train=64)

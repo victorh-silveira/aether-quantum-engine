@@ -1,5 +1,7 @@
 """Leitura de series OHLC e microestrutura do stream Deriv."""
 
+import time
+
 import numpy as np
 
 
@@ -54,3 +56,33 @@ def slice_ohlc_window(
     if open_ is None or high is None or low is None:
         return trimmed, None, None, None
     return trimmed, open_[start:], high[start:], low[start:]
+
+
+def closed_model_ohlc(
+    orch,
+    symbol: str,
+    close: np.ndarray,
+    open_: np.ndarray | None,
+    high: np.ndarray | None,
+    low: np.ndarray | None,
+    *,
+    granularity: int,
+    now_epoch: int | None = None,
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, np.ndarray | None]:
+    """Exclui a vela M5 em formacao para prever o contrato da vela corrente."""
+    history = getattr(getattr(orch, "stream", None), "micro_candles", None)
+    candles = history.get(symbol) if isinstance(history, dict) else None
+    if not isinstance(candles, list) or len(candles) < 2:
+        return close, open_, high, low
+    if len(candles) != len(close):
+        return close[:0], None, None, None
+    now = int(time.time()) if now_epoch is None else int(now_epoch)
+    last_epoch = int(candles[-1].epoch)
+    if not last_epoch <= now < last_epoch + max(1, int(granularity)):
+        return close, open_, high, low
+    return (
+        close[:-1],
+        None if open_ is None else open_[:-1],
+        None if high is None else high[:-1],
+        None if low is None else low[:-1],
+    )

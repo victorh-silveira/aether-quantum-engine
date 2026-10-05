@@ -69,8 +69,15 @@ def test_attach_movement_prediction_metrics_call_and_put():
     assert metrics_put["movement_confluence"] is False
     assert abs(metrics_put["movement_atr_ratio"] - 2.0) < 1e-5
 
+    metrics_without_side = {}
+    attach_movement_prediction_metrics(metrics_without_side, predicted_delta=0.0, atr_norm=0.0)
+    assert metrics_without_side["predicted_movement_side"] == "DOJI"
+    assert metrics_without_side["movement_confluence"] is True
+    assert metrics_without_side["movement_atr_ratio"] == 1.0
 
-def test_attach_dynamic_metrics_integrates_movement():
+
+def test_attach_dynamic_metrics_integrates_movement_when_head_is_trained(monkeypatch):
+    monkeypatch.setattr("src.application.services.deep_learning.dl_predict_metrics.aux_regression_weight", lambda: 0.1)
     dummy_model = SimpleNamespace(_last_predicted_delta=0.0018)
     runtime = {
         "model": dummy_model,
@@ -95,6 +102,23 @@ def test_attach_dynamic_metrics_integrates_movement():
     assert metrics.get("predicted_movement_side") == "CALL"
     assert metrics.get("movement_confluence") is True
     assert abs(metrics.get("movement_atr_ratio", 0.0) - 2.0) < 1e-5
+
+
+def test_attach_dynamic_metrics_omits_untrained_movement_head(monkeypatch):
+    monkeypatch.setattr("src.application.services.deep_learning.dl_predict_metrics.aux_regression_weight", lambda: 0.0)
+    metrics = {"exec_direction": "CALL"}
+    attach_dynamic_metrics(
+        metrics,
+        dynamic=None,
+        bb_width=0.01,
+        vol_ratio=1.0,
+        implied_vol_ratio=1.0,
+        symbol="1HZ75V",
+        bb_history=[],
+        scale_enabled=False,
+        runtime={"last_predicted_delta": 2.39},
+    )
+    assert "predicted_movement_delta" not in metrics
 
 
 def test_sequence_price_deltas_breaks_when_future_index_out_of_bounds(monkeypatch):

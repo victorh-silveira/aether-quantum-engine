@@ -105,6 +105,10 @@ def test_contract_audit_m5_migration_matches_active_horizon():
     assert "c.settlement_source='broker'" in sql
     assert "c.contract_type IN ('CALL', 'PUT')" in sql
     assert "009_contract_label_audit_m5.sql" in lifecycle
+    assert "broker_spot_delta" in sql
+    assert "m5_spot_delta" in sql
+    assert "entry_phase_seconds" in sql
+    assert "observed_duration_seconds" in sql
 
 
 def test_minio_init_script_bucket_ilm():

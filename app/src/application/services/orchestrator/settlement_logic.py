@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.log_dedupe import log_warning_if_changed
+from src.application.services.market_audit_contract import broker_price_audit
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
     pop_contract_audit,
@@ -129,12 +130,16 @@ async def _complete_contract_settlement(
     if result_line is not None:
         learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
         line = f"{result_line} | LEARN: {learn}" if learn and "LEARN:" not in result_line else result_line
+        price_audit = broker_price_audit(
+            c, audit_direction or getattr(getattr(contract, "direction", None), "name", None)
+        )
+        if price_audit:
+            line = f"{line} | {price_audit}"
         if orch._buffer_result_logs:
             orch._pending_result_logs.append(line)
         else:
             orch.logger.info(line)
         orch._last_loss_clf_learn = None
-
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
 

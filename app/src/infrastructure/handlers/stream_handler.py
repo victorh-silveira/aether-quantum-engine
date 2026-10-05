@@ -180,13 +180,22 @@ class StreamHandler:
         """Atualiza buffer micro e dispara callback operacional."""
         if symbol not in self.micro_candles:
             return
-        apply_candle_update(
+        result = apply_candle_update(
             self.micro_candles,
             self._last_micro_bar_epoch,
             symbol,
             candle,
             limit=max(512, int(self.history_limit // 16)),
         )
+        if result.closed_epoch is not None:
+            await persist_closed_bar(
+                self,
+                symbol,
+                result.closed_epoch,
+                self.micro_candles[symbol][-2],
+                None,
+                granularity=self.micro_granularity,
+            )
         if self.candle_callback:
             await self.candle_callback(candle)
 

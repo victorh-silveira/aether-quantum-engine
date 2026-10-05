@@ -1,6 +1,7 @@
 """Anexa metricas dinamicas e de squeeze ao entry DL."""
 
 from src.application.services.deep_learning.dl_congestion import series_last as _series_last
+from src.application.services.deep_learning.dl_training_loss import aux_regression_weight
 from src.application.services.execution_volatility_bb import squeeze_extreme_regime
 from src.application.services.execution_volatility_threshold import DynamicThresholds
 
@@ -65,6 +66,8 @@ def attach_dynamic_metrics(
         metrics["calibrated_entropy"] = float(runtime_entropy)
     if runtime.get("entropy_violation") is not None:
         metrics["entropy_violation"] = bool(runtime.get("entropy_violation"))
+    if aux_regression_weight() <= 0.0:
+        return
     model_obj = runtime.get("model")
     delta = runtime.get("last_predicted_delta")
     if delta is None:

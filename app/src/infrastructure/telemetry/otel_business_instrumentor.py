@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+import math
 
 
 logger = logging.getLogger("AETH")
@@ -32,6 +33,7 @@ class BusinessMetricsInstrumentor:
         self._recent_probs: list[float] = []
         self._recent_outcomes: list[int] = []
         self._contract_counts: dict[tuple[str, str, str], int] = {}
+        self._contract_predictions: dict[int, float] = {}
         self._gate_verdicts: dict[tuple[str, str, str], int] = {}
         self._radar: dict[str, dict[str, float | None]] = {}
 
@@ -103,14 +105,22 @@ class BusinessMetricsInstrumentor:
     ) -> None:
         """Armazena snapshot inferencial e de risco do ultimo ciclo para o radar Grafana."""
         if metrics is not None:
-            prob = float(metrics.get("prob", prob))
+            prob = float(metrics.get("raw_prob", metrics.get("prob", prob)))
             cal_raw = metrics.get("calibrated_prob", metrics.get("cal"))
             cal = float(cal_raw) if cal_raw is not None else None
-            margin = float(metrics.get("directional_margin", metrics.get("margin", margin)))
-            edge_raw = metrics.get("predicted_payoff_edge", metrics.get("payoff_edge", metrics.get("edge")))
+            margin = float(
+                metrics.get("directional_margin", metrics.get("margin", abs(cal - 0.5) if cal is not None else margin))
+            )
+            edge_raw = metrics.get(
+                "quote_edge",
+                metrics.get(
+                    "cal_side_edge",
+                    metrics.get("predicted_payoff_edge", metrics.get("payoff_edge", metrics.get("edge"))),
+                ),
+            )
             edge = float(edge_raw) if edge_raw is not None else None
             conviction = float(metrics.get("conviction", conviction))
-            p_loss = float(metrics.get("p_loss", p_loss))
+            p_loss = float(metrics.get("loss_clf_p_loss", metrics.get("p_loss", p_loss)))
             p_eff_raw = metrics.get("loss_clf_p_eff", metrics.get("p_eff"))
             p_eff = float(p_eff_raw) if p_eff_raw is not None else None
             is_flip = bool(metrics.get("loss_clf_flip", metrics.get("is_flip", is_flip)))
@@ -136,6 +146,12 @@ class BusinessMetricsInstrumentor:
             "stake_usd": float(stake_usd),
         }
 
+    def track_contract_probability(self, contract_id: int, probability: float) -> None:
+        """Associa P(WIN) do lado comprado ao contrato confirmado."""
+        value = float(probability)
+        if math.isfinite(value) and 0.0 <= value <= 1.0:
+            self._contract_predictions[int(contract_id)] = value
+
     def record_trade(
         self,
         symbol: str = "1HZ75V",
@@ -145,8 +161,9 @@ class BusinessMetricsInstrumentor:
         won: bool | None = None,
         profit_usd: float | None = None,
         profit: float | None = None,
-        predicted_prob: float = 0.5,
+        predicted_prob: float | None = None,
         stake: float = 0.0,
+        contract_id: int | None = None,
     ) -> None:
         """Registra liquidacao contratual atualizando PnL e Brier Score de negocio."""
         _ = stake
@@ -161,16 +178,19 @@ class BusinessMetricsInstrumentor:
         self._total_pnl += pnl
         self.update_balance(self._current_balance + pnl)
 
-        self._recent_probs.append(max(0.0, min(1.0, float(predicted_prob))))
-        self._recent_outcomes.append(1 if win else 0)
-        if len(self._recent_outcomes) > 20:
-            self._recent_probs.pop(0)
-            self._recent_outcomes.pop(0)
+        tracked = self._contract_predictions.pop(int(contract_id), None) if contract_id is not None else None
+        sample = predicted_prob if predicted_prob is not None else tracked
+        if sample is not None and math.isfinite(float(sample)) and 0.0 <= float(sample) <= 1.0:
+            self._recent_probs.append(float(sample))
+            self._recent_outcomes.append(1 if win else 0)
+            if len(self._recent_outcomes) > 20:
+                self._recent_probs.pop(0)
+                self._recent_outcomes.pop(0)
 
-    def compute_rolling_brier_score(self) -> float:
+    def compute_rolling_brier_score(self) -> float | None:
         """Calcula o Brier Score de calibracao sobre os ultimos 20 contratos."""
         if not self._recent_outcomes:
-            return 0.0
+            return None
         sq_errors = [(p - y) ** 2 for p, y in zip(self._recent_probs, self._recent_outcomes, strict=False)]
         return float(sum(sq_errors) / len(sq_errors))
 
@@ -191,8 +211,11 @@ class BusinessMetricsInstrumentor:
             f"aether_trading_balance_usd {round(self._current_balance, 2)}",
             f"aether_trading_pnl_usd {round(self._total_pnl, 4)}",
             f"aether_trading_max_drawdown_pct {round(self._max_drawdown_pct, 2)}",
-            f"aether_trading_brier_score {round(self.compute_rolling_brier_score(), 4)}",
         ]
+        brier = self.compute_rolling_brier_score()
+        if brier is not None:
+            lines.append(f"aether_trading_brier_score {round(brier, 4)}")
+            lines.append(f"aether_trading_brier_samples {len(self._recent_outcomes)}")
         if self._session_start_balance > 0.0 and self._session_target_win > 0.0:
             lines.extend(
                 (

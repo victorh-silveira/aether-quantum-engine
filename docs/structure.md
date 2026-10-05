@@ -215,7 +215,7 @@ presentation  →  application  →  domain
 | `dl_calibration_fit.py` | Ajuste de calibradores no holdout |
 | `dl_calibration_variance.py` | Guarda std calibrado vs raw → identity |
 | `dl_calibration_isotonic.py` | Regressão isotônica (PAV) |
-| `dl_calibration_tolerance.py` | Ramo `raw_extreme` quando raw extremo; lado live vs 0.5; banda so telemetria |
+| `dl_calibration_tolerance.py` | Lado live pela Cal final vs 0.5; `raw_extreme` e banda so telemetria |
 | `dl_congestion.py` | Metricas de congestao de mercado |
 | `dl_cycle_brief.py` | Linhas curtas do ciclo DL |
 | `dl_cycle_log.py` | Logs compactos do ciclo DL |
