@@ -1,3 +1,16 @@
+## [4.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.0.0...v4.1.0) (2026-10-05)
+
+### Funcionalidades
+
+* **all:** ajusta protecoes e observabilidade M5 ([a99b39b](https://github.com/victorh-silveira/aether-quantum-engine/commit/a99b39bfb2a0544d05da14b7acd609c18450e895))
+* **all:** consolida treino M5 e auditoria operacional ([cf98f8a](https://github.com/victorh-silveira/aether-quantum-engine/commit/cf98f8a4e96fdbd35d93732140adea96aa93247a))
+* **domain:** moderniza governanca de deploy do checkpoint dl e risco ([e59ba6a](https://github.com/victorh-silveira/aether-quantum-engine/commit/e59ba6a494c7381c2195c2df105d9a6afe1bba9f))
+
+### Correcoes de Bug
+
+* **all:** alinha direcao TCN e auditoria dos contratos M5 ([7edc76e](https://github.com/victorh-silveira/aether-quantum-engine/commit/7edc76e98cbb504f21921fc78d96c15eb7e18816))
+* **test:** corrige mock CUDA de Windows no runner Linux ([98cbd27](https://github.com/victorh-silveira/aether-quantum-engine/commit/98cbd27b77ff70f987bed2f17f0e0f70418d5b42))
+
 ## [4.0.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v3.1.0...v4.0.0) (2026-10-03)
 
 ### ⚠ BREAKING CHANGES
