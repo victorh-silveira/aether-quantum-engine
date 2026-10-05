@@ -114,7 +114,7 @@ def test_ensure_windows_cuda_dlls_win32():
         patch("sys.platform", "win32"),
         patch.dict("os.environ", {"CUDA_PATH": "C:\\cuda"}),
         patch("pathlib.Path.is_dir", return_value=True),
-        patch("os.add_dll_directory") as mock_add_dll,
+        patch("os.add_dll_directory", create=True) as mock_add_dll,
     ):
         dl_device._ensure_windows_cuda_dlls()
         assert mock_add_dll.call_count >= 1
@@ -124,6 +124,6 @@ def test_ensure_windows_cuda_dlls_win32_os_error_suppressed():
     with (
         patch("sys.platform", "win32"),
         patch("pathlib.Path.is_dir", return_value=True),
-        patch("os.add_dll_directory", side_effect=OSError("invalid path")),
+        patch("os.add_dll_directory", side_effect=OSError("invalid path"), create=True),
     ):
         dl_device._ensure_windows_cuda_dlls()
