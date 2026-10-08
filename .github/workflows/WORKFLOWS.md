@@ -1,5 +1,7 @@
 # CI/CD das duas branches
 
+Workflow desta branch: [ci.yml](ci.yml).
+
 A `main` conserva o motor anterior e seu pipeline original: Python, Docker, Shell,
 Rust, workflows, release semântico e resumo. Push e PR destinados à `main`
 executam esse pipeline.

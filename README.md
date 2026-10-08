@@ -29,5 +29,6 @@ workflows e resumo), com comandos adaptados ao indicador. Valida push e PRs
 destinados à `codex/synthetic-indicator`. Push aprovado publica imagem de prévia
 no GHCR, sem release semântico ou deploy. A `main` mantém o motor e CI/CD
 anteriores.
+Os detalhes do pipeline estão em [WORKFLOWS.md](.github/workflows/WORKFLOWS.md).
 
 `make infra-up` inicia o indicador junto com a stack. O treino é offline; os modelos exportados ficam visíveis ao serviço pelo volume local e são carregados no ciclo seguinte. `python run.py` serve apenas ao desenvolvimento quando o serviço Compose estiver parado.
