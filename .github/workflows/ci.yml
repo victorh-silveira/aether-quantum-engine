@@ -175,8 +175,8 @@ jobs:
             echo ''
             if [ "$IMAGEM_RESULTADO" = 'success' ]; then
               echo 'Resultado: imagem publicada com sucesso.'
-              printf 'Imagem: `%s`\n' "$IMAGEM_TAG"
-              printf 'Identificador: `%s`\n' "$IMAGEM_DIGEST"
+              printf 'Imagem: %s\n' "$IMAGEM_TAG"
+              printf 'Identificador: %s\n' "$IMAGEM_DIGEST"
             else
               echo 'Resultado: imagem não publicada.'
               echo 'Consulte as etapas anteriores para identificar a falha.'
@@ -223,7 +223,7 @@ jobs:
             echo "| Publicação | $(traduzir "$RESULTADO_PUBLICACAO") |"
             echo ''
             if [ "$IMAGEM_PUBLICADA" = 'true' ]; then
-              printf 'Imagem de prévia publicada: `%s`\n' "$IMAGEM_TAG"
+              printf 'Imagem de prévia publicada: %s\n' "$IMAGEM_TAG"
             else
               echo 'Nenhuma imagem de prévia foi publicada neste envio.'
             fi
