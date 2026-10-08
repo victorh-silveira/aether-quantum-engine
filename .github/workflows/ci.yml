@@ -270,7 +270,7 @@ jobs:
             echo ''
             if [ "$VERSAO_PUBLICADA" = 'true' ]; then
               echo 'Resultado: nova versão publicada.'
-              printf 'Versão: `%s`\n' "$VERSAO_TAG"
+              printf 'Versão: %s\n' "$VERSAO_TAG"
             else
               echo 'Resultado: nenhuma versão nova foi publicada.'
             fi

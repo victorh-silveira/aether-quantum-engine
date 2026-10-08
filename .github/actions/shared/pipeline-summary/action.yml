@@ -56,7 +56,7 @@ runs:
           echo "| Publicação | $(traduzir "$RESULTADO_PUBLICACAO") |"
           echo ""
           if [ "$VERSAO_PUBLICADA" = "true" ]; then
-            printf 'Versão publicada: `%s`\n' "$VERSAO_TAG"
+            printf 'Versão publicada: %s\n' "$VERSAO_TAG"
           else
             echo "Nenhuma versão nova foi publicada neste envio."
           fi
