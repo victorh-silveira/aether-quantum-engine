@@ -1,0 +1,19 @@
+---
+description: Orquestrador Aether — ciclo M5, locks, warmup, pos-settlement
+globs: app/src/application/services/orchestrator/**/*.py
+alwaysApply: true
+---
+
+# Orchestrator
+
+- **Símbolo Único**: `1HZ75V` (Volatility 75 (1s) Index Deriv).
+- **Timeframes**: Micro/MINI em **300 s** (5m, **25000** barras de treino); Macro em **86400 s** (D1 com 365 barras de histórico). Lookback TCN: **32**.
+- **Contrato**: Duração fixa de **5 minutos** (`duration=5`, `duration_unit="m"`); Label TCN **SSOT atual N=1 vela M5**.
+- Pipeline: warmup → train gate → collect → resolve → execute → settle → post_settlement
+- Lock serializa inferencia, liquidacao e persistencia — nao bypassar
+- `mandatory_trade_each_cycle` **false**; `force_trade_every_cycle` **false**; `invert_exec_side` **false**; `skip_exec_vs_candle` / `skip_scale_candle_discord` / `skip_neg_edge` / `skip_doji` **false**; `skip_below_soft_min_acc` **false**; `online_training` **false**
+- EXEC_EMPTY pode ser processo correto; stop-win **4.31%** (Kelly Single-Strike) → `EXEC_PAUSE` (nao forcar trade)
+- Não há cooldown ou pausa de sessão pós-LOSS. A fronteira M5 continua obrigatória por integridade do contrato.
+- Watchdog: `watchdog_stale_tick_seconds` **300**; respeitar stale e cadência técnica.
+- Pos-settlement wait **90 s**; tolerancia settle **600 s**; timeout ciclo pos-settle **1200 s**
+- Doc: `docs/engineering-orchestrator.md`; skill: `aether-cycle-debug`

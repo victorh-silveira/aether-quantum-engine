@@ -1,0 +1,19 @@
+---
+description: Runtime CPython 3.13 Aether — GIL, asyncio, offload, domain puro
+alwaysApply: true
+---
+
+# Runtime CPython 3.13
+
+- Host: **CPython 3.13.12** + WSL + Conda `deriv-api`; build **com GIL** (free-threaded só doc, nunca produção)
+- Memória: refcnt/`PyObject`; PyMalloc ≤512B + arenas; GC Gen0–2 é Stop-the-World — reduzir churn no hot path
+- Tier 1 specializing + Tier 2 uops/JIT: call sites monomórficos em handlers quentes (WS/gates/settle)
+- asyncio: epoll; sync >1–2 ms no loop = starvation; `TaskGroup` + `CancelledError`; `shield` em Redis/broker crítico; ContextVars não atravessam `to_thread` sozinhas
+- Offload: PyTorch/Polars/NumPy pesado via `asyncio.to_thread` / executor; TCN: `predict_symbol_decision_async` → `to_thread(eager_local_predict)`
+- Typing: Protocols/ports, ParamSpec, type params 3.12+; preferir descriptors/`__init_subclass__` a metaclasses
+- Buffers: PEP 688 / `memoryview` / zero-copy na borda Arrow↔NumPy↔torch
+- Profile: **py-spy/austin** + tracemalloc; não cProfile no live asyncio
+- DataFrame: **Polars** lazy/Arrow; **pandas proibido**; DF não é objeto de domínio
+- Bordas: asyncpg prepared/COPY; Redis+hiredis; ZSET `settlement:queue:priority` (nunca Streams sem mandato); Torch `inference_mode` + pinned memory; `torch.compile` opt-in offline
+- Domain puro: sem asyncio/torch/polars/httpx/drivers
+- Doc: `docs/engineering-python-313-runtime.md`; skills: `aether-python-313-runtime`, `aether-asyncio-supervisor`, `aether-polars-arrow`, `aether-torch-cuda-infer`, `aether-asyncpg-timescale`, `aether-redis-hiredis`

@@ -1,0 +1,292 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.application.services.deep_learning.dl_predict_build import prepare_meta_classifier_cross_symbol_bundle
+from src.application.services.execution_direction_resolver import resolve_execution_direction
+from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
+from src.application.services.meta_classifier_features import (
+    META_FEATURE_DIM,
+    cross_symbol_conviction_spread,
+    extract_meta_feature_vector,
+    side_payoff_from_probability,
+)
+from src.application.services.meta_classifier_stacking import (
+    apply_meta_regression_edge_to_metrics,
+    prefetch_meta_payoff_for_decisions,
+    resolve_meta_payoff_edge,
+)
+from src.domain.models.trade import TradeDirection
+
+
+def _stamp_negative_zscore(metrics: dict, z_score: float = -0.77) -> None:
+    metrics["meta_payoff_edge_zscore"] = z_score
+    metrics["edge_zscore"] = z_score
+
+
+def _metrics_with_cross() -> dict:
+    base = [0.1] * 14
+    cross = {"micro_price_velocity": 0.21, "micro_tick_count_norm": 0.08, "implied_vol_centered": 0.12}
+    flow = {"micro_tick_acceleration": 0.04, "keltner_deviation_ratio": -0.11}
+    return {
+        "calibrated_prob": 0.62,
+        "feature_vector": base,
+        "cross_symbol_features": cross,
+        "flow_features": flow,
+        "meta_feature_vector": base + [0.21, 0.08, 0.12, 0.04, -0.11],
+    }
+
+
+def test_extract_meta_feature_vector_expanded_with_cross_symbol():
+    vector = extract_meta_feature_vector(_metrics_with_cross())
+    assert len(vector) == META_FEATURE_DIM
+    assert vector[-5:] == pytest.approx([0.21, 0.08, 0.12, 0.04, -0.11])
+
+
+def test_cross_symbol_conviction_spread_reads_attached_triplet():
+    metrics = _metrics_with_cross()
+    assert cross_symbol_conviction_spread(metrics) == pytest.approx(0.21)
+
+
+def test_cross_symbol_conviction_spread_defaults_without_triplet():
+    assert cross_symbol_conviction_spread({}) == 0.0
+
+
+def test_side_payoff_from_probability_put():
+    assert side_payoff_from_probability(0.62, "PUT") == pytest.approx(0.38)
+
+
+def test_parallel_drift_regime_exposes_low_relative_conviction_spread():
+    decisions = {
+        "R_10": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "calibrated_prob": 0.62,
+                "micro_indicators": {"rsi": 58.0, "vol_ratio": 1.05},
+                "feature_vector": [0.1] * 14,
+            },
+        },
+    }
+    attach_cross_symbol_features_to_decisions(decisions)
+    spread = cross_symbol_conviction_spread(decisions["R_10"]["metrics"])
+    assert spread == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_prefetch_meta_payoff_for_decisions_with_cross_symbol_payload():
+    decisions = {
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
+    }
+    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        client = MagicMock()
+        client.predict_meta_batch = AsyncMock(
+            return_value=[
+                {"predicted_payoff_edge": 0.12, "meta_applied": True},
+            ]
+        )
+        get_client.return_value = client
+        await prefetch_meta_payoff_for_decisions(decisions, cfg)
+    metrics = decisions["R_10"]["metrics"]
+    assert metrics["predicted_payoff_edge"] == pytest.approx(0.12)
+    assert metrics["trade_score"] == pytest.approx(0.62)
+
+
+@pytest.mark.asyncio
+async def test_prefetch_meta_payoff_fallback_omits_false_zero_edge():
+    decisions = {
+        "R_10": {"direction": TradeDirection.CALL, "metrics": _metrics_with_cross()},
+    }
+    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        client = MagicMock()
+        client.predict_meta_batch = AsyncMock(
+            return_value=[{"predicted_payoff_edge": None, "meta_applied": False, "edge_expectancy": "LOSS_EXPECTED"}]
+        )
+        get_client.return_value = client
+        await prefetch_meta_payoff_for_decisions(decisions, cfg)
+    metrics = decisions["R_10"]["metrics"]
+    assert "predicted_payoff_edge" not in metrics
+    assert metrics["meta_classifier_applied"] is False
+    assert "cross_symbol_features" in metrics
+    assert len(extract_meta_feature_vector(metrics)) == META_FEATURE_DIM
+    args = client.predict_meta_batch.await_args[0][0]
+    assert len(args[0][0]["feature_vector"]) == META_FEATURE_DIM
+
+
+@pytest.mark.asyncio
+async def test_prefetch_meta_payoff_attaches_cross_symbol_when_missing():
+    decisions = {
+        "R_10": {
+            "direction": TradeDirection.CALL,
+            "metrics": {
+                "calibrated_prob": 0.66,
+                "feature_vector": [0.1] * 14,
+                "micro_indicators": {"rsi": 60.0, "vol_ratio": 1.1},
+            },
+        },
+    }
+    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        client = MagicMock()
+        client.predict_meta_batch = AsyncMock(
+            return_value=[
+                {"predicted_payoff_edge": 0.11, "meta_applied": True},
+            ]
+        )
+        get_client.return_value = client
+        prepare_meta_classifier_cross_symbol_bundle(MagicMock(), decisions, {"micro_granularity": 300})
+        await prefetch_meta_payoff_for_decisions(decisions, cfg)
+    assert "cross_symbol_features" in decisions["R_10"]["metrics"]
+    assert decisions["R_10"]["metrics"]["cross_symbol_features"]["micro_price_velocity"] == pytest.approx(0.0)
+
+
+def test_prepare_meta_classifier_bundle_skips_invalid_entries():
+    decisions = {"BAD": "x", "EMPTY": {"metrics": "invalid"}}
+    prepare_meta_classifier_cross_symbol_bundle(MagicMock(), decisions, {"micro_granularity": 300})
+    assert decisions["BAD"] == "x"
+
+
+def test_apply_meta_regression_edge_to_metrics_put_side():
+    metrics = {}
+    score = apply_meta_regression_edge_to_metrics(
+        metrics,
+        direction=TradeDirection.PUT,
+        tcn_probability=0.35,
+        predicted_edge=0.14,
+        meta_applied=True,
+        base_score=0.65,
+    )
+    assert score == pytest.approx(0.65)
+    assert metrics["direction_put_score"] == pytest.approx(0.65)
+
+
+def test_apply_meta_regression_edge_to_metrics_omits_edge_when_not_applied():
+    metrics = {"predicted_payoff_edge": 0.22}
+    score = apply_meta_regression_edge_to_metrics(
+        metrics,
+        direction=TradeDirection.CALL,
+        tcn_probability=0.62,
+        predicted_edge=None,
+        meta_applied=False,
+        base_score=0.62,
+    )
+    assert score == pytest.approx(0.62)
+    assert "predicted_payoff_edge" not in metrics
+    assert metrics["meta_classifier_applied"] is False
+
+
+def test_resolve_meta_payoff_edge_uses_prefetched_value():
+    metrics = {"predicted_payoff_edge": 0.18, "meta_classifier_applied": True}
+    edge, applied = resolve_meta_payoff_edge(
+        symbol="R_10",
+        metrics=metrics,
+        direction=TradeDirection.CALL,
+        tcn_probability=0.62,
+        _base_score=0.62,
+        config={"infra": {"meta_classifier": {"enabled": True}}},
+    )
+    assert edge == pytest.approx(0.18)
+    assert applied is True
+
+
+def test_resolve_meta_payoff_edge_without_prefetch_returns_neutral():
+    metrics = _metrics_with_cross()
+    cfg = {"infra": {"meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"}}}
+    edge, applied = resolve_meta_payoff_edge(
+        symbol="R_10",
+        metrics=metrics,
+        direction=TradeDirection.CALL,
+        tcn_probability=0.62,
+        _base_score=0.62,
+        config=cfg,
+    )
+    assert edge == pytest.approx(0.0)
+    assert applied is False
+
+
+def test_resolve_meta_payoff_edge_without_prefetch_even_when_enabled():
+    metrics = _metrics_with_cross()
+    cfg = {"infra": {"meta_classifier": {"enabled": True}}}
+    edge, applied = resolve_meta_payoff_edge(
+        symbol="R_10",
+        metrics=metrics,
+        direction=TradeDirection.CALL,
+        tcn_probability=0.62,
+        _base_score=0.62,
+        config=cfg,
+    )
+    assert applied is False
+    assert edge == pytest.approx(0.0)
+
+
+@pytest.mark.asyncio
+async def test_prefetch_skips_invalid_entries_and_empty_batch():
+    cfg = {"infra": {"meta_classifier": {"enabled": True}}}
+    decisions = {
+        "BAD": "not-a-dict",
+        "NOMET": {"direction": TradeDirection.CALL},
+        "NODIR": {"metrics": {"calibrated_prob": 0.6}},
+        "NOPROB": {"direction": TradeDirection.CALL, "metrics": {}},
+    }
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        client = MagicMock()
+        client.predict_meta_batch = AsyncMock()
+        get_client.return_value = client
+        await prefetch_meta_payoff_for_decisions(decisions, cfg)
+    client.predict_meta_batch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_prefetch_disabled_returns_early():
+    cfg = {"infra": {"meta_classifier": {"enabled": False}}}
+    with patch(
+        "src.application.services.meta_classifier_stacking.get_meta_classifier_client",
+        new_callable=AsyncMock,
+    ) as get_client:
+        await prefetch_meta_payoff_for_decisions({}, cfg)
+    get_client.assert_not_called()
+
+
+def test_c0015_stacking_payload_allows_negative_edge_without_rejection(caplog):
+    entry = {
+        "direction": TradeDirection.CALL,
+        "metrics": {
+            "calibrated_prob": 0.70,
+            "predicted_payoff_edge": -0.22,
+            "meta_classifier_applied": True,
+            "edge_expectancy": "LOSS_EXPECTED",
+            "feature_vector": [0.1] * 14,
+            "indicators": {"bb_width": 0.03},
+            "flow_features": {"micro_tick_acceleration": -0.02, "keltner_deviation_ratio": -0.05},
+            "cross_symbol_features": {
+                "micro_price_velocity": 0.12,
+                "micro_tick_count_norm": 0.04,
+                "implied_vol_centered": 0.0,
+            },
+        },
+    }
+    with (
+        patch(
+            "src.application.services.execution_direction_resolver.attach_payoff_edge_zscore_metrics",
+            side_effect=lambda metrics, edge, **kwargs: _stamp_negative_zscore(metrics),
+        ),
+        caplog.at_level("INFO"),
+    ):
+        result = resolve_execution_direction(entry, symbol="R_10", exec_cfg={})
+    assert result is not None
+    assert result[1].get("execution_candidate_ready") is True
+    assert len(extract_meta_feature_vector(entry["metrics"])) == META_FEATURE_DIM
+    assert not any("[D-SQUEEZE]" in record.message for record in caplog.records)

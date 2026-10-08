@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+PY="$("$HERE/resolve_conda_python.sh")" || {
+  echo "Conda deriv-api nao encontrado. Rode: conda activate deriv-api" >&2
+  exit 1
+}
+exec "$PY" "$@"

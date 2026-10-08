@@ -1,0 +1,250 @@
+import urllib.error
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from src.application.services.orchestrator import Orchestrator
+from src.application.services.orchestrator.ws_bootstrap import (
+    setup_trading_session,
+    start_orchestrator_streams,
+    subscribe_account_transactions,
+)
+from src.infrastructure.api.deriv_rest_client import DerivRestError, DerivTradingSession
+
+
+def _patch_rest_balance(balance: float = 100.0, account_id: str = "DOT1"):
+    return patch(
+        "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+        AsyncMock(return_value=(account_id, balance)),
+    )
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_reconnect_skips_model_stress(orch_config):
+    orch = Orchestrator(orch_config)
+    orch._is_initial_boot = False
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=100.0,
+        account_id="DOT1",
+    )
+    with (
+        _patch_rest_balance(),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            new_callable=AsyncMock,
+        ) as bootstrap,
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+        bootstrap.assert_awaited_once_with(orch, is_initial_boot=False)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_preserves_session_on_reconnect(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.risk_manager.set_initial_bankroll(1126.82)
+    orch.risk_manager.daily_stop_win_target = 11.27
+    orch._session_targets_bootstrapped = True
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=1165.61,
+        account_id="DOT1",
+    )
+    with (
+        _patch_rest_balance(1165.61),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.restore_orchestrator_state",
+            AsyncMock(),
+        ),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_active_session_targets",
+            AsyncMock(),
+        ),
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+        assert orch.risk_manager.initial_bankroll == 1126.82
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_bootstraps_meta_classifier_when_enabled(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.config = {
+        **orch.config,
+        "infra": {
+            **(orch.config.get("infra") or {}),
+            "meta_classifier": {"enabled": True, "http_url": "http://localhost:8005"},
+        },
+    }
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=100.0,
+        account_id="DOT1",
+    )
+    with (
+        _patch_rest_balance(),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_meta_classifier_client",
+            new_callable=AsyncMock,
+        ) as bootstrap_meta,
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+    bootstrap_meta.assert_awaited_once_with(orch.config)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_success(orch_config):
+    orch = Orchestrator(orch_config)
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=100.0,
+        account_id="DOT1",
+    )
+    with (
+        _patch_rest_balance(),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+        assert orch.state.balance == 100.0
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_http_error(orch_config):
+    orch = Orchestrator(orch_config)
+    err = urllib.error.HTTPError(
+        url="http://localhost:8005/health",
+        code=404,
+        msg="Not Found",
+        hdrs=None,
+        fp=None,
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(side_effect=err),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("404" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_rest_error(orch_config):
+    orch = Orchestrator(orch_config)
+    with patch(
+        "src.application.services.orchestrator.ws_bootstrap._resolve_rest_account_balance",
+        AsyncMock(side_effect=DerivRestError("fail")),
+    ):
+        assert await setup_trading_session(orch) is False
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_torchscript_sanity_failure(orch_config):
+    orch = Orchestrator(orch_config)
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
+            AsyncMock(side_effect=RuntimeError("bad ts")),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("sanity TorchScript" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_unexpected_error(orch_config):
+    orch = Orchestrator(orch_config)
+    with (
+        patch(
+            "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
+            AsyncMock(side_effect=ValueError("unexpected")),
+        ),
+        patch.object(orch.logger, "error") as mock_error,
+    ):
+        assert await setup_trading_session(orch) is False
+    assert any("INIT: Erro no setup" in str(c) for c in mock_error.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_subscribe_account_transactions_success(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.ws.send = AsyncMock()
+    orch.ws.subscribe = MagicMock()
+    await subscribe_account_transactions(orch)
+    orch.ws.send.assert_awaited_once()
+    orch.ws.subscribe.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_setup_trading_session_closes_existing_ws(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.ws.ws = MagicMock()
+    orch.ws.close = AsyncMock()
+    session = DerivTradingSession(
+        ws_url="wss://api.derivws.com/trading/v1/options/ws/demo?otp=x",
+        balance=50.0,
+        account_id="DOT1",
+    )
+    with (
+        _patch_rest_balance(50.0),
+        patch.object(orch.auth, "open_trading_session", AsyncMock(return_value=session)),
+    ):
+        orch.ws.connect = AsyncMock()
+        orch.ws.send = AsyncMock()
+        orch.ws.subscribe = MagicMock()
+        assert await setup_trading_session(orch) is True
+        orch.ws.close.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_start_orchestrator_streams_success(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.stream.start_candle_stream = AsyncMock()
+    orch.ws.is_running = True
+    assert await start_orchestrator_streams(orch) is True
+
+
+@pytest.mark.asyncio
+async def test_start_orchestrator_streams_retries_then_fails(orch_config):
+    orch = Orchestrator(orch_config)
+    orch.ws.is_running = False
+    orch.ws.connect = AsyncMock()
+    orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("x"), ConnectionError("y")])
+    assert await start_orchestrator_streams(orch) is False
+
+
+@pytest.mark.asyncio
+async def test_start_orchestrator_streams_train_reconnects_public(orch_config_train):
+    orch = Orchestrator(orch_config_train)
+    orch.ws.is_running = False
+    orch.stream.start_candle_stream = AsyncMock(side_effect=[ConnectionError("x"), None])
+    with patch(
+        "src.application.services.orchestrator.ws_bootstrap.open_public_market_handshake",
+        new_callable=AsyncMock,
+    ) as mock_public:
+        assert await start_orchestrator_streams(orch) is True
+    mock_public.assert_awaited_once()

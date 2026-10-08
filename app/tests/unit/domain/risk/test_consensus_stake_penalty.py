@@ -1,0 +1,386 @@
+import pytest
+
+from src.domain.risk.consensus_stake_penalty import (
+    _recovery_waives_consensus_penalty,
+    _soft_size_cycle_edge,
+    apply_neutral_edge_kelly_base,
+    apply_turbo_edge_stake,
+    consensus_kelly_retention,
+    d_squeeze_sovereignty_active,
+    enforce_d_squeeze_stake_floor,
+    neutral_edge_dynamic_unit,
+    turbo_edge_stake_multiplier,
+)
+
+
+_CFG = {
+    "consensus_penalty_enabled": True,
+    "consensus_max_cut": 0.50,
+    "consensus_di_weight": 0.30,
+    "consensus_cmo_weight": 0.30,
+    "consensus_rsi_weight": 0.25,
+    "consensus_entropy_exponent": 2.0,
+}
+
+
+def test_c0011_like_divergence_reduces_retention():
+    metrics = {
+        "call_votes": 1,
+        "put_votes": 5,
+        "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
+    }
+    retention = consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG)
+    assert 0.50 <= retention < 1.0
+
+
+def test_convex_penalty_stronger_on_lopsided_votes():
+    mild = {
+        "call_votes": 2,
+        "put_votes": 4,
+        "indicators": {"di_diff": 0.02, "cmo": -0.15, "rsi": 0.40},
+    }
+    severe = {
+        "call_votes": 1,
+        "put_votes": 5,
+        "indicators": {"di_diff": 0.02, "cmo": -0.15, "rsi": 0.40},
+    }
+    mild_ret = consensus_kelly_retention(mild, "CALL", kelly_config=_CFG)
+    severe_ret = consensus_kelly_retention(severe, "CALL", kelly_config=_CFG)
+    assert severe_ret < mild_ret
+
+
+def test_aligned_direction_full_retention():
+    metrics = {
+        "call_votes": 0,
+        "put_votes": 6,
+        "indicators": {"di_diff": -0.06, "cmo": -0.71},
+    }
+    assert consensus_kelly_retention(metrics, "PUT", kelly_config=_CFG) == 1.0
+
+
+def test_tied_votes_no_penalty():
+    metrics = {"call_votes": 3, "put_votes": 3, "indicators": {"cmo": -0.5}}
+    assert consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG) == 1.0
+
+
+def test_disabled_flag():
+    metrics = {"call_votes": 1, "put_votes": 5, "indicators": {"cmo": -0.5}}
+    disabled = {"consensus_penalty_enabled": False}
+    assert consensus_kelly_retention(metrics, "CALL", kelly_config=disabled) == 1.0
+
+
+def test_call_majority_put_order_penalizes_positive_cmo():
+    metrics = {
+        "call_votes": 6,
+        "put_votes": 1,
+        "indicators": {"di_diff": 0.12, "cmo": 0.25},
+    }
+    retention = consensus_kelly_retention(metrics, "PUT", kelly_config=_CFG)
+    assert 0.50 <= retention < 1.0
+
+
+def test_consecutive_losses_waives_consensus_penalty_at_high_trade_score():
+    metrics = {
+        "call_votes": 1,
+        "put_votes": 5,
+        "trade_score": 0.75,
+        "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
+    }
+    retention = consensus_kelly_retention(
+        metrics,
+        "CALL",
+        kelly_config=_CFG,
+        consecutive_losses=2,
+        pending_loss_total=0.0,
+    )
+    assert retention == 1.0
+
+
+def test_recovery_waive_helper_skips_when_not_in_recovery():
+    assert (
+        _recovery_waives_consensus_penalty(
+            {"trade_score": 0.90},
+            _CFG,
+            consecutive_losses=0,
+            pending_loss_total=0.0,
+            order_direction="CALL",
+        )
+        is False
+    )
+
+
+def test_recovery_waiver_revoked_when_d_squeeze_sovereignty_active():
+    metrics = {
+        "trade_score": 0.52,
+        "meta_squeeze_downgrade": True,
+        "call_votes": 0,
+        "put_votes": 6,
+    }
+    assert d_squeeze_sovereignty_active(metrics) is True
+    assert (
+        _recovery_waives_consensus_penalty(
+            metrics,
+            _CFG,
+            consecutive_losses=3,
+            pending_loss_total=335.52,
+            order_direction="PUT",
+        )
+        is False
+    )
+
+
+def test_unanimous_votes_waives_consensus_penalty_in_recovery():
+    metrics = {
+        "call_votes": 0,
+        "put_votes": 6,
+        "trade_score": 0.55,
+        "indicators": {"di_diff": -0.06, "cmo": -0.71, "rsi": 0.36},
+    }
+    retention = consensus_kelly_retention(
+        metrics,
+        "PUT",
+        kelly_config=_CFG,
+        consecutive_losses=0,
+        pending_loss_total=653.12,
+    )
+    assert retention == 1.0
+    assert metrics.get("consensus_penalty_recovery_waived") is True
+
+
+def test_recovery_trade_score_waiver_at_sixty_eight():
+    metrics = {
+        "call_votes": 1,
+        "put_votes": 5,
+        "trade_score": 0.70,
+        "indicators": {"di_diff": 0.01, "cmo": -0.18, "rsi": 0.36},
+    }
+    retention = consensus_kelly_retention(
+        metrics,
+        "CALL",
+        kelly_config=_CFG,
+        consecutive_losses=1,
+        pending_loss_total=0.0,
+    )
+    assert retention == 1.0
+    assert metrics.get("consensus_penalty_recovery_waived") is True
+
+
+def test_invalid_order_direction_returns_one():
+    metrics = {"call_votes": 1, "put_votes": 5, "indicators": {"cmo": -0.5}}
+    assert consensus_kelly_retention(metrics, "HOLD", kelly_config=_CFG) == 1.0
+
+
+def test_d_squeeze_downgrade_forces_consensus_floor():
+    metrics = {"meta_squeeze_downgrade": True}
+    retention = consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG)
+    assert retention == pytest.approx(0.50)
+    assert metrics.get("consensus_penalty_d_squeeze") is True
+
+
+def test_consensus_stake_floor_forces_retention_floor():
+    metrics = {"consensus_stake_floor": True}
+    retention = consensus_kelly_retention(metrics, "PUT", kelly_config=_CFG)
+    assert retention == pytest.approx(0.50)
+    assert metrics.get("consensus_penalty_d_squeeze") is True
+
+
+def test_neutral_edge_dynamic_unit_at_11k_bankroll():
+    assert neutral_edge_dynamic_unit(11000.0) == pytest.approx(110.0)
+
+
+def test_neutral_regime_preserves_full_retention_without_zscore_penalty():
+    metrics = {"call_votes": 4, "put_votes": 2, "indicators": {}}
+    retention = consensus_kelly_retention(metrics, "CALL", kelly_config=_CFG)
+    assert retention == 1.0
+    assert metrics.get("consensus_penalty_edge_zscore") is not True
+
+
+def test_apply_neutral_edge_kelly_base_raises_to_bankroll_pct():
+    metrics = {}
+    base = apply_neutral_edge_kelly_base(2.0, 11000.0, metrics)
+    assert base == pytest.approx(110.0)
+    assert metrics["session_base_unit"] == pytest.approx(110.0)
+
+
+def test_apply_neutral_edge_kelly_base_preserves_higher_kelly():
+    metrics = {}
+    base = apply_neutral_edge_kelly_base(250.0, 11000.0, metrics)
+    assert base == pytest.approx(250.0)
+
+
+def test_apply_neutral_edge_kelly_base_skips_on_d_squeeze():
+    metrics = {"meta_squeeze_downgrade": True}
+    base = apply_neutral_edge_kelly_base(1.0, 11000.0, metrics)
+    assert base == pytest.approx(1.0)
+    assert "session_base_unit" not in metrics
+
+
+def test_turbo_edge_multiplier_doubles_on_extreme_zscore():
+    metrics = {"edge_zscore": 1.6, "live_n": 32, "live_brier": 0.15}
+    assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
+
+
+def test_turbo_edge_multiplier_inactive_below_threshold():
+    metrics = {"edge_zscore": 1.2, "live_n": 32, "live_brier": 0.15}
+    assert turbo_edge_stake_multiplier(metrics) == 1.0
+
+
+def test_turbo_edge_multiplier_active_without_expectancy_label():
+    metrics = {"edge_zscore": 2.0, "live_n": 40, "live_brier": 0.10}
+    assert turbo_edge_stake_multiplier(metrics) == pytest.approx(2.0)
+
+
+def test_turbo_edge_multiplier_skips_d_squeeze():
+    metrics = {
+        "edge_zscore": 2.0,
+        "live_n": 40,
+        "live_brier": 0.10,
+        "consensus_stake_floor": True,
+    }
+    assert turbo_edge_stake_multiplier(metrics) == 1.0
+
+
+def test_apply_turbo_edge_stake_doubles_final_stake():
+    metrics = {"edge_zscore": 1.8, "live_n": 32, "live_brier": 0.15}
+    stake = apply_turbo_edge_stake(20.0, metrics)
+    assert stake == pytest.approx(40.0)
+    assert metrics.get("consensus_turbo_edge_active") is True
+
+
+def test_apply_turbo_edge_stake_returns_unchanged_without_turbo():
+    metrics = {"edge_zscore": 0.9, "live_n": 32, "live_brier": 0.15}
+    stake = apply_turbo_edge_stake(20.0, metrics)
+    assert stake == pytest.approx(20.0)
+    assert metrics.get("consensus_turbo_edge_active") is not True
+
+
+def test_turbo_edge_multiplier_returns_one_for_non_dict():
+    assert turbo_edge_stake_multiplier(None) == 1.0
+
+
+def test_turbo_edge_multiplier_requires_live_health():
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 10}) == 1.0
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": 0.30}) == 1.0
+    assert turbo_edge_stake_multiplier({"edge_zscore": 2.0, "live_n": 32, "live_brier": object()}) == 1.0
+
+
+def test_d_squeeze_waives_stake_min_for_soft_size_edge():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "cal_side_edge": 0.132,
+    }
+    out = enforce_d_squeeze_stake_floor(234.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(234.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is not True
+
+
+def test_d_squeeze_waives_when_soft_size_floor_already_applied():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "loss_clf_soft": True,
+        "soft_size_stake_floor_applied": True,
+    }
+    out = enforce_d_squeeze_stake_floor(200.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(200.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+
+
+def test_d_squeeze_still_crushes_without_soft_size():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "ALLOW",
+        "cal_side_edge": 0.132,
+    }
+    out = enforce_d_squeeze_stake_floor(234.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is not True
+
+
+def test_d_squeeze_soft_size_subfloor_still_crushes():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "cal_side_edge": 0.010,
+    }
+    out = enforce_d_squeeze_stake_floor(50.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+
+
+def test_d_squeeze_soft_size_skips_bad_edge_keys():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+        "edge": object(),
+        "cal_side_edge": 0.20,
+    }
+    out = enforce_d_squeeze_stake_floor(100.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(100.0)
+    assert metrics.get("d_squeeze_floor_waived_for_soft_size") is True
+
+
+def test_d_squeeze_soft_size_without_edge_crushes():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "SOFT_SIZE",
+    }
+    out = enforce_d_squeeze_stake_floor(80.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(1.0)
+    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
+
+
+def test_d_squeeze_inactive_returns_stake():
+    metrics = {"gate_verdict": "ALLOW", "trade_score": 0.70}
+    out = enforce_d_squeeze_stake_floor(55.0, 1.0, metrics, pending_total=0.0)
+    assert out == pytest.approx(55.0)
+
+
+def test_d_squeeze_pending_waives_recovery():
+    metrics = {
+        "meta_squeeze_downgrade": True,
+        "trade_score": 0.52,
+        "gate_verdict": "ALLOW",
+    }
+    out = enforce_d_squeeze_stake_floor(120.0, 1.0, metrics, pending_total=10.0)
+    assert out == pytest.approx(120.0)
+    assert metrics.get("d_squeeze_floor_waived_for_recovery") is True
+
+
+def test_soft_size_cycle_edge_none_metrics():
+    assert _soft_size_cycle_edge(None) is None
+
+
+def test_apply_soft_recovery_stake_damps_under_near_stop_win():
+    from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
+
+    soft = {
+        "amort_cycles_min": 2,
+        "amort_cycles_max": 2,
+        "cover_enabled": True,
+        "cover_multiple": 1.0,
+        "material_pending_min": 0.5,
+        "near_stop_win_freeze_pct": 0.7,
+        "max_safe_stake_pct": 0.05,
+    }
+    stake = apply_soft_recovery_stake(
+        pending_total=85.0,
+        base_unit=50.0,
+        consecutive_losses=2,
+        previous_stake=100.0,
+        bankroll=10000.0,
+        payout=0.85,
+        soft_recovery=soft,
+        session_pnl=350.0,
+        target_win=417.0,
+    )
+    raw_cover = 85.0 / 0.85
+    assert stake < raw_cover

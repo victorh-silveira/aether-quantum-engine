@@ -1,0 +1,18 @@
+---
+description: Risco/sizing Aether — checkpoint limitado a 1%, Kelly, cover e stop-win 4.31%
+globs: app/src/domain/risk/**/*.py
+alwaysApply: true
+---
+
+# Risco e sizing
+
+- Soft recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1** — PEND material usa cover `min(max(PEND/payout, 1% banca), cap_L0)`; telemetria `recovery_cap_mode=cover_l0`; cap L0 de **3.5%** subordinado ao teto inicial soberano de **1% da banca por ordem** para checkpoint TCN local, tambem em `cover_l0`; caps L2 **3.0%** / L3+ **2.5%** so EXPLORE; `max_safe_stake_cap` **3.0**; com PEND material **nao** force-explore por `near_stop_win_freeze`; ledger WIN abate lucro real; **nao** `max(exponencial, cover)` revenge; Single-Strike bloqueado em SOFT_SIZE/recovery.
+- Preservar `max_safe_stake_cap` / `max_safe_stake_pct`; leverage mata (LTCM).
+- EXPLORE e RECOVER: piso operacional **1%** banca (`neutral_bankroll_pct` / `min_stake_pct` **0.01**) apos cover/caps (`enforce_min_stake_pct`; se CAP &lt; piso, fica no CAP). O teto do checkpoint TCN local prevalece sempre.
+- Stop-win composto **4.31%** (e piso $10) — `EXEC_PAUSE` técnico e encerramento de sessão automático; boost Kelly single-strike projetado para atingir 4.31% em tacada única M5 com payout ~85% ($\text{Stake} \approx 5.0\%$) **so se** `live_n >= 12` (`stop_win_kelly_live_n_min`) **e** conviction ≥ **0.58** (`stop_win_kelly_min_conviction`). Cold start usa Kelly × `explore_stake_scale` (piso **0.40**) + cap 3.5%.
+- Sem bloqueio temporal apos LOSS; anti-revenge sizing permanece por meio dos caps e da fórmula de risco.
+- Mudanca de ladder/conviction: hipotese + metrica (`live_n`); nao reagir a streak curta (Taleb); WR ≠ edge.
+- Sem stop loss nem teto acumulado de perda por politica; manter caps por ordem.
+- Testes obrigatorios ao tocar Kelly/recovery; pre-commit 100%.
+- Loss-clf: **FLIP** por `p_eff` >= **0.58** young / **0.70** mature (so apos auto_learn; exit live **2**; `n_train >= flip_min_n_train` **1**; sem `candle_holds`); **sem HARD SKIP**, **sem Soft Kelly** do loss-clf. Edge TCN e estimativa previa; a proposta final exige EV positivo e margem com payout cotado.
+- META participa do contexto de decisao, sem Soft Kelly ativo no caminho operacional atual.

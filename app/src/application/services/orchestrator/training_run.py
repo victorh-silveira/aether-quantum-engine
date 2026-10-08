@@ -1,0 +1,34 @@
+"""Sessao dedicada de treino DL acionada por train.py."""
+
+from src.application.services.deep_learning.dl_bootstrap_train import run_dl_training_session
+from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
+from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
+
+
+async def run_orchestrator_training(orch) -> bool:
+    """Conecta, sincroniza velas, treina modelos DL e encerra a sessao."""
+    orch.logger.info("INIT: Treino DL | conectando Deriv (WSS publico / sem OTP)")
+    if not await orch._setup_session():
+        orch.logger.error("INIT: Abortando treino (falha em infra, REST ou WebSocket publico).")
+        return False
+    fetch_count, _ = resolve_startup_fetch_bars(orch.config, orch.symbols)
+    orch.logger.info(
+        "INIT: Treino DL | sincronizando %d simbolos | alvo %d velas",
+        len(orch.symbols),
+        fetch_count,
+    )
+    if not await orch._start_streams():
+        orch.logger.error("INIT: Abortando treino (falha ao sincronizar velas OHLC).")
+        return False
+    emit_decision_engine_banner(orch.logger, orch.config, decision_mode=orch._decision_mode())
+    session_ok = True
+    if orch._decision_mode() == "deep_learning":
+        session_ok = await run_dl_training_session(orch)
+        orch._dl_bootstrap_completed = bool(session_ok)
+    await orch._save_full_state()
+    if session_ok:
+        orch.logger.info("DL | sessao de treino finalizada")
+    else:
+        orch.logger.error("DL | sessao de treino FALHOU — sem checkpoint exportado para meta")
+    await orch.stop()
+    return bool(session_ok)

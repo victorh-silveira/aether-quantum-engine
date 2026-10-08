@@ -1,0 +1,29 @@
+---
+description: Indice de Volatilidade 75 (1s) (1HZ75V) — Sinteticos Deriv 24/7, dinamica de microestrutura e volatilidade continua
+globs: app/src/**/*.py
+alwaysApply: true
+---
+
+# Volatility 75 (1s) Index Rules (`1HZ75V`)
+
+- **Ativo Central**: `1HZ75V` (Volatility 75 (1s) Index / Deriv).
+- **Timeframes**: Operacional em **M5** (`300 s`, **25000** barras de treino); Treinamento em diário **D1** (`86400 s`, 365 barras de histórico). Lookback: **32**.
+- **Duração do Contrato**: **5 minutos** fixos (`params.duration = 5`, `params.duration_unit = "m"`).
+
+## Particularidades do Índice de Volatilidade 75 (1s)
+
+1. **Mercado Sintético Contínuo 24/7**:
+   - Operação ininterrupta sem fechamento de mercado ou gaps de fim de semana.
+   - Geração determinística de volatilidade com tick constante de 1 segundo.
+2. **Volatilidade e Momentum**:
+   - O ativo simula volatilidade constante com alta velocidade de reversão e tendência fractal.
+   - O indicador `supertrend_atr` e as médias móveis `EMA9/21` em 5m capturam a tendência genuína de fluxo.
+   - Anti-loss vivo = **FLIP** do loss-classifier se `p_eff` >= **0.58** young / **0.70** mature (so apos auto_learn; exit live **2**; `n_train>=1`); shrink N; tape so telemetria; sem HARD SKIP/Soft Kelly do loss-clf.
+3. **Payout e Breakeven**:
+ - Payout médio da Deriv no `1HZ75V`: **85%** (`0.85`) a **95%**.
+ - Breakeven estatístico: $p_{\text{be}} = \frac{1}{1 + 0.85} \approx 0.54054 \implies 54.1\%$.
+ - Toda compra deve comprovar EV positivo e margem de 0,01 com o payout liquido da proposta; payout de 0,85 e apenas referencia.
+4. **Dimensionamento Single-Strike**:
+ - Meta de **4.31% de Stop-Win** em uma tacada: $\text{Stake} = \frac{0.0431 \times \text{Banca}}{0.85} \approx 5,07\% \to \text{cap } 5,0\%$ da banca.
+
+- TCN ortogonal **14D** / meta **23D**; limiares **0.55/0.45**; `ema_50` **50**; gates vivos = tecnico + `loss_clf` FLIP no piso (sem `cal_soft_edge`).

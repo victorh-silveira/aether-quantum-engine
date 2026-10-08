@@ -1,0 +1,299 @@
+"""Lida com solicitações de propostas de trade e compra de contratos."""
+
+import logging
+import math
+import time
+from typing import Any
+
+from src.domain.models.trade import Contract, TradeDirection, TradeStatus
+from src.domain.risk.payout_observation import contract_profit_rate
+from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
+from src.infrastructure.handlers.trade_handler_quote_guard import validate_quote_guard_params
+from src.infrastructure.market.contract_audit import open_audit_row
+
+
+class TradeHandler:
+    """Gerencia o ciclo de vida das operações de trading, incluindo propostas e execução.
+
+    Comunica-se com a API WebSocket para obter propostas de preços e executar
+    compras de opções binárias. Em fallback REST usa bulk-purchase (PAT).
+    """
+
+    def __init__(self, ws_manager: WebSocketManager, config: dict, auth: Any | None = None, market_writer=None):
+        """Inicializa o manipulador com um gerenciador de conexão e configuração.
+
+        Args:
+            ws_manager (WebSocketManager): O gerenciador de conexão WebSocket.
+            config (dict): Configuração da API e estratégia.
+            auth: AuthManager opcional para compras REST (bulk-purchase).
+            market_writer: Captura Timescale opcional para auditoria de contratos.
+        """
+        self.ws = ws_manager
+        self.config = config
+        self.auth = auth
+        self.market_writer = market_writer
+        self.trading_transport = "ws"
+        self.deriv_account_id = ""
+        self.latest_payout_rate: float | None = None
+        self.logger = logging.getLogger("AETH")
+
+    def schedule_profit_table_audit(self, orch: Any, *, reason: str = "broker_unavailable") -> None:
+        """Agenda auditoria profit_table em background com backoff exponencial."""
+        schedule_profit_table_audit(orch, reason=reason)
+
+    async def fetch_proposal_payout(
+        self, symbol: str, direction: TradeDirection, stake: float = 1.0, params: dict | None = None
+    ) -> float | None:
+        """Consulta cotacao real de payout via proposal na API Deriv sem executar ordem."""
+        p_cfg = params if params is not None else self.config.get("risk_management", {}).get("params", {})
+        proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
+        timeout = int(self.ws.request_timeout)
+        try:
+            proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
+            if not isinstance(proposal_resp, dict) or "error" in proposal_resp:
+                return None
+            proposal = proposal_resp.get("proposal")
+            if not isinstance(proposal, dict):
+                return None
+            ask_price = float(proposal["ask_price"])
+            payout_val = float(proposal["payout"])
+            rate = contract_profit_rate(payout_val, ask_price)
+            if rate is not None:
+                self.latest_payout_rate = rate
+            return rate
+        except Exception:
+            return None
+
+    async def buy_with_parameters(
+        self, symbol: str, direction: TradeDirection, stake: float, params: dict | None = None
+    ) -> Contract:
+        """Compra um contrato via proposal/buy (WS) ou bulk-purchase (REST)."""
+        if str(self.trading_transport).lower() == "rest":
+            exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
+            if bool(exec_cfg.get("require_quote_edge", False)) or (
+                isinstance(params, dict) and "_quote_guard_side_probability" in params
+            ):
+                raise RuntimeError("Rise/Fall REST sem cotacao final verificavel; compra bloqueada")
+            return await self._buy_via_bulk_purchase(symbol, direction, stake, params)
+        return await self._buy_via_websocket(symbol, direction, stake, params)
+
+    async def _buy_via_websocket(
+        self, symbol: str, direction: TradeDirection, stake: float, params: dict | None
+    ) -> Contract:
+        """Compra um contrato via proposal e buy (API Deriv WebSocket autenticada)."""
+        p_cfg = params if params is not None else self.config["risk_management"]["params"]
+        exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
+        validate_quote_guard_params(p_cfg, exec_cfg)
+        proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
+        timeout = int(self.ws.request_timeout)
+        proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
+        if "error" in proposal_resp:
+            msg = proposal_resp["error"].get("message", "Erro desconhecido")
+            raise RuntimeError(f"Erro na proposta: {msg}")
+
+        proposal = proposal_resp.get("proposal")
+        if not isinstance(proposal, dict):
+            raise RuntimeError("Erro na proposta: resposta sem proposal")
+
+        prop_id = proposal.get("id")
+        if not prop_id:
+            raise RuntimeError("Erro na proposta: id ausente")
+
+        if "_quote_guard_side_probability" in p_cfg and (
+            proposal.get("ask_price") is None or proposal.get("payout") is None
+        ):
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout; compra bloqueada")
+
+        is_multiplier = str(p_cfg.get("contract_type", "")).upper() == "MULTIPLIER"
+        try:
+            raw_ask = proposal.get("ask_price")
+            ask_price = float(raw_ask if raw_ask is not None else stake)
+            raw_payout = proposal.get("payout")
+            payout_val = float(raw_payout) if raw_payout is not None else (0.0 if is_multiplier else None)
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada") from exc
+        if not math.isfinite(ask_price) or ask_price <= 0:
+            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+        rate: float | None = None
+        if payout_val is not None:
+            if not math.isfinite(payout_val) or payout_val < 0:
+                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+            if not is_multiplier and payout_val == 0 and "_quote_guard_side_probability" not in p_cfg:
+                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+            rate = contract_profit_rate(payout_val, ask_price)
+            if rate is not None:
+                self.latest_payout_rate = rate
+        min_payout = float(p_cfg.get("min_payout_rate") or 0.0)
+        if rate is not None and min_payout > 0.0 and rate + 1e-9 < min_payout:
+            raise RuntimeError(
+                f"Cotacao final Rise/Fall perdeu vantagem: payout_rate={rate:.4f} "
+                f"piso_payout={min_payout:.4f}; compra bloqueada"
+            )
+        if "_quote_guard_side_probability" in p_cfg:
+            p_side = float(p_cfg["_quote_guard_side_probability"])
+            min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))
+            margin = float(p_cfg.get("_quote_guard_safety_margin", 0.0) or 0.0)
+            if rate is None or rate <= 0.0:
+                raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem: payout liquido invalido; compra bloqueada")
+            quote_ev = p_side * (1.0 + rate) - 1.0
+            if quote_ev <= min_edge:
+                raise RuntimeError(
+                    f"Cotacao final Rise/Fall perdeu vantagem: quote_ev={quote_ev:+.4f} "
+                    f"min_edge={min_edge:+.4f} p_side={p_side:.4f} payout_rate={rate:.4f}; compra bloqueada"
+                )
+            if margin > 0.0 and p_side < (1.0 / (1.0 + rate) + margin):
+                raise RuntimeError(
+                    f"Cotacao final Rise/Fall perdeu margem de seguranca sobre break-even: "
+                    f"p_side={p_side:.4f} minimo={1.0 / (1.0 + rate) + margin:.4f} "
+                    f"payout_rate={rate:.4f}; compra bloqueada"
+                )
+
+        request_epoch_ms = time.time_ns() // 1_000_000
+        buy_resp = await self.ws.send({"buy": str(prop_id), "price": ask_price}, timeout=timeout)
+        ack_epoch_ms = time.time_ns() // 1_000_000
+        if "error" in buy_resp:
+            msg = buy_resp["error"].get("message", "Erro desconhecido")
+            raise RuntimeError(f"Erro na compra direta: {msg}")
+
+        b = buy_resp["buy"]
+        await self._record_purchase_audit(b, symbol, direction, request_epoch_ms, ack_epoch_ms)
+        expiry = int(proposal.get("date_expiry") or b.get("date_expiry") or 0)
+        if expiry <= 0:
+            expiry = int(time.time()) + _contract_duration_seconds(proposal_req)
+        return Contract(
+            contract_id=int(b["contract_id"]),
+            proposal_id=str(prop_id),
+            status=TradeStatus.OPEN,
+            buy_price=float(b.get("buy_price") or ask_price),
+            payout=float(b.get("payout") or proposal.get("payout") or 0.0),
+            symbol=symbol,
+            direction=direction,
+            stake=stake,
+            expiry_time=expiry,
+            longcode=str(b.get("longcode") or proposal.get("longcode") or ""),
+            entry_spot=b.get("entry_tick") or b.get("entry_spot"),
+            entry_time=b.get("entry_tick_time") or b.get("entry_spot_time"),
+        )
+
+    async def _buy_via_bulk_purchase(
+        self, symbol: str, direction: TradeDirection, stake: float, params: dict | None
+    ) -> Contract:
+        """Compra via REST bulk-purchase quando o WSS OTP esta indisponivel."""
+        if self.auth is None:
+            raise RuntimeError("Compra REST exige AuthManager")
+        p_cfg = params if params is not None else self.config["risk_management"]["params"]
+        proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
+        contract_parameters = {k: v for k, v in proposal_req.items() if k != "proposal"}
+        pat = self.auth.get_pat()
+        if not pat:
+            raise RuntimeError("AETHER_DERIV_PAT ausente para bulk-purchase")
+        account_id = str(self.deriv_account_id or self.auth.account_id_override or "").strip()
+        if not account_id:
+            raise RuntimeError("deriv_account_id ausente para bulk-purchase")
+        client = self.auth.rest_client()
+        request_epoch_ms = time.time_ns() // 1_000_000
+        tx = await client.bulk_purchase(
+            mode=str(self.auth.mode),
+            account_id=account_id,
+            pat_token=pat,
+            contract_parameters=contract_parameters,
+        )
+        ack_epoch_ms = time.time_ns() // 1_000_000
+        await self._record_purchase_audit(tx, symbol, direction, request_epoch_ms, ack_epoch_ms)
+        buy_price = float(tx.get("buy_price") or stake)
+        payout = float(tx.get("payout") or 0.0)
+        purchase_time = int(tx.get("purchase_time") or time.time())
+        start_time = int(tx.get("start_time") or purchase_time)
+        expiry = start_time + _contract_duration_seconds(proposal_req)
+        shortcode = str(tx.get("shortcode") or "")
+        return Contract(
+            contract_id=int(tx["contract_id"]),
+            proposal_id=str(tx.get("transaction_id") or tx["contract_id"]),
+            status=TradeStatus.OPEN,
+            buy_price=buy_price,
+            payout=payout,
+            symbol=symbol,
+            direction=direction,
+            stake=stake,
+            expiry_time=expiry,
+            longcode=shortcode,
+            entry_spot=tx.get("entry_tick") or tx.get("entry_spot"),
+            entry_time=tx.get("entry_tick_time") or tx.get("entry_spot_time"),
+        )
+
+    async def _record_purchase_audit(
+        self,
+        payload: dict,
+        symbol: str,
+        direction: TradeDirection,
+        request_ms: int,
+        ack_ms: int,
+    ) -> None:
+        """Auditoria nao pode transformar compra confirmada em erro/recompra."""
+        if self.market_writer is None:
+            return
+        try:
+            row = open_audit_row(
+                payload,
+                symbol=symbol,
+                mode=str(self.config.get("trading", {}).get("mode", "demo")),
+                direction=direction.value,
+                request_epoch_ms=request_ms,
+                ack_epoch_ms=ack_ms,
+            )
+            await self.market_writer.enqueue_contract_audit(row)
+        except Exception as exc:
+            self.logger.error("AUDIT: compra confirmada sem captura cid=%s erro=%s", payload.get("contract_id"), exc)
+
+
+def resolve_api_contract_type(direction: TradeDirection, p_cfg: dict[str, Any]) -> str:
+    """Mapeia direcao do motor para contract_type aceito na API Deriv."""
+    raw_type = str(p_cfg.get("contract_type") or "").upper()
+    if raw_type == "MULTIPLIER":
+        return "MULTUP" if direction == TradeDirection.CALL else "MULTDOWN"
+    return direction.value
+
+
+def build_proposal_request(
+    symbol: str, direction: TradeDirection, stake: float, p_cfg: dict[str, Any]
+) -> dict[str, Any]:
+    """Monta payload proposal com underlying_symbol (API Deriv atual)."""
+    is_multiplier = p_cfg.get("contract_type") == "MULTIPLIER"
+    request: dict[str, Any] = {
+        "proposal": 1,
+        "amount": round(float(stake), 2),
+        "basis": "stake",
+        "contract_type": resolve_api_contract_type(direction, p_cfg),
+        "currency": "USD",
+        "underlying_symbol": symbol,
+    }
+
+    if is_multiplier:
+        request["multiplier"] = p_cfg.get("multiplier", 100)
+        if "barrier" in p_cfg:
+            request["barrier"] = p_cfg["barrier"]
+        if "cancellation" in p_cfg:
+            request["cancellation"] = p_cfg["cancellation"]
+        if "limit_order" in p_cfg:
+            request["limit_order"] = p_cfg["limit_order"]
+    else:
+        request["duration"] = p_cfg.get("duration", 5)
+        request["duration_unit"] = p_cfg.get("duration_unit", "m")
+
+    return request
+
+
+def _contract_duration_seconds(parameters: dict) -> int:
+    """Converte duration e duration_unit em segundos para expiry estimado."""
+    dur = max(1, int(parameters.get("duration", 5)))
+    unit = str(parameters.get("duration_unit", "m")).lower().strip()
+    if unit == "m":
+        return dur * 60
+    if unit == "s":
+        return dur
+    if unit == "t":
+        return dur * 2
+    if unit == "d":
+        return dur * 86400
+    return dur * 60

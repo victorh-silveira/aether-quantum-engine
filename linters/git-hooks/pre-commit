@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$HERE/../.." && pwd)"
+CONFIG="$ROOT/.pre-commit-config.yaml"
+RESOLVE="$ROOT/linters/git-hooks/bin/resolve_conda_python.sh"
+
+if [ -f /proc/version ] && grep -qi microsoft /proc/version 2>/dev/null; then
+  if [ -x "$ROOT/linters/git-hooks/bin/python" ]; then
+    export PATH="$ROOT/linters/git-hooks/bin:${PATH}"
+  fi
+fi
+
+run_impl() {
+  exec "$1" "${@:2}" hook-impl --config="$CONFIG" --hook-type=pre-commit --hook-dir="$HERE" -- "${ARGS[@]}"
+}
+
+ARGS=("$@")
+
+if command -v pre-commit >/dev/null 2>&1; then
+  run_impl pre-commit
+fi
+
+if [ -x "$RESOLVE" ]; then
+  CONDA_PY="$("$RESOLVE")" || true
+  if [ -n "${CONDA_PY:-}" ] && "$CONDA_PY" -c "import pre_commit" 2>/dev/null; then
+    run_impl "$CONDA_PY" -mpre_commit
+  fi
+fi
+
+for py in python3.13 python3 python; do
+  if command -v "$py" >/dev/null 2>&1 && "$py" -c "import pre_commit" 2>/dev/null; then
+    run_impl "$py" -mpre_commit
+  fi
+done
+
+echo "pre-commit nao encontrado. Rode: conda activate deriv-api && pip install pre-commit && make app-pre-commit" >&2
+exit 1

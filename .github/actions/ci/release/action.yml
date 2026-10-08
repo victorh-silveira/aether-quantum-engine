@@ -1,0 +1,33 @@
+name: CI - Versao semantica
+description: Release semantica com CHANGELOG e publicacao no GitHub
+inputs:
+  github_token:
+    description: Token do GitHub
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Release | Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+    - name: Release | Install
+      shell: bash
+      run: |
+        npm install --no-save \
+          semantic-release \
+          @semantic-release/commit-analyzer \
+          @semantic-release/release-notes-generator \
+          @semantic-release/changelog \
+          @semantic-release/git \
+          @semantic-release/exec \
+          @semantic-release/github \
+          conventional-changelog-conventionalcommits@^8.0.0
+    - name: Release | Semantic
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        npx --no-install semantic-release --extends ./linters/releaserc.json

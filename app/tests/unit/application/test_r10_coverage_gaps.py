@@ -1,0 +1,152 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import numpy as np
+import pytest
+
+from src.application.services.deep_learning.decision_bridge import _maybe_schedule_training
+from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
+from src.application.services.execution_mandatory_pick import _symbol_order
+from src.application.services.meta_classifier_cross_symbol import (
+    attach_cross_symbol_features_to_decisions,
+    compute_cross_symbol_triplet,
+)
+from src.application.services.orchestrator.trading_cycle_entry import _execute_inference_cluster_cycle
+from src.domain.models.trade import TradeDirection
+
+
+TRADING_CYCLE_MODULE = "src.application.services.orchestrator.trading_cycle_entry"
+
+
+def _metrics(*, prob: float, rsi: float, vol_ratio: float) -> dict:
+    return {
+        "calibrated_prob": prob,
+        "micro_indicators": {"rsi": rsi, "vol_ratio": vol_ratio},
+    }
+
+
+def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
+    orch = MagicMock()
+    orch.symbols = ["R_10", "PEER_B"]
+    runtime = {"deploy_ok": False}
+    prices = np.linspace(1.0, 2.0, 32)
+    dl_config = {}
+    params = {"training_history_bars": 32}
+    with (
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(True, "bootstrap"),
+        ),
+        patch(
+            "src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training"
+        ) as mock_enqueue,
+    ):
+        reason = _maybe_schedule_training(
+            orch,
+            "PEER_B",
+            runtime,
+            prices,
+            dl_config,
+            params,
+            100,
+            600,
+            frozenset({"R_10", "PEER_B"}),
+            None,
+            None,
+            None,
+            None,
+        )
+    assert reason is None
+    mock_enqueue.assert_not_called()
+
+
+def test_symbol_order_deprioritizes_last_loss_symbol_in_core():
+    with patch(
+        "src.application.services.execution_mandatory_pick.TRADING_SYMBOLS",
+        ("R_10", "PEER_B"),
+    ):
+        order = _symbol_order(["R_10", "PEER_B", "PEER_C"], "R_10", skip_symbols=frozenset())
+    assert order[0] == "PEER_B"
+    assert "R_10" in order
+
+
+def test_entropy_fallback_uses_raw_prob_when_calibrated_missing():
+    entry = {
+        "direction": None,
+        "metrics": {
+            "raw_prob": 0.82,
+            "deploy_ok": True,
+            "dynamic_call_threshold": 0.53,
+            "dynamic_put_threshold": 0.47,
+        },
+    }
+    picked = pick_entropy_fallback_candidate(["R_10"], {"R_10": entry})
+    assert picked is not None
+    assert picked[0] == "R_10"
+
+
+@patch("src.application.services.execution_entropy_fallback.ANCHOR_BULL", "PEER_BULL")
+@patch("src.application.services.execution_entropy_fallback.ANCHOR_BEAR", "PEER_BEAR")
+@patch("src.application.services.execution_entropy_fallback.infer_dl_direction", return_value=None)
+def test_entropy_fallback_uses_anchor_direction_when_dl_missing(_mock_infer):
+    entry = {
+        "direction": None,
+        "metrics": {
+            "raw_prob": 0.82,
+            "deploy_ok": True,
+            "dynamic_call_threshold": 0.53,
+            "dynamic_put_threshold": 0.47,
+        },
+    }
+    bull = pick_entropy_fallback_candidate(["PEER_BULL"], {"PEER_BULL": entry})
+    bear = pick_entropy_fallback_candidate(["PEER_BEAR"], {"PEER_BEAR": entry})
+    assert bull is not None and bull[1] == TradeDirection.CALL
+    assert bear is not None and bear[1] == TradeDirection.PUT
+
+
+def test_compute_cross_symbol_triplet_zeros_when_metrics_empty():
+    metrics = _metrics(prob=0.62, rsi=58.0, vol_ratio=1.05)
+    triplet = compute_cross_symbol_triplet(metrics, metrics)
+    assert all(value == 0.0 for value in triplet.values())
+
+
+def test_attach_cross_symbol_features_uses_own_microstructure():
+    decisions = {
+        "R_10": {
+            "metrics": {
+                **_metrics(prob=0.66, rsi=60.0, vol_ratio=1.1),
+                "flow_features": {"price_velocity": 0.3, "tick_count": 60.0},
+                "indicators": {"implied_vol_ratio": 1.1},
+            }
+        },
+        "PEER_B": {"metrics": _metrics(prob=0.41, rsi=44.0, vol_ratio=0.92)},
+    }
+    attach_cross_symbol_features_to_decisions(decisions)
+    vel = decisions["R_10"]["metrics"]["cross_symbol_features"]["micro_price_velocity"]
+    assert vel == pytest.approx(0.3)
+
+
+@pytest.mark.asyncio
+async def test_execute_inference_cluster_runs_without_quality_suspend(orch_ready):
+    orch = orch_ready
+    decisions = {
+        "R_10": {
+            "metrics": {
+                "calibrated_prob": 0.9,
+                "deploy_ok": True,
+            }
+        }
+    }
+    orch.executor.execute_cluster = AsyncMock(return_value=1)
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value=decisions,
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.session_persistence_blocks_trading_cycle", return_value=False),
+        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.refresh_correlation_cache", new_callable=AsyncMock),
+    ):
+        executed = await _execute_inference_cluster_cycle(orch)
+    assert executed is True
+    orch.executor.execute_cluster.assert_awaited_once()

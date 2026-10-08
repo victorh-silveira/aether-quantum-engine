@@ -1,0 +1,17 @@
+---
+description: Logging Aether — terminal logger, dedupe, spam filter
+globs: app/src/presentation/**/*.py,app/src/infrastructure/telemetry/**/*.py,**/log_dedupe.py,**/settle_log.py,**/log_context.py
+alwaysApply: true
+---
+
+# Logging
+
+- PT-BR, sem emoji; dedupe para ruido SETTLE/EXEC_EMPTY
+- Nao remover SettlementSpamFilter para “ver mais logs” em producao
+- Tags de ciclo: CLUSTER → SCALE → `[GATES] || LOSS_CLF` → KELLY → EXEC → RESOLVED (processo primeiro); CLUSTER SKIP (incl. `NEUTRAL_ZONE`) leva Edge/raw_edge/be
+- Motor: `get_logger("AETH")` / `setup_logger` idempotente; treino: `AETH.meta` / `AETH.train` (sem print)
+- Rich no terminal: nao bloquear o event loop; daemon/CI sem ANSI / logs estruturados
+- Knobs: `logging.level`, `logging.quiet_channels` via `resolve_logging_config`
+- SETTLE: `log_settle(canal, …)` → `SETTLE.{canal}:`; quiet_channels → DEBUG
+- Telemetria contratual: labels de lado e Brier devem usar compra e liquidacao vinculadas por contract_id; nao publicar probabilidade padrao 0.5 nem zeros de coletor sem eventos como dados observados.
+- Doc: `docs/engineering-observability.md` + inventario `docs/engineering-logging-inventory.md`

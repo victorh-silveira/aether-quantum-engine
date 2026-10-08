@@ -1,0 +1,53 @@
+"""Tensores de stress para forward pass de sanidade TorchScript local."""
+
+from __future__ import annotations
+
+import torch
+
+
+FEATURE_RSI_IDX = 2
+FEATURE_ADX_IDX = 11
+FEATURE_VOL_RATIO_IDX = 12
+
+STRESSED_RSI = 0.99
+STRESSED_ADX = 1.0
+STRESSED_VOL_RATIO = 1.80
+
+
+def build_stressed_regime_probe_tensor(lookback: int, feature_dim: int) -> torch.Tensor:
+    """Monta tensor com regime estressado: RSI alto, ADX saturado e vol_ratio em expansao."""
+    lb = int(lookback)
+    fd = int(feature_dim)
+    tensor = torch.zeros(1, lb, fd, dtype=torch.float32)
+    if fd > FEATURE_RSI_IDX:
+        tensor[:, :, FEATURE_RSI_IDX] = STRESSED_RSI
+    if fd > FEATURE_ADX_IDX:
+        tensor[:, :, FEATURE_ADX_IDX] = STRESSED_ADX
+    if fd > FEATURE_VOL_RATIO_IDX:
+        tensor[:, :, FEATURE_VOL_RATIO_IDX] = STRESSED_VOL_RATIO
+    return tensor
+
+
+def build_sanity_probe_tensors(
+    lookback: int,
+    feature_dim: int,
+) -> list[tuple[str, torch.Tensor]]:
+    """Monta batch de probes incluindo regime estressado por feature."""
+    lb = int(lookback)
+    fd = int(feature_dim)
+    zeros = torch.zeros(1, lb, fd, dtype=torch.float32)
+    ones = torch.ones(1, lb, fd, dtype=torch.float32)
+    pos_extreme = torch.full((1, lb, fd), 4.0, dtype=torch.float32)
+    neg_extreme = torch.full((1, lb, fd), -4.0, dtype=torch.float32)
+    mixed = torch.zeros(1, lb, fd, dtype=torch.float32)
+    for feat in range(fd):
+        mixed[:, :, feat] = 3.0 if feat % 2 == 0 else -3.0
+    stressed = build_stressed_regime_probe_tensor(lb, fd)
+    return [
+        ("zeros", zeros),
+        ("unit", ones),
+        ("pos_extreme", pos_extreme),
+        ("neg_extreme", neg_extreme),
+        ("mixed", mixed),
+        ("stressed_regime", stressed),
+    ]

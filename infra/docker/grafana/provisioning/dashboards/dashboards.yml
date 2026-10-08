@@ -1,9 +1,12 @@
 apiVersion: 1
+
 providers:
-  - name: Aether Indicator
+  - name: "Aether Trading Dashboards"
     orgId: 1
-    folder: Sinteticos
+    folder: "Aether"
     type: file
     disableDeletion: false
+    updateIntervalSeconds: 10
+    allowUiUpdates: true
     options:
       path: /etc/grafana/provisioning/dashboards

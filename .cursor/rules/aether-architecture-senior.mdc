@@ -1,0 +1,17 @@
+---
+description: Arquitetura senior Aether — host 3.13, DDD/hexagonal, asyncio, ML sidecars, Polars
+alwaysApply: true
+---
+
+# Arquitetura sênior
+
+- Motor no **host** (WSL/Conda, Python **3.13** + asyncio); Docker só Redis/Timescale/MinIO/meta/loss (`core,ml`)
+- Camadas: presentation → application → domain; ports outbound → infrastructure (hexagonal)
+- **Domain puro**: sem I/O; invariantes/risco no domínio; application orquestra via ports
+- Leitura SSOT: `app/settings_io.py` (fora de `domain/`); parsers em `domain/config_knobs.py`
+- Event loop: não bloquear com PyTorch/Polars/NumPy pesado — offload (`asyncio.to_thread` / executor); `TaskGroup` + `CancelledError` + shutdown gracioso
+- Inferência TCN crítica no host (batch 1); `predict_symbol_decision_async` usa `asyncio.to_thread(eager_local_predict)`; meta/loss HTTP `:8005`/`:8006` com timeout/fallback
+- DataFrame SSOT **somente Polars**; pandas proibido; `POLARS_MAX_THREADS` consciente do loop
+- Settlement SSOT: Redis **ZSET** `settlement:queue:priority` (não trocar por Streams sem mandato)
+- Segredos só env/secret store; binds Docker `127.0.0.1`; CUDA host alinhada ao driver Windows
+- Doc: `docs/engineering-architecture-senior.md`; skill: `aether-architecture-senior`

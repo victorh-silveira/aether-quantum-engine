@@ -1,7 +1,0 @@
-.git
-.env
-app/tests
-app/__pycache__
-data
-logs
-*.pyc

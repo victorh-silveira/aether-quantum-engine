@@ -1,0 +1,66 @@
+import tempfile
+from datetime import UTC, datetime
+from pathlib import Path
+
+from src.domain.models.market_data import Candle
+from tests.market_symbols import ANCHOR
+
+
+class MockStreamHandler:
+    def __init__(self, prices, epoch=1000, micro_epoch=60):
+        self.prices = prices
+        self._epoch = epoch
+        self._micro_epoch = micro_epoch
+        macro_candle = Candle(ANCHOR, 10.0, 10.0, 10.0, float(prices[-1]), datetime.now(UTC), self._epoch)
+        micro_candle = Candle(ANCHOR, 10.0, 10.0, 10.0, float(prices[-1]), datetime.now(UTC), self._micro_epoch)
+        self.macro_candles = {ANCHOR: [macro_candle]}
+        self.micro_candles = {ANCHOR: [micro_candle]}
+        self.candles = self.macro_candles
+        self.tick_buffer = None
+
+    def get_numpy_series(self, _symbol, _field):
+        return self.prices
+
+    def get_last_candle_epoch(self, _symbol):
+        return self._epoch
+
+    def get_last_micro_candle_epoch(self, _symbol):
+        return self._micro_epoch
+
+
+class MockOrchestrator:
+    def __init__(self, symbols, prices, *, dl_enabled=True, epoch=1000, train_mode=False):
+        self.symbols = symbols
+        self.temp_dir = tempfile.mkdtemp()
+        self.config = {
+            "symbols": symbols,
+            "anchor": symbols[0] if symbols else ANCHOR,
+            "data_handler": {"granularity": 900},
+            "deep_learning": {
+                "enabled": dl_enabled,
+                "train_symbols": symbols,
+                "lookback": 15,
+                "training_history_bars": 60,
+                "inference_history_bars": 35,
+                "training_epochs": 2,
+                "learning_rate": 0.001,
+                "validation_bars": 10,
+                "min_val_accuracy": 0.0,
+                "confidence_call_threshold": 0.75,
+                "confidence_put_threshold": 0.25,
+                "train_on_new_candle_only": False,
+                "model_path_template": str(Path(self.temp_dir) / "{symbol}.pth"),
+                "deploy_gate": {"enabled": False, "mini_bars": 40},
+            },
+            "orchestrator": {"engine_mode": "train" if train_mode else "execute"},
+        }
+        self.stream = MockStreamHandler(prices, epoch=epoch)
+
+
+class MockStreamNoEpochGetter:
+    def __init__(self, prices):
+        self.prices = prices
+        self.candles = {}
+
+    def get_numpy_series(self, _symbol, _field):
+        return self.prices

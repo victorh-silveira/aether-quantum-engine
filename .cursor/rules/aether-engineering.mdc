@@ -1,0 +1,20 @@
+---
+description: Engenharia Aether — WSL, 300 linhas, cobertura 100%, commitlint PT-BR
+alwaysApply: true
+---
+
+# Engenharia
+
+- Terminal: **WSL** apenas; motor no **host** Python **3.13** (asyncio); Docker so sidecars `core,ml`
+- Arquitetura: DDD/hexagonal — `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior`
+- Event loop: nao bloquear com CUDA/Polars/NumPy pesado no hot path (offload)
+- `app/src/**/*.py` ≤ **300** linhas; cobrir 100% com testes (linhas e branches)
+- Sem comentarios no codigo; docstrings OK; sem emojis
+- Pre-commit: Ruff + JSON/YAML no job Python + Docker + Shell + test + Bandit/pip-audit + cleanup; commit-msg commitlint; bloquear artefatos grandes (`.pt`/`.parquet`)
+- Commit: `tipo(escopo): assunto PT-BR` + corpo; escopos em `linters/commitlint.config.mjs`
+- SSOT de agentes: `AGENTS.md` + `docs/agent-coverage.md`
+- Deps Python: `docs/engineering-python-deps.md` + rule `aether-python-deps` (anti-redundancia)
+- Higienizacao: `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` (morto comprovado)
+- Fechamento: `docs/engineering-surface-sync.md` + skill `aether-surface-sync` (sync superficie + pre-commit)
+- Scaffold cross-repo: `prompt-model.md` (contrato DDD/hexagonal/TDD/DX)
+- Nao afrouxar QA para “passar o hook”; corrigir causa

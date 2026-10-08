@@ -1,0 +1,70 @@
+"""Ajustes de f* Kelly: consenso, escala defensiva e clamp de banca."""
+
+from __future__ import annotations
+
+from typing import Any
+
+from src.domain.analytics.sample_size_policy import explore_stake_scale
+from src.domain.risk.consensus_stake_penalty import consensus_kelly_retention
+from src.domain.risk.stake_sizing import clamp_kelly_stake
+
+
+def apply_kelly_fraction_scale(f_star: float, dl_metrics: dict | None) -> float:
+    """Atenua fracao Kelly quando resolver sinaliza execucao defensiva ou N pequeno."""
+    if not isinstance(dl_metrics, dict):
+        return f_star
+    out = float(f_star)
+    frac_scale = float(dl_metrics.get("kelly_fraction_scale", 1.0))
+    if frac_scale < 1.0:
+        out = out * max(0.0, frac_scale)
+    regime = str(dl_metrics.get("stake_regime") or "EXPLORE").upper()
+    if regime == "EXPLORE" and "live_n" in dl_metrics:
+        live_n = int(dl_metrics.get("live_n", 0) or 0)
+        scale = float(dl_metrics.get("explore_stake_scale") or explore_stake_scale(live_n))
+        dl_metrics["explore_stake_scale"] = scale
+        out = out * scale
+    return out
+
+
+def apply_consensus_entropy_f_star(
+    rm: Any,
+    f_star: float,
+    dl_metrics: dict | None,
+    order_direction: str | None,
+    *,
+    silent: bool,
+) -> float:
+    """Atenua f* quando ordem diverge do consenso tecnico."""
+    if not isinstance(dl_metrics, dict):
+        return f_star
+    retention = consensus_kelly_retention(
+        dl_metrics,
+        order_direction,
+        kelly_config=rm.kelly_config,
+        consecutive_losses=int(getattr(rm, "consecutive_losses_linear", 0)),
+        pending_loss_total=sum(getattr(rm, "pending_loss", {}).values()),
+    )
+    if retention < 1.0 and not silent:
+        rm.logger.debug(
+            "KELLY: consensus retention=%.2f ord=%s votes=%d/%d",
+            retention,
+            order_direction,
+            int(dl_metrics.get("call_votes", 0)),
+            int(dl_metrics.get("put_votes", 0)),
+        )
+    dl_metrics["consensus_entropy_retention"] = retention
+    return f_star * retention
+
+
+def kelly_base_with_consensus_floor(
+    bankroll: float,
+    f_star: float,
+    dl_metrics: dict | None,
+    kelly_config: dict,
+    sizing_conviction: float,
+    stake_min: float = 1.0,
+) -> float:
+    """Calcula kelly_base via clamp percentual; stake_min nao inventa sizing."""
+    _ = (dl_metrics, stake_min)
+    f = max(0.0, float(f_star))
+    return clamp_kelly_stake(bankroll, bankroll * f, kelly_config, sizing_conviction)
