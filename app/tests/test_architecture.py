@@ -55,4 +55,7 @@ def test_ci_uses_legacy_job_structure_for_indicator_branch():
     assert "github.event_name == 'push'" in workflow
     assert "make test" in workflow
     assert "trivy config" in workflow
+    assert "DOCKER_BUILD_SUMMARY: 'false'" in workflow
+    assert "## Publicação da imagem de prévia" in workflow
+    assert "## Resumo da integração e publicação" in workflow
     assert "actionlint" in (root / ".github/actions/ci/workflows/action.yml").read_text()

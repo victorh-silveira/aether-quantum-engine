@@ -13,3 +13,4 @@ os componentes presentes; a entrada de código Rust exige configurar suas etapas
 antes da integração. Push e PR destinados à branch executam as validações.
 Somente um push aprovado publica uma imagem de prévia no GHCR, identificada pelo
 SHA. PR não publica imagem. Não há release semântico nem deploy do indicador.
+Os resumos da publicação e do pipeline usam textos em PT-BR, sem emojis.

@@ -128,39 +128,56 @@ jobs:
         uses: ./.github/actions/ci/workflows
 
   release:
-    name: CI - Release
+    name: CI - Publicação
     needs: [python, docker, shell, rust, workflows]
     if: github.event_name == 'push' && github.ref == 'refs/heads/codex/synthetic-indicator'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      DOCKER_BUILD_SUMMARY: 'false'
     permissions:
       contents: read
       packages: write
     outputs:
       tag: ${{ steps.image.outputs.tag }}
-      published: ${{ steps.image.outputs.published }}
+      published: ${{ steps.publicar.outcome == 'success' }}
     steps:
       - name: Obter codigo fonte
         uses: actions/checkout@v4
-      - name: Release | Preparar imagem de previa
+      - name: Publicação | Preparar imagem de prévia
         id: image
         run: |
           image="ghcr.io/${GITHUB_REPOSITORY,,}-indicator:preview-${GITHUB_SHA}"
           echo "tag=$image" >> "$GITHUB_OUTPUT"
-          echo 'published=true' >> "$GITHUB_OUTPUT"
-      - name: Release | Autenticar GHCR
+      - name: Publicação | Autenticar GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Release | Publicar imagem de previa
+      - name: Publicação | Enviar imagem de prévia
+        id: publicar
         uses: docker/build-push-action@v6
         with:
           context: .
           file: app/Dockerfile
           push: true
           tags: ${{ steps.image.outputs.tag }}
+      - name: Publicação | Resumo
+        if: always()
+        run: |
+          {
+            echo '## Publicação da imagem de prévia'
+            echo ''
+            if [ '${{ steps.publicar.outcome }}' = 'success' ]; then
+              echo 'Resultado: imagem publicada com sucesso.'
+              echo 'Imagem: `${{ steps.image.outputs.tag }}`'
+              echo 'Identificador: `${{ steps.publicar.outputs.digest }}`'
+            else
+              echo 'Resultado: imagem não publicada.'
+              echo 'Consulte as etapas anteriores para identificar a falha.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   pipeline-summary:
     name: CI - Resumo
@@ -171,15 +188,30 @@ jobs:
     steps:
       - name: Resumo | Pipeline
         run: |
+          traduzir() {
+            case "$1" in
+              success) echo 'Aprovado' ;;
+              failure) echo 'Falhou' ;;
+              cancelled) echo 'Cancelado' ;;
+              skipped) echo 'Ignorado' ;;
+              *) echo 'Indisponível' ;;
+            esac
+          }
           {
-            echo '## Resumo CI/CD'
-            echo '| Etapa | Status |'
+            echo '## Resumo da integração e publicação'
+            echo ''
+            echo '| Etapa | Resultado |'
             echo '|-------|--------|'
-            echo '| Python | ${{ needs.python.result }} |'
-            echo '| Docker | ${{ needs.docker.result }} |'
-            echo '| Shell | ${{ needs.shell.result }} |'
-            echo '| Rust | ${{ needs.rust.result }} |'
-            echo '| Workflows | ${{ needs.workflows.result }} |'
-            echo '| Release | ${{ needs.release.result }} |'
-            echo 'Imagem: ${{ needs.release.outputs.tag }}'
+            echo "| Python | $(traduzir '${{ needs.python.result }}') |"
+            echo "| Docker | $(traduzir '${{ needs.docker.result }}') |"
+            echo "| Shell | $(traduzir '${{ needs.shell.result }}') |"
+            echo "| Rust | $(traduzir '${{ needs.rust.result }}') |"
+            echo "| Fluxos de trabalho | $(traduzir '${{ needs.workflows.result }}') |"
+            echo "| Publicação | $(traduzir '${{ needs.release.result }}') |"
+            echo ''
+            if [ '${{ needs.release.outputs.published }}' = 'true' ]; then
+              echo 'Imagem de prévia publicada: `${{ needs.release.outputs.tag }}`'
+            else
+              echo 'Nenhuma imagem de prévia foi publicada neste envio.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
