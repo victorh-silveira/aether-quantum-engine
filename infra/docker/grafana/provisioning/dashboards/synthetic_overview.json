@@ -1,0 +1,154 @@
+{
+  "uid": "aether-synthetic-overview",
+  "title": "Sinteticos | Visao geral",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Ativos sinteticos ativos",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM indicator_symbols WHERE active",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Sinais atuais",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM (SELECT DISTINCT ON (symbol,period_seconds) side,candle_epoch,period_seconds FROM indicator_signals ORDER BY symbol,period_seconds,candle_epoch DESC) s WHERE side IN ('CALL','PUT') AND extract(epoch from now()) < candle_epoch + 2 * period_seconds",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Sem sinal",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM indicator_symbols a CROSS JOIN (VALUES (300),(900),(3600)) p(period_seconds) LEFT JOIN LATERAL (SELECT side,candle_epoch FROM indicator_signals s WHERE s.symbol=a.symbol AND s.period_seconds=p.period_seconds ORDER BY candle_epoch DESC LIMIT 1) s ON true WHERE a.active AND (s.side IS NULL OR s.side = 'SEM SINAL' OR extract(epoch from now()) >= s.candle_epoch + 2 * p.period_seconds)",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Pares com dado atrasado",
+      "type": "stat",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT count(*) AS value FROM (SELECT DISTINCT ON (symbol,period_seconds) candle_epoch,period_seconds FROM indicator_signals ORDER BY symbol,period_seconds,candle_epoch DESC) s WHERE extract(epoch from now()) >= candle_epoch + 2 * period_seconds",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Ultima leitura por ativo e periodo",
+      "type": "table",
+      "datasource": {
+        "type": "postgres",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "postgres",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT a.symbol, a.name AS ativo, CASE p.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS periodo, CASE WHEN s.side IS NULL OR extract(epoch from now()) >= s.candle_epoch + 2 * p.period_seconds THEN 'SEM SINAL' ELSE s.side END AS sinal, round((s.probability * 100)::numeric,1) AS prob_call_pct, to_timestamp(s.candle_epoch) AS vela_fechada, CASE WHEN s.side IS NULL THEN 'sem_dados' WHEN extract(epoch from now()) >= s.candle_epoch + 2 * p.period_seconds THEN 'dados_atrasados' ELSE s.reason END AS estado, s.model_version AS modelo FROM indicator_symbols a CROSS JOIN (VALUES (300),(900),(3600)) p(period_seconds) LEFT JOIN LATERAL (SELECT * FROM indicator_signals x WHERE x.symbol=a.symbol AND x.period_seconds=p.period_seconds ORDER BY candle_epoch DESC LIMIT 1) s ON true WHERE a.active ORDER BY a.symbol,p.period_seconds",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 17
+      },
+      "options": {}
+    }
+  ]
+}

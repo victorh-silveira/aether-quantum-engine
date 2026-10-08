@@ -1,117 +1,13 @@
-# AGENTS.md — Aether Quantum Engine
+# AGENTS.md — Aether Synthetic Indicator
 
-Ponto de entrada para agentes Cursor/LLM neste repositorio.
+- Responder e documentar em PT-BR. Trabalhar no WSL com Python 3.13.
+- Produto: observação dos mercados sintéticos públicos da Deriv em M5, M15 e H1. Forex é operação manual externa; não há inferência cruzada.
+- Processo ativo: `app/src/indicator/`, entrada `app/run.py`, treino `app/train.py`, configuração `config/settings.json`.
+- Somente `active_symbols` e `ticks_history` no cliente público. Nunca incluir `buy`, `proposal`, `authorize`, liquidação, Kelly, recuperação ou credenciais de conta.
+- `SEM SINAL` é obrigatório sem histórico contínuo, dado atual ou modelo próprio aprovado. Não reutilizar o último lado.
+- Modelo por ativo e período, validação temporal contra maioria em acurácia e Brier. Histórico observado é direção da vela seguinte, não resultado de contrato.
+- Domínio puro; I/O em adapters; nenhuma interpolação de dados. Arquivos Python em `app/src` com no máximo 300 linhas; 100% de cobertura de linhas.
+- Atualizar código, testes, documentação, dashboards, regras e skills em conjunto. Executar `make lint` e `make test`.
+- CI da branch `codex/synthetic-indicator`: push e PR para essa branch. Imagem GHCR somente após push aprovado. Sem release automático.
 
-## Idioma e ambiente
-
-- Respostas e commits em **PT-BR**
-- Terminal/scripts: **WSL Linux** (nunca CMD/PowerShell nativo)
-- Runtime: motor **Python 3.13.12** + **asyncio** no **host** (Conda `deriv-api`); sidecars Docker `core,ml`; SSOT runtime [`docs/engineering-python-313-runtime.md`](docs/engineering-python-313-runtime.md)
-- Arquitetura: **DDD / hexagonal** — [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md) + skill `aether-architecture-senior`
-- Sem emojis em codigo, logs ou docs tecnicos
-- Sem comentarios no codigo (docstrings OK)
-
-## Universo operacional
-
-Rise/Fall CALL/PUT e o unico fluxo operacional ativo. `launch-train` treina
-TCN M5 (14D), loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
-e REAL com a mesma decisao e abertura. O contrato e de 300 segundos no
-indice 1HZ75V. Indicadores de tendencia, momentum, volatilidade e regime
-entram no pipeline direcional conforme `settings.json`; ausencia de modelo
-valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
-
-Atualizacao 04/10/2026: prevalecem `settings.json` e
-`docs/engineering-deep-learning.md` sobre os
-valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras de contrato/sharpening/
-Alpha Flip/micro-hedging desativados. Esses parametros se referem ao caminho
-direcional. `kelly.max_stake=0`
-significa sem teto absoluto adicional, e Kelly fracionario segue 0,25.
-O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial de 1% da banca por ordem.
-
-- Politica de mercado vigente: `four_market_vetoes=true` e
-  `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.
-  Substitui os gates individuais de mercado legados. Nao altera P(CALL), nao
-  elimina bloqueios tecnicos/economicos nem demonstra vantagem historica de inversao.
-
-- Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
-- Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao da proxima vela fechada, calculada sem dados futuros; retreino obrigatorio apos mudanca de label).
-- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
-- Na abertura M5, a TCN recebe apenas velas fechadas; a vela corrente em formacao fica fora do tensor para que `spot_forward` N=1 aponte para o contrato atual. O snapshot live permanece para telemetria e mercado. `model_input_forming_excluded` registra a exclusao.
-- A inferencia usa `inference_history_bars=768` velas M5 para preservar o warmup da diferenciacao fracionaria e da normalizacao causal; 384 alterava a feature `norm_frac_diff` em relacao ao treino com historico longo. O fetch inicial carrega esse piso mais warmup.
-- O `[CLUSTER]` sinaliza `input=closed|latest`. Com `aux_regression_weight=0`, a cabeca auxiliar de movimento nao e treinada e `[NEXT_MOVE]` fica ausente. O stream persiste cada M5 fechada em `ohlc_bars`; conferir frescor do banco antes de interpretar `contract_label_audit`.
-- Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
-- Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` usa a direcao da proxima vela fechada. Matriz ortogonal TCN 14D limpa sem proxies sinteticos, com diferenciacao fracionaria causal (d=0.45) e pre-flight linear benchmark telemetrico (`min_linear_preflight_acc=0.0` permite treino TCN e meta). BCE simetrica ativa (`asymmetric_payout_loss=false`) preserva a probabilidade CALL; payout real entra no EV da proposta. A selecao interna de epoca prioriza estados sem colapso, mantendo fallback tecnico se todos colapsarem. Meta-Learner otimiza Net EV via Optuna. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
-- Comparacao offline entre perda ponderada e BCE: `app/scripts/operations/compare_dl_losses.py`; usa mesma inicializacao e nao exporta checkpoint. A view `contract_label_audit` compara M5 com resultado `broker` confirmado, sem qualificar modelo. Poucos contratos auditados nao sustentam treino supervisionado por resultado real.
-- Runtime: `online_training` **false** — ambas as contas usam checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Cotacao final: `require_quote_edge=true`; probabilidade ausente ou nao finita bloqueia antes da proposta; calcular EV com payout liquido confirmado pela proposta, `min_edge_execute=0` e margem sobre break-even de `0.01`. `min_payout_rate=0` desativa o piso fixo de 80% que rejeitava cotacoes com EV positivo; payout ausente ou invalido segue bloqueado.
-- Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`, `stop_win_kelly_min_conviction` **0.58**). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; saida do seed live N=**2**, nao `ready_n` **32**; `flip_min_n_train` **1**; young pe>=**0.58**; mature pe>=**0.70**; shrink N ate 64 com `flip_young_shrink` **0.50**; sem `candle_holds`). Anti-trend lock e Alpha Flip so invertem se P(lado) calibrada sustentar EV e margem no payout observado; caso contrario preservam o lado anterior. Edge CLUSTER = estimativa previa; `skip_neg_edge=false` evita veto duplicado e a proposta final exige EV positivo com margem sobre break-even. Recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**, stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `cover_l0`; PEND nao force-explore por near-stop; piso Kelly **1%** soberano.
-
-## O que o LLM e / nao e
-
-- **E:** copiloto de engenharia e auditoria
-- **Nao e:** decisor de CALL/PUT em runtime (TCN + loss-clf FLIP no piso + Kelly)
-
-Doutrina: [`docs/llm-trading-doctrine.md`](docs/llm-trading-doctrine.md)  
-Matriz 100% cobertura: [`docs/agent-coverage.md`](docs/agent-coverage.md)  
-Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/`](.cursor/skills/)
-
-## Proibicoes globais
-
-- `force_trade_every_cycle=true` como “fix” de EXEC_EMPTY
-- Revenge sizing apos LOSS; “operar mais para aprender” com N baixo
-- Remover caps de stake, fila de settlement ou timeouts “temporariamente”
-- Introduzir stop loss ou teto acumulado de perda sem mandato do operador
-- Arquivos `app/src/**/*.py` acima de **300 linhas**
-- Cobertura de testes em `app/src` abaixo de **100%**
-- Assunto de commit em ingles; escopo fora do enum commitlint
-
-Nota operacional (**Volatility 75 (1s) M5**): pipeline: TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **2**, `n_train>=1`), pe no piso configurado e candidato com EV e margem no payout observado → anti-trend-lock/Alpha Flip condicionados ao mesmo quote guard → `invert_exec_side` **false** → quatro vetos extremos e gatilho de reconciliacao condicionado ao quote guard → Kelly / cover_l0 amort **1** → proposta final com EV e margem verificados → EXEC. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly. SKIP tecnico: treino/dados/checkpoint/predict/stop-win / cooldown / pausa. Recovery: `cover_enabled` **true**, amort **1/1**, cap L0 **3.5%** subordinado ao teto do checkpoint de **1%**, PEND nao force-explore por near-stop. Nao ha stop loss nem teto acumulado de perda.
-
-## Escopos commitlint
-
-`all`, `api`, `app`, `config`, `deps`, `domain`, `engine`, `infra`, `llm`, `orchestrator`, `pres`, `release`, `repo`, `risk`, `scripts`, `test`, `tools`, `ws`
-
-Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
-
-## Pre-commit
-
-`.pre-commit-config.yaml` → `clean_workspace.py --area --stage` (python/docker/shell; JSON e YAML em steps `Python | JSON *` / `Python | YAML *`; crash-first lint→validate→security→test→build); commitlint primeiro; commit-msg: commitlint.
-
-## Leitura por tarefa
-
-| Tarefa | Abrir primeiro |
-|--------|----------------|
-| Qualquer mudanca | este arquivo + `docs/agent-coverage.md` |
-| Arquitetura DDD / host / event loop / sidecars | `docs/engineering-architecture-senior.md` + skill `aether-architecture-senior` |
-| Runtime CPython 3.13 / GC / GIL / Tier2 | `docs/engineering-python-313-runtime.md` + skill `aether-python-313-runtime` |
-| Asyncio TaskGroup / starvation | `docs/engineering-python-313-runtime.md` + skill `aether-asyncio-supervisor` |
-| Polars / Arrow zero-copy | `docs/engineering-python-deps.md` + skill `aether-polars-arrow` |
-| Torch CUDA / to_thread | `docs/engineering-deep-learning.md` + skill `aether-torch-cuda-infer` |
-| asyncpg / Timescale ingestao | `docs/infra-docker.md` + skill `aether-asyncpg-timescale` |
-| Redis hiredis / ZSET settlement | `docs/engineering-settlement.md` + skill `aether-redis-hiredis` |
-| DevOps / CloudOps (Compose/Redis/TS/MinIO) | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
-| CALL/PUT/SKIP senior | `docs/binary-senior-playbook.md` + skill `aether-binary-senior` |
-| Gates por indicadores (catalogo / backlog) | `docs/engineering-indicator-gates.md` + rule `aether-execution-gates.mdc` + skills `aether-binary-senior` / `aether-session-review` |
-| Loss-classifier / Docker ml | `docs/infra-docker.md` + skill `aether-infra-stack` |
-| Risco / logs de sessao | doutrina + skill `aether-session-review` |
-| Knob em settings | `docs/engineering-settings-ssot.md` + skill `aether-settings-change` |
-| Ciclo / warmup | `docs/engineering-orchestrator.md` + skill `aether-cycle-debug` |
-| Scale vision / raw_extreme | `docs/engineering-orchestrator.md` + playbook + skills `aether-cycle-debug` / `aether-binary-senior` |
-| Settlement | `docs/engineering-settlement.md` + skill `aether-settlement-debug` |
-| DL / treino / vies de classe | `docs/engineering-deep-learning.md` + skill `aether-dl-train` |
-| Docker / Redis | `docs/infra-docker.md` + skill `aether-infra-stack` |
-| Endurecimento Compose / Redis / Timescale / MinIO | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
-| Launch-train / sanitize / telemetria | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
-| Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
-| QA / pre-commit | `docs/engineering-standards.md` + `.github/README.md` + skill `aether-precommit` |
-| Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` (WS max_size/ping, httpx singleton, Polars, MinIO `to_thread`) |
-| Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
-| Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
-| Scaffold / contrato de engenharia | `prompt-model.md` + skill `aether-surface-sync` |
-| Volatility 75 (1s) Index / Sinteticos | `docs/deriv-indices-algorithm.md` + rule `aether-v75-market.mdc` + skill `aether-v75-market-analyst` |
-| Sizing Single-Strike 4.31% / Payout 0.85 | `docs/medallion.md` + rule `aether-risk-sizing.mdc` + skill `aether-session-review` |
-| Verificador de Sinais & Microestrutura M5 | `docs/binary-senior-playbook.md` + `docs/engineering-indicator-gates.md` + rule `aether-execution-gates.mdc` + skill `aether-binary-senior` |
-
-Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
-Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)  
-Arquitetura senior (host/DDD/ML/infra/QA): [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md)
+Ver [arquitetura](docs/arquitetura.md), [operação](docs/operacao.md), [modelos](docs/modelos.md) e [matriz de agentes](docs/agent-coverage.md).

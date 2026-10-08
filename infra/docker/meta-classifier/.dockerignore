@@ -1,8 +1,0 @@
-__pycache__
-*.py[cod]
-*.pkl
-.git
-.gitignore
-README.md
-.pytest_cache
-.mypy_cache

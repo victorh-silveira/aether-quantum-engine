@@ -1,0 +1,6 @@
+---
+description: Contrato do indicador de mercados sinteticos
+alwaysApply: true
+---
+
+O processo ativo só pode consultar dados públicos (`active_symbols`, `ticks_history`). Para cada ativo e período M5/M15/H1, usar somente velas fechadas e contíguas. Publicar `SEM SINAL` sem modelo válido ou dado fresco. Não introduzir compra, proposta, autenticação, risco de contrato, fallback pelo último lado ou relação preditiva com Forex. Manter 100% de cobertura de linhas em `app/src`, dashboards sem interpolação e CI exclusivo da branch `codex/synthetic-indicator`.
