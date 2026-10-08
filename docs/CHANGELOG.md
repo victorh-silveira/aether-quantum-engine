@@ -1,3 +1,13 @@
+## [4.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.1.0...v4.2.0) (2026-10-08)
+
+### Funcionalidades
+
+* **infra:** iniciar indicador na stack observável ([73d00b6](https://github.com/victorh-silveira/aether-quantum-engine/commit/73d00b6f61b5b98250ecad1edbe3f4ab282f1dcf))
+
+### Refatoracoes Tecnicas
+
+* **app:** transformar motor em indicador de sintéticos ([523a405](https://github.com/victorh-silveira/aether-quantum-engine/commit/523a405cc233ab2c3faac7f0c1552ddfe1cf2233))
+
 ## [4.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.0.0...v4.1.0) (2026-10-05)
 
 ### Funcionalidades
