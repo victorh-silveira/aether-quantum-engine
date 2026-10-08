@@ -1,164 +1,25 @@
 [project]
-name = "aether-quantum-engine"
-version = "0.0.0"
-description = "Motor quantitativo assíncrono para a Deriv usando Deep Learning (TCN PyTorch) e controle de risco Kelly/D'Alembert."
-readme = "../README.md"
-requires-python = ">=3.13.12,<3.13.13"
+name = "aether-synthetic-indicator"
+version = "0.1.0"
+requires-python = ">=3.13"
+description = "Indicador publico de mercados sinteticos, sem negociacao"
 
 [tool.ruff]
 line-length = 120
 target-version = "py313"
-exclude = [
-    ".git",
-    ".ruff_cache",
-    ".venv",
-    "venv",
-    "data",
-    "__pycache__",
-    "build",
-    "dist",
-    ".vulture_whitelist.py",
-]
 
 [tool.ruff.lint]
-select = [
-    "E",
-    "W",
-    "F",
-    "I",
-    "B",
-    "C4",
-    "UP",
-    "N",
-    "D",
-    "S",
-    "BLE",
-    "FBT",
-    "A",
-    "COM",
-    "T20",
-    "Q",
-    "RET",
-    "SIM",
-    "ARG",
-    "PTH",
-    "ERA",
-    "PL",
-]
-ignore = [
-    "E501",
-    "D203",
-    "D213",
-    "ANN204",
-    "PLR0911",
-    "PLR0912",
-    "PLR0913",
-    "PLR0915",
-    "PLR2004",
-    "COM812",
-    "ISC001",
-    "D1",
-    "BLE001",
-    "S105",
-]
-
-[tool.ruff.lint.pylint]
-max-statements = 50
-
-[tool.ruff.lint.isort]
-combine-as-imports = true
-force-wrap-aliases = true
-lines-after-imports = 2
-section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.per-file-ignores]
-"scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101", "I001"]
-"run.py" = ["T201", "S101"]
-"train.py" = ["T201", "S101"]
-"src/infrastructure/api/deriv_http.py" = ["S310"]
-"src/infrastructure/api/deriv_rest_client.py" = ["S310"]
-"src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
-"src/infrastructure/api/deriv_pat_session.py" = ["S310"]
-"tests/**/*.py" = ["ARG001", "ARG005", "S101", "S106", "S310", "PLC0415"]
-
-[tool.ruff.format]
-quote-style = "double"
-indent-style = "space"
-skip-magic-trailing-comma = false
-line-ending = "auto"
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
+pythonpath = ["src"]
 testpaths = ["tests"]
-pythonpath = ["."]
-addopts = [
-    "-q",
-    "--strict-markers",
-    "--timeout=90",
-    "--tb=short",
-    "-p", "no:cacheprovider",
-    "-p", "no:stepwise",
-    "--import-mode=importlib",
-]
-log_cli = false
-log_cli_level = "WARNING"
-log_file = ""
-filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::torch.jit.TracerWarning",
-    "ignore:coroutine '.*' was never awaited:RuntimeWarning",]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
-markers = [
-    "torch_cuda: testes que exigem resolucao real de dispositivo CUDA",
-    "real_settlement_watch: testes que executam _run_settlement_watch real",
-    "docker: testes de integracao que exigem stack Docker local (Redis/Timescale/MinIO/Meta/Loss se up)",
-]
-
-[tool.interrogate]
-ignore-init-method = true
-ignore-init-module = true
-fail-under = 100
-exclude = [
-    ".git",
-    ".venv",
-    "build",
-    "dist",
-    "scripts",
-    "tests",
-    "venv",
-]
-
-[tool.bandit]
-skips = ["B105", "B106", "B310"]
-exclude_dirs = [".git", ".venv", "tests", "venv", "scripts"]
 
 [tool.coverage.run]
 source = ["src"]
-omit = []
-core = "sysmon"
-parallel = true
-concurrency = ["multiprocessing", "thread"]
 
 [tool.coverage.report]
-show_missing = true
 fail_under = 100
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    'if __name__ == "__main__":',
-    "raise NotImplementedError",
-    "if TYPE_CHECKING:",
-    "pass",
-    "raise ImportError",
-]
-
-[tool.vulture]
-exclude = []
-ignore_decorators = []
-ignore_names = []
-min_confidence = 100
-paths = ["src", "run.py", "train.py", "scripts", "aether_paths.py", ".vulture_whitelist.py"]
+show_missing = true

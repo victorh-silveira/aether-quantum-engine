@@ -1,340 +1,45 @@
-x-logging: &aether-logging
-  driver: json-file
-  options:
-    max-size: "10m"
-    max-file: "3"
-
-x-omp-threads: &aether-omp
-  OMP_NUM_THREADS: "2"
-  OPENBLAS_NUM_THREADS: "2"
-  MKL_NUM_THREADS: "2"
-  VECLIB_MAXIMUM_THREADS: "2"
-  NUMEXPR_NUM_THREADS: "2"
+name: aether-indicator
 
 services:
-  redis:
-    image: redis:7.4.2-alpine
-    container_name: aether-redis
-    profiles: [core]
-    restart: unless-stopped
-    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
-    ports:
-      - "127.0.0.1:6379:6379"
-    volumes:
-      - aether_redis_data:/data
-      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
-    mem_limit: 256m
-    mem_swappiness: 0
-    cpus: 0.50
-    cap_drop:
-      - ALL
-    cap_add:
-      - SETUID
-      - SETGID
-      - CHOWN
-      - DAC_OVERRIDE
-    security_opt:
-      - no-new-privileges:true
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-    logging: *aether-logging
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-      start_period: 10s
-    networks:
-      - aether-net
-
   timescaledb:
     image: timescale/timescaledb:2.28.2-pg16
-    container_name: aether-timescaledb
-    profiles: [core]
     restart: unless-stopped
-    command:
-      [
-        "postgres",
-        "-c",
-        "checkpoint_completion_target=0.95",
-        "-c",
-        "max_wal_size=2GB",
-      ]
     environment:
-      POSTGRES_USER: ${AETHER_PG_USER:-aether}
-      POSTGRES_PASSWORD: ${AETHER_PG_PASSWORD:-aether}
-      POSTGRES_DB: ${AETHER_PG_DB:-aether}
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: aether
+      POSTGRES_DB: aether
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:15432:5432"
     volumes:
-      - aether_ts_data:/var/lib/postgresql/data
-      - ./sql/002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
-      - ./sql/003_init-timescale.sql:/docker-entrypoint-initdb.d/003_init-timescale.sql:ro
-      - ./sql/004_timescale-lifecycle.sql:/docker-entrypoint-initdb.d/004_timescale-lifecycle.sql:ro
-      - ./sql/005_timescale_crags.sql:/docker-entrypoint-initdb.d/005_timescale_crags.sql:ro
-      - ./sql/006_contract_executions.sql:/docker-entrypoint-initdb.d/006_contract_executions.sql:ro
-      - ./sql/007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
-      - ./sql/008_contract_model_attribution.sql:/docker-entrypoint-initdb.d/008_contract_model_attribution.sql:ro
-      - ./sql/009_contract_label_audit_m5.sql:/docker-entrypoint-initdb.d/009_contract_label_audit_m5.sql:ro
-      - ./sql/004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
-      - ./sql/005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
-      - ./sql/006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
-      - ./sql/007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
-      - ./sql/008_contract_model_attribution.sql:/docker-scripts/008_contract_model_attribution.sql:ro
-      - ./sql/009_contract_label_audit_m5.sql:/docker-scripts/009_contract_label_audit_m5.sql:ro
-    mem_limit: 1g
-    mem_swappiness: 0
-    cpus: 1.0
-    security_opt:
-      - no-new-privileges:true
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-    logging: *aether-logging
+      - indicator_timescale:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${AETHER_PG_USER:-aether} -d ${AETHER_PG_DB:-aether}"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    networks:
-      - aether-net
-
-  minio:
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    container_name: aether-minio
-    profiles: [core]
-    restart: unless-stopped
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
-      MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
-    ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    volumes:
-      - aether_minio_data:/data
-    mem_limit: 512m
-    mem_swappiness: 0
-    cpus: 0.50
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-    logging: *aether-logging
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 5s
-      timeout: 5s
-      retries: 12
-      start_period: 15s
-    networks:
-      - aether-net
-
-  minio-init:
-    image: pgsty/mc:RELEASE.2026-08-04T00-00-00Z
-    container_name: aether-minio-init
-    profiles: [core]
-    restart: "no"
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
-      MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
-      MINIO_ENDPOINT: http://minio:9000
-      AETHER_MINIO_BUCKET: ${AETHER_MINIO_BUCKET:-dl-models}
-      AETHER_MINIO_ILM_PREFIX: ${AETHER_MINIO_ILM_PREFIX:-optuna/}
-      AETHER_MINIO_ILM_DAYS: ${AETHER_MINIO_ILM_DAYS:-7}
-    volumes:
-      - ./sh/minio-init.sh:/minio-init.sh:ro
-    entrypoint: ["/bin/sh", "/minio-init.sh"]
-    labels:
-      aether.oneshot: "true"
-      aether.oneshot.ok: "exited-0"
-    networks:
-      - aether-net
-
-  aether-meta-classifier:
-    build:
-      context: ./meta-classifier
-      dockerfile: Dockerfile
-      additional_contexts:
-        ml_common: ./ml_common
-    container_name: aether-meta-classifier
-    profiles: [ml]
-    restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M,mode=1777
-    ports:
-      - "127.0.0.1:8005:8000"
-    volumes:
-      - ./meta-models:/models
-    environment:
-      <<: *aether-omp
-      META_RETRAIN_MIN_N: "32"
-      META_MAX_BUFFER: "2000"
-    mem_limit: 512m
-    mem_swappiness: 0
-    cpus: 0.75
-    depends_on:
-      minio:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-      nproc:
-        soft: 4096
-        hard: 4096
-    stop_grace_period: 10s
-    logging: *aether-logging
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import urllib.request, sys; r=urllib.request.urlopen('http://localhost:8000/health'); sys.exit(0 if r.getcode()==200 else 1)",
-        ]
+      test: ["CMD-SHELL", "pg_isready -U aether -d aether"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 45s
-    networks:
-      - aether-net
-
-  aether-loss-classifier:
-    build:
-      context: ./loss-classifier
-      dockerfile: Dockerfile
-      additional_contexts:
-        ml_common: ./ml_common
-    container_name: aether-loss-classifier
-    profiles: [ml]
-    restart: unless-stopped
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M,mode=1777
-    ports:
-      - "127.0.0.1:8006:8000"
-    volumes:
-      - ./loss-models:/models
-    environment:
-      <<: *aether-omp
-      LOSS_FEATURE_DIM: "24"
-      LOSS_READY_N: "32"
-      LOSS_RETRAIN_MIN_N: "12"
-      LOSS_BOOTSTRAP_EXIT_N: "2"
-      LOSS_RETRAIN_ON_LOSS_MIN_N: "12"
-      LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"
-      LOSS_MAX_BUFFER: "2000"
-      LOSS_VETO_P_LOSS_FLOOR: "0.70"
-      LOSS_YOUNG_TEMP_N: "64"
-    mem_limit: 512m
-    mem_swappiness: 0
-    cpus: 0.75
-    depends_on:
-      minio:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    ulimits:
-      nofile:
-        soft: 65535
-        hard: 65535
-      nproc:
-        soft: 4096
-        hard: 4096
-    stop_grace_period: 10s
-    logging: *aether-logging
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "python",
-          "-c",
-          "import json, urllib.request, sys; response = urllib.request.urlopen('http://localhost:8000/health'); payload = json.loads(response.read().decode()); sys.exit(0 if response.getcode() == 200 and payload.get('ready') else 1)",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    networks:
-      - aether-net
 
   prometheus:
     image: prom/prometheus:v2.50.1
-    container_name: aether-prometheus
-    profiles: [telemetry]
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:19090:9090"
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - aether_prom_data:/prometheus
-    extra_hosts:
-      - "host.docker.internal:${AETHER_METRICS_HOST_IP:-host-gateway}"
-    logging: *aether-logging
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    networks:
-      - aether-net
 
   grafana:
     image: grafana/grafana:10.3.3
-    container_name: aether-grafana
-    profiles: [telemetry]
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=aether
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - aether_grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
-    logging: *aether-logging
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
-    networks:
-      - aether-net
+      - timescaledb
+    ports:
+      - "127.0.0.1:13000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - indicator_grafana:/var/lib/grafana
 
 volumes:
-  aether_redis_data:
-  aether_ts_data:
-  aether_minio_data:
-  aether_prom_data:
-  aether_grafana_data:
-
-networks:
-  aether-net:
-    driver: bridge
+  indicator_timescale:
+  indicator_grafana:

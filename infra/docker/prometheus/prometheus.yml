@@ -1,9 +1,6 @@
 global:
-  scrape_interval: 5s
-  evaluation_interval: 5s
-
+  scrape_interval: 15s
 scrape_configs:
-  - job_name: "aether_quantum_engine"
-    metrics_path: "/metrics"
+  - job_name: synthetic_indicator
     static_configs:
-      - targets: ["host.docker.internal:9100"]
+      - targets: ["host.docker.internal:9101"]

@@ -1,24 +1,5 @@
-# Pre-commit (Python): pre-commit
-# Pre-commit (Node.js, fora do pip): Node.js + npm para commitlint via npx
-# CI seguranca (binario, fora do pip): gitleaks
-
-# ---- PRE-COMMIT ----
-pre-commit==4.6.0              # Gerenciador de ganchos (hooks) do Git para rodar validações antes de cada commit
-
-# ---- LINT & QUALIDADE (hook lint + make app-lint) ----
-ruff==0.15.13                  # Linter e formatador de código Python extremamente rápido (substitui Black, Flake8, Isort)
-interrogate==1.7.0             # Verifica a cobertura de docstrings em módulos, classes e funções
-vulture==2.16                  # Identifica código morto (variáveis, funções e classes que não são utilizadas)
-
-# ---- SEGURANCA (hook security + make app-security) ----
-bandit==1.9.4                  # Varre o código em busca de vulnerabilidades e falhas comuns de segurança em Python
-pip-audit==2.10.0              # Escaneia as dependências do projeto para encontrar vulnerabilidades conhecidas (CVEs)
-
-# ---- TESTES & COBERTURA (hook test + make app-test) ----
-pytest==9.0.3                  # Framework principal para criação, organização e execução de testes automatizados
-pytest-asyncio==1.3.0          # Extensão do Pytest para dar suporte ao teste de código assíncrono (async/await)
-pytest-mock==3.15.1            # Wrapper simplificado em cima do unittest.mock para facilitar o uso de mocks nos testes
-pytest-timeout==2.4.0          # Define um tempo limite máximo para a execução de testes, evitando que travem no CI
-pytest-xdist==3.8.0            # Executa testes em paralelo aproveitando múltiplos núcleos da CPU para acelerar a suite
-pytest-cov==6.2.1              # Agrega cobertura entre workers do pytest-xdist (traz coverage como transitivo)
-hypothesis==6.168.0            # Property-based: invariantes de dominio (Kelly / p_eff FLIP); so dev
+-r requirements.txt
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+ruff==0.16.10
