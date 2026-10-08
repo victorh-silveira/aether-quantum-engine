@@ -33,7 +33,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | DevOps / CloudOps sênior (Compose, Redis, TS, MinIO) | [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-devops-cloudops` |
 | Deriv API / WS / PAT | [deriv-api-aether.md](deriv-api-aether.md) | `aether-deriv-api.mdc` | `aether-deriv-connect` |
 | Settings / knobs SSOT | [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-settings-ssot.mdc` | `aether-settings-change` |
-| Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) + [.github/README.md](../.github/README.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
+| Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) + [.github/workflows/WORKFLOWS.md](../.github/workflows/WORKFLOWS.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
 | Deps Python / requirements | [engineering-python-deps.md](engineering-python-deps.md) + [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-deps.mdc` | `aether-python-deps` |
 | Higienizacao do repositorio | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | `aether-repo-hygiene.mdc` | `aether-repo-hygiene` |
 | Surface sync (fechamento) | [engineering-surface-sync.md](engineering-surface-sync.md) | `aether-surface-sync.mdc` | `aether-surface-sync` |

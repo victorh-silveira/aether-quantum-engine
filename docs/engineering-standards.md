@@ -27,7 +27,7 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 | local | clean | `--stage clean --light-clean` |
 | commit | commitlint | primeiro no pre-commit (`COMMIT_EDITMSG`) + hook `commit-msg` |
 
-Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/README.md`](../.github/README.md).
+Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/workflows/WORKFLOWS.md`](../.github/workflows/WORKFLOWS.md).
 
 ## Commitlint
 

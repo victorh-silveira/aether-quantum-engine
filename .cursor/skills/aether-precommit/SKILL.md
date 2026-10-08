@@ -21,4 +21,4 @@ description: >-
 
 ## Docs
 
-`docs/engineering-standards.md`, `docs/engineering-architecture-senior.md`, `.github/README.md`, `AGENTS.md`
+`docs/engineering-standards.md`, `docs/engineering-architecture-senior.md`, `.github/workflows/WORKFLOWS.md`, `AGENTS.md`

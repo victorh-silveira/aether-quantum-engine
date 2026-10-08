@@ -103,7 +103,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Endurecimento Compose / Redis / Timescale / MinIO | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
 | Launch-train / sanitize / telemetria | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
-| QA / pre-commit | `docs/engineering-standards.md` + `.github/README.md` + skill `aether-precommit` |
+| QA / pre-commit | `docs/engineering-standards.md` + `.github/workflows/WORKFLOWS.md` + skill `aether-precommit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` (WS max_size/ping, httpx singleton, Polars, MinIO `to_thread`) |
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
