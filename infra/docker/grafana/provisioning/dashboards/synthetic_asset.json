@@ -16,7 +16,7 @@
         "name": "symbol",
         "label": "Ativo sintetico",
         "datasource": {
-          "type": "postgres",
+          "type": "grafana-postgresql-datasource",
           "uid": "timescale"
         },
         "query": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
@@ -42,14 +42,14 @@
       "title": "Sinal atual",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -98,14 +98,14 @@
       "title": "Probabilidade CALL",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -126,14 +126,14 @@
       "title": "Idade da ultima vela (s)",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -154,18 +154,18 @@
       "title": "Acertos observados",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
-          "rawSql": "SELECT round(100.0 * avg(correct::integer),1) AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND correct IS NOT NULL AND $__timeFilter(to_timestamp(candle_epoch))",
+          "rawSql": "SELECT round(100.0 * avg(correct::integer),1) AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND correct IS NOT NULL AND $__unixEpochFilter(candle_epoch)",
           "editorMode": "code"
         }
       ],
@@ -182,18 +182,18 @@
       "title": "Fechamentos reais",
       "type": "timeseries",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "time_series",
-          "rawSql": "SELECT to_timestamp(candle_epoch) AS time, close AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND $__timeFilter(to_timestamp(candle_epoch)) ORDER BY candle_epoch",
+          "rawSql": "SELECT to_timestamp(candle_epoch) AS time, close AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND $__unixEpochFilter(candle_epoch) ORDER BY candle_epoch",
           "editorMode": "code"
         }
       ],
@@ -223,18 +223,18 @@
       "title": "Historico auditavel de leituras",
       "type": "table",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
-          "rawSql": "SELECT to_timestamp(candle_epoch) AS vela_fechada, side AS sinal, round((probability * 100)::numeric,1) AS prob_call_pct, reason AS estado, model_version AS modelo, observed_side AS direcao_observada, correct AS acertou FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND $__timeFilter(to_timestamp(candle_epoch)) ORDER BY candle_epoch DESC LIMIT 500",
+          "rawSql": "SELECT to_timestamp(candle_epoch) AS vela_fechada, side AS sinal, round((probability * 100)::numeric,1) AS prob_call_pct, reason AS estado, model_version AS modelo, observed_side AS direcao_observada, correct AS acertou FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = ${period} AND $__unixEpochFilter(candle_epoch) ORDER BY candle_epoch DESC LIMIT 500",
           "editorMode": "code"
         }
       ],

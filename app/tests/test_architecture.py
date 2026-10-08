@@ -29,9 +29,27 @@ def test_dashboards_have_real_queries_and_no_interpolation():
     for path in files:
         dashboard = json.loads(path.read_text())
         assert dashboard["panels"]
+        references = []
         for panel in dashboard["panels"]:
-            assert panel["targets"][0]["rawSql"]
+            sql = panel["targets"][0]["rawSql"]
+            assert sql
+            assert "$__timeFilter(to_timestamp(candle_epoch))" not in sql
             assert panel["options"].get("spanNulls") is not True
+            references.append(panel.get("datasource"))
+            references.extend(target.get("datasource") for target in panel["targets"])
+        references.extend(variable.get("datasource") for variable in dashboard.get("templating", {}).get("list", []))
+        assert all(
+            reference == {"type": "grafana-postgresql-datasource", "uid": "timescale"}
+            for reference in references
+            if reference is not None
+        )
+        if path.name == "synthetic_asset.json":
+            assert (
+                sum(
+                    "$__unixEpochFilter(candle_epoch)" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"]
+                )
+                == 3
+            )
 
 
 def test_compose_scrapes_running_indicator_service():

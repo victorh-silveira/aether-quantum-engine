@@ -15,14 +15,14 @@
       "title": "Ativos sinteticos ativos",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -43,14 +43,14 @@
       "title": "Sinais atuais",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -71,14 +71,14 @@
       "title": "Sem sinal",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -99,14 +99,14 @@
       "title": "Pares com dado atrasado",
       "type": "stat",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
@@ -127,14 +127,14 @@
       "title": "Ultima leitura por ativo e periodo",
       "type": "table",
       "datasource": {
-        "type": "postgres",
+        "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
           "refId": "A",
           "datasource": {
-            "type": "postgres",
+            "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
           "format": "table",
