@@ -34,7 +34,7 @@ Crash-first em cada stack: lint, validate, security, test, build. Jobs por tecno
 
 | Workflow | Gatilho | Uso |
 |----------|---------|-----|
-| [ci.yml](workflows/ci.yml) | push/PR `main`, manual | CI por stack; release no push `main` |
+| [ci.yml](ci.yml) | push/PR `main`, manual | CI por stack; release no push `main` |
 
 ## Composite actions
 

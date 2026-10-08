@@ -40,3 +40,4 @@ O launcher de treino em WSL é `app/scripts/wsl/launch-train-wsl.sh`. O motor us
 - [Execução e risco](docs/binary-senior-playbook.md)
 - [Infraestrutura Docker](docs/infra-docker.md)
 - [Operação e regras para agentes](AGENTS.md)
+- [CI/CD e workflows](.github/workflows/WORKFLOWS.md)
