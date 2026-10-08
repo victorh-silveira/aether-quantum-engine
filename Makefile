@@ -14,7 +14,7 @@ run:
 	python run.py
 
 infra-up:
-	docker compose -f infra/docker/docker-compose.yml up -d
+	docker compose -f infra/docker/docker-compose.yml up --build -d
 
 infra-down:
 	docker compose -f infra/docker/docker-compose.yml down
