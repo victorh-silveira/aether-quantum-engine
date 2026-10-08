@@ -165,14 +165,18 @@ jobs:
           tags: ${{ steps.image.outputs.tag }}
       - name: Publicação | Resumo
         if: always()
+        env:
+          IMAGEM_RESULTADO: ${{ steps.publicar.outcome }}
+          IMAGEM_TAG: ${{ steps.image.outputs.tag }}
+          IMAGEM_DIGEST: ${{ steps.publicar.outputs.digest }}
         run: |
           {
             echo '## Publicação da imagem de prévia'
             echo ''
-            if [ '${{ steps.publicar.outcome }}' = 'success' ]; then
+            if [ "$IMAGEM_RESULTADO" = 'success' ]; then
               echo 'Resultado: imagem publicada com sucesso.'
-              echo 'Imagem: `${{ steps.image.outputs.tag }}`'
-              echo 'Identificador: `${{ steps.publicar.outputs.digest }}`'
+              printf 'Imagem: `%s`\n' "$IMAGEM_TAG"
+              printf 'Identificador: `%s`\n' "$IMAGEM_DIGEST"
             else
               echo 'Resultado: imagem não publicada.'
               echo 'Consulte as etapas anteriores para identificar a falha.'
@@ -187,6 +191,15 @@ jobs:
     timeout-minutes: 5
     steps:
       - name: Resumo | Pipeline
+        env:
+          RESULTADO_PYTHON: ${{ needs.python.result }}
+          RESULTADO_DOCKER: ${{ needs.docker.result }}
+          RESULTADO_SHELL: ${{ needs.shell.result }}
+          RESULTADO_RUST: ${{ needs.rust.result }}
+          RESULTADO_WORKFLOWS: ${{ needs.workflows.result }}
+          RESULTADO_PUBLICACAO: ${{ needs.release.result }}
+          IMAGEM_PUBLICADA: ${{ needs.release.outputs.published }}
+          IMAGEM_TAG: ${{ needs.release.outputs.tag }}
         run: |
           traduzir() {
             case "$1" in
@@ -202,15 +215,15 @@ jobs:
             echo ''
             echo '| Etapa | Resultado |'
             echo '|-------|--------|'
-            echo "| Python | $(traduzir '${{ needs.python.result }}') |"
-            echo "| Docker | $(traduzir '${{ needs.docker.result }}') |"
-            echo "| Shell | $(traduzir '${{ needs.shell.result }}') |"
-            echo "| Rust | $(traduzir '${{ needs.rust.result }}') |"
-            echo "| Fluxos de trabalho | $(traduzir '${{ needs.workflows.result }}') |"
-            echo "| Publicação | $(traduzir '${{ needs.release.result }}') |"
+            echo "| Python | $(traduzir "$RESULTADO_PYTHON") |"
+            echo "| Docker | $(traduzir "$RESULTADO_DOCKER") |"
+            echo "| Shell | $(traduzir "$RESULTADO_SHELL") |"
+            echo "| Rust | $(traduzir "$RESULTADO_RUST") |"
+            echo "| Fluxos de trabalho | $(traduzir "$RESULTADO_WORKFLOWS") |"
+            echo "| Publicação | $(traduzir "$RESULTADO_PUBLICACAO") |"
             echo ''
-            if [ '${{ needs.release.outputs.published }}' = 'true' ]; then
-              echo 'Imagem de prévia publicada: `${{ needs.release.outputs.tag }}`'
+            if [ "$IMAGEM_PUBLICADA" = 'true' ]; then
+              printf 'Imagem de prévia publicada: `%s`\n' "$IMAGEM_TAG"
             else
               echo 'Nenhuma imagem de prévia foi publicada neste envio.'
             fi
