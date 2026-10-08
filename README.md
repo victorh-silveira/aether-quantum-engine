@@ -24,6 +24,10 @@ make lint
 make test
 ```
 
-O CI valida somente push e PRs destinados à branch `codex/synthetic-indicator`. Push aprovado publica imagem de prévia no GHCR, sem release ou deploy.
+Esta branch mantém a estrutura do CI/CD anterior (Python, Docker, Shell, Rust,
+workflows e resumo), com comandos adaptados ao indicador. Valida push e PRs
+destinados à `codex/synthetic-indicator`. Push aprovado publica imagem de prévia
+no GHCR, sem release semântico ou deploy. A `main` mantém o motor e CI/CD
+anteriores.
 
 `make infra-up` inicia o indicador junto com a stack. O treino é offline; os modelos exportados ficam visíveis ao serviço pelo volume local e são carregados no ciclo seguinte. `python run.py` serve apenas ao desenvolvimento quando o serviço Compose estiver parado.

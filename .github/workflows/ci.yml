@@ -1,49 +1,185 @@
-name: CI/CD - Indicador sintetico
+name: CI/CD - Pipeline principal
+
 on:
   push:
     branches: [codex/synthetic-indicator]
   pull_request:
     branches: [codex/synthetic-indicator]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
-concurrency:
-  group: indicator-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+
 jobs:
-  validate:
+  python:
+    name: CI - Python
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.13'
           cache: pip
           cache-dependency-path: app/requirements-dev.txt
-      - run: python -m pip install -r app/requirements-dev.txt
-      - run: make lint
-      - run: make test
-      - run: docker compose -f infra/docker/docker-compose.yml config --quiet
-      - run: docker build -f app/Dockerfile -t aether-indicator:ci .
-      - name: Validar dashboards
-        run: python -c 'import json,pathlib; [json.loads(p.read_text()) for p in pathlib.Path("infra/docker/grafana/provisioning/dashboards").glob("*.json")]; assert list(pathlib.Path("infra/docker/grafana/provisioning/dashboards").glob("*.json"))'
+      - name: Instalar dependencias
+        run: python -m pip install -r app/requirements-dev.txt pyyaml==6.0.3
+      - name: Instalar Gitleaks
+        run: |
+          curl -fsSL https://github.com/gitleaks/gitleaks/releases/download/v8.24.2/gitleaks_8.24.2_linux_x64.tar.gz -o /tmp/gitleaks.tar.gz
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp
+          sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
+      - name: Python | Lint
+        run: make lint
+      - name: Python | JSON Lint
+        run: python -m json.tool config/settings.json >/dev/null
+      - name: Python | YAML Lint
+        run: python -c 'import pathlib,yaml; [yaml.safe_load(p.read_text()) for p in pathlib.Path(".github/workflows").glob("*.yml")]; yaml.safe_load(pathlib.Path("infra/docker/docker-compose.yml").read_text())'
+      - name: Python | Validate
+        run: python -m compileall -q app/src app/run.py app/train.py
+      - name: Python | JSON Validate
+        run: python -c 'import json,pathlib; files=list(pathlib.Path("infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert files; [json.loads(p.read_text()) for p in files]'
+      - name: Python | YAML Validate
+        run: docker compose -f infra/docker/docker-compose.yml config --quiet
+      - name: Python | Seguranca
+        run: |
+          gitleaks dir --no-banner --redact --config .gitleaks.toml .
+          python -m ruff check --select S --ignore S104 app/src app/run.py app/train.py
+      - name: Python | Testes
+        run: make test
+      - name: Python | JSON Testes
+        run: python -m pytest app/tests/test_architecture.py -q
+      - name: Python | Build
+        run: python -m compileall -q app/src app/run.py app/train.py
 
-  preview:
-    if: github.event_name == 'push'
-    needs: validate
+  docker:
+    name: CI - Docker
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Instalar Hadolint
+        run: |
+          curl -fsSL -o /tmp/hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x /tmp/hadolint
+          sudo mv /tmp/hadolint /usr/local/bin/hadolint
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          version: v0.74.0
+      - name: Docker | Lint
+        run: hadolint app/Dockerfile
+      - name: Docker | Validate
+        run: docker compose -f infra/docker/docker-compose.yml config --quiet
+      - name: Docker | Seguranca
+        run: trivy config --severity HIGH,CRITICAL --exit-code 1 app/Dockerfile
+      - name: Docker | Build
+        run: docker build -f app/Dockerfile -t aether-indicator:ci .
+      - name: Docker | Testes
+        run: docker run --rm aether-indicator:ci python -c 'import app.src.indicator; print("indicator import ok")'
+
+  shell:
+    name: CI - Shell
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Instalar ShellCheck
+        run: sudo apt-get update -y && sudo apt-get install -y shellcheck
+      - name: Shell | Lint e Validate
+        run: |
+          mapfile -d '' files < <(find . -path './.git' -prune -o -path './.venv' -prune -o -type f \( -name '*.sh' -o -name '*.bash' \) -print0)
+          if ((${#files[@]})); then shellcheck "${files[@]}"; fi
+          for file in "${files[@]}"; do bash -n "$file"; done
+      - name: Shell | Seguranca, Testes e Build
+        run: make -n lint test
+
+  rust:
+    name: CI - Rust
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Rust | Verificar componentes
+        run: |
+          if find . -path './.git' -prune -o -path './.venv' -prune -o -type f \( -name '*.rs' -o -name 'Cargo.toml' \) -print | grep -q .; then
+            echo 'Codigo Rust encontrado; configure fmt, clippy, testes e build antes de integrar.' >&2
+            exit 1
+          fi
+          echo 'Sem componentes Rust na branch do indicador.'
+
+  workflows:
+    name: CI - Workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Workflows | Lint
+        uses: ./.github/actions/ci/workflows
+
+  release:
+    name: CI - Release
+    needs: [python, docker, shell, rust, workflows]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/codex/synthetic-indicator'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
+    outputs:
+      tag: ${{ steps.image.outputs.tag }}
+      published: ${{ steps.image.outputs.published }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: docker/login-action@v4
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Release | Preparar imagem de previa
+        id: image
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}-indicator:preview-${GITHUB_SHA}"
+          echo "tag=$image" >> "$GITHUB_OUTPUT"
+          echo 'published=true' >> "$GITHUB_OUTPUT"
+      - name: Release | Autenticar GHCR
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v7
+      - name: Release | Publicar imagem de previa
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: app/Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}-indicator:preview-${{ github.sha }}
+          tags: ${{ steps.image.outputs.tag }}
+
+  pipeline-summary:
+    name: CI - Resumo
+    needs: [python, docker, shell, rust, workflows, release]
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/codex/synthetic-indicator'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resumo | Pipeline
+        run: |
+          {
+            echo '## Resumo CI/CD'
+            echo '| Etapa | Status |'
+            echo '|-------|--------|'
+            echo '| Python | ${{ needs.python.result }} |'
+            echo '| Docker | ${{ needs.docker.result }} |'
+            echo '| Shell | ${{ needs.shell.result }} |'
+            echo '| Rust | ${{ needs.rust.result }} |'
+            echo '| Workflows | ${{ needs.workflows.result }} |'
+            echo '| Release | ${{ needs.release.result }} |'
+            echo 'Imagem: ${{ needs.release.outputs.tag }}'
+          } >> "$GITHUB_STEP_SUMMARY"

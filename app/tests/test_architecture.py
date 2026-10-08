@@ -43,3 +43,16 @@ def test_compose_scrapes_running_indicator_service():
     assert "  prometheus:\n    depends_on:\n      indicator:\n        condition: service_healthy" in compose
     assert "indicator:9101" in prometheus
     assert "host.docker.internal" not in prometheus
+
+
+def test_ci_uses_legacy_job_structure_for_indicator_branch():
+    root = Path(__file__).resolve().parents[2]
+    workflow = (root / ".github/workflows/ci.yml").read_text()
+    for job in ("python", "docker", "shell", "rust", "workflows", "release", "pipeline-summary"):
+        assert f"  {job}:\n" in workflow
+    assert "branches: [codex/synthetic-indicator]" in workflow
+    assert "refs/heads/codex/synthetic-indicator" in workflow
+    assert "github.event_name == 'push'" in workflow
+    assert "make test" in workflow
+    assert "trivy config" in workflow
+    assert "actionlint" in (root / ".github/actions/ci/workflows/action.yml").read_text()
