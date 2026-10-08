@@ -215,7 +215,7 @@ jobs:
         uses: ./.github/actions/ci/workflows
 
   release:
-    name: CI - Release
+    name: CI - Publicação
     needs: [python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
@@ -259,6 +259,19 @@ jobs:
           else
             echo "published=false" >> "$GITHUB_OUTPUT"
           fi
+      - name: Publicação | Resumo
+        shell: bash
+        run: |
+          {
+            echo '## Publicação da versão'
+            echo ''
+            if [ '${{ steps.after_tag.outputs.published }}' = 'true' ]; then
+              echo 'Resultado: nova versão publicada.'
+              echo 'Versão: `${{ steps.after_tag.outputs.tag }}`'
+            else
+              echo 'Resultado: nenhuma versão nova foi publicada.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
 
   pipeline-summary:
     name: CI - Resumo

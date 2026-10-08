@@ -12,7 +12,7 @@ flowchart LR
     SH[Shell]
     WF[Workflows]
   end
-  PY --> R[Release]
+  PY --> R[Publicação]
   DK --> R
   SH --> R
   WF --> R
@@ -25,7 +25,7 @@ flowchart LR
 | CI | Docker | Lint, Validate, Seguranca, Testes, Build |
 | CI | Shell | Lint, Validate, Seguranca, Testes, Build |
 | CI | Workflows | Lint (actionlint) |
-| Release | Release | Tags, Semantic (+ Baseline/Status) |
+| Publicação | Publicação | Tags, Semantic (+ Baseline/Status) |
 | Resumo | Resumo | Pipeline |
 
 Crash-first em cada stack: lint, validate, security, test, build. Jobs por tecnologia; cada stage e um step unico (sem `strategy.matrix`).

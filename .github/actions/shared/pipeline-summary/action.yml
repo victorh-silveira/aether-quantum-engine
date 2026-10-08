@@ -1,5 +1,5 @@
 name: Resumo do pipeline
-description: Publica status dos jobs no GitHub Summary
+description: Publica o estado das etapas em português no resumo do GitHub
 inputs:
   python:
     required: true
@@ -25,22 +25,30 @@ runs:
     - name: Resumo | Pipeline
       shell: bash
       run: |
+        traduzir() {
+          case "$1" in
+            success) echo "Aprovado" ;;
+            failure) echo "Falhou" ;;
+            cancelled) echo "Cancelado" ;;
+            skipped) echo "Ignorado" ;;
+            *) echo "Indisponível" ;;
+          esac
+        }
         {
-          echo "## Resumo CI/CD"
+          echo "## Resumo da integração e publicação"
           echo ""
-          echo "| Etapa | Status |"
+          echo "| Etapa | Resultado |"
           echo "|-------|--------|"
-          echo "| Python | ${{ inputs.python }} |"
-          echo "| Docker | ${{ inputs.docker }} |"
-          echo "| Shell | ${{ inputs.shell }} |"
-          echo "| Rust | ${{ inputs.rust }} |"
-          echo "| Workflows | ${{ inputs.workflows }} |"
-          echo "| Release | ${{ inputs.release }} |"
+          echo "| Python | $(traduzir '${{ inputs.python }}') |"
+          echo "| Docker | $(traduzir '${{ inputs.docker }}') |"
+          echo "| Shell | $(traduzir '${{ inputs.shell }}') |"
+          echo "| Rust | $(traduzir '${{ inputs.rust }}') |"
+          echo "| Fluxos de trabalho | $(traduzir '${{ inputs.workflows }}') |"
+          echo "| Publicação | $(traduzir '${{ inputs.release }}') |"
           echo ""
           if [ "${{ inputs.release_published }}" = "true" ]; then
-            echo "Tag publicada: \`${{ inputs.release_tag }}\`"
+            echo "Versão publicada: \`${{ inputs.release_tag }}\`"
           else
-            echo "Nenhuma tag nova neste push."
+            echo "Nenhuma versão nova foi publicada neste envio."
           fi
         } >> "$GITHUB_STEP_SUMMARY"
-
