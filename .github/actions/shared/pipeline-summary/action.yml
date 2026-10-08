@@ -24,6 +24,15 @@ runs:
   steps:
     - name: Resumo | Pipeline
       shell: bash
+      env:
+        RESULTADO_PYTHON: ${{ inputs.python }}
+        RESULTADO_DOCKER: ${{ inputs.docker }}
+        RESULTADO_SHELL: ${{ inputs.shell }}
+        RESULTADO_RUST: ${{ inputs.rust }}
+        RESULTADO_WORKFLOWS: ${{ inputs.workflows }}
+        RESULTADO_PUBLICACAO: ${{ inputs.release }}
+        VERSAO_PUBLICADA: ${{ inputs.release_published }}
+        VERSAO_TAG: ${{ inputs.release_tag }}
       run: |
         traduzir() {
           case "$1" in
@@ -39,15 +48,15 @@ runs:
           echo ""
           echo "| Etapa | Resultado |"
           echo "|-------|--------|"
-          echo "| Python | $(traduzir '${{ inputs.python }}') |"
-          echo "| Docker | $(traduzir '${{ inputs.docker }}') |"
-          echo "| Shell | $(traduzir '${{ inputs.shell }}') |"
-          echo "| Rust | $(traduzir '${{ inputs.rust }}') |"
-          echo "| Fluxos de trabalho | $(traduzir '${{ inputs.workflows }}') |"
-          echo "| Publicação | $(traduzir '${{ inputs.release }}') |"
+          echo "| Python | $(traduzir "$RESULTADO_PYTHON") |"
+          echo "| Docker | $(traduzir "$RESULTADO_DOCKER") |"
+          echo "| Shell | $(traduzir "$RESULTADO_SHELL") |"
+          echo "| Rust | $(traduzir "$RESULTADO_RUST") |"
+          echo "| Fluxos de trabalho | $(traduzir "$RESULTADO_WORKFLOWS") |"
+          echo "| Publicação | $(traduzir "$RESULTADO_PUBLICACAO") |"
           echo ""
-          if [ "${{ inputs.release_published }}" = "true" ]; then
-            echo "Versão publicada: \`${{ inputs.release_tag }}\`"
+          if [ "$VERSAO_PUBLICADA" = "true" ]; then
+            printf 'Versão publicada: `%s`\n' "$VERSAO_TAG"
           else
             echo "Nenhuma versão nova foi publicada neste envio."
           fi
