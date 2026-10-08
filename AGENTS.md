@@ -2,7 +2,7 @@
 
 - Responder e documentar em PT-BR. Trabalhar no WSL com Python 3.13.
 - Produto: observação dos mercados sintéticos públicos da Deriv em M5, M15 e H1. Forex é operação manual externa; não há inferência cruzada.
-- Processo ativo: `app/src/indicator/`, entrada `app/run.py`, treino `app/train.py`, configuração `config/settings.json`.
+- Serviço ativo no Compose: `app/src/indicator/`, entrada `app/run.py`, treino `app/train.py`, configuração `config/settings.json`.
 - Somente `active_symbols` e `ticks_history` no cliente público. Nunca incluir `buy`, `proposal`, `authorize`, liquidação, Kelly, recuperação ou credenciais de conta.
 - `SEM SINAL` é obrigatório sem histórico contínuo, dado atual ou modelo próprio aprovado. Não reutilizar o último lado.
 - Modelo por ativo e período, validação temporal contra maioria em acurácia e Brier. Histórico observado é direção da vela seguinte, não resultado de contrato.

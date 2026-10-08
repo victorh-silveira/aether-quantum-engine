@@ -32,3 +32,14 @@ def test_dashboards_have_real_queries_and_no_interpolation():
         for panel in dashboard["panels"]:
             assert panel["targets"][0]["rawSql"]
             assert panel["options"].get("spanNulls") is not True
+
+
+def test_compose_scrapes_running_indicator_service():
+    root = Path(__file__).resolve().parents[2]
+    compose = (root / "infra/docker/docker-compose.yml").read_text()
+    prometheus = (root / "infra/docker/prometheus/prometheus.yml").read_text()
+    assert "  indicator:" in compose
+    assert "condition: service_healthy" in compose
+    assert "  prometheus:\n    depends_on:\n      indicator:\n        condition: service_healthy" in compose
+    assert "indicator:9101" in prometheus
+    assert "host.docker.internal" not in prometheus

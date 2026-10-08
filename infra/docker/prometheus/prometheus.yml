@@ -3,4 +3,4 @@ global:
 scrape_configs:
   - job_name: synthetic_indicator
     static_configs:
-      - targets: ["host.docker.internal:9101"]
+      - targets: ["indicator:9101"]
