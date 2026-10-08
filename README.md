@@ -24,6 +24,6 @@ make lint
 make test
 ```
 
-O CI valida somente push e PRs destinados à branch `codex/synthetic-indicator`. Push aprovado publica imagem de prévia no GHCR, sem release ou deploy.
+O CI valida somente push e PRs destinados à branch `main`. Push aprovado publica imagem de prévia no GHCR, sem release ou deploy.
 
 `make infra-up` inicia o indicador junto com a stack. O treino é offline; os modelos exportados ficam visíveis ao serviço pelo volume local e são carregados no ciclo seguinte. `python run.py` serve apenas ao desenvolvimento quando o serviço Compose estiver parado.

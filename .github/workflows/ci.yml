@@ -1,9 +1,9 @@
 name: CI/CD - Indicador sintetico
 on:
   push:
-    branches: [codex/synthetic-indicator]
+    branches: [main]
   pull_request:
-    branches: [codex/synthetic-indicator]
+    branches: [main]
 permissions:
   contents: read
 concurrency:

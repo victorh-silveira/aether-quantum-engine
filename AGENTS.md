@@ -8,6 +8,6 @@
 - Modelo por ativo e período, validação temporal contra maioria em acurácia e Brier. Histórico observado é direção da vela seguinte, não resultado de contrato.
 - Domínio puro; I/O em adapters; nenhuma interpolação de dados. Arquivos Python em `app/src` com no máximo 300 linhas; 100% de cobertura de linhas.
 - Atualizar código, testes, documentação, dashboards, regras e skills em conjunto. Executar `make lint` e `make test`.
-- CI da branch `codex/synthetic-indicator`: push e PR para essa branch. Imagem GHCR somente após push aprovado. Sem release automático.
+- CI da branch `main`: push e PR para essa branch. Imagem GHCR somente após push aprovado. Sem release automático.
 
 Ver [arquitetura](docs/arquitetura.md), [operação](docs/operacao.md), [modelos](docs/modelos.md) e [matriz de agentes](docs/agent-coverage.md).
