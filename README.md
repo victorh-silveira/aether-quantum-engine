@@ -1,5 +1,28 @@
 # Aether Quantum Engine
 
+[![CI/CD](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/victorh-silveira/aether-quantum-engine?label=release)](https://github.com/victorh-silveira/aether-quantum-engine/releases)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](app/.python-version)
+[![Cobertura do motor: 100% exigidos](https://img.shields.io/badge/cobertura%20motor-100%25%20exigidos-2E7D32)](app/pyproject.toml)
+[![Cobertura do indicador: 100% exigidos](https://img.shields.io/badge/cobertura%20indicador-100%25%20exigidos-2E7D32)](indicator/app/pyproject.toml)
+
+[![TCN](https://img.shields.io/badge/modelo-TCN-EE4C2C?logo=pytorch&logoColor=white)](docs/engineering-deep-learning.md)
+[![LightGBM](https://img.shields.io/badge/meta-LightGBM-16856B)](app/requirements.txt)
+[![Polars](https://img.shields.io/badge/dados-Polars-CD792C)](app/requirements.txt)
+[![Docker Compose](https://img.shields.io/badge/infra-Docker%20Compose-2496ED?logo=docker&logoColor=white)](infra/docker/docker-compose.yml)
+[![Redis](https://img.shields.io/badge/cache-Redis-DC382D?logo=redis&logoColor=white)](infra/docker/docker-compose.yml)
+[![TimescaleDB](https://img.shields.io/badge/series%20temporais-TimescaleDB-FDB515)](infra/docker/docker-compose.yml)
+[![MinIO](https://img.shields.io/badge/artefatos-MinIO-C72E49)](infra/docker/docker-compose.yml)
+
+[![Prometheus](https://img.shields.io/badge/metricas-Prometheus-E6522C?logo=prometheus&logoColor=white)](docs/engineering-observability.md)
+[![Grafana](https://img.shields.io/badge/dashboards-Grafana-F46800?logo=grafana&logoColor=white)](docs/engineering-observability.md)
+[![Ruff](https://img.shields.io/badge/lint-Ruff-D7FF64)](app/requirements-dev.txt)
+[![Vulture](https://img.shields.io/badge/codigo%20morto-Vulture%20100-555555)](app/pyproject.toml)
+[![Bandit](https://img.shields.io/badge/seguranca-Bandit-555555)](app/scripts/operations/clean_workspace.py)
+[![pip-audit](https://img.shields.io/badge/dependencias-pip--audit-555555)](app/scripts/operations/clean_workspace.py)
+[![Gitleaks](https://img.shields.io/badge/segredos-Gitleaks-555555)](.github/workflows/ci.yml)
+[![Trivy](https://img.shields.io/badge/containers-Trivy-555555)](.github/workflows/ci.yml)
+
 Motor quantitativo assíncrono para contratos Rise/Fall de 5 minutos nos índices Volatility da Deriv. A `main` integra sinais M5 aprovados do indicador ao pipeline TCN, meta e loss-classifier, com uma ordem por ativo elegível no mesmo ciclo. O processo Python 3.13 roda no host com `asyncio`; Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam como serviços Docker. A arquitetura separa domínio, aplicação, portas, adaptadores e apresentação. O estado tabular usa Polars.
 
 A configuração operacional está em [`config/settings.json`](config/settings.json). O universo e a cadência atuais são M5 de 300 segundos, contexto D1 de 86.400 segundos, 25.000 barras M5 no treino, lookback TCN de 32 barras, horizonte de uma barra e label `spot_forward`. O contrato executado dura 5 minutos. O label por fechamento é uma aproximação do desfecho do contrato e não representa o spot executado.
