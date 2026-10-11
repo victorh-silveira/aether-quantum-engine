@@ -1,3 +1,26 @@
+## [4.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.2.0...v4.3.0) (2026-10-11)
+
+### Funcionalidades
+
+* **indicador:** validar sinais aprovados e atualizar observabilidade ([5c3ef8f](https://github.com/victorh-silveira/aether-quantum-engine/commit/5c3ef8f28180ab4e09cbca97411ce3033d36d43a))
+* **infra:** iniciar indicador na stack observável ([280c4f8](https://github.com/victorh-silveira/aether-quantum-engine/commit/280c4f8ef55a46eab0b5a3d329e414bc8ddfbe1b))
+* **main:** integrar indicador aprovado ao motor multissimbolo ([f556639](https://github.com/victorh-silveira/aether-quantum-engine/commit/f55663993a59bfea10973f9e19a6d03f40f5c364))
+* **main:** unir historico do indicador integrado ([21213ad](https://github.com/victorh-silveira/aether-quantum-engine/commit/21213ad3e55c6bd3f5c0218a7d71387b6600a33f))
+
+### Correcoes de Bug
+
+* **grafana:** corrigir datasource e filtros de tempo ([d68094b](https://github.com/victorh-silveira/aether-quantum-engine/commit/d68094b616964815db964378946260f615285c28))
+
+### Refatoracoes Tecnicas
+
+* **app:** transformar motor em indicador de sintéticos ([85d8817](https://github.com/victorh-silveira/aether-quantum-engine/commit/85d8817c5959dfea87bae43218f81aed6f659708))
+
+### Documentacao
+
+* **indicador:** corrigir navegacao da skill e workflows ([056f046](https://github.com/victorh-silveira/aether-quantum-engine/commit/056f046ed978a4bd792f0963191198694c0bdbf1))
+* **repo:** atualizar referencias do guia de workflows ([1483a57](https://github.com/victorh-silveira/aether-quantum-engine/commit/1483a57e6d5bf110a52878bc028e63e8af8f6488))
+* **repo:** mover guia dos workflows ([20bffa0](https://github.com/victorh-silveira/aether-quantum-engine/commit/20bffa060e4b623043e0987aaff6a8f4549322d6))
+
 ## [4.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.1.0...v4.2.0) (2026-10-08)
 
 ### Funcionalidades
