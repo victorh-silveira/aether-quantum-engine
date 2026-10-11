@@ -43,7 +43,7 @@ class PublicDeriv:
                     if response.get("req_id") not in (None, self._request_id):
                         raise RuntimeError("resposta fora de ordem")
                     return response
-                except (TimeoutError, OSError, websockets.exceptions.ConnectionClosed):
+                except (TimeoutError, OSError, websockets.exceptions.ConnectionClosed, asyncio.CancelledError):
                     await self.close()
                     if attempt:
                         raise

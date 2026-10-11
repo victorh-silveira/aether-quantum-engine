@@ -1,6 +1,15 @@
 """Contratos de dominio para catalogo e velas."""
 
-from indicator.domain import Candle, aggregate, closed_candles, latest_contiguous, synthetic_symbols
+from indicator.domain import (
+    Candle,
+    Signal,
+    aggregate,
+    closed_candles,
+    current_spot,
+    latest_contiguous,
+    live_observation,
+    synthetic_symbols,
+)
 
 
 def test_synthetic_catalog_filters_forex_suspended_and_bad_symbol():
@@ -10,8 +19,17 @@ def test_synthetic_catalog_filters_forex_suspended_and_bad_symbol():
         {"market": "synthetic_index", "underlying_symbol": 'BAD"LABEL'},
         {"market": "synthetic_index", "underlying_symbol": "STOP", "is_trading_suspended": 1},
         {"market": "synthetic_index", "symbol": "1HZ75V", "display_name": "V75"},
+        {"market": "synthetic_index", "symbol": "R_10", "display_name": "Volatility 10"},
+        {"market": "synthetic_index", "symbol": "1HZ25V", "display_name": "Volatility 25 (1s)"},
+        {"market": "synthetic_index", "symbol": "BOOM1000", "display_name": "Boom"},
+        {"market": "synthetic_index", "symbol": "R_ABC", "display_name": "Bad"},
     ]
-    assert synthetic_symbols(rows) == {"1HZ75V": "V75", "R_75": "Volatility 75"}
+    assert synthetic_symbols(rows) == {
+        "1HZ25V": "Volatility 25 (1s)",
+        "1HZ75V": "V75",
+        "R_10": "Volatility 10",
+        "R_75": "Volatility 75",
+    }
 
 
 def test_closed_candles_rejects_open_invalid_and_duplicates():
@@ -46,3 +64,20 @@ def test_latest_contiguous_keeps_recent_segment():
     candles = [Candle(epoch, 1, 1, 1, 1) for epoch in (0, 300, 900, 1200)]
     assert [c.epoch for c in latest_contiguous(candles, 300)] == [900, 1200]
     assert latest_contiguous([], 300) == []
+
+
+def test_live_price_and_provisional_outcome_are_causal():
+    rows = [{"epoch": 600, "close": 100}, {"epoch": 900, "close": 101}]
+    assert current_spot(rows, 960) == 101
+    assert current_spot(rows, 1200) is None
+    assert current_spot([{"epoch": 900, "close": "nan"}], 960) is None
+    assert current_spot([{"epoch": 900}], 960) is None
+    signal = Signal("R_75", 300, 600, "PUT", 0.4, "v1", "ok", 100)
+    live = live_observation(signal, 101, 960)
+    assert live is not None and live.interim_side == "CALL" and live.delta == 1
+    assert live_observation(signal, 99, 960).interim_side == "PUT"
+    assert live_observation(signal, 100, 960).interim_side == "EMPATE"
+    assert live_observation(signal, 101, 900) is not None
+    assert live_observation(signal, 101, 899) is None
+    assert live_observation(signal, 101, 1200) is None
+    assert live_observation(Signal("R_75", 300, 600, "SEM SINAL", None, None, "sem_modelo", 100), 101, 960) is None

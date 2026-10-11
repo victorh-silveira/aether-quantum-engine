@@ -25,7 +25,7 @@ def test_dashboards_have_real_queries_and_no_interpolation():
 
     root = Path(__file__).resolve().parents[2]
     files = list((root / "infra/docker/grafana/provisioning/dashboards").glob("synthetic_*.json"))
-    assert len(files) == 2
+    assert len(files) == 3
     for path in files:
         dashboard = json.loads(path.read_text())
         assert dashboard["panels"]
@@ -50,6 +50,33 @@ def test_dashboards_have_real_queries_and_no_interpolation():
                 )
                 == 3
             )
+            variables = dashboard["templating"]["list"]
+            assert all("FROM valid" in variable["query"] for variable in variables)
+            assert all("reason='ok'" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+            assert all("indicator_model_versions" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+            assert all(
+                "NULLIF('${period:raw}','')::integer" in panel["targets"][0]["rawSql"]
+                and "${period}" not in panel["targets"][0]["rawSql"]
+                for panel in dashboard["panels"]
+            )
+            history = next(
+                panel for panel in dashboard["panels"] if panel["title"] == "Historico auditavel de leituras"
+            )
+            assert "candle_epoch + 2 * NULLIF('${period:raw}','')::integer" in history["targets"][0]["rawSql"]
+        elif path.name == "synthetic_overview.json":
+            assert all("FROM valid" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+            assert all("l.reason='ok'" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+            assert all("DISTINCT ON" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+            assert all("indicator_model_versions" in panel["targets"][0]["rawSql"] for panel in dashboard["panels"])
+        else:
+            assert dashboard["uid"] == "aether-synthetic-catalog"
+            assert "FROM indicator_symbols WHERE active" in dashboard["panels"][0]["targets"][0]["rawSql"]
+            assert "CROSS JOIN (VALUES (300),(900),(3600))" in dashboard["panels"][-1]["targets"][0]["rawSql"]
+            assert "modelo_atualizado_aguardando_fechamento" in dashboard["panels"][-1]["targets"][0]["rawSql"]
+            assert "s.reason='ok'" in dashboard["panels"][-1]["targets"][0]["rawSql"]
+        assert all(
+            "reason IN ('ok','experimental')" not in panel["targets"][0]["rawSql"] for panel in dashboard["panels"]
+        )
 
 
 def test_compose_scrapes_running_indicator_service():
@@ -61,6 +88,70 @@ def test_compose_scrapes_running_indicator_service():
     assert "  prometheus:\n    depends_on:\n      indicator:\n        condition: service_healthy" in compose
     assert "indicator:9101" in prometheus
     assert "host.docker.internal" not in prometheus
+    assert "  grafana:\n" in compose
+    assert "      timescaledb:\n        condition: service_healthy" in compose
+    assert "127.0.0.1:3000:3000" in compose
+    assert "GF_SECURITY_ADMIN_USER: admin" in compose
+    assert "GF_SECURITY_ADMIN_PASSWORD: aether" in compose
+
+
+def test_config_scope_matches_volatility_catalog():
+    import json
+
+    root = Path(__file__).resolve().parents[2]
+    config = json.loads((root / "config/settings.json").read_text())
+    assert config["catalog_scope"] == "volatility_indices"
+
+
+def test_make_exposes_main_command_groups_and_default_help():
+    import re
+    import subprocess
+
+    root = Path(__file__).resolve().parents[2]
+    source = (root / "Makefile").read_text()
+    targets = set()
+    for line in source.splitlines():
+        match = re.fullmatch(r"([a-z][a-z0-9_-]*(?: [a-z][a-z0-9_-]*)*):.*", line)
+        if match:
+            targets.update(match.group(1).split())
+    expected = {
+        "help",
+        "app-install",
+        "app-run",
+        "app-train",
+        "app-test",
+        "app-lint",
+        "app-security",
+        "app-clean",
+        "app-pre-commit",
+        "app-pre-commit-run",
+        "app-setup-wsl",
+        "docker-up",
+        "docker-down",
+        "docker-restart",
+        "docker-rebuild",
+        "docker-reset",
+        "docker-clean",
+        "docker-ps",
+        "docker-logs",
+        "docker-smoke",
+        "docker-bash",
+        "docker-hydrate",
+        "docker-timescale-lifecycle",
+        "docker-sanitize-run",
+        "docker-sanitize-run-keep-meta",
+        "app-rust-lint",
+        "app-rust-validate",
+        "app-rust-security",
+        "app-rust-test",
+        "app-rust-build",
+        "pre-commit",
+        "timescale-lifecycle",
+    }
+    assert expected <= targets
+    result = subprocess.run(["make", "--no-print-directory"], cwd=root, check=True, capture_output=True, text=True)
+    assert "MENU DE AJUDA" in result.stdout
+    assert "app-train" in result.stdout and "docker-up" in result.stdout
 
 
 def test_ci_uses_legacy_job_structure_for_indicator_branch():

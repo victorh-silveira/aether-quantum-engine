@@ -28,6 +28,7 @@ class Model:
     baseline_accuracy: float
     validation_brier: float
     baseline_brier: float
+    status: str = "aprovado"
 
     def predict(self, candles: list[Candle]) -> float:
         """Retorna P(CALL) usando apenas velas fechadas."""
@@ -37,6 +38,31 @@ class Model:
         ]
         score = self.bias + sum(weight * value for weight, value in zip(self.weights, normalized, strict=True))
         return sigmoid(score)
+
+
+@dataclass(frozen=True)
+class TrainingResult:
+    """Decisao do treino e medidas da validacao temporal."""
+
+    model: Model | None
+    samples: int
+    validation_samples: int = 0
+    accuracy: float | None = None
+    baseline_accuracy: float | None = None
+    brier: float | None = None
+    baseline_brier: float | None = None
+
+    @property
+    def reason(self) -> str:
+        if self.samples < 200:
+            return f"amostras insuficientes ({self.samples}/200)"
+        if self.model is not None and self.model.status == "experimental":
+            return (
+                f"experimental: sem ganho temporal (n_val={self.validation_samples} "
+                f"acc={self.accuracy:.5f} ref={self.baseline_accuracy:.5f} "
+                f"brier={self.brier:.5f} ref={self.baseline_brier:.5f})"
+            )
+        return "aprovado"
 
 
 def sigmoid(value: float) -> float:
@@ -79,9 +105,15 @@ def examples(candles: list[Candle], period: int) -> tuple[list[tuple[float, ...]
 
 def train(symbol: str, period: int, candles: list[Candle]) -> Model | None:
     """Aceita modelo somente se superar a maioria temporal em ACC e Brier."""
+    model = assess(symbol, period, candles).model
+    return model if model is not None and model.status == "aprovado" else None
+
+
+def assess(symbol: str, period: int, candles: list[Candle]) -> TrainingResult:
+    """Avalia o modelo e expoe as medidas mesmo quando ele e reprovado."""
     inputs, labels = examples(candles, period)
     if len(labels) < 200:
-        return None
+        return TrainingResult(None, len(labels))
     split = int(len(labels) * 0.7)
     train_x, val_x = inputs[:split], inputs[split:]
     train_y, val_y = labels[:split], labels[split:]
@@ -122,13 +154,24 @@ def train(symbol: str, period: int, candles: list[Candle]) -> Model | None:
     baseline_accuracy = sum((baseline >= 0.5) == bool(label) for label in val_y) / len(val_y)
     brier = sum((prediction - label) ** 2 for prediction, label in zip(predictions, val_y, strict=True)) / len(val_y)
     baseline_brier = sum((baseline - label) ** 2 for label in val_y) / len(val_y)
-    if accuracy <= baseline_accuracy or brier >= baseline_brier:
-        return None
-    payload = f"{symbol}:{period}:{candles[-1].epoch}:{weights}:{bias}"
+    status = "aprovado" if accuracy > baseline_accuracy and brier < baseline_brier else "experimental"
+    payload = f"{symbol}:{period}:{candles[-1].epoch}:{weights}:{bias}:{status}"
     version = hashlib.sha256(payload.encode()).hexdigest()[:16]
-    return Model(
-        symbol, period, tuple(weights), bias, means, scales, version, accuracy, baseline_accuracy, brier, baseline_brier
+    model = Model(
+        symbol,
+        period,
+        tuple(weights),
+        bias,
+        means,
+        scales,
+        version,
+        accuracy,
+        baseline_accuracy,
+        brier,
+        baseline_brier,
+        status,
     )
+    return TrainingResult(model, len(labels), len(val_y), accuracy, baseline_accuracy, brier, baseline_brier)
 
 
 def save(model: Model, directory: Path) -> Path:
@@ -141,7 +184,7 @@ def save(model: Model, directory: Path) -> Path:
     return path
 
 
-def load(directory: Path, symbol: str, period: int) -> Model | None:
+def load(directory: Path, symbol: str, period: int, *, allow_experimental: bool = False) -> Model | None:
     """Carrega apenas artefato compativel e finito."""
     path = directory / f"{symbol}_{period}.json"
     if not path.is_file():
@@ -174,8 +217,10 @@ def load(directory: Path, symbol: str, period: int) -> Model | None:
             or len(model.scales) != LOOKBACK
             or any(not math.isfinite(value) for value in numeric)
             or any(value <= 0 for value in model.scales)
-            or model.validation_accuracy <= model.baseline_accuracy
-            or model.validation_brier >= model.baseline_brier
+            or model.status not in {"aprovado", "experimental"}
+            or (model.status == "experimental" and not allow_experimental)
+            or (model.status == "aprovado" and model.validation_accuracy <= model.baseline_accuracy)
+            or (model.status == "aprovado" and model.validation_brier >= model.baseline_brier)
             or not model.version
         ):
             return None

@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from math import isfinite
 
 PERIODS = (300, 900, 3600)
 PERIOD_NAMES = {300: "M5", 900: "M15", 3600: "H1"}
+VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V)\Z")
 
 
 @dataclass(frozen=True)
@@ -34,16 +36,28 @@ class Signal:
     close: float
 
 
+@dataclass(frozen=True)
+class LiveObservation:
+    """Estado provisório da vela prevista, sem alterar o sinal emitido."""
+
+    symbol: str
+    period: int
+    signal_epoch: int
+    observed_at: int
+    spot: float
+    delta: float
+    interim_side: str
+
+
 def synthetic_symbols(rows: list[dict[str, object]]) -> dict[str, str]:
-    """Seleciona apenas ativos sinteticos ativos do catalogo publico."""
+    """Seleciona apenas indices Volatility ativos do catalogo publico."""
     found = {}
     for row in rows:
         market = str(row.get("market", "")).lower()
         symbol = str(row.get("underlying_symbol") or row.get("symbol") or "").strip()
         if (
             market == "synthetic_index"
-            and symbol
-            and all(character.isalnum() or character == "_" for character in symbol)
+            and VOLATILITY_SYMBOL.fullmatch(symbol)
             and row.get("is_trading_suspended") not in (1, True, "1")
         ):
             found[symbol] = str(row.get("underlying_symbol_name") or row.get("display_name") or symbol)
@@ -63,6 +77,32 @@ def closed_candles(rows: list[dict[str, object]], now: int, period: int = 300) -
             continue
         candles[epoch] = Candle(epoch, *values)
     return [candles[epoch] for epoch in sorted(candles)]
+
+
+def current_spot(rows: list[dict[str, object]], now: int) -> float | None:
+    """Lê a última cotação da vela M5 em formação, sem completar lacunas."""
+    expected = now // 300 * 300
+    for row in reversed(rows):
+        try:
+            if int(row["epoch"]) != expected:
+                continue
+            close = float(row["close"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if isfinite(close) and close > 0:
+            return close
+    return None
+
+
+def live_observation(signal: Signal, spot: float, now: int) -> LiveObservation | None:
+    """Compara preço atual ao fechamento usado pela previsão vigente."""
+    if signal.side not in {"CALL", "PUT"} or signal.candle_epoch + signal.period > now:
+        return None
+    if now >= signal.candle_epoch + 2 * signal.period:
+        return None
+    delta = spot - signal.close
+    side = "CALL" if delta > 0 else "PUT" if delta < 0 else "EMPATE"
+    return LiveObservation(signal.symbol, signal.period, signal.candle_epoch, now, spot, delta, side)
 
 
 def aggregate(candles: list[Candle], period: int) -> list[Candle]:

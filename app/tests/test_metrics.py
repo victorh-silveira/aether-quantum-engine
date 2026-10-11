@@ -4,21 +4,37 @@ import asyncio
 
 import pytest
 
-from indicator.domain import Signal
+from indicator.domain import LiveObservation, Signal
 from indicator.metrics import Metrics
 
 
 def test_metrics_emit_only_observed_values(monkeypatch):
+    monkeypatch.setattr("indicator.metrics.time.time", lambda: 1270)
     metrics = Metrics()
     metrics.set_symbols({"R_75": "V75"})
     metrics.update(Signal("R_75", 300, 300, "SEM SINAL", None, None, "modelo_indisponivel", 100))
     text = metrics.render()
     assert 'aether_indicator_side{symbol="R_75",period="300"} 0' in text
+    assert 'aether_indicator_validation{symbol="R_75",period="300"} -1' in text
     assert "aether_indicator_probability{" not in text
     metrics.update(Signal("R_75", 300, 600, "PUT", 0.4, "v1", "ok", 99))
     assert 'aether_indicator_side{symbol="R_75",period="300"} -1' in metrics.render()
+    assert 'aether_indicator_validation{symbol="R_75",period="300"} 1' in metrics.render()
+    metrics.update(Signal("R_75", 300, 900, "CALL", 0.6, "exp", "experimental", 101))
+    assert 'aether_indicator_validation{symbol="R_75",period="300"} 0' in metrics.render()
+    metrics.update_live(LiveObservation("R_75", 300, 900, 1260, 102, 1, "CALL"))
+    assert 'aether_indicator_live_spot{symbol="R_75",period="300"} 102.00000000' in metrics.render()
+    assert 'aether_indicator_live_side{symbol="R_75",period="300"} 1' in metrics.render()
+    metrics.update(Signal("R_75", 300, 900, "SEM SINAL", None, None, "modelo_atualizado", 101))
+    assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()
+    metrics.update(Signal("R_75", 300, 900, "CALL", 0.6, "exp", "experimental", 101))
+    monkeypatch.setattr("indicator.metrics.time.time", lambda: 1400)
+    assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()
+    metrics.update(Signal("R_75", 300, 1200, "PUT", 0.4, "exp", "experimental", 102))
+    assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()
     metrics.set_symbols({})
     assert not metrics.signals
+    assert not metrics.live
 
 
 @pytest.mark.asyncio

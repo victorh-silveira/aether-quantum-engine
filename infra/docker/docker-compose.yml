@@ -12,6 +12,7 @@ services:
     environment:
       AETHER_TIMESCALE_DSN: postgresql://aether:aether@timescaledb:5432/aether
       PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
     volumes:
       - ../../data/indicator-models:/opt/aether/data/indicator-models:ro
     ports:
@@ -58,11 +59,17 @@ services:
   grafana:
     image: grafana/grafana:10.3.3
     restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: aether
+      GF_USERS_ALLOW_SIGN_UP: "false"
     depends_on:
-      - prometheus
-      - timescaledb
+      prometheus:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy
     ports:
-      - "127.0.0.1:13000:3000"
+      - "127.0.0.1:3000:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - indicator_grafana:/var/lib/grafana
