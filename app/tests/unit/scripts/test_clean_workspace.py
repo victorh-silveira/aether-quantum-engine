@@ -1,6 +1,10 @@
 from pathlib import Path
 
-from scripts.operations.clean_workspace import build_safe_remove
+from scripts.operations.clean_workspace import _repo_root_for_bash, build_safe_remove
+
+
+def test_gitleaks_source_uses_linux_path_for_wsl_checkout():
+    assert _repo_root_for_bash(Path("//wsl.localhost/kali-linux/home/victor/aether")) == "/home/victor/aether"
 
 
 def test_build_safe_remove_skips_docker_bind_mounts(tmp_path: Path):

@@ -180,7 +180,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_calibrated{symbol=\"1HZ75V\"} and (time() - timestamp(aether_inference_calibrated{symbol=\"1HZ75V\"}) < 12)",
+          "expr": "aether_inference_calibrated{symbol=~\"${symbol:regex}\"} and (time() - timestamp(aether_inference_calibrated{symbol=~\"${symbol:regex}\"}) < 12)",
           "instant": false,
           "range": true,
           "interval": "$__interval",
@@ -248,7 +248,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_payoff_edge{symbol=\"1HZ75V\"} and (time() - timestamp(aether_inference_payoff_edge{symbol=\"1HZ75V\"}) < 12)",
+          "expr": "aether_inference_payoff_edge{symbol=~\"${symbol:regex}\"} and (time() - timestamp(aether_inference_payoff_edge{symbol=~\"${symbol:regex}\"}) < 12)",
           "instant": false,
           "range": true,
           "interval": "$__interval",
@@ -320,5 +320,28 @@
   "timezone": "browser",
   "title": "Aether | Histórico M5",
   "uid": "aether-history-m5",
-  "version": 1
+  "version": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "label": "Índice",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(aether_inference_prob, symbol)",
+        "definition": "label_values(aether_inference_prob, symbol)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "Todos",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
 }

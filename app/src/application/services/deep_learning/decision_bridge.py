@@ -11,6 +11,7 @@ from src.application.services.deep_learning.dl_bridge_helpers import (
     pending_loss_total,
     recovery_gating_active,
 )
+from src.application.services.deep_learning.dl_bridge_results import collect_symbol_results
 from src.application.services.deep_learning.dl_cycle_log import log_dl_cycle_summary
 from src.application.services.deep_learning.dl_deferred_train import enqueue_deferred_symbol_training
 from src.application.services.deep_learning.dl_live_bar_patch import (
@@ -242,6 +243,11 @@ async def _collect_symbol_decision(
         micro=micro_inf,
     )
     entry["metrics"]["model_input_forming_excluded"] = len(prices_raw) < raw_count
+    history = getattr(getattr(orch, "stream", None), "micro_candles", {})
+    candles = history.get(symbol, []) if isinstance(history, dict) else []
+    if candles:
+        closed_index = -2 if len(prices_raw) < raw_count and len(candles) >= 2 else -1
+        entry["metrics"]["model_input_candle_epoch"] = int(candles[closed_index].epoch)
     entry = _apply_deploy_gate(entry, runtime, dl_config, orch=orch)
     entry = _apply_training_gate(entry, runtime, params)
     return entry, train_reason
@@ -249,11 +255,10 @@ async def _collect_symbol_decision(
 
 async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
     """Coleta decisoes Deep Learning para todos os simbolos do orquestrador."""
-    decisions = {}
     dl_config = orch.config.get("deep_learning", {})
     if not dl_config.get("enabled", True):
         logger.warning("DL: Deep learning esta desativado na configuracao.")
-        return decisions
+        return {}
 
     data_config = orch.config.get("data_handler", {})
     risk_params = orch.config.get("risk_management", {}).get("params", {})
@@ -262,8 +267,6 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
     granularity = granularity_seconds(orch)
     recovery_active = recovery_gating_active(orch)
     pending_total = pending_loss_total(orch)
-    trained: list[str] = []
-    train_reason = ""
     train_priority = training_priority_symbols(orch, dl_config, params)
     orch._dl_training_symbols = train_priority
 
@@ -279,12 +282,8 @@ async def collect_deep_learning_decisions(orch) -> dict[str, dict]:
         )
         for symbol in orch.symbols
     ]
-    results = await asyncio.gather(*tasks)
-    for symbol, (entry, reason) in zip(orch.symbols, results, strict=True):
-        decisions[symbol] = entry
-        if reason:
-            trained.append(symbol)
-            train_reason = reason
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    decisions, trained, train_reason = collect_symbol_results(orch.symbols, results, logger)
 
     _log_retrain_batch(trained, train_reason, params)
     prepare_meta_classifier_cross_symbol_bundle(orch, decisions, params)

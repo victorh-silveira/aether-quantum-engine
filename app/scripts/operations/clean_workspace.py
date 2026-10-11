@@ -415,7 +415,11 @@ def _resolve_gitleaks_bin() -> str | None:
 
 
 def _repo_root_for_bash(path: Path) -> str:
-    posix = path.resolve().as_posix()
+    posix = path.as_posix()
+    if posix.startswith(("//wsl.localhost/", "//wsl$/")):
+        parts = posix.split("/", 4)
+        if len(parts) == 5:
+            return f"/{parts[4]}"
     if len(posix) >= 2 and posix[1] == ":":
         drive = posix[0].lower()
         return f"/mnt/{drive}{posix[2:]}"

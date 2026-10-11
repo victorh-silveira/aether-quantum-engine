@@ -518,7 +518,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_calibrated{symbol=\"1HZ75V\"}",
+          "expr": "aether_inference_calibrated{symbol=~\"${symbol:regex}\"}",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -572,7 +572,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_payoff_edge{symbol=\"1HZ75V\"}",
+          "expr": "aether_inference_payoff_edge{symbol=~\"${symbol:regex}\"}",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -642,7 +642,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_loss_classifier_p_eff{symbol=\"1HZ75V\"}",
+          "expr": "aether_loss_classifier_p_eff{symbol=~\"${symbol:regex}\"}",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -696,7 +696,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_trading_stake_usd{symbol=\"1HZ75V\"}",
+          "expr": "aether_trading_stake_usd{symbol=~\"${symbol:regex}\"}",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -944,6 +944,183 @@
         "graphMode": "none",
         "justifyMode": "auto"
       }
+    },
+    {
+      "id": 17,
+      "title": "Trades ativos com consenso CALL/PUT",
+      "description": "Somente contratos confirmados pelo broker e ainda ativos, com consenso M5 aprovado.",
+      "type": "stat",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_indicator_active_trade_direction",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "1": {
+                  "text": "CALL",
+                  "color": "green"
+                },
+                "-1": {
+                  "text": "PUT",
+                  "color": "red"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 18,
+      "title": "P(CALL) do indicador nos trades ativos",
+      "description": "Somente contratos confirmados pelo broker e ainda ativos, com consenso M5 aprovado.",
+      "type": "stat",
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_indicator_active_trade_call_probability",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "decimals": 3,
+          "noValue": "—",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value_and_name",
+        "colorMode": "none",
+        "graphMode": "none",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "title": "Resultado auditado por TCN e indicador",
+      "description": "Somente liquidações confirmadas pelo broker; sem inferência por closes M5.",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "rawSql": "SELECT symbol AS ativo, account_mode AS conta, direction AS lado, model_version AS tcn, indicator_model_version AS indicador, broker_settled_count AS contratos, wins AS vitorias, round((100.0*wins/broker_settled_count)::numeric,1) AS acertos_pct, round(mean_unit_return::numeric,4) AS retorno_medio, round(indicator_brier::numeric,4) AS brier_indicador FROM contract_consensus_outcomes ORDER BY broker_settled_count DESC, symbol LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
     }
   ],
   "refresh": "5s",
@@ -971,5 +1148,28 @@
   "title": "Aether | Visão operacional M5",
   "uid": "aether-business-m5",
   "version": 4,
-  "description": "Snapshots reais do motor. Consultas instantâneas; ausência de medição aparece como —."
+  "description": "Snapshots reais do motor. Consultas instantâneas; ausência de medição aparece como —.",
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "label": "Índice",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "prometheus"
+        },
+        "query": "label_values(aether_inference_prob, symbol)",
+        "definition": "label_values(aether_inference_prob, symbol)",
+        "refresh": 1,
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": true,
+        "current": {
+          "text": "Todos",
+          "value": "$__all"
+        }
+      }
+    ]
+  }
 }

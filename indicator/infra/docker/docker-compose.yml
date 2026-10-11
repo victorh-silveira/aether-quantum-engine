@@ -1,0 +1,79 @@
+name: aether-indicator-integrated
+
+services:
+  indicator:
+    build:
+      context: ../..
+      dockerfile: app/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    environment:
+      AETHER_TIMESCALE_DSN: postgresql://aether:aether@timescaledb:5432/aether
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../../data/indicator-models:/opt/aether/data/indicator-models:ro
+    ports:
+      - "127.0.0.1:9102:9101"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:9101/metrics', timeout=2).close()"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+
+  timescaledb:
+    image: timescale/timescaledb:2.28.2-pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: aether
+      POSTGRES_PASSWORD: aether
+      POSTGRES_DB: aether
+    ports:
+      - "127.0.0.1:15433:5432"
+    volumes:
+      - indicator_timescale:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aether -d aether"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  prometheus:
+    depends_on:
+      indicator:
+        condition: service_healthy
+    image: prom/prometheus:v2.50.1
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:19091:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+  grafana:
+    image: grafana/grafana:10.3.3
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: aether
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    depends_on:
+      prometheus:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - indicator_grafana:/var/lib/grafana
+
+volumes:
+  indicator_timescale:
+  indicator_grafana:

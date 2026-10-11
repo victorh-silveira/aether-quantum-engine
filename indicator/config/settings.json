@@ -1,0 +1,9 @@
+{
+  "product": "synthetic_indicator",
+  "catalog_scope": "volatility_indices",
+  "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
+  "periods_seconds": [300, 900, 3600],
+  "models_dir": "data/indicator-models",
+  "timescale_dsn": "postgresql://aether:aether@127.0.0.1:15433/aether",
+  "metrics_port": 9101
+}

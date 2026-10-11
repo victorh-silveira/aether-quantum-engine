@@ -7,6 +7,11 @@ import math
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch, resolve_force_min_stake
+from src.application.services.indicator_consensus import (
+    available_cluster_bankroll,
+    consensus_enabled,
+    signal_epoch_current,
+)
 from src.application.services.loss_classifier_vectors import (
     bind_loss_feature_vector_to_contract,
     bind_loss_flip_ctx_to_contract,
@@ -51,6 +56,9 @@ async def record_model_attribution(orch: Any, contract_id: int, symbol: str, dir
                 "settlement_source": "pending",
                 "model_version": version,
                 "calibrated_call_prob": probability,
+                "indicator_model_version": metrics.get("indicator_model_version"),
+                "indicator_call_prob": metrics.get("indicator_call_probability"),
+                "indicator_candle_epoch": metrics.get("indicator_candle_epoch"),
             }
         )
     except Exception as exc:
@@ -65,7 +73,13 @@ async def execute_cluster_orders(
 ) -> int:
     """Executa ordens usando Criterio de Kelly e retorna quantidade enviada."""
     executed_count = 0
+    reserved_stake = 0.0
+    multi_symbol = consensus_enabled(executor.orch.config) and bool(
+        executor.orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False)
+    )
     for i, (symbol, direction, metrics) in enumerate(orders):
+        if not signal_epoch_current(executor.orch.config, metrics):
+            continue
         order_n = i + 1
         conviction = resolve_stake_conviction(metrics, executor.orch.risk_manager.kelly_config)
 
@@ -73,8 +87,14 @@ async def execute_cluster_orders(
         pending = sum(executor.orch.risk_manager.pending_loss.values())
         mandatory = executor._mandatory_trade_each_cycle()
         stop_win_kelly = bool(executor.orch.risk_manager.kelly_config.get("stop_win_kelly_enabled", True))
-        stake = executor.orch.risk_manager.calculate_stake(
+        available = available_cluster_bankroll(
             bankroll_snapshot,
+            reserved_stake,
+            float(executor.orch.state.balance) if multi_symbol else bankroll_snapshot,
+            multi_symbol=multi_symbol,
+        )
+        stake = executor.orch.risk_manager.calculate_stake(
+            available,
             symbol,
             conviction=conviction,
             silent=False,
@@ -109,11 +129,18 @@ async def execute_cluster_orders(
             stake_min = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
             if stake + 1e-9 < stake_min:
                 continue
+        if multi_symbol:
+            stake = min(stake, available)
+            stake_min = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
+            if stake + 1e-9 < stake_min:
+                continue
         if stake <= 0:
             continue
 
         if i > 0:
             await asyncio.sleep(inter_delay)
+            if not signal_epoch_current(executor.orch.config, metrics):
+                continue
         try:
             custom_dur = metrics.get("duration")
             if custom_dur is None:
@@ -126,6 +153,7 @@ async def execute_cluster_orders(
                     executor.orch, int(res.contract_id), symbol, direction.name, order_metrics
                 )
                 executed_stake = float(getattr(res, "buy_price", 0.0) or stake)
+                reserved_stake += executed_stake
                 executor.orch.risk_manager.record_contract_stake(int(res.contract_id), executed_stake)
                 executor.orch.risk_manager.active_contract_ids.append(res.contract_id)
                 await executor.orch.state.add_contract(res)
@@ -153,19 +181,25 @@ async def execute_cluster_orders(
                     order_n=order_n,
                     contract_id=int(res.contract_id),
                 )
+                executed_count += 1
                 bm = getattr(executor.orch, "business_metrics", None)
                 if bm is not None:
-                    bm.update_active_contracts_count(len(executor.orch.risk_manager.active_contract_ids))
-                    side_probability = resolve_effective_side_probability(order_metrics, direction.name)
-                    if side_probability is not None:
-                        bm.track_contract_probability(int(res.contract_id), side_probability)
-                    bm.record_inference_radar(
-                        symbol=str(symbol),
-                        direction=direction.name,
-                        stake=executed_stake,
-                        metrics=order_metrics,
-                    )
-                executed_count += 1
+                    try:
+                        bm.update_active_contracts_count(len(executor.orch.risk_manager.active_contract_ids))
+                        bm.record_indicator_trade(int(res.contract_id), str(symbol), direction.name, order_metrics)
+                        side_probability = resolve_effective_side_probability(order_metrics, direction.name)
+                        if side_probability is not None:
+                            bm.track_contract_probability(int(res.contract_id), side_probability)
+                        bm.record_inference_radar(
+                            symbol=str(symbol),
+                            direction=direction.name,
+                            stake=executed_stake,
+                            metrics=order_metrics,
+                        )
+                    except Exception as exc:
+                        executor.logger.warning(
+                            "METRICS: contrato %s confirmado sem telemetria: %s", res.contract_id, exc
+                        )
         except Exception as e:
             if handle_broker_maintenance_error(executor.orch, e):
                 executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)

@@ -313,6 +313,9 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=aether
       - GF_USERS_ALLOW_SIGN_UP=false
+      - AETHER_PG_USER=${AETHER_PG_USER:-aether}
+      - AETHER_PG_PASSWORD=${AETHER_PG_PASSWORD:-aether}
+      - AETHER_PG_DB=${AETHER_PG_DB:-aether}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - aether_grafana_data:/var/lib/grafana

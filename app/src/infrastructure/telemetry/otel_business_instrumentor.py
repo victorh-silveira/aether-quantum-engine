@@ -34,6 +34,7 @@ class BusinessMetricsInstrumentor:
         self._recent_outcomes: list[int] = []
         self._contract_counts: dict[tuple[str, str, str], int] = {}
         self._contract_predictions: dict[int, float] = {}
+        self._indicator_contracts: dict[int, tuple[str, float, float, int]] = {}
         self._gate_verdicts: dict[tuple[str, str, str], int] = {}
         self._radar: dict[str, dict[str, float | None]] = {}
 
@@ -152,6 +153,20 @@ class BusinessMetricsInstrumentor:
         if math.isfinite(value) and 0.0 <= value <= 1.0:
             self._contract_predictions[int(contract_id)] = value
 
+    def record_indicator_trade(self, contract_id: int, symbol: str, direction: str, metrics: dict) -> None:
+        """Expõe somente contratos comprados com consenso aprovado e vela identificada."""
+        version = metrics.get("indicator_model_version")
+        probability = metrics.get("indicator_call_probability")
+        epoch = metrics.get("indicator_candle_epoch")
+        if not version or probability is None or epoch is None or direction not in ("CALL", "PUT"):
+            return
+        self._indicator_contracts[int(contract_id)] = (
+            str(symbol),
+            1.0 if direction == "CALL" else -1.0,
+            float(probability),
+            int(epoch),
+        )
+
     def record_trade(
         self,
         symbol: str = "1HZ75V",
@@ -179,6 +194,8 @@ class BusinessMetricsInstrumentor:
         self.update_balance(self._current_balance + pnl)
 
         tracked = self._contract_predictions.pop(int(contract_id), None) if contract_id is not None else None
+        if contract_id is not None:
+            self._indicator_contracts.pop(int(contract_id), None)
         sample = predicted_prob if predicted_prob is not None else tracked
         if sample is not None and math.isfinite(float(sample)) and 0.0 <= float(sample) <= 1.0:
             self._recent_probs.append(float(sample))
@@ -246,6 +263,12 @@ class BusinessMetricsInstrumentor:
             lines.append(f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(data["anti_trend_lock"])}')
             lines.append(f'aether_trading_direction{{symbol="{sym}"}} {round(data["direction_num"], 1)}')
             lines.append(f'aether_trading_stake_usd{{symbol="{sym}"}} {round(data["stake_usd"], 2)}')
+
+        for contract_id, (sym, direction, probability, epoch) in self._indicator_contracts.items():
+            labels = f'symbol="{sym}",contract_id="{contract_id}"'
+            lines.append(f"aether_indicator_active_trade_direction{{{labels}}} {direction}")
+            lines.append(f"aether_indicator_active_trade_call_probability{{{labels}}} {round(probability, 4)}")
+            lines.append(f"aether_indicator_active_trade_candle_epoch{{{labels}}} {epoch}")
 
         for (sym, direction, outcome), count in self._contract_counts.items():
             line = (

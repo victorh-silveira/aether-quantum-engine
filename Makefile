@@ -38,9 +38,10 @@ RESET  := \033[0m
 .DEFAULT_GOAL := help
 
 .PHONY: app-run app-train app-test app-lint app-security app-clean app-install \
+	indicator-up indicator-down indicator-train indicator-test indicator-lint app-train-all \
 	app-pre-commit app-pre-commit-run app-setup-wsl help docker-up docker-down \
 	docker-restart docker-rebuild docker-reset docker-clean docker-ps docker-logs \
-	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle
+	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle lint test
 
 
 help:
@@ -61,6 +62,14 @@ help:
 	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
 	@echo -e "  $(GREEN)app-pre-commit$(RESET)     - Instala e valida githooks pre-commit"
 	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa pre-commit em todos os arquivos"
+	@echo -e "  $(GREEN)app-train-all$(RESET)      - Treina indicador aprovado e depois TCN/meta/loss"
+	@echo -e "  $(GREEN)indicator-up$(RESET)       - Sobe a stack observacional isolada (Grafana :3001)"
+	@echo -e "  $(GREEN)indicator-down$(RESET)     - Para a stack observacional"
+	@echo -e "  $(GREEN)indicator-train$(RESET)    - Atualiza modelos M5/M15/H1 do indicador"
+	@echo -e "  $(GREEN)indicator-lint$(RESET)     - Valida codigo isolado do indicador"
+	@echo -e "  $(GREEN)indicator-test$(RESET)     - Testa indicador com cobertura de 100%"
+	@echo -e "  $(GREEN)lint$(RESET)               - Alias para app-lint"
+	@echo -e "  $(GREEN)test$(RESET)               - Alias para app-test"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
 	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe a stack completa (core + ml + telemetry)"
@@ -114,6 +123,23 @@ app-run:
 
 app-train:
 	$(PYTHON) $(APP_DIR)/train.py
+
+indicator-up:
+	$(MAKE) -C indicator docker-up
+
+indicator-down:
+	$(MAKE) -C indicator docker-down
+
+indicator-train:
+	$(MAKE) -C indicator app-train
+
+indicator-test:
+	$(MAKE) -C indicator test
+
+indicator-lint:
+	$(MAKE) -C indicator lint
+
+app-train-all: indicator-train app-train
 
 app-pre-commit:
 	bash linters/git-hooks/install.sh
@@ -221,3 +247,5 @@ docker-bash:
 # ------------------------------------------------------------------------------
 pre-commit: app-pre-commit
 timescale-lifecycle: docker-timescale-lifecycle
+lint: app-lint
+test: app-test

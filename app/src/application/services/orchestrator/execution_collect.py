@@ -11,6 +11,11 @@ from src.application.services.execution_symbols import (
     select_mandatory_execution_candidate,
 )
 from src.application.services.execution_symbols_recovery import pending_recovery_active
+from src.application.services.indicator_consensus import (
+    consensus_enabled,
+    filter_indicator_candidates,
+    multi_symbol_orders_enabled,
+)
 from src.application.services.orchestrator.execution_collect_gather import gather_cluster_candidates
 from src.application.services.orchestrator.execution_collect_helpers import (
     extract_collect_params,
@@ -167,7 +172,13 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_signal=min_signal,
             min_val=min_val,
         )
+    candidates = filter_indicator_candidates(exec_mgr.orch, candidates)
+    if consensus_enabled(exec_mgr.orch.config) and not candidates:
+        return []
     candidates = apply_cointegration_redirect(candidates, exec_mgr.orch.risk_manager)
+    if multi_symbol_orders_enabled(exec_mgr.orch, recovery_active=recovery_active):
+        max_orders = max(1, int(exec_cfg.get("max_orders_per_cycle", 3)))
+        return sorted(candidates, key=lambda item: item[0])[:max_orders]
 
     best = _select_cluster_best(
         exec_mgr,

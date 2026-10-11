@@ -19,7 +19,19 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
 
     writer = SimpleNamespace(enqueue_contract_audit=AsyncMock())
     orch = SimpleNamespace(config={"trading": {"mode": "real"}}, market_writer=writer, logger=MagicMock())
-    await record_model_attribution(orch, 42, "1HZ75V", "CALL", {"model_version": "a" * 64, "calibrated_prob": 0.57})
+    await record_model_attribution(
+        orch,
+        42,
+        "1HZ75V",
+        "CALL",
+        {
+            "model_version": "a" * 64,
+            "calibrated_prob": 0.57,
+            "indicator_model_version": "indicator-v1",
+            "indicator_call_probability": 0.61,
+            "indicator_candle_epoch": 300,
+        },
+    )
     row = writer.enqueue_contract_audit.await_args.args[0]
     assert row == {
         "contract_id": 42,
@@ -29,6 +41,9 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
         "settlement_source": "pending",
         "model_version": "a" * 64,
         "calibrated_call_prob": 0.57,
+        "indicator_model_version": "indicator-v1",
+        "indicator_call_prob": 0.61,
+        "indicator_candle_epoch": 300,
     }
     writer.enqueue_contract_audit.side_effect = RuntimeError("db down")
     await record_model_attribution(orch, 43, "1HZ75V", "PUT", {"model_version": "a" * 64})
@@ -39,6 +54,8 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
     await record_model_attribution(
         orch, 45, "1HZ75V", "PUT", {"model_version": "a" * 64, "calibrated_prob": float("nan")}
     )
+    assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
+    await record_model_attribution(orch, 46, "1HZ75V", "PUT", {"model_version": "a" * 64, "calibrated_prob": "invalid"})
     assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
 
 

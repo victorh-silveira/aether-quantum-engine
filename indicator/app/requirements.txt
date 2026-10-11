@@ -1,0 +1,2 @@
+websockets==16.0
+asyncpg==0.32.0

@@ -1,0 +1,26 @@
+# Operação e observabilidade
+
+1. `make help` mostra os grupos `app-*` e `docker-*` da `main`, adaptados ao indicador. `make app-install` prepara dependências na `.venv`.
+2. `make docker-up` sobe indicador, Timescale, Prometheus e Grafana. O Compose já executa `app/run.py`.
+3. `make app-train` tenta treinar somente os índices Volatility ativos do catálogo público. O terminal mostra progresso por ativo, página e período; cada ativo e requisição tem prazo limitado. Os modelos são montados no serviço e carregados no ciclo seguinte.
+4. No Grafana (`http://localhost:3001`, usuário `admin`, senha `aether`), use **Leituras atuais** para ver somente pares CALL/PUT atuais com modelo **APROVADO**. A tabela mostra o número de resultados confirmados e o percentual de acertos da versão atual; sem amostras, o percentual fica vazio. Em **Ativo**, confira **Validação do modelo** e **Mercado em andamento | provisório**. A coluna **situação** mostra se o movimento observado até agora está `A FAVOR` ou `CONTRA` a previsão para o próximo fechamento; ele pode mudar antes do vencimento. Use **Todos os indices** para ver cada índice Volatility e período, inclusive modelos experimentais como `SEM SINAL` e dados atrasados.
+
+Os três dashboards referenciam o datasource Timescale pelo UID `timescale` e pelo tipo interno `grafana-postgresql-datasource`. O arquivo de provisionamento usa `type: postgres`, que o Grafana converte para esse identificador interno. Se aparecer "Datasource timescale was not found", confira o UID e o tipo retornados por `/api/datasources`, além dos JSONs dos painéis. As consultas de sinais usam somente a última leitura de cada ativo/período e exigem que sua versão conste no registro atual de modelos. Um checkpoint arquivado deixa de aparecer como sinal ativo após o treino ou a sincronização do serviço. Quando nenhum sinal atual existir, as visões de sinais não mostram um ativo fictício. A coluna `vela_fechada` é o fechamento efetivo; `horizonte_fim` é o fechamento da vela seguinte previsto pelo modelo.
+
+Quando nenhum par tem sinal atual, os seletores de ativo e período ficam vazios. Os painéis do dashboard **Ativo** tratam período vazio como ausência de dados, sem enviar SQL inválido ao Timescale.
+
+As consultas históricas filtram `candle_epoch` (segundos Unix) com `$__unixEpochFilter(candle_epoch)`. O macro `$__timeFilter` aceita uma coluna de data/hora; não deve envolver `to_timestamp(candle_epoch)`, pois o Grafana expande a expressão incorretamente.
+
+O serviço `indicator` expõe `http://localhost:9102/metrics`; o Prometheus em `http://localhost:19091` coleta `indicator:9101` pela rede interna. Estados: `ok` (aprovado), `experimental` (sem ganho comprovado), `modelo_indisponivel`, `historico_insuficiente`, `dados_atrasados`. A métrica `aether_indicator_validation` vale `1` para aprovado, `0` para experimental e `-1` para ausência de modelo ativo. `aether_indicator_live_spot`, `aether_indicator_live_delta` e `aether_indicator_live_side` descrevem o estado provisório mais recente, sem alterar a previsão emitida. Falha de catálogo vazio interrompe o ciclo; falha isolada de histórico é registrada por ativo. Se o alvo Prometheus estiver DOWN, confira `docker compose -f infra/docker/docker-compose.yml ps` e os logs do serviço `indicator`.
+
+O Grafana aguarda o Timescale ficar saudável antes de iniciar. Se um painel exibir `sqleng.connectionError`, confira a porta da instância no navegador e a resposta de `/api/datasources/uid/timescale/health` nessa mesma instância.
+
+Após `make app-train`, uma versão nova pode substituir o modelo durante uma vela M15 ou H1. A previsão emitida anteriormente permanece imutável no histórico, mas deixa de constar como sinal ativo; o catálogo mostra `modelo_atualizado_aguardando_fechamento` até a próxima vela fechada daquele período.
+
+No repositorio integrado, o Grafana do indicador usa `localhost:3001` e o motor automatico usa `localhost:3000`. A credencial permanece `admin`/`aether`; bancos e historicos sao separados.
+
+O treino mostra progresso em tempo real e limita cada consulta a 40 s, cada ativo a 90 s e a sessão a 15 minutos. Uma falha registra `SEM SINAL` para o ativo e permite continuar. A inicialização do serviço tenta conectar ao banco até oito vezes; cada consulta de ativo no ciclo tem prazo. Para execução local, pare o serviço Compose `indicator` antes de `python run.py`, evitando conflito na porta 9101.
+
+Ao recriar a stack com volumes vazios, salve primeiro os volumes `aether-indicator-integrated_indicator_timescale` e `aether-indicator-integrated_indicator_grafana` em arquivos tar fora do repositório. Use `docker compose -f infra/docker/docker-compose.yml down --volumes --remove-orphans` apenas para este projeto, reconstrua `indicator` com `build --no-cache --pull` e execute `up -d --force-recreate`. O histórico e os ajustes manuais do Grafana são reiniciados; `data/indicator-models` é um diretório montado e deve ser preservado.
+
+As tabelas `indicator_symbols` e `indicator_signals` são criadas na primeira inicialização. A coluna `observed_side` é preenchida após o próximo fechamento. Lacunas permanecem lacunas. O painel histórico usa timestamps gravados e pontos isolados, sem interpolação.

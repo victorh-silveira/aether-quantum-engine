@@ -1,0 +1,25 @@
+[project]
+name = "aether-synthetic-indicator"
+version = "0.1.0"
+requires-python = ">=3.13"
+description = "Indicador publico de mercados sinteticos, sem negociacao"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src"]
+
+[tool.coverage.report]
+fail_under = 100
+show_missing = true

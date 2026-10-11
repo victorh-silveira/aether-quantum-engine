@@ -6,6 +6,7 @@ import logging
 from src.application.services.execution_symbols import symbols_eligible_for_execution
 from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.force_trade_mode import force_trade_from_orch
+from src.application.services.indicator_consensus import consensus_enabled
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.recovery_hurst_store import (
@@ -53,7 +54,7 @@ class ExecutionManager:
         self.orch._pending_result_logs = []
 
     def _cluster_stake_block(self, orders: list[tuple[str, TradeDirection, dict]], bankroll: float) -> str | None:
-        """Motivo unico quando o cluster inteiro nao pode alocar stake."""
+        """Motivo de bloqueio global; cada stake segue validada no envio."""
         if not orders:
             return None
         if force_trade_from_orch(self.orch):
@@ -61,7 +62,7 @@ class ExecutionManager:
         symbol, direction, metrics = orders[0]
         conviction = resolve_stake_conviction(metrics, self.orch.risk_manager.kelly_config)
         dl_cfg = self.orch.config.get("deep_learning", {})
-        return self.orch.risk_manager.stake_block_reason(
+        reason = self.orch.risk_manager.stake_block_reason(
             bankroll,
             symbol,
             conviction=conviction,
@@ -71,6 +72,11 @@ class ExecutionManager:
             max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
             mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),
         )
+        if consensus_enabled(self.orch.config) and self.orch.config.get("orchestrator", {}).get("execution", {}).get(
+            "multi_symbol_orders", False
+        ):
+            return reason if reason == "stop_win" else None
+        return reason
 
     def _log_execution_blockers(self, decisions: dict, *, pending: float = 0.0) -> None:
         """Registra motivo quando nenhuma ordem foi montada apesar de decisoes no ciclo."""
@@ -103,6 +109,11 @@ class ExecutionManager:
         train_syms = getattr(self.orch, "_dl_training_symbols", frozenset())
         was_training = bool(getattr(self.orch, "_dl_training_phase", False))
         self.orch._dl_training_phase = bool(train_syms)
+        if train_syms and consensus_enabled(self.orch.config):
+            self.logger.info(
+                "[%s] FASE TREINO || %d modelo(s) pendente(s); outros ativos seguem elegiveis", cid, len(train_syms)
+            )
+            return False
         if train_syms:
             ordered = [s for s in self.orch.symbols if s in train_syms] or sorted(train_syms)
             log_info_if_changed(

@@ -43,6 +43,24 @@ def test_business_metrics_instrumentor_cycle_recording():
     )
 
 
+def test_indicator_trade_metrics_exist_only_while_contract_is_active():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_indicator_trade(7, "R_10", "CALL", {})
+    assert "aether_indicator_active_trade_direction" not in instrumentor.format_prometheus_metrics()
+    instrumentor.record_indicator_trade(
+        7,
+        "R_10",
+        "CALL",
+        {"indicator_model_version": "v1", "indicator_call_probability": 0.64, "indicator_candle_epoch": 300},
+    )
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_indicator_active_trade_direction{symbol="R_10",contract_id="7"} 1.0' in payload
+    assert 'aether_indicator_active_trade_call_probability{symbol="R_10",contract_id="7"} 0.64' in payload
+    assert 'aether_indicator_active_trade_candle_epoch{symbol="R_10",contract_id="7"} 300' in payload
+    instrumentor.record_trade("R_10", "CALL", contract_id=7, won=True, profit=1.0)
+    assert "aether_indicator_active_trade_direction" not in instrumentor.format_prometheus_metrics()
+
+
 def test_business_metrics_omit_unobserved_session_radar_and_events():
     payload = BusinessMetricsInstrumentor().format_prometheus_metrics()
     assert "aether_session_balance_usd" not in payload

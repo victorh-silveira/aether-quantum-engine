@@ -1,0 +1,6 @@
+---
+description: Consenso temporal entre indicador público e motor de trades na main
+alwaysApply: true
+---
+
+O indicador em `indicator/` coleta somente dados públicos; sua saída M15/H1 é observacional. O motor autenticado só considera o sinal M5 `APROVADO` da última vela fechada, ativo no catálogo, com versão de modelo vigente. O lado original da TCN e a direção final após meta, loss-classifier e filtros precisam concordar com o indicador no mesmo índice e epoch. Falha de banco, modelo, frescor ou concordância remove apenas o candidato daquele índice; nunca reutilize sinal antigo nem force uma direção. Cada índice exige checkpoint TCN próprio. Para vários índices no ciclo, envie propostas sequencialmente, reserve saldo após cada compra confirmada e não duplique contrato aberto no mesmo ativo. Preserve auditoria por versão dos dois modelos e liquidação confirmada do broker; não use closes M5 como resultado de contrato nem extrapole para Forex.

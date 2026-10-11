@@ -1,16 +1,16 @@
 # Aether Quantum Engine
 
-Motor quantitativo assíncrono para contratos Rise/Fall de 5 minutos no índice sintético `1HZ75V` da Deriv. O processo Python 3.13 roda no host com `asyncio`; Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam como serviços Docker. A arquitetura separa domínio, aplicação, portas, adaptadores e apresentação. O estado tabular usa Polars.
+Motor quantitativo assíncrono para contratos Rise/Fall de 5 minutos nos índices Volatility da Deriv. A `main` integra sinais M5 aprovados do indicador ao pipeline TCN, meta e loss-classifier, com uma ordem por ativo elegível no mesmo ciclo. O processo Python 3.13 roda no host com `asyncio`; Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam como serviços Docker. A arquitetura separa domínio, aplicação, portas, adaptadores e apresentação. O estado tabular usa Polars.
 
 A configuração operacional está em [`config/settings.json`](config/settings.json). O universo e a cadência atuais são M5 de 300 segundos, contexto D1 de 86.400 segundos, 25.000 barras M5 no treino, lookback TCN de 32 barras, horizonte de uma barra e label `spot_forward`. O contrato executado dura 5 minutos. O label por fechamento é uma aproximação do desfecho do contrato e não representa o spot executado.
 
 ## Fluxo operacional
 
-1. O WebSocket Deriv recebe ticks e velas; o ciclo abre a cada fronteira M5.
+1. O WebSocket Deriv recebe ticks e velas; o ciclo abre a cada fronteira M5. O indicador público observa os Volatility em serviço separado e publica sinais por ativo e período.
 2. O checkpoint TCN local fornece a probabilidade direcional. CALL é escolhido quando a probabilidade calibrada é pelo menos 0,5; caso contrário, PUT.
 3. O loss-classifier pode inverter o lado após aprendizado com contratos reais. O meta LightGBM fornece contexto adicional; filtros técnicos, de mercado e de cotação podem impedir a compra.
 4. Kelly fracionário e recuperação calculam a stake. Sem checkpoint técnico compatível, nenhuma ordem é enviada. Com checkpoint válido, o teto inicial é **1% da banca por ordem**, inclusive em `cover_l0` e em DEMO ou REAL.
-5. A proposta é revalidada antes da compra. O resultado do contrato é reconciliado com a Deriv e persistido.
+5. Antes da compra, o sinal M5 **APROVADO**, fresco e da mesma vela precisa concordar com a TCN e com a direção final do motor. Uma inversão de lado pelo meta, loss-classifier ou filtros não satisfaz o consenso. A proposta é revalidada antes da compra. O resultado do contrato é reconciliado com a Deriv e persistido junto com as versões da TCN e do indicador.
 
 O treino salva o checkpoint TCN local após verificar integridade e geometria. Não há qualificação estatística de deploy da TCN nem avaliação diagnóstica de liquidação por closes M5. A validação interna usada para ajuste e calibração não autoriza aumentar o teto inicial. A captura Timescale de ticks e contratos confirmados é independente da decisão de compra.
 
@@ -31,6 +31,21 @@ python app/run.py
 ```
 
 O launcher de treino em WSL é `app/scripts/wsl/launch-train-wsl.sh`. O motor usa o checkpoint produzido pelo treino separado (`online_training=false`). Para QA, execute `make app-pre-commit-run` no WSL; o pipeline inclui Vulture com confiança 100, lint, segurança, testes e cobertura de 100% em `app/src`.
+
+## Indicador integrado e múltiplos índices
+
+O indicador observacional fica em [`indicator/`](indicator/README.md) e usa somente o WebSocket público. Seus dashboards ficam em `localhost:3001`; o Grafana do motor automático permanece em `localhost:3000`. Apenas sinais **M5 aprovados** da última vela fechada entram no consenso de execução. Sinais M15/H1 continuam observacionais. Sem modelo TCN próprio, sinal aprovado, dados frescos ou concordância de lado, o ativo não recebe ordem. O motor não converte sinais sintéticos em recomendações para Forex.
+
+```bash
+make indicator-up
+make app-train-all
+make docker-up
+make app-run
+```
+
+`app-train-all` treina primeiro os modelos públicos, descobre automaticamente os índices M5 aprovados e treina a TCN e os classificadores do motor para esses ativos. Reinicie `app-run` após a aprovação de novos índices para assinar seus streams. A coleta do indicador prioriza índices com modelo M5 aprovado. O motor pode comprar índices diferentes dentro do mesmo ciclo M5: envia as propostas em sequência para reservar saldo e impedir duas compras concorrentes no mesmo ativo; os contratos permanecem abertos simultaneamente. Em recuperação, mantém uma ordem por ciclo. Se o banco do indicador ficar indisponível, o ciclo não reutiliza o último sinal.
+
+O Grafana do motor mostra contratos ativos confirmados com consenso e a view `contract_consensus_outcomes`, baseada exclusivamente em liquidações do broker. O dashboard do indicador mostra sinais aprovados atuais e o catálogo separado marca modelos experimentais como `SEM SINAL`.
 
 ## Documentação
 

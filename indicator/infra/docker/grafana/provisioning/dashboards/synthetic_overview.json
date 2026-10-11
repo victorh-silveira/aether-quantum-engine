@@ -1,0 +1,154 @@
+{
+  "uid": "aether-synthetic-overview",
+  "title": "Sinteticos | Leituras atuais",
+  "schemaVersion": 39,
+  "version": 3,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Indices com sinal",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT count(DISTINCT symbol) AS value FROM valid",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 2,
+      "title": "Sinais atuais",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT count(*) AS value FROM valid",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 6,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "CALL",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT count(*) AS value FROM valid WHERE side='CALL'",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "PUT",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT count(*) AS value FROM valid WHERE side='PUT'",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 18,
+        "y": 0,
+        "w": 6,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Leituras emitidas e mercado provisório",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT v.symbol, a.name AS ativo, CASE v.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS periodo, v.side AS sinal, 'APROVADO' AS validacao, round((v.probability * 100)::numeric,1) AS prob_call_pct, to_timestamp(v.candle_epoch + v.period_seconds) AS vela_fechada, to_timestamp(v.candle_epoch + 2 * v.period_seconds) AS horizonte_fim, v.model_version AS modelo, o.interim_side AS direcao_provisoria, CASE WHEN o.interim_side='EMPATE' THEN 'NEUTRO' WHEN o.interim_side=v.side THEN 'A FAVOR' WHEN o.interim_side IS NULL THEN NULL ELSE 'CONTRA' END AS indicacao_provisoria, to_timestamp(o.observed_at) AS observado_em, perf.amostras_confirmadas, round(perf.acertos_confirmados_pct::numeric,1) AS acertos_confirmados_pct FROM valid v JOIN indicator_symbols a ON a.symbol=v.symbol LEFT JOIN indicator_live o ON o.symbol=v.symbol AND o.period_seconds=v.period_seconds AND o.signal_epoch=v.candle_epoch AND o.observed_at >= extract(epoch from now()) - 120 LEFT JOIN LATERAL (SELECT count(*) AS amostras_confirmadas, 100.0 * avg(h.correct::integer) AS acertos_confirmados_pct FROM indicator_signals h WHERE h.symbol=v.symbol AND h.period_seconds=v.period_seconds AND h.model_version=v.model_version AND h.correct IS NOT NULL) perf ON true ORDER BY a.name,v.period_seconds",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 17
+      },
+      "options": {}
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Arquitetura — Aether Quantum Engine
 
-O Aether executa contratos Rise/Fall de cinco minutos para `1HZ75V`. O motor Python 3.13.12 roda no host com `asyncio`; os serviços Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam em Docker. A organização do código segue domínio, aplicação, portas, infraestrutura e apresentação. Consulte [a arquitetura sênior](engineering-architecture-senior.md) para os limites entre camadas.
+O Aether executa contratos Rise/Fall de cinco minutos para índices Volatility com TCN própria e consenso M5 aprovado do indicador integrado. O motor Python 3.13.12 roda no host com `asyncio`; os serviços Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam em Docker. A organização do código segue domínio, aplicação, portas, infraestrutura e apresentação. Consulte [a arquitetura sênior](engineering-architecture-senior.md) para os limites entre camadas.
 
 ## Relógios e dados
 
@@ -45,3 +45,9 @@ O estado de sessão e a fila de liquidação usam Redis; a fila prioritária é 
 - [Orquestrador](engineering-orchestrator.md)
 - [Liquidação](engineering-settlement.md)
 - [Infraestrutura](infra-docker.md)
+
+## Consenso com o indicador público
+
+O subsistema [`indicator/`](../indicator/README.md) usa apenas dados públicos e mantém Timescale e Grafana separados. Na abertura M5, o motor consulta a última leitura de cada índice: `reason=ok`, modelo ativo, mesma vela fechada, probabilidade válida e lado CALL/PUT. O lado original da TCN e a direção final do pipeline precisam concordar com o indicador. Leituras M15/H1, experimentais ou antigas não geram contratos. O motor não usa o fechamento observado como resultado de opção; a auditoria de contrato usa apenas a liquidação confirmada pelo broker.
+
+Uma falha isolada de ativo não cancela inferências dos demais. A seleção pode devolver vários índices no mesmo ciclo. O envio é serial para reservar saldo sem corrida entre propostas; as liquidações seguem assíncronas e os contratos de índices distintos podem coexistir. Em recuperação, uma ordem por ciclo. O resultado por versões da TCN e do indicador está em `contract_consensus_outcomes`.

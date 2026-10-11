@@ -1,0 +1,305 @@
+{
+  "uid": "aether-synthetic-asset",
+  "title": "Sinteticos | Ativo",
+  "schemaVersion": 39,
+  "version": 4,
+  "refresh": "30s",
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "templating": {
+    "list": [
+      {
+        "type": "query",
+        "name": "symbol",
+        "label": "Ativo sintetico",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "timescale"
+        },
+        "query": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT DISTINCT a.name AS __text, v.symbol AS __value FROM valid v JOIN indicator_symbols a ON a.symbol=v.symbol ORDER BY a.name",
+        "refresh": 2,
+        "current": {}
+      },
+      {
+        "type": "query",
+        "name": "period",
+        "label": "Periodo",
+        "query": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.symbol,s.period_seconds,s.candle_epoch,s.side,s.reason,s.probability,s.model_version FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT l.* FROM latest l JOIN indicator_model_versions m ON m.symbol=l.symbol AND m.period_seconds=l.period_seconds AND m.model_version=l.model_version WHERE l.side IN ('CALL','PUT') AND l.reason='ok' AND l.probability IS NOT NULL AND extract(epoch from now()) < l.candle_epoch + 2 * l.period_seconds) SELECT CASE v.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS __text, v.period_seconds::text AS __value FROM valid v WHERE v.symbol='${symbol}' ORDER BY v.period_seconds",
+        "current": {},
+        "options": [],
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "timescale"
+        },
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Previsao para o proximo fechamento",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT s.* FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.symbol='${symbol}' AND s.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY s.candle_epoch DESC LIMIT 1) SELECT CASE side WHEN 'CALL' THEN 1 ELSE -1 END AS value FROM latest s JOIN indicator_model_versions m ON m.symbol=s.symbol AND m.period_seconds=s.period_seconds AND m.model_version=s.model_version WHERE side IN ('CALL','PUT') AND reason='ok' AND probability IS NOT NULL AND extract(epoch from now()) < candle_epoch + 2 * NULLIF('${period:raw}','')::integer",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "options": {
+        "textMode": "value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ]
+        }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "-1": {
+                  "text": "PUT"
+                },
+                "1": {
+                  "text": "CALL"
+                }
+              }
+            }
+          ]
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 2,
+      "title": "Probabilidade CALL",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT s.* FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.symbol='${symbol}' AND s.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY s.candle_epoch DESC LIMIT 1) SELECT round((probability * 100)::numeric,1) AS value FROM latest s JOIN indicator_model_versions m ON m.symbol=s.symbol AND m.period_seconds=s.period_seconds AND m.model_version=s.model_version WHERE side IN ('CALL','PUT') AND reason='ok' AND probability IS NOT NULL AND extract(epoch from now()) < candle_epoch + 2 * NULLIF('${period:raw}','')::integer",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 5,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 3,
+      "title": "Idade da ultima vela (s)",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT s.* FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.symbol='${symbol}' AND s.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY s.candle_epoch DESC LIMIT 1) SELECT extract(epoch from now())::bigint - candle_epoch AS value FROM latest s JOIN indicator_model_versions m ON m.symbol=s.symbol AND m.period_seconds=s.period_seconds AND m.model_version=s.model_version WHERE side IN ('CALL','PUT') AND reason='ok' AND probability IS NOT NULL AND extract(epoch from now()) < candle_epoch + 2 * NULLIF('${period:raw}','')::integer",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 10,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 4,
+      "title": "Acertos observados do modelo",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT round(100.0 * avg(correct::integer),1) AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = NULLIF('${period:raw}','')::integer AND correct IS NOT NULL AND model_version IN (SELECT model_version FROM indicator_model_versions WHERE symbol='${symbol}' AND period_seconds=NULLIF('${period:raw}','')::integer) AND $__unixEpochFilter(candle_epoch) AND EXISTS (SELECT 1 FROM indicator_symbols a JOIN LATERAL (SELECT x.side,x.reason,x.probability,x.candle_epoch,x.model_version FROM indicator_signals x WHERE x.symbol=a.symbol AND x.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY x.candle_epoch DESC LIMIT 1) latest ON true JOIN indicator_model_versions m ON m.symbol=a.symbol AND m.period_seconds=NULLIF('${period:raw}','')::integer AND m.model_version=latest.model_version WHERE a.symbol='${symbol}' AND a.active AND latest.side IN ('CALL','PUT') AND latest.reason='ok' AND latest.probability IS NOT NULL AND extract(epoch from now()) < latest.candle_epoch + 2 * NULLIF('${period:raw}','')::integer)",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 15,
+        "y": 0,
+        "w": 5,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 7,
+      "title": "Validacao do modelo",
+      "type": "stat",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT s.* FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.symbol='${symbol}' AND s.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY s.candle_epoch DESC LIMIT 1) SELECT 'APROVADO' AS value FROM latest s JOIN indicator_model_versions m ON m.symbol=s.symbol AND m.period_seconds=s.period_seconds AND m.model_version=s.model_version WHERE side IN ('CALL','PUT') AND reason='ok' AND probability IS NOT NULL AND extract(epoch from now()) < candle_epoch + 2 * NULLIF('${period:raw}','')::integer",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 20,
+        "y": 0,
+        "w": 4,
+        "h": 5
+      },
+      "options": {}
+    },
+    {
+      "id": 8,
+      "title": "Mercado em andamento | provisório",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "WITH latest AS (SELECT s.* FROM indicator_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.symbol='${symbol}' AND s.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY s.candle_epoch DESC LIMIT 1) SELECT to_timestamp(o.observed_at) AS observado_em, o.spot AS preco_agora, round(o.delta::numeric,5) AS variacao_desde_fechamento, o.interim_side AS direcao_provisoria, CASE WHEN o.interim_side='EMPATE' THEN 'NEUTRO' WHEN o.interim_side=s.side THEN 'A FAVOR' ELSE 'CONTRA' END AS situacao, s.side AS previsao_fechamento, 'APROVADO' AS validacao, to_timestamp(s.candle_epoch + 2 * s.period_seconds) AS horizonte_fim FROM latest s JOIN indicator_model_versions m ON m.symbol=s.symbol AND m.period_seconds=s.period_seconds AND m.model_version=s.model_version JOIN indicator_live o ON o.symbol=s.symbol AND o.period_seconds=s.period_seconds AND o.signal_epoch=s.candle_epoch WHERE s.side IN ('CALL','PUT') AND s.reason='ok' AND s.probability IS NOT NULL AND o.observed_at >= extract(epoch from now()) - 120 AND extract(epoch from now()) < s.candle_epoch + 2 * NULLIF('${period:raw}','')::integer",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 6,
+        "w": 24,
+        "h": 6
+      },
+      "options": {}
+    },
+    {
+      "id": 5,
+      "title": "Fechamentos reais",
+      "type": "timeseries",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "time_series",
+          "rawSql": "SELECT to_timestamp(candle_epoch + NULLIF('${period:raw}','')::integer) AS time, close AS value FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = NULLIF('${period:raw}','')::integer AND $__unixEpochFilter(candle_epoch) AND EXISTS (SELECT 1 FROM indicator_symbols a JOIN LATERAL (SELECT x.side,x.reason,x.probability,x.candle_epoch,x.model_version FROM indicator_signals x WHERE x.symbol=a.symbol AND x.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY x.candle_epoch DESC LIMIT 1) latest ON true JOIN indicator_model_versions m ON m.symbol=a.symbol AND m.period_seconds=NULLIF('${period:raw}','')::integer AND m.model_version=latest.model_version WHERE a.symbol='${symbol}' AND a.active AND latest.side IN ('CALL','PUT') AND latest.reason='ok' AND latest.probability IS NOT NULL AND extract(epoch from now()) < latest.candle_epoch + 2 * NULLIF('${period:raw}','')::integer) ORDER BY candle_epoch",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 13,
+        "w": 24,
+        "h": 9
+      },
+      "options": {
+        "spanNulls": false
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "points",
+            "showPoints": "always",
+            "lineWidth": 0,
+            "spanNulls": false
+          }
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 6,
+      "title": "Historico auditavel de leituras",
+      "type": "table",
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "format": "table",
+          "rawSql": "SELECT to_timestamp(candle_epoch + NULLIF('${period:raw}','')::integer) AS vela_fechada, to_timestamp(candle_epoch + 2 * NULLIF('${period:raw}','')::integer) AS horizonte_fim, side AS sinal, round((probability * 100)::numeric,1) AS prob_call_pct, reason AS estado, model_version AS modelo, observed_side AS direcao_observada, correct AS acertou FROM indicator_signals WHERE symbol = '${symbol}' AND period_seconds = NULLIF('${period:raw}','')::integer AND reason='ok' AND model_version IN (SELECT model_version FROM indicator_model_versions WHERE symbol='${symbol}' AND period_seconds=NULLIF('${period:raw}','')::integer) AND $__unixEpochFilter(candle_epoch) AND EXISTS (SELECT 1 FROM indicator_symbols a JOIN LATERAL (SELECT x.side,x.reason,x.probability,x.candle_epoch,x.model_version FROM indicator_signals x WHERE x.symbol=a.symbol AND x.period_seconds=NULLIF('${period:raw}','')::integer ORDER BY x.candle_epoch DESC LIMIT 1) latest ON true JOIN indicator_model_versions m ON m.symbol=a.symbol AND m.period_seconds=NULLIF('${period:raw}','')::integer AND m.model_version=latest.model_version WHERE a.symbol='${symbol}' AND a.active AND latest.side IN ('CALL','PUT') AND latest.reason='ok' AND latest.probability IS NOT NULL AND extract(epoch from now()) < latest.candle_epoch + 2 * NULLIF('${period:raw}','')::integer) ORDER BY candle_epoch DESC LIMIT 500",
+          "editorMode": "code"
+        }
+      ],
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 24,
+        "h": 15
+      },
+      "options": {}
+    }
+  ]
+}

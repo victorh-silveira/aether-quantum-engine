@@ -15,6 +15,7 @@ on:
       - "infra/**"
       - "native/**"
       - "app/**"
+      - "indicator/**"
       - "run.py"
       - "train.py"
   pull_request:
@@ -30,6 +31,7 @@ on:
       - "infra/**"
       - "native/**"
       - "app/**"
+      - "indicator/**"
       - "run.py"
       - "train.py"
   workflow_dispatch:
@@ -42,6 +44,28 @@ permissions:
   contents: read
 
 jobs:
+  indicator:
+    name: CI - Indicador M5/M15/H1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: indicator/app/requirements-dev.txt
+      - name: Instalar dependencias
+        run: python -m pip install -r indicator/app/requirements-dev.txt
+      - name: Validar indicador
+        run: make indicator-lint indicator-test
+      - name: Validar Compose e dashboards
+        run: |
+          docker compose -f indicator/infra/docker/docker-compose.yml config --quiet
+          python -c 'import json,pathlib; files=list(pathlib.Path("indicator/infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
+
   python:
     name: CI - Python
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
@@ -216,7 +240,7 @@ jobs:
 
   release:
     name: CI - Publicação
-    needs: [python, docker, shell, rust, workflows]
+    needs: [indicator, python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -115,3 +115,9 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 Inventario de modulos: [`docs/structure.md`](docs/structure.md)  
 Arquitetura runtime: [`docs/arquitetura.md`](docs/arquitetura.md)  
 Arquitetura senior (host/DDD/ML/infra/QA): [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md)
+
+## Integração do indicador na main
+
+A `main` agora inclui `indicator/` como subsistema observacional, isolado do cliente autenticado. Ele só usa `active_symbols` e `ticks_history`, treina por ativo/período e exibe apenas CALL/PUT aprovados nos painéis de sinais. O motor de contratos mantém TCN, meta LightGBM, loss-classifier, Kelly, proposta e liquidação. O adapter de leitura em `app/src/infrastructure/storage/indicator_signal_reader.py` consulta exclusivamente a última leitura M5 aprovada e a versão ativa. O lado original da TCN e a direção final após meta/loss devem concordar com ela no mesmo ativo e na mesma vela fechada. Sem consenso, não force nem reutilize lado anterior. M15/H1 são observacionais e não habilitam compra.
+
+`normalize_symbols_and_anchor` descobre modelos M5 aprovados do indicador ao iniciar; `make app-train-all` treina indicador e motor em sequência. Novos ativos precisam de checkpoint TCN próprio. Dentro de um ciclo, propostas para ativos distintos são enviadas sequencialmente com saldo reservado; contratos podem permanecer abertos simultaneamente. O dashboard do motor em `localhost:3000` mostra apenas compras confirmadas, enquanto o observacional usa `localhost:3001`. Audite desempenho por versões da TCN e do indicador usando `contract_consensus_outcomes` com liquidação do broker. Execute `make indicator-lint`, `make indicator-test`, `make lint` e `make test`.

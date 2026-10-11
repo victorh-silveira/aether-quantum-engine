@@ -1,5 +1,9 @@
 {
   "anchor": "1HZ75V",
+  "indicator_consensus": {
+    "enabled": true,
+    "auto_symbols": true
+  },
   "api_config": {
     "deriv_app_id": "",
     "history_fetch": {
@@ -318,7 +322,7 @@
     "api_maintenance_fallback_seconds": 90.0,
     "broker_handshake_timeout_seconds": 90.0,
     "cycle_interval_seconds": 300,
-    "exec_empty_retry_seconds": 300,
+    "exec_empty_retry_seconds": 15,
     "require_signature_boundary": true,
     "signature_boundary_open_tolerance_seconds": 20.0,
     "execution": {
@@ -439,6 +443,8 @@
       "fractional_lot_stagger_jitter_us": 50.0,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.05,
+      "multi_symbol_orders": true,
+      "max_orders_per_cycle": 3,
       "loss_protection": {
         "disconnect": {
           "block_threshold": 0.18,
