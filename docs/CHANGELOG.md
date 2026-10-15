@@ -1,3 +1,9 @@
+## [4.4.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.3...v4.4.4) (2026-10-15)
+
+### Correcoes de Bug
+
+* **orchestrator:** estabilizar ciclo de liquidacao e contexto m5 ([62b7391](https://github.com/victorh-silveira/aether-quantum-engine/commit/62b7391aac7d297abeee7a88da8c54200dc5dfb7))
+
 ## [4.4.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.2...v4.4.3) (2026-10-15)
 
 ### Correcoes de Bug
