@@ -5,6 +5,10 @@ import math
 
 def validate_quote_guard_params(params: dict, execution_config: dict) -> None:
     """Bloqueia compra sem probabilidade finita quando o quote guard e exigido."""
+    if params.get("_indicator_demo_pilot") and str(params.get("_indicator_model_version", "")).startswith(
+        "pullback-1-"
+    ):
+        return
     raw = params.get("_quote_guard_side_probability")
     if raw is None:
         if bool(execution_config.get("require_quote_edge", False)):

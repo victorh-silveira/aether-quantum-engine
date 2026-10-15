@@ -61,6 +61,20 @@ def test_indicator_trade_metrics_exist_only_while_contract_is_active():
     assert "aether_indicator_active_trade_direction" not in instrumentor.format_prometheus_metrics()
 
 
+def test_pullback_trade_reports_direction_without_invented_probability():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.record_indicator_trade(
+        19,
+        "1HZ25V",
+        "PUT",
+        {"indicator_model_version": "pullback-1-v1", "indicator_candle_epoch": 300},
+    )
+    payload = instrumentor.format_prometheus_metrics()
+    assert 'aether_indicator_active_trade_direction{symbol="1HZ25V",contract_id="19"} -1.0' in payload
+    assert 'aether_indicator_active_trade_candle_epoch{symbol="1HZ25V",contract_id="19"} 300' in payload
+    assert 'aether_indicator_active_trade_call_probability{symbol="1HZ25V",contract_id="19"}' not in payload
+
+
 def test_business_metrics_omit_unobserved_session_radar_and_events():
     payload = BusinessMetricsInstrumentor().format_prometheus_metrics()
     assert "aether_session_balance_usd" not in payload

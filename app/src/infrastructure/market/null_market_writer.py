@@ -20,6 +20,10 @@ class NullMarketWriter:
         """Ignora auditoria quando a captura esta desligada."""
         _ = row
 
+    async def record_quote_observation(self, row: dict[str, Any]) -> None:
+        """Ignora cotacao em modo sem Timescale."""
+        _ = row
+
     async def flush(self) -> None:
         """Nao possui buffer pendente."""
         return

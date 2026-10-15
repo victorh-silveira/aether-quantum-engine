@@ -9,6 +9,80 @@ from src.infrastructure.handlers.trade_handler import (
     build_proposal_request,
     resolve_api_contract_type,
 )
+from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
+
+
+@pytest.mark.asyncio
+async def test_quote_crossing_m5_boundary_cannot_buy(trade_handler, mock_ws, monkeypatch):
+    from src.infrastructure.handlers import trade_handler_requests
+
+    monkeypatch.setattr(trade_handler_requests.time, "time", lambda: 900)
+    mock_ws.send.return_value = {"proposal": {"id": "quote", "ask_price": 10.0, "payout": 18.0}}
+    with pytest.raises(RuntimeError, match="Sinal expirou"):
+        await trade_handler.buy_with_parameters("R_10", TradeDirection.CALL, 10.0, params={"_signal_candle_epoch": 300})
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("proposal", "expected"),
+    [
+        ({"id": "quote", "ask_price": 51.0, "payout": 91.8}, "excede o teto"),
+        ({"id": "quote", "ask_price": 40.0, "payout": 40.0}, "sem payout valido"),
+        ({"id": "quote", "ask_price": 40.0, "payout": 71.2}, "Payout final"),
+    ],
+)
+async def test_pullback_revalidates_cap_and_quoted_rate(trade_handler, mock_ws, proposal, expected):
+    mock_ws.send.return_value = {"proposal": proposal}
+    with pytest.raises(RuntimeError, match=expected):
+        await trade_handler.buy_with_parameters(
+            "R_10",
+            TradeDirection.CALL,
+            40.0,
+            params={"_pullback_stake_cap": 50.0, "_pullback_quote_rate": 0.8},
+        )
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_invalid_signal_period_cannot_buy(trade_handler, mock_ws):
+    mock_ws.send.return_value = {"proposal": {"id": "quote", "ask_price": 10.0, "payout": 18.0}}
+    with pytest.raises(RuntimeError, match="Periodo do sinal invalido"):
+        await trade_handler.buy_with_parameters(
+            "R_10",
+            TradeDirection.CALL,
+            10.0,
+            params={"_signal_candle_epoch": 300, "_indicator_period_seconds": 600},
+        )
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("period", [900, 3600])
+async def test_period_signal_cannot_buy_after_entry_window(trade_handler, mock_ws, monkeypatch, period):
+    from src.infrastructure.handlers import trade_handler_requests
+
+    monkeypatch.setattr(trade_handler_requests.time, "time", lambda: period * 3 + 31)
+    mock_ws.send.return_value = {"proposal": {"id": "quote", "ask_price": 10.0, "payout": 18.0}}
+    with pytest.raises(RuntimeError, match="Sinal expirou"):
+        await trade_handler.buy_with_parameters(
+            "R_10",
+            TradeDirection.CALL,
+            10.0,
+            params={"_signal_candle_epoch": period * 2, "_indicator_period_seconds": period},
+        )
+    mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_buy_timeout_is_reported_as_unknown_outcome(trade_handler, mock_ws):
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote", "ask_price": 10.0, "payout": 18.0}},
+        TimeoutError("no ACK"),
+    ]
+    with pytest.raises(PurchaseOutcomeUnknownError, match="resultado no broker desconhecido"):
+        await trade_handler.buy_with_parameters("R_10", TradeDirection.CALL, 10.0)
+    assert mock_ws.send.await_count == 2
 
 
 @pytest.fixture
@@ -143,6 +217,9 @@ async def test_trade_handler_buy_with_parameters_success(trade_handler, mock_ws)
     assert contract.symbol == "R_10"
     assert contract.direction == TradeDirection.CALL
     assert contract.stake == 10.0
+    assert contract.quote_price == 10.0
+    assert contract.quote_payout == 18.5
+    assert contract.quote_ev is None
 
     proposal_req = mock_ws.send.call_args_list[0].args[0]
     buy_req = mock_ws.send.call_args_list[1].args[0]
@@ -276,6 +353,23 @@ async def test_trade_handler_fetch_proposal_payout_success(trade_handler, mock_w
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("duration", [5, 15, 60])
+async def test_proposal_snapshot_uses_period_contract_duration(trade_handler, mock_ws, duration):
+    mock_ws.send.return_value = {"proposal": {"id": "quote-v1", "ask_price": "10.00", "payout": "18.50"}}
+    quote = await trade_handler.fetch_proposal_snapshot(
+        "R_25",
+        TradeDirection.PUT,
+        10.0,
+        params={"duration": duration, "duration_unit": "m"},
+    )
+    assert quote["proposal_id"] == "quote-v1"
+    assert quote["price"] == 10.0
+    assert quote["payout"] == 18.5
+    assert quote["rate"] == pytest.approx(0.85)
+    assert mock_ws.send.await_args.args[0]["duration"] == duration
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("payout", ["18.00", "0.00"])
 async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws, payout):
     mock_ws.send.return_value = {"proposal": {"id": "new_quote", "ask_price": "10.00", "payout": payout}}
@@ -285,8 +379,10 @@ async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws,
         "_quote_guard_side_probability": 0.55,
         "_quote_guard_min_edge": 0.01,
     }
-    with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall perdeu vantagem"):
+    with pytest.raises(RuntimeError, match="Cotacao final Rise/Fall perdeu vantagem") as caught:
         await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
+    if payout == "18.00":
+        assert "p_minima=0.5611" in str(caught.value)
     mock_ws.send.assert_awaited_once()
 
 
@@ -315,8 +411,161 @@ async def test_final_buy_accepts_positive_ev_below_old_fixed_payout_floor(trade_
     }
     contract = await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.PUT, 10.0, params=params)
     assert contract.contract_id == 783
+    assert contract.quote_ev == pytest.approx(0.6752 * 1.783 - 1.0)
     assert trade_handler.latest_payout_rate == pytest.approx(0.783)
     assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_final_buy_accepts_negative_ev_only_for_demo_pilot(trade_handler, mock_ws):
+    trade_handler.config["trading"] = {"mode": "demo"}
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "indicator_quote", "ask_price": "10.00", "payout": "17.81"}},
+        {"buy": {"contract_id": 784, "buy_price": "10.00", "payout": "17.81"}},
+    ]
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "min_payout_rate": 0.0,
+        "_quote_guard_side_probability": 0.528,
+        "_quote_guard_min_edge": -1.0,
+        "_quote_guard_safety_margin": 0.0,
+        "_indicator_demo_pilot": True,
+    }
+    contract = await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 10.0, params=params)
+    assert contract.contract_id == 784
+    assert contract.quote_ev == pytest.approx(0.528 * 1.781 - 1.0)
+    assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_pullback_demo_pilot_uses_valid_quote_without_probability(trade_handler, mock_ws):
+    trade_handler.config["trading"] = {"mode": "demo"}
+    trade_handler.market_writer = MagicMock(record_quote_observation=AsyncMock())
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "setup_quote", "ask_price": "1.00", "payout": "1.78"}},
+        {"buy": {"contract_id": 785, "buy_price": "1.00", "payout": "1.78"}},
+    ]
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "_indicator_model_version": "pullback-1-test",
+        "_indicator_demo_pilot": True,
+    }
+    contract = await trade_handler.buy_with_parameters("R_25", TradeDirection.CALL, 1.0, params=params)
+    assert contract.quote_ev is None
+    assert contract.quote_payout == 1.78
+    assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_pullback_pilot_bypass_rejected_in_real_and_without_payout(trade_handler, mock_ws):
+    params = {"_indicator_model_version": "pullback-1-test", "_indicator_demo_pilot": True}
+    trade_handler.market_writer = MagicMock(record_quote_observation=AsyncMock())
+    trade_handler.config["trading"] = {"mode": "real"}
+    with pytest.raises(RuntimeError, match="somente em DEMO"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.CALL, 1.0, params=params)
+    mock_ws.send.assert_not_awaited()
+    trade_handler.config["trading"] = {"mode": "demo"}
+    mock_ws.send.return_value = {"proposal": {"id": "sem_payout", "ask_price": "1.00"}}
+    with pytest.raises(RuntimeError, match="sem payout valido"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.CALL, 1.0, params=params)
+
+
+@pytest.mark.asyncio
+async def test_negative_ev_cannot_be_enabled_in_real_even_with_pilot_flag(trade_handler, mock_ws):
+    trade_handler.config["trading"] = {"mode": "real"}
+    params = {
+        "_quote_guard_side_probability": 0.528,
+        "_quote_guard_min_edge": -1.0,
+        "_indicator_demo_pilot": True,
+    }
+    with pytest.raises(RuntimeError, match="somente no piloto DEMO"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 10.0, params=params)
+    mock_ws.send.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_unknown_proposal_uses_one_direct_buy_for_current_indicator_candle(trade_handler, mock_ws, monkeypatch):
+    from src.infrastructure.handlers import trade_handler_buy_recovery
+
+    trade_handler.config["trading"] = {"mode": "demo"}
+    monkeypatch.setattr(trade_handler_buy_recovery.time, "time", lambda: 620)
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote_r25", "ask_price": "59.86", "payout": "106.60"}},
+        {"error": {"message": "Unknown contract proposal"}},
+        {"buy": {"contract_id": 785, "buy_price": "59.86", "payout": "106.60"}},
+    ]
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "_quote_guard_side_probability": 0.528,
+        "_quote_guard_min_edge": -1.0,
+        "_indicator_demo_pilot": True,
+        "_indicator_direct_buy_fallback": True,
+        "_indicator_candle_epoch": 300,
+    }
+    contract = await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 59.86, params=params)
+    assert contract.contract_id == 785
+    assert contract.proposal_id == "direct_parameters"
+    assert contract.quote_price is None
+    assert contract.quote_payout is None
+    assert contract.quote_ev is None
+    direct = mock_ws.send.await_args_list[2].args[0]
+    assert direct == {
+        "buy": "1",
+        "price": 59.86,
+        "parameters": {
+            "amount": 59.86,
+            "basis": "stake",
+            "contract_type": "PUT",
+            "currency": "USD",
+            "underlying_symbol": "R_25",
+            "duration": 5,
+            "duration_unit": "m",
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_unknown_proposal_does_not_retry_after_candle_expires(trade_handler, mock_ws, monkeypatch):
+    from src.infrastructure.handlers import trade_handler_buy_recovery
+
+    monkeypatch.setattr(trade_handler_buy_recovery.time, "time", lambda: 900)
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote_r25", "ask_price": "10.00", "payout": "17.81"}},
+        {"error": {"message": "Unknown contract proposal"}},
+    ]
+    params = {"_indicator_direct_buy_fallback": True, "_indicator_candle_epoch": 300}
+    with pytest.raises(RuntimeError, match="sinal expirou"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 10.0, params=params)
+    assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_unknown_proposal_without_indicator_policy_does_not_retry(trade_handler, mock_ws):
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote_r25", "ask_price": "10.00", "payout": "17.81"}},
+        {"error": {"message": "Unknown contract proposal"}},
+    ]
+    with pytest.raises(RuntimeError, match="Unknown contract proposal"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 10.0)
+    assert mock_ws.send.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_direct_buy_without_contract_response_is_reported(trade_handler, mock_ws, monkeypatch):
+    from src.infrastructure.handlers import trade_handler_buy_recovery
+
+    monkeypatch.setattr(trade_handler_buy_recovery.time, "time", lambda: 620)
+    mock_ws.send.side_effect = [
+        {"proposal": {"id": "quote_r25", "ask_price": "10.00", "payout": "17.81"}},
+        {"error": {"message": "Unknown contract proposal"}},
+        {"msg_type": "buy"},
+    ]
+    params = {"_indicator_direct_buy_fallback": True, "_indicator_candle_epoch": 300}
+    with pytest.raises(RuntimeError, match="resposta sem contrato"):
+        await trade_handler.buy_with_parameters("R_25", TradeDirection.PUT, 10.0, params=params)
 
 
 @pytest.mark.asyncio
@@ -405,7 +654,7 @@ async def test_final_buy_proposal_blocks_quote_safety_margin(trade_handler, mock
         "duration": 5,
         "duration_unit": "m",
         "_quote_guard_side_probability": 0.56,
-        "_quote_guard_min_edge": -0.10,
+        "_quote_guard_min_edge": 0.0,
         "_quote_guard_safety_margin": 0.03,
     }
     with pytest.raises(RuntimeError, match="perdeu margem de seguranca sobre break-even"):

@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 import asyncpg
 
@@ -21,8 +22,9 @@ _CONTRACT_SQL = (
     "INSERT INTO contract_executions (contract_id, symbol, account_mode, direction, transaction_buy_id, "
     "request_epoch_ms, ack_epoch_ms, date_start, date_expiry, entry_tick, entry_tick_time, exit_tick, "
     "exit_tick_time, buy_price, payout, signal_prob, profit, status, settlement_source, proposal_id, contract_type, barrier, "
-    "model_version, calibrated_call_prob, indicator_model_version, indicator_call_prob, indicator_candle_epoch) "
-    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) "
+    "model_version, calibrated_call_prob, indicator_model_version, indicator_call_prob, indicator_candle_epoch, "
+    "quote_price, quote_payout, quote_ev, indicator_period_seconds, quote_cohort) "
+    "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32) "
     "ON CONFLICT (contract_id) DO UPDATE SET "
     "proposal_id=COALESCE(EXCLUDED.proposal_id, contract_executions.proposal_id), "
     "contract_type=COALESCE(EXCLUDED.contract_type, contract_executions.contract_type), "
@@ -32,6 +34,11 @@ _CONTRACT_SQL = (
     "indicator_model_version=COALESCE(EXCLUDED.indicator_model_version, contract_executions.indicator_model_version), "
     "indicator_call_prob=COALESCE(EXCLUDED.indicator_call_prob, contract_executions.indicator_call_prob), "
     "indicator_candle_epoch=COALESCE(EXCLUDED.indicator_candle_epoch, contract_executions.indicator_candle_epoch), "
+    "quote_price=COALESCE(EXCLUDED.quote_price, contract_executions.quote_price), "
+    "quote_payout=COALESCE(EXCLUDED.quote_payout, contract_executions.quote_payout), "
+    "quote_ev=COALESCE(EXCLUDED.quote_ev, contract_executions.quote_ev), "
+    "indicator_period_seconds=COALESCE(EXCLUDED.indicator_period_seconds, contract_executions.indicator_period_seconds), "
+    "quote_cohort=COALESCE(EXCLUDED.quote_cohort, contract_executions.quote_cohort), "
     "transaction_buy_id=COALESCE(EXCLUDED.transaction_buy_id, contract_executions.transaction_buy_id), "
     "request_epoch_ms=COALESCE(EXCLUDED.request_epoch_ms, contract_executions.request_epoch_ms), "
     "ack_epoch_ms=COALESCE(EXCLUDED.ack_epoch_ms, contract_executions.ack_epoch_ms), "
@@ -80,6 +87,11 @@ _CONTRACT_FIELDS = (
     "indicator_model_version",
     "indicator_call_prob",
     "indicator_candle_epoch",
+    "quote_price",
+    "quote_payout",
+    "quote_ev",
+    "indicator_period_seconds",
+    "quote_cohort",
 )
 
 
@@ -100,6 +112,7 @@ class TimescaleMarketWriter:
         self._queue: asyncio.Queue[tuple[str, tuple[Any, ...]]] = asyncio.Queue()
         self._worker: asyncio.Task | None = None
         self._closed = False
+        self._last_error: Exception | None = None
         self.logger = logging.getLogger("AETH")
 
     async def _ensure_pool(self) -> asyncpg.Pool:
@@ -164,6 +177,35 @@ class TimescaleMarketWriter:
         )
         self._ensure_worker()
 
+    async def record_quote_observation(self, row: dict[str, Any]) -> None:
+        """Persiste cotacao observada antes de uma eventual compra."""
+        if self._closed:
+            raise RuntimeError("captura Timescale encerrada")
+        pool = await self._ensure_pool()
+        async with pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO indicator_quote_observations
+                    (observation_id, account_mode, symbol, period_seconds, candle_epoch,
+                     model_version, side, proposal_id, side_probability, quote_price,
+                     quote_payout, quote_ev, cohort)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+                """,
+                uuid4(),
+                row["account_mode"],
+                row["symbol"],
+                row["period_seconds"],
+                row["candle_epoch"],
+                row["model_version"],
+                row["side"],
+                row["proposal_id"],
+                row["side_probability"],
+                row["quote_price"],
+                row["quote_payout"],
+                row["quote_ev"],
+                row["cohort"],
+            )
+
     async def _run_worker(self) -> None:
         """Consome fila e faz flush em lotes por intervalo ou tamanho."""
         tick_batch: list[tuple[Any, ...]] = []
@@ -194,6 +236,7 @@ class TimescaleMarketWriter:
         except asyncio.CancelledError:
             raise
         except Exception as exc:
+            self._last_error = exc
             self.logger.error("TSDB: worker falhou: %s", exc)
 
     async def _flush_batches(
@@ -211,6 +254,7 @@ class TimescaleMarketWriter:
                 await conn.executemany(_BAR_SQL, bar_batch)
             if contract_batch:
                 await conn.executemany(_CONTRACT_SQL, contract_batch)
+        self._last_error = None
 
     async def flush(self) -> None:
         """Esvazia fila pendente e grava imediatamente."""

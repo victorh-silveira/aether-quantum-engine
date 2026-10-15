@@ -118,9 +118,11 @@ def test_minio_init_script_bucket_ilm():
     assert "mc ilm import" in script
 
 
-def test_docker_hydrate_uses_1hz75v_m5_d1():
+def test_docker_hydrate_uses_configured_anchor_m5_d1():
     script = _resolve_infra_file("sh", "docker-hydrate.sh").read_text(encoding="utf-8")
-    assert "1HZ75V" in script
+    assert "config/settings.json" in script
+    assert "AETHER_HYDRATE_SYMBOL" in script
+    assert "1HZ75V" not in script
     assert "300" in script
     assert "86400" in script
     assert "R_10" not in script
@@ -146,7 +148,9 @@ def test_aether_io_tune_reloadable_only():
 def test_makefile_docker_logs_defaults_running_services():
     text = repo_path("Makefile").read_text(encoding="utf-8")
     assert "DOCKER_LOGS_TAIL ?= 200" in text
-    assert "DOCKER_LOGS_SERVICES ?= redis timescaledb minio aether-meta-classifier aether-loss-classifier" in text
+    assert (
+        "DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio" in text
+    )
     assert "minio-init" not in text.split("DOCKER_LOGS_SERVICES")[1].split("\n")[0]
 
 
