@@ -100,6 +100,7 @@ async def test_store_writes_isolated_schema(monkeypatch):
     await store.start()
     await store.register_setups({"R_25": "V25"})
     await store.promote_setups()
+    await store.promote_symbol_setup("R_25", 300, VERSION)
     signal = Signal("R_25", 300, 600, "CALL", None, VERSION, "setup_confirmado", 100)
     await store.save_setup(signal)
 

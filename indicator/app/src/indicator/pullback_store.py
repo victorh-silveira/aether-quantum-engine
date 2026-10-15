@@ -84,6 +84,19 @@ class PullbackStore(SignalStore):
                     AND e.purchased >= 200 AND e.settled >= 200
             """)
 
+    async def promote_symbol_setup(self, symbol: str, period: int = 300, version: str = VERSION) -> None:
+        """Promove o setup do simbolo especifico para o estado ativo no registro."""
+        async with self.pool.acquire() as connection:
+            await connection.execute(
+                """INSERT INTO pullback_registry(symbol, period_seconds, setup_version, state, updated_at)
+                VALUES ($1, $2, $3, 'ativo', now())
+                ON CONFLICT (symbol, period_seconds, setup_version)
+                DO UPDATE SET state = 'ativo', updated_at = now()""",
+                symbol,
+                period,
+                version,
+            )
+
     async def save_setup(self, signal: Signal) -> None:
         """Grava setup e motivo sem inventar probabilidade direcional."""
         async with self.pool.acquire() as connection:
