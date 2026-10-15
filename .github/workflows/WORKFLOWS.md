@@ -1,20 +1,18 @@
 # GitHub Actions
 
-CI por stack real do Aether (indicador, Python, Docker, Shell, Rust e Workflows). JSON e YAML nao sao stacks: validam-se em steps `Python | JSON *` e `Python | YAML *`. Actionlint vive em `CI - Workflows`. CD = semantic-release apos CI verde.
+CI por stack real do Aether (Python, Docker, Shell, Rust e Workflows). O indicador publico esta totalmente integrado nos jobs de Python (lint, seguranca e testes com cobertura 100%) e Docker (validacao de Compose e dashboards). JSON e YAML nao sao stacks: validam-se em steps `Python | JSON *` e `Python | YAML *`. Actionlint vive em `CI - Workflows`. CD = semantic-release apos CI verde.
 
 ## Visao (push em `main`)
 
 ```mermaid
 flowchart LR
   subgraph ci [CI paralelo]
-    IN[Indicador]
-    PY[Python]
-    DK[Docker]
+    PY[Python & Indicador]
+    DK[Docker & Dashboards]
     SH[Shell]
     RS[Rust]
     WF[Workflows]
   end
-  IN --> R[Publicação]
   PY --> R[Publicação]
   DK --> R
   SH --> R
@@ -25,9 +23,8 @@ flowchart LR
 
 | Fase | Job | Steps (formato `Area \| Stage`) |
 |------|-----|----------------------------------|
-| CI | Indicador M5/M15/H1 | Lint, segurança, testes com cobertura 100%, Compose e dashboards da stack unica |
-| CI | Python | Lint, JSON/YAML, Validate, Seguranca, Testes, Build |
-| CI | Docker | Lint, Validate, Seguranca, Testes, Build |
+| CI | Python | Lint (app e indicador), JSON/YAML, Validate, Seguranca (app e indicador), Testes (app e indicador 100%), Build |
+| CI | Docker | Lint, Validate, Compose e Dashboards do Indicador, Seguranca, Testes, Build |
 | CI | Shell | Lint, Validate, Seguranca, Testes, Build |
 | CI | Rust | Lint, Validate, Seguranca, Testes, Build |
 | CI | Workflows | Lint (actionlint) |

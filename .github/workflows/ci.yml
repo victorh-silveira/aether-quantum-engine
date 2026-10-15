@@ -44,28 +44,6 @@ permissions:
   contents: read
 
 jobs:
-  indicator:
-    name: CI - Indicador M5/M15/H1
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - name: Obter codigo fonte
-        uses: actions/checkout@v4
-      - name: Preparar Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-          cache: pip
-          cache-dependency-path: indicator/app/requirements-dev.txt
-      - name: Instalar dependencias
-        run: python -m pip install -r indicator/app/requirements-dev.txt
-      - name: Validar indicador
-        run: make indicator-lint indicator-security indicator-test
-      - name: Validar Compose e dashboards
-        run: |
-          COMPOSE_PROFILES=core,ml,telemetry,indicator docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker config --quiet
-          python -c 'import json,pathlib; files=list(pathlib.Path("indicator/infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
-
   python:
     name: CI - Python
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
@@ -95,6 +73,9 @@ jobs:
       - name: Python | YAML Lint
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
+      - name: Indicador | Lint
+        shell: bash
+        run: make indicator-lint
       - name: Python | Validate
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage validate
@@ -107,12 +88,18 @@ jobs:
       - name: Python | Seguranca
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage security
+      - name: Indicador | Seguranca
+        shell: bash
+        run: make indicator-security
       - name: Python | Testes
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
       - name: Python | JSON Testes
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage test --config-text json
+      - name: Indicador | Testes
+        shell: bash
+        run: make indicator-test
       - name: Python | Build
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage build
@@ -145,6 +132,11 @@ jobs:
       - name: Docker | Validate
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area docker --stage validate
+      - name: Docker | Compose e Dashboards do Indicador
+        shell: bash
+        run: |
+          COMPOSE_PROFILES=core,ml,telemetry,indicator docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker config --quiet
+          python -c 'import json,pathlib; files=list(pathlib.Path("indicator/infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
       - name: Docker | Seguranca
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area docker --stage security
@@ -240,7 +232,7 @@ jobs:
 
   release:
     name: CI - Publicação
-    needs: [indicator, python, docker, shell, rust, workflows]
+    needs: [python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
