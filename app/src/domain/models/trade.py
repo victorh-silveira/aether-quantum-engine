@@ -61,6 +61,9 @@ class Contract:
     longcode: str | None = None
     entry_spot: float | None = None
     entry_time: float | None = None
+    quote_price: float | None = None
+    quote_payout: float | None = None
+    quote_ev: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
