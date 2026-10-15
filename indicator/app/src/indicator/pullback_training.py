@@ -7,21 +7,25 @@ import logging
 import time
 
 from indicator.domain import PERIODS, latest_contiguous, synthetic_symbols
-from indicator.pullback import MIN_BARS, VERSION, evaluate
+from indicator.pullback import MIN_BARS, evaluate, version_for_variant
 from indicator.pullback_research import compare_variants
 from indicator.training import history
 
 logger = logging.getLogger(__name__)
 
 
-async def diagnose_all(source, store, now: int | None = None) -> dict[str, dict]:
+async def diagnose_all(source, store, now: int | None = None, variant: str = "base") -> dict[str, dict]:
     """Coleta velas diretas e mede apenas o proxy de fechamento seguinte."""
     timestamp = int(time.time()) if now is None else now
     symbols = synthetic_symbols(await asyncio.wait_for(source.symbols(), 40))
     if not symbols:
         raise RuntimeError("catalogo sintetico vazio")
+    version = version_for_variant(variant)
     await store.set_symbols(symbols)
-    await store.register_setups(symbols)
+    try:
+        await store.register_setups(symbols, version)
+    except TypeError:
+        await store.register_setups(symbols)
     report: dict[str, dict] = {}
     for symbol in symbols:
         for period in PERIODS:
@@ -42,7 +46,12 @@ async def diagnose_all(source, store, now: int | None = None) -> dict[str, dict]
                 wins = losses = ties = 0
                 by_side = {"CALL": [0, 0], "PUT": [0, 0]}
                 for index in range(MIN_BARS - 1, len(candles) - 1):
-                    result = evaluate(candles[index - MIN_BARS + 1 : index + 1], period, candles[index].epoch + period)
+                    result = evaluate(
+                        candles[index - MIN_BARS + 1 : index + 1],
+                        period,
+                        candles[index].epoch + period,
+                        variant,
+                    )
                     if result.side not in by_side:
                         continue
                     next_candle = candles[index + 1]
@@ -58,7 +67,7 @@ async def diagnose_all(source, store, now: int | None = None) -> dict[str, dict]
                         by_side[result.side][1] += 1
                 report[key] = {
                     "estado": "PROXY DE VELAS",
-                    "versao": VERSION,
+                    "versao": version,
                     "velas": len(candles),
                     "setups": wins + losses + ties,
                     "acertos": wins,

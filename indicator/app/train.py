@@ -21,9 +21,10 @@ async def train() -> None:
         raise ValueError("catalog_scope deve ser volatility_indices")
     source = PublicDeriv(config["public_ws_url"])
     store = PullbackStore(os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"]))
+    variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "base"))
     try:
         await store.start()
-        result = await diagnose_all(source, store)
+        result = await diagnose_all(source, store, variant=variant)
         summary = {
             "pares": len(result),
             "pares_com_proxy": sum(row["estado"] == "PROXY DE VELAS" for row in result.values()),
