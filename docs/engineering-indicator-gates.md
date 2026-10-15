@@ -25,7 +25,9 @@ EV = p(lado) * (1 + payout) - 1. O haircut configurado tambem se aplica.
 Registra `market_trigger_status`, `market_trigger_candidate`, setup e edge.
 Nao estima uma nova probabilidade a partir do desenho do candle.
 
-A proposta final usa o payout liquido efetivamente cotado: `quote_ev = p(lado) × (1 + payout_rate) − 1`. O piso fixo `min_payout_rate` esta em zero; permanecem `min_edge_execute=0`, a margem de 0,01 sobre break-even e o bloqueio de payout ausente ou invalido. Assim, payout abaixo de 0,80 nao e confundido com EV negativo.
+A proposta final usa o payout liquido efetivamente cotado: `quote_ev = p(lado) × (1 + payout_rate) − 1`. No fluxo TCN sem indicador, permanecem `min_edge_execute=0` e margem de 0,01 sobre break-even. No fluxo com indicador M5 aprovado, REAL exige amostra DEMO da mesma versao com pelo menos 200 contratos liquidados pelo broker e limite inferior unilateral de 95% para retorno medio acima de zero. O piloto DEMO usa a stake minima aceita pela Deriv, limitada a 1% da banca por ordem, e para apos 200 compras da versao. O piloto pode registrar EV estimado negativo somente em DEMO; REAL exige EV positivo e margem na cotacao final. Preco, payout e probabilidade ausentes ou invalidos bloqueiam ambas as rotas.
+
+O treino preserva a versao M5 ativa com compras DEMO enquanto a amostra do piloto estiver incompleta e tambem preserva versoes promovidas. O novo ajuste fica como candidato separado. Isso evita reiniciar a evidencia a cada `make app-train`; nao transforma uma probabilidade proxima de 50% em vantagem economica. Os modelos aprovados com `ev_candidatas=0` continuam sem candidatos historicos acima do break-even de referencia e dependem de evidencia DEMO confirmada antes de qualquer promocao REAL.
 
 Limitacao deliberada: um TCN CALL com P(CALL)=0.52 nao autoriza PUT; P(PUT)=0.48.
 Se o lado inicial ja e o argmax do TCN, o gatilho nao o inverte contra essa

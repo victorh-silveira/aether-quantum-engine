@@ -8,20 +8,28 @@ O label `spot_forward` usa a direção da próxima vela fechada. Esse label não
 
 A perda ativa de classificação é BCE simétrica (`asymmetric_payout_loss=false`). Pesar CALL por 0,85 e PUT por 1,0 desloca a probabilidade ótima para PUT mesmo com labels 50/50; o payout deve entrar no cálculo de EV da proposta, não na probabilidade CALL. Na seleção interna de épocas, estados sem colapso de classe têm prioridade; se todos colapsarem, o melhor estado colapsado permanece como fallback técnico e o diagnóstico continua explícito. Isso não qualifica o modelo nem demonstra vantagem. Após mudar a perda, retreine TCN e meta.
 
+A parada antecipada usa melhora de acurácia ou perda de validação do checkpoint principal para reiniciar a paciência. Maior nitidez isolada pode substituir o checkpoint escolhido, mas não prolonga indefinidamente um treino com acurácia estagnada. No treino de 12/10/2026, R_10 terminou após 276 épocas com `val_acc=0.502` e Brier 0.325; R_25 terminou após 38 épocas com `val_acc=0.514` abaixo da maioria 0.518 e Brier 0.343. Ambos os checkpoints eram tecnicamente compatíveis, mas esses resultados não demonstram vantagem preditiva M5.
+
 Com checkpoint técnico válido, DEMO e REAL usam a mesma inferência e a mesma abertura. O teto inicial de stake é **1% da banca por ordem**, inclusive em recuperação `cover_l0`; outros limites podem reduzi-lo. Sem checkpoint válido, a execução fica bloqueada. A validação do treino não demonstra vantagem preditiva.
+
+No `make app-run` com `online_training=false`, o startup carrega apenas o histórico curto de inferência mesmo quando algum ativo não tem checkpoint TCN. A falta de checkpoint suspende somente aquele ativo e deve ser resolvida por `make app-train`; não inicia treino implícito nem exige 25.000 velas no motor de execução. O lado do indicador aprovado pode diferir do lado exibido no `[CLUSTER]` pela TCN; a proposta usa a probabilidade do lado realmente escolhido e exige EV positivo no payout cotado.
+
+Com `indicator_consensus.auto_symbols=true`, `make app-train` inclui no treino TCN os símbolos explícitos em `deep_learning.train_symbols` e todos os modelos M5 aprovados do indicador. Cada ativo novo precisa do próprio checkpoint antes de ser elegível no `app-run`.
 
 ## Sequência de treino
 
 1. `launch-train` prepara o ambiente e treina o loss-classifier.
 2. O TCN ajusta pesos em velas M5 com splits temporais para treino, validação e calibração. O horizonte do label e a duração do contrato são de 300 segundos.
 3. O checkpoint local guarda pesos, normalização, arquitetura, lookback, granularidade, label e horizonte. O verificador pós-treino falha se o arquivo estiver ausente, corrompido ou incompatível com o SSOT.
-4. O treino meta LightGBM usa o checkpoint como teacher e dados disponíveis de mercado. Os sidecars continuam independentes da validade técnica do checkpoint TCN.
+4. O treino meta LightGBM usa os checkpoints selecionados como teachers e reúne amostras dos índices M5 configurados. Cada índice mantém seu próprio alvo; as amostras são ordenadas por horário e a separação temporal aplica embargo proporcional ao número de índices. O resumo do treino informa os símbolos efetivamente usados. Os sidecars continuam independentes da validade técnica do checkpoint TCN.
 
 Alterar timeframe, lookback, horizonte, features ou semântica do label exige novo treino. Manter 14 colunas não garante compatibilidade semântica após mudar a transformação de indicadores.
 
 ## Diagnóstico e experimento offline
 
 Os resultados obtidos no experimento anterior em M1 com `triple_barrier` pertencem à configuração anterior e não descrevem a qualidade do novo checkpoint M5. A acurácia de treino e validação, Brier, ECE e o benchmark linear servem para diagnosticar ajuste e colapso de classe. Essas métricas não demonstram EV positivo de contratos.
+
+O meta usa rótulos aproximados derivados de velas e sua validação temporal não substitui resultados confirmados de contratos. Um checkpoint tecnicamente válido ou uma melhora pequena sobre a referência não demonstra vantagem em operação ao vivo.
 
 `app/scripts/operations/compare_dl_losses.py` compara perda ponderada por payout e BCE com a mesma inicialização, amostras e split temporal. A ferramenta lê a granularidade ativa de `settings.json`, não exporta checkpoint e exige histórico M5 contínuo no Timescale.
 
@@ -64,5 +72,9 @@ python run.py
 ```
 
 O launcher WSL `app/scripts/wsl/launch-train-wsl.sh` executa o pipeline completo. Após alterar os sidecars, `make docker-rebuild` recarrega meta e loss-classifier sem apagar o checkpoint local.
+
+## Parada antecipada no `make app-train`
+
+O indicador ajusta a regressao logistica com ate 200 passos e interrompe apos 20 passos sem melhora do Brier em uma fatia temporal interna do treino, respeitando 30 passos minimos. A validacao temporal final permanece separada dessa fatia e decide se o modelo e aprovado. A TCN usa `deep_learning.early_stopping_patience=12` e `min_epochs=10` de `config/settings.json`. O ajuste final do meta LightGBM usa a validacao para interromper apos 15 rodadas sem melhora e exporta somente a iteracao selecionada. O loss-classifier usa um numero fixo de arvores, sem epocas iterativas.
 
 Consulte [arquitetura](arquitetura.md), [settings](engineering-settings-ssot.md) e [infraestrutura](infra-docker.md).

@@ -1,6 +1,6 @@
 # DevOps & CloudOps Sênior — Aether Quantum Engine
 
-SSOT técnico da stack híbrida local: motor no **host** (WSL/Conda, Python 3.13); sidecars em Docker profiles `core,ml`. Ops do dia a dia: [`infra-docker.md`](infra-docker.md). Arquitetura de camadas: [`engineering-architecture-senior.md`](engineering-architecture-senior.md). Runtime CPython: [`engineering-python-313-runtime.md`](engineering-python-313-runtime.md).
+SSOT técnico da stack híbrida local: motor no **host** (WSL/Conda, Python 3.13); um Compose para os perfis `core,ml,telemetry,indicator`, com TimescaleDB, Prometheus e Grafana compartilhados. Ops do dia a dia: [`infra-docker.md`](infra-docker.md). Arquitetura de camadas: [`engineering-architecture-senior.md`](engineering-architecture-senior.md). Runtime CPython: [`engineering-python-313-runtime.md`](engineering-python-313-runtime.md).
 
 ## 1. Docker e Compose
 

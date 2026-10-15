@@ -22,6 +22,8 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
 | Execution gates (inversao condicionada a edge e proposta cotada) | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) + [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-session-review` + `aether-binary-senior` |
 | Gates por indicadores (catalogo / backlog) | [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-session-review` |
+| Compra por sinal M5 aprovado do indicador | [arquitetura.md](arquitetura.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` + `aether-settings-change` |
+| Setup M5 operacional e pesquisa M5/M15/H1 | [strategy-pullback.md](strategy-pullback.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` |
 | Fusao EV multi-escala | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-cycle-debug` |
 | Loss-classifier (Docker) | [infra-docker.md](infra-docker.md) | `aether-execution-gates.mdc` + `aether-infra.mdc` | `aether-infra-stack` |
 | Sample size / SIDE_EQ | [sample-size-lln.md](sample-size-lln.md) | `aether-sample-size.mdc` | `aether-session-review` |

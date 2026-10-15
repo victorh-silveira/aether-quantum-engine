@@ -67,6 +67,7 @@ Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override`
 - **FASE TREINO:** sem ordens ate modelos da sessao prontos
 - **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `online_training: false`; inversao de lado = loss-clf FLIP por `p_eff` no piso apos auto_learn; SCALE permanece telemetria.
 - Lock/barreira serializa inferencia, liquidacao e persistencia
+- A reserva local e Redis de uma ordem por conta/ativo/vela M5 ocorre antes da proposta; ativos distintos podem ser comprados no mesmo ciclo. O registro de contrato confirmado precede a telemetria assincrona e a inscricao de settlement.
 
 ## Diagnostico rapido
 

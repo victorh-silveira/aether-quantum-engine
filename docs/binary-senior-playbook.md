@@ -1,5 +1,9 @@
 # Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
 
+## Estrategia operacional vigente
+
+O fluxo principal agora e o setup fixo de tendencia e recuo em M5/M15/H1 descrito em [strategy-pullback.md](strategy-pullback.md). O lado vem apenas do setup; TCN, meta e loss-classifier abaixo sao pesquisa legada e nao invertem nem vetam a ordem. O piloto DEMO testa ate 200 setups cotados sem filtro de EV; REAL exige retorno DEMO auditado, posterior Beta(0,5;0,5) e EV positivo na cotacao final. As notas historicas abaixo nao prevalecem.
+
 Atualizacao operacional: com `four_market_vetoes=true`, a politica ativa e
 [quatro vetos extremos](engineering-indicator-gates.md), dois por lado.
 O gatilho `market_direction_trigger` pode reconciliar direcao com a probabilidade

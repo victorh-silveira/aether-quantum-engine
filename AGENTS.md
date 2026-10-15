@@ -1,12 +1,16 @@
 # AGENTS.md — Aether Quantum Engine
 
+## Estrategia operacional vigente em 14/10/2026
+
+`pullback_strategy.enabled=true` substitui a selecao direcional por EV e desliga TCN/meta/loss do caminho principal de decisao. Somente sinais M5 podem abrir contratos Rise/Fall de 5 minutos. O setup fixo por ativo usa EMA20/EMA50, recuo ate 0,5 ATR14 e confirmacao da vela fechada; ver [`docs/strategy-pullback.md`](docs/strategy-pullback.md). O `make app-train` continua coletando M5/M15/H1 para diagnostico por proxy de velas; M15/H1 nao podem gerar ordens. TCN/meta/loss ficam em `make app-research-ml`, sem autoridade operacional. A DEMO testa ate 200 setups com cotacao valida e stake base de 1% da banca disponivel, sem filtro de EV; apenas liquidacoes `broker` da versao nova contam. REAL exige limite inferior unilateral de 95% positivo, posterior Beta(0,5;0,5), EV positivo e margem de 0,01 na proposta final. A recuperacao usa o payout liquido cotado, com teto de 5% por ordem em DEMO e REAL e reserva por conta. Kelly, D'Alembert e Martingale nao dimensionam esta rota. Sinais e aprovacoes de versoes antigas nao autorizam a estrategia nova. As notas historicas abaixo descrevem o fluxo legado e nao prevalecem sobre esta secao.
+
 Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Idioma e ambiente
 
 - Respostas e commits em **PT-BR**
 - Terminal/scripts: **WSL Linux** (nunca CMD/PowerShell nativo)
-- Runtime: motor **Python 3.13.12** + **asyncio** no **host** (Conda `deriv-api`); sidecars Docker `core,ml`; SSOT runtime [`docs/engineering-python-313-runtime.md`](docs/engineering-python-313-runtime.md)
+- Runtime: motor **Python 3.13.12** + **asyncio** no **host** (Conda `deriv-api`); Compose unico com perfis `core,ml,telemetry,indicator`; SSOT runtime [`docs/engineering-python-313-runtime.md`](docs/engineering-python-313-runtime.md)
 - Arquitetura: **DDD / hexagonal** — [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md) + skill `aether-architecture-senior`
 - Sem emojis em codigo, logs ou docs tecnicos
 - Sem comentarios no codigo (docstrings OK)
@@ -15,8 +19,8 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 Rise/Fall CALL/PUT e o unico fluxo operacional ativo. `launch-train` treina
 TCN M5 (14D), loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
-e REAL com a mesma decisao e abertura. O contrato e de 300 segundos no
-indice 1HZ75V. Indicadores de tendencia, momentum, volatilidade e regime
+e REAL com a mesma decisao e abertura. O contrato e de 300 segundos nos
+indices M5 aprovados; R_25 e a ancora atual. Indicadores de tendencia, momentum, volatilidade e regime
 entram no pipeline direcional conforme `settings.json`; ausencia de modelo
 valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
 
@@ -33,7 +37,7 @@ O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial
   Substitui os gates individuais de mercado legados. Nao altera P(CALL), nao
   elimina bloqueios tecnicos/economicos nem demonstra vantagem historica de inversao.
 
-- Universo operacional: **1HZ75V** (Volatility 75 (1s) Index / Deriv)
+- Universo operacional atual: **R_25** (Volatility 25 Index / Deriv); R_10 entra somente apos aprovacao M5 e checkpoint TCN proprio. Os parametros historicos abaixo descrevem o contrato M5.
 - Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao da proxima vela fechada, calculada sem dados futuros; retreino obrigatorio apos mudanca de label).
 - SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
 - Na abertura M5, a TCN recebe apenas velas fechadas; a vela corrente em formacao fica fora do tensor para que `spot_forward` N=1 aponte para o contrato atual. O snapshot live permanece para telemetria e mercado. `model_input_forming_excluded` registra a exclusao.
@@ -43,7 +47,7 @@ O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial
 - Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` usa a direcao da proxima vela fechada. Matriz ortogonal TCN 14D limpa sem proxies sinteticos, com diferenciacao fracionaria causal (d=0.45) e pre-flight linear benchmark telemetrico (`min_linear_preflight_acc=0.0` permite treino TCN e meta). BCE simetrica ativa (`asymmetric_payout_loss=false`) preserva a probabilidade CALL; payout real entra no EV da proposta. A selecao interna de epoca prioriza estados sem colapso, mantendo fallback tecnico se todos colapsarem. Meta-Learner otimiza Net EV via Optuna. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
 - Comparacao offline entre perda ponderada e BCE: `app/scripts/operations/compare_dl_losses.py`; usa mesma inicializacao e nao exporta checkpoint. A view `contract_label_audit` compara M5 com resultado `broker` confirmado, sem qualificar modelo. Poucos contratos auditados nao sustentam treino supervisionado por resultado real.
 - Runtime: `online_training` **false** — ambas as contas usam checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Cotacao final: `require_quote_edge=true`; probabilidade ausente ou nao finita bloqueia antes da proposta; calcular EV com payout liquido confirmado pela proposta, `min_edge_execute=0` e margem sobre break-even de `0.01`. `min_payout_rate=0` desativa o piso fixo de 80% que rejeitava cotacoes com EV positivo; payout ausente ou invalido segue bloqueado.
+- Cotacao final: `require_quote_edge=true`; probabilidade ausente ou nao finita bloqueia antes da proposta; calcular EV com payout liquido confirmado. O caminho TCN exige `min_edge_execute=0` e margem sobre break-even de `0.01`. O indicador M5 aprovado tambem exige EV positivo inclusive em recuperacao e usa stake fixa de 1% da banca disponivel; payout ausente ou invalido segue bloqueado.
 - Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`, `stop_win_kelly_min_conviction` **0.58**). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; saida do seed live N=**2**, nao `ready_n` **32**; `flip_min_n_train` **1**; young pe>=**0.58**; mature pe>=**0.70**; shrink N ate 64 com `flip_young_shrink` **0.50**; sem `candle_holds`). Anti-trend lock e Alpha Flip so invertem se P(lado) calibrada sustentar EV e margem no payout observado; caso contrario preservam o lado anterior. Edge CLUSTER = estimativa previa; `skip_neg_edge=false` evita veto duplicado e a proposta final exige EV positivo com margem sobre break-even. Recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**, stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `cover_l0`; PEND nao force-explore por near-stop; piso Kelly **1%** soberano.
 
 ## O que o LLM e / nao e
@@ -65,7 +69,9 @@ Rules/skills versionadas: [`.cursor/rules/`](.cursor/rules/) e [`.cursor/skills/
 - Cobertura de testes em `app/src` abaixo de **100%**
 - Assunto de commit em ingles; escopo fora do enum commitlint
 
-Nota operacional (**Volatility 75 (1s) M5**): pipeline: TCN CALL se Cal ≥**0.5** senao PUT → **FLIP** loss-clf se auto_learn (exit **2**, `n_train>=1`), pe no piso configurado e candidato com EV e margem no payout observado → anti-trend-lock/Alpha Flip condicionados ao mesmo quote guard → `invert_exec_side` **false** → quatro vetos extremos e gatilho de reconciliacao condicionado ao quote guard → Kelly / cover_l0 amort **1** → proposta final com EV e margem verificados → EXEC. Sem SCALE adapt / doji / exec_vs_candle / META soft Kelly. SKIP tecnico: treino/dados/checkpoint/predict/stop-win / cooldown / pausa. Recovery: `cover_enabled` **true**, amort **1/1**, cap L0 **3.5%** subordinado ao teto do checkpoint de **1%**, PEND nao force-explore por near-stop. Nao ha stop loss nem teto acumulado de perda.
+## Arquivo Histórico / Legado (Não Aplicável à Estratégia Pullback Vigente)
+
+Nota histórica de versões anteriores (**Volatility 75 (1s) M5 / TCN / Meta / Loss-Classifier**): pipeline histórico TCN CALL se Cal ≥0.5 senão PUT → FLIP loss-clf se auto_learn (exit 2, n_train>=1) → Kelly / cover_l0. Esta rota foi integralmente substituída pela `pullback_strategy.enabled=true` descrita na primeira seção deste documento. TCN e ML residem exclusivamente em `make app-research-ml` para pesquisa.
 
 ## Escopos commitlint
 
@@ -118,6 +124,18 @@ Arquitetura senior (host/DDD/ML/infra/QA): [`docs/engineering-architecture-senio
 
 ## Integração do indicador na main
 
-A `main` agora inclui `indicator/` como subsistema observacional, isolado do cliente autenticado. Ele só usa `active_symbols` e `ticks_history`, treina por ativo/período e exibe apenas CALL/PUT aprovados nos painéis de sinais. O motor de contratos mantém TCN, meta LightGBM, loss-classifier, Kelly, proposta e liquidação. O adapter de leitura em `app/src/infrastructure/storage/indicator_signal_reader.py` consulta exclusivamente a última leitura M5 aprovada e a versão ativa. O lado original da TCN e a direção final após meta/loss devem concordar com ela no mesmo ativo e na mesma vela fechada. Sem consenso, não force nem reutilize lado anterior. M15/H1 são observacionais e não habilitam compra.
+A `main` inclui `indicator/` como subsistema de mercado publico, isolado do cliente autenticado. Ele usa `active_symbols` e `ticks_history` em M5/M15/H1; apenas M5 gera propostas no motor de contratos. TCN, meta LightGBM e loss-classifier ficam em pesquisa. A DEMO seleciona o piloto e a REAL seleciona a versao ativa do setup. Cada proposta usa 5 minutos, exige vela fechada atual e entrada ate 30 segundos da abertura. A stake base e 1% da banca disponivel em ambas as contas. A recuperacao usa payout cotado e teto de 5% por ordem, sem forcar lado ou setup. Cotacao REAL requer EV positivo e margem de 0,01 acima do break-even apos haircut. Sem sinal atual ou evidencia do broker, nao force nem reutilize lado anterior.
 
-`normalize_symbols_and_anchor` descobre modelos M5 aprovados do indicador ao iniciar; `make app-train-all` treina indicador e motor em sequência. Novos ativos precisam de checkpoint TCN próprio. Dentro de um ciclo, propostas para ativos distintos são enviadas sequencialmente com saldo reservado; contratos podem permanecer abertos simultaneamente. O dashboard do motor em `localhost:3000` mostra apenas compras confirmadas, enquanto o observacional usa `localhost:3001`. Audite desempenho por versões da TCN e do indicador usando `contract_consensus_outcomes` com liquidação do broker. Execute `make indicator-lint`, `make indicator-test`, `make lint` e `make test`.
+`broker_ev_promotion=true` exige em REAL pelo menos 200 contratos DEMO liquidados pelo broker na mesma versao do setup e limite inferior unilateral de 95% para retorno medio acima de zero. O piloto DEMO pode coletar ate 200 compras por versao com stake base de 1% e recuperacao limitada a 5% por ordem; EV negativo e permitido apenas nesse piloto. O proxy do treino nao significa vantagem economica. O EV REAL usa o payout liquido cotado. Sem evidencia suficiente, REAL nao compra.
+Durante um piloto DEMO com compras atribuidas e menos de 200 liquidacoes confirmadas, ou apos promocao pelo broker, `app-train` preserva a versao M5 aprovada ativa e grava o novo ajuste em `indicator/data/indicator-models/candidates/`. A versao nova nao deve reiniciar a amostra do broker nem remover uma promocao valida. `ev_candidatas=0` na validacao continua sendo ausencia de evidencia de EV favoravel.
+
+`make docker-up` sobe uma unica stack Compose com indicador, TimescaleDB, Prometheus e Grafana compartilhados. `make app-train` garante essa stack e diagnostica o setup M5/M15/H1; TCN, meta e loss permanecem em `make app-research-ml`. Dentro de um ciclo, propostas M5 para ativos distintos sao enviadas sequencialmente com saldo reservado; contratos podem permanecer abertos simultaneamente. No Grafana em `localhost:3000`, a pasta **Aether** mostra compras confirmadas M5 e **Sinteticos** mostra sinais observacionais de todos os periodos. Audite desempenho por versao do setup e liquidacao do broker. Execute `make app-lint` e `make app-test` para validar motor e indicador.
+
+Cada ordem reserva conta/ativo/vela M5 localmente e com `SET NX` no Redis antes do envio. A compra confirmada entra no estado e no risco antes da assinatura de liquidacao. Stream, fila Redis e `profit_table` deduplicam por `contract_id`; a reconciliacao nao deve retirar o contrato antes de chamar o processador comum.
+Timeout ou desconexao durante `buy` torna o resultado desconhecido; manter quarentena do ativo por 900 s no Redis e consultar portfolio/`profit_table` antes de operar novamente.
+
+Configuracao operacional atual: ancora R_25; `deep_learning.train_symbols` inclui R_10 e R_25 para preparar seus checkpoints. R_10 tem apenas aprovacao M15 no artefato atual e nao habilita compra M5. O runtime nao inclui mais 1HZ75V. Se a Deriv rejeitar explicitamente um ID com `Unknown contract proposal`, somente a rota do indicador tenta uma compra por parametros no mesmo WSS, uma vez, com preco maximo igual a stake e revalidacao da vela M5.
+
+Em `engine_mode=train`, a lista explicita `deep_learning.train_symbols` define o stream e os buffers antes do fetch historico; nao reutilizar a lista menor de ativos operacionais. A descoberta de modelos aprovados e desativada apenas no processo de treino. Cobrir R_10 e R_25 na inicializacao para evitar espera repetida em `0/25000`.
+
+No early stopping TCN, nitidez maior isolada nao reinicia a paciencia quando acuracia/perda de validacao do checkpoint principal nao melhoram. Checkpoint tecnico exportado com val_acc proxima de 0,5 nao e evidencia de previsao util.

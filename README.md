@@ -23,23 +23,18 @@
 [![Gitleaks](https://img.shields.io/badge/segredos-Gitleaks-555555)](.github/workflows/ci.yml)
 [![Trivy](https://img.shields.io/badge/containers-Trivy-555555)](.github/workflows/ci.yml)
 
-Motor quantitativo assíncrono para contratos Rise/Fall de 5 minutos nos índices Volatility da Deriv. A `main` integra sinais M5 aprovados do indicador ao pipeline TCN, meta e loss-classifier, com uma ordem por ativo elegível no mesmo ciclo. O processo Python 3.13 roda no host com `asyncio`; Redis, TimescaleDB, MinIO, meta LightGBM e loss-classifier rodam como serviços Docker. A arquitetura separa domínio, aplicação, portas, adaptadores e apresentação. O estado tabular usa Polars.
-
-A configuração operacional está em [`config/settings.json`](config/settings.json). O universo e a cadência atuais são M5 de 300 segundos, contexto D1 de 86.400 segundos, 25.000 barras M5 no treino, lookback TCN de 32 barras, horizonte de uma barra e label `spot_forward`. O contrato executado dura 5 minutos. O label por fechamento é uma aproximação do desfecho do contrato e não representa o spot executado.
+Motor assíncrono de contratos Rise/Fall para índices Volatility da Deriv. O sinal operacional é o [setup fixo de tendência e recuo](docs/strategy-pullback.md) em M5; M15 e H1 são pesquisa. O processo Python 3.13 roda no host; a stack compartilhada reúne Redis, TimescaleDB, indicador público, Prometheus e Grafana. TCN, meta e loss-classifier permanecem disponíveis apenas para pesquisa.
 
 ## Fluxo operacional
 
-1. O WebSocket Deriv recebe ticks e velas; o ciclo abre a cada fronteira M5. O indicador público observa os Volatility em serviço separado e publica sinais por ativo e período.
-2. O checkpoint TCN local fornece a probabilidade direcional. CALL é escolhido quando a probabilidade calibrada é pelo menos 0,5; caso contrário, PUT.
-3. O loss-classifier pode inverter o lado após aprendizado com contratos reais. O meta LightGBM fornece contexto adicional; filtros técnicos, de mercado e de cotação podem impedir a compra.
-4. Kelly fracionário e recuperação calculam a stake. Sem checkpoint técnico compatível, nenhuma ordem é enviada. Com checkpoint válido, o teto inicial é **1% da banca por ordem**, inclusive em `cover_l0` e em DEMO ou REAL.
-5. Antes da compra, o sinal M5 **APROVADO**, fresco e da mesma vela precisa concordar com a TCN e com a direção final do motor. Uma inversão de lado pelo meta, loss-classifier ou filtros não satisfaz o consenso. A proposta é revalidada antes da compra. O resultado do contrato é reconciliado com a Deriv e persistido junto com as versões da TCN e do indicador.
+1. O indicador público consulta velas fechadas e contínuas por índice e período. EMA20/EMA50, recuo até 0,5 ATR14 e confirmação do rompimento determinam CALL ou PUT. Padrão incompleto ou dado atrasado produz `SEM SINAL`.
+2. Um setup M5 válido na DEMO pode receber uma cotação e stake base de 1% da banca disponível mesmo com EV estimado negativo. As primeiras 200 compras únicas, liquidadas pelo broker e atribuídas à mesma versão e índice, formam o piloto.
+3. A versão passa a `ativo` apenas se o limite inferior unilateral de 95% do retorno médio líquido dessas 200 compras for positivo. Em REAL, a probabilidade vem da posterior Beta(0,5;0,5) do piloto; a proposta final exige EV positivo e margem de 0,01 acima do break-even após haircut.
+4. A entrada expira 30 segundos após a abertura da vela seguinte. Somente o sinal M5 abre contrato de 5 minutos; M15/H1 são pesquisa. A stake base em DEMO e REAL é 1% da banca disponível, com recuperação pelo payout líquido cotado limitada a 5% por ordem. Reserva Redis, deduplicação e reconciliação de compras sem ACK permanecem obrigatórias.
 
-O treino salva o checkpoint TCN local após verificar integridade e geometria. Não há qualificação estatística de deploy da TCN nem avaliação diagnóstica de liquidação por closes M5. A validação interna usada para ajuste e calibração não autoriza aumentar o teto inicial. A captura Timescale de ticks e contratos confirmados é independente da decisão de compra.
+O `make app-train` coleta velas e apresenta frequência e acerto pela abertura e pelo fechamento da vela seguinte como **proxy de velas**. Esse diagnóstico não qualifica contratos. `make app-research-ml` executa a pesquisa TCN/meta/loss separadamente. A operação mantém stop win por sessão, sem stop loss ou teto acumulado de perda. Nenhum setup garante vantagem: sem evidência DEMO suficiente ou cotação REAL favorável, não há compra REAL.
 
-A política operacional mantém stop win por sessão e **não usa stop loss nem limite acumulado de perda**. O stop win configurado é 4,31% para a banca aplicável; o payout de referência é 0,85. O caminho de recuperação preserva seus limites próprios, sempre subordinados ao teto inicial de 1% quando o checkpoint local é usado.
-
-Com o motor em execução, Prometheus coleta `/metrics` na porta 9100 e o Grafana consulta o Prometheus pelo datasource provisionado. A rota entre Docker no WSL e o motor no Windows está descrita em [observabilidade](docs/engineering-observability.md).
+Com o motor em execução, Prometheus coleta suas métricas na porta 9100 e as do indicador na porta interna 9101. O Grafana compartilhado consulta Prometheus e TimescaleDB pelos datasources provisionados. A rota entre Docker no WSL e o motor no Windows está descrita em [observabilidade](docs/engineering-observability.md).
 
 ## Executar no WSL
 
@@ -47,28 +42,22 @@ Use o ambiente Conda `deriv-api` com Python 3.13.12. Configure `.env` a partir d
 
 ```bash
 make app-install
-make docker-up
-python app/train.py
-python app/scripts/operations/check_dl_checkpoint.py
-python app/run.py
+make app-train
+make app-run
 ```
 
 O launcher de treino em WSL é `app/scripts/wsl/launch-train-wsl.sh`. O motor usa o checkpoint produzido pelo treino separado (`online_training=false`). Para QA, execute `make app-pre-commit-run` no WSL; o pipeline inclui Vulture com confiança 100, lint, segurança, testes e cobertura de 100% em `app/src`.
 
 ## Indicador integrado e múltiplos índices
 
-O indicador observacional fica em [`indicator/`](indicator/README.md) e usa somente o WebSocket público. Seus dashboards ficam em `localhost:3001`; o Grafana do motor automático permanece em `localhost:3000`. Apenas sinais **M5 aprovados** da última vela fechada entram no consenso de execução. Sinais M15/H1 continuam observacionais. Sem modelo TCN próprio, sinal aprovado, dados frescos ou concordância de lado, o ativo não recebe ordem. O motor não converte sinais sintéticos em recomendações para Forex.
+O indicador público em [`indicator/`](indicator/README.md) usa apenas `active_symbols` e `ticks_history`; não possui credenciais de negociação. O Grafana em `localhost:3000` separa setup atual, catálogo completo, piloto DEMO, aptidão REAL, cotações e resultados confirmados. As versões antigas de ML permanecem no histórico, sem autorização para o setup vigente.
 
 ```bash
-make indicator-up
-make app-train-all
-make docker-up
+make app-train
 make app-run
 ```
 
-`app-train-all` treina primeiro os modelos públicos, descobre automaticamente os índices M5 aprovados e treina a TCN e os classificadores do motor para esses ativos. Reinicie `app-run` após a aprovação de novos índices para assinar seus streams. A coleta do indicador prioriza índices com modelo M5 aprovado. O motor pode comprar índices diferentes dentro do mesmo ciclo M5: envia as propostas em sequência para reservar saldo e impedir duas compras concorrentes no mesmo ativo; os contratos permanecem abertos simultaneamente. Em recuperação, mantém uma ordem por ciclo. Se o banco do indicador ficar indisponível, o ciclo não reutiliza o último sinal.
-
-O Grafana do motor mostra contratos ativos confirmados com consenso e a view `contract_consensus_outcomes`, baseada exclusivamente em liquidações do broker. O dashboard do indicador mostra sinais aprovados atuais e o catálogo separado marca modelos experimentais como `SEM SINAL`.
+`make docker-up` sobe a stack única. `make app-train` garante a stack e prepara o diagnóstico M5/M15/H1. `make app-run` inicia o motor na conta configurada. Para testar a estratégia, mantenha `trading.mode=demo`; a configuração atual está em DEMO. `make app-lint` e `make app-test` validam motor e indicador. Índices diferentes podem manter contratos simultâneos, com no máximo um contrato aberto por índice. O painel não interpola lacunas e não transforma sinais sintéticos em previsões de Forex.
 
 ## Documentação
 

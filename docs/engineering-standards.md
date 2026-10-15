@@ -27,7 +27,9 @@ Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGEN
 | local | clean | `--stage clean --light-clean` |
 | commit | commitlint | primeiro no pre-commit (`COMMIT_EDITMSG`) + hook `commit-msg` |
 
-Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/workflows/WORKFLOWS.md`](../.github/workflows/WORKFLOWS.md).
+Rodar `make app-lint` e `make app-test` para os estágios correspondentes em Python, JSON/YAML, Docker, Shell, Rust e indicador. `make app-validate`, `make app-security` e `make app-build` cobrem os demais estágios. O pre-commit também valida lint e testes do indicador. Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/workflows/WORKFLOWS.md`](../.github/workflows/WORKFLOWS.md).
+
+No Conda Windows invocado pelo WSL, a etapa Python de `make app-test` executa pytest sem workers xdist. Em Linux, o limite é dois workers. A cobertura obrigatória de `app/src` permanece em 100%; essa limitação evita replicar Torch e o runtime Python em muitos processos simultâneos. O processo exibe progresso durante a execução e tem limite externo de 600 segundos para encerrar uma suíte presa.
 
 ## Commitlint
 

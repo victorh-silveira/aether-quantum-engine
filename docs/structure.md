@@ -522,7 +522,10 @@ flowchart TD
 ```bash
 make app-install
 make app-lint
+make app-validate
+make app-security
 make app-test
+make app-build
 make docker-up
 make docker-up-core
 make docker-smoke
