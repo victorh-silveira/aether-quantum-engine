@@ -85,7 +85,12 @@ def promote_best_m5_pair(
     """Promove o melhor par M5, atualizando modelos e configuracao para app-run."""
     symbol = str(best["symbol"])
     version = version_for_variant(variant)
-    models_dir = root_path / "indicator" / "data" / "indicator-models"
+    repo_root = root_path.parent if root_path.name == "indicator" else root_path
+    models_dir = (
+        root_path / "data" / "indicator-models"
+        if root_path.name == "indicator"
+        else repo_root / "indicator" / "data" / "indicator-models"
+    )
     models_dir.mkdir(parents=True, exist_ok=True)
 
     for old_path in models_dir.glob("*_300.json"):
@@ -120,7 +125,7 @@ def promote_best_m5_pair(
     model_file = models_dir / f"{symbol}_300.json"
     model_file.write_text(json.dumps(model_payload, indent=2, sort_keys=True), encoding="utf-8")
 
-    settings_path = root_path / "config" / "settings.json"
+    settings_path = repo_root / "config" / "settings.json"
     if settings_path.is_file():
         cfg = json.loads(settings_path.read_text(encoding="utf-8"))
         cfg["anchor"] = symbol
@@ -141,7 +146,7 @@ def promote_best_m5_pair(
             dl_cfg["train_symbols"] = train_syms
         settings_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
-    drift_path = root_path / "app" / "src" / "domain" / "symbols" / "drift_symbols.py"
+    drift_path = repo_root / "app" / "src" / "domain" / "symbols" / "drift_symbols.py"
     if drift_path.parent.is_dir():
         template = f'"""Simbolos de trading Deriv (universo single-symbol {symbol})."""\n\n'
         template += f'TRADING_SYMBOLS: tuple[str, ...] = ("{symbol}",)\n'
