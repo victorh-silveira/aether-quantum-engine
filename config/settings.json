@@ -2,8 +2,8 @@
   "anchor": "R_25",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-9b7e582c3fd7",
-    "variant": "improved",
+    "version": "pullback-1-2047d4129ad0",
+    "variant": "base",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 30
   },

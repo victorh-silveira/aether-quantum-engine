@@ -312,6 +312,7 @@ services:
         condition: service_healthy
     environment:
       AETHER_TIMESCALE_DSN: postgresql://${AETHER_PG_USER:-aether}:${AETHER_PG_PASSWORD:-aether}@aether-core-data-timescaledb:5432/${AETHER_PG_DB:-aether}
+      PULLBACK_VARIANT: ${PULLBACK_VARIANT:-base}
       PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
     volumes:

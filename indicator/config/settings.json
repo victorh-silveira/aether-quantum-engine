@@ -6,5 +6,5 @@
   "models_dir": "data/indicator-models",
   "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
   "metrics_port": 9101,
-  "pullback_variant": "improved"
+  "pullback_variant": "base"
 }

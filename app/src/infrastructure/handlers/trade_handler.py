@@ -147,7 +147,7 @@ class TradeHandler:
             quoted_rate = float(p_cfg.get("_pullback_quote_rate") or 0.0)
             if rate is None or rate <= 0.0:
                 raise RuntimeError("Cotacao final do pullback sem payout valido")
-            if quoted_rate > 0 and rate + 0.005 < quoted_rate:
+            if quoted_rate > 0 and rate + 0.02 < quoted_rate:
                 raise RuntimeError("Payout final do pullback inferior ao usado para dimensionar a stake")
         await record_indicator_quote(
             self.market_writer,

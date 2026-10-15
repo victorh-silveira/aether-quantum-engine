@@ -29,7 +29,7 @@ async def test_quote_crossing_m5_boundary_cannot_buy(trade_handler, mock_ws, mon
     [
         ({"id": "quote", "ask_price": 51.0, "payout": 91.8}, "excede o teto"),
         ({"id": "quote", "ask_price": 40.0, "payout": 40.0}, "sem payout valido"),
-        ({"id": "quote", "ask_price": 40.0, "payout": 71.2}, "Payout final"),
+        ({"id": "quote", "ask_price": 40.0, "payout": 70.0}, "Payout final"),
     ],
 )
 async def test_pullback_revalidates_cap_and_quoted_rate(trade_handler, mock_ws, proposal, expected):
