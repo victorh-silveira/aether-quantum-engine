@@ -5,7 +5,7 @@ datasources:
     uid: timescale
     type: postgres
     access: proxy
-    url: timescaledb:5432
+    url: aether-core-data-timescaledb:5432
     user: ${AETHER_PG_USER}
     secureJsonData:
       password: ${AETHER_PG_PASSWORD}

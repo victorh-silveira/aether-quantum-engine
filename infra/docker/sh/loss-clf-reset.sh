@@ -8,7 +8,7 @@ source "${SCRIPT_DIR}/compose-lib.sh"
 
 MODE="${1:-full}"
 MODELS_DIR="${SCRIPT_DIR}/../loss-models"
-SERVICE="aether-loss-classifier"
+SERVICE="aether-ml-loss-classifier"
 
 cd "${REPO_ROOT}"
 

@@ -2,7 +2,7 @@
 set -eu
 
 MC_ALIAS="${MC_ALIAS:-aether}"
-ENDPOINT="${MINIO_ENDPOINT:-http://minio:9000}"
+ENDPOINT="${MINIO_ENDPOINT:-http://aether-core-storage-minio:9000}"
 ACCESS="${MINIO_ROOT_USER:-aether}"
 SECRET="${MINIO_ROOT_PASSWORD:-aethersecret}"
 BUCKET="${AETHER_MINIO_BUCKET:-dl-models}"

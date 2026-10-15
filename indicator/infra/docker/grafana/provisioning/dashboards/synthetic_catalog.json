@@ -1,126 +1,96 @@
 {
   "uid": "aether-synthetic-catalog",
-  "title": "Sinteticos | Todos os indices",
-  "schemaVersion": 39,
-  "version": 2,
-  "refresh": "1m",
-  "time": {
-    "from": "now-24h",
-    "to": "now"
-  },
+  "title": "Sinteticos - catalogo completo",
+  "tags": [
+    "aether",
+    "pullback",
+    "synthetic"
+  ],
   "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
   "panels": [
     {
       "id": 1,
-      "title": "Ativos sinteticos ativos",
-      "type": "stat",
+      "title": "Todos os indices Volatility",
+      "type": "table",
+      "gridPos": {
+        "h": 15,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
+          "rawSql": "SELECT a.symbol AS ativo,a.name,CASE p.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS periodo,CASE WHEN s.candle_epoch=(extract(epoch from now())::bigint/p.period_seconds)*p.period_seconds-p.period_seconds AND s.reason='setup_confirmado' THEN s.side ELSE 'SEM SINAL' END AS sinal,CASE WHEN s.candle_epoch IS NULL THEN 'sem_dados' WHEN s.candle_epoch<(extract(epoch from now())::bigint/p.period_seconds)*p.period_seconds-p.period_seconds THEN 'dados_atrasados' ELSE s.reason END AS motivo,upper(coalesce(r.state,'sem_registro')) AS estado,to_timestamp(s.candle_epoch+p.period_seconds) AS vela_fechada FROM indicator_symbols a CROSS JOIN (VALUES (300),(900),(3600)) p(period_seconds) LEFT JOIN LATERAL (SELECT * FROM pullback_signals x WHERE x.symbol=a.symbol AND x.period_seconds=p.period_seconds AND x.setup_version LIKE 'pullback-1-%' ORDER BY x.candle_epoch DESC LIMIT 1) s ON true LEFT JOIN pullback_registry r ON r.symbol=a.symbol AND r.period_seconds=p.period_seconds AND r.setup_version=s.setup_version WHERE a.active ORDER BY a.symbol,p.period_seconds",
           "format": "table",
-          "rawSql": "SELECT count(*) AS value FROM indicator_symbols WHERE active",
-          "editorMode": "code"
+          "refId": "A"
         }
       ],
-      "gridPos": {
-        "x": 0,
-        "y": 0,
-        "w": 8,
-        "h": 5
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
-      "options": {}
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
     },
     {
       "id": 2,
-      "title": "Sem sinal",
-      "type": "stat",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "timescale"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "timescale"
-          },
-          "format": "table",
-          "rawSql": "SELECT count(*) AS value FROM indicator_symbols a CROSS JOIN (VALUES (300),(900),(3600)) p(period_seconds) LEFT JOIN LATERAL (SELECT side,reason,probability,candle_epoch,model_version FROM indicator_signals s WHERE s.symbol=a.symbol AND s.period_seconds=p.period_seconds ORDER BY candle_epoch DESC LIMIT 1) s ON true LEFT JOIN indicator_model_versions m ON m.symbol=a.symbol AND m.period_seconds=p.period_seconds AND m.model_version=s.model_version WHERE a.active AND (s.side NOT IN ('CALL','PUT') OR s.side IS NULL OR s.reason <> 'ok' OR s.probability IS NULL OR m.model_version IS NULL OR extract(epoch from now()) >= s.candle_epoch + 2 * p.period_seconds)",
-          "editorMode": "code"
-        }
-      ],
-      "gridPos": {
-        "x": 8,
-        "y": 0,
-        "w": 8,
-        "h": 5
-      },
-      "options": {}
-    },
-    {
-      "id": 3,
-      "title": "Pares com dado atrasado",
-      "type": "stat",
-      "datasource": {
-        "type": "grafana-postgresql-datasource",
-        "uid": "timescale"
-      },
-      "targets": [
-        {
-          "refId": "A",
-          "datasource": {
-            "type": "grafana-postgresql-datasource",
-            "uid": "timescale"
-          },
-          "format": "table",
-          "rawSql": "SELECT count(*) AS value FROM (SELECT DISTINCT ON (i.symbol,i.period_seconds) i.candle_epoch,i.period_seconds FROM indicator_signals i JOIN indicator_symbols a ON a.symbol=i.symbol AND a.active ORDER BY i.symbol,i.period_seconds,i.candle_epoch DESC) s WHERE extract(epoch from now()) >= candle_epoch + 2 * period_seconds",
-          "editorMode": "code"
-        }
-      ],
-      "gridPos": {
-        "x": 16,
-        "y": 0,
-        "w": 8,
-        "h": 5
-      },
-      "options": {}
-    },
-    {
-      "id": 4,
-      "title": "Todos os indices e periodos",
+      "title": "Estados e evidencia",
       "type": "table",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 15
+      },
       "datasource": {
         "type": "grafana-postgresql-datasource",
         "uid": "timescale"
       },
       "targets": [
         {
-          "refId": "A",
           "datasource": {
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
+          "rawSql": "SELECT r.symbol AS ativo,CASE r.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidadas_demo,round(e.lower_95::numeric,4) AS limite_95,coalesce(e.wins,0) AS wins_demo,CASE WHEN e.settled >= 200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r JOIN indicator_symbols a ON a.symbol=r.symbol AND a.active LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.setup_version LIKE 'pullback-1-%' ORDER BY r.symbol,r.period_seconds",
           "format": "table",
-          "rawSql": "SELECT a.symbol, a.name AS ativo, CASE p.period_seconds WHEN 300 THEN 'M5' WHEN 900 THEN 'M15' ELSE 'H1' END AS periodo, CASE WHEN s.side IN ('CALL','PUT') AND s.reason='ok' AND s.probability IS NOT NULL AND m.model_version IS NOT NULL AND extract(epoch from now()) < s.candle_epoch + 2 * p.period_seconds THEN s.side ELSE 'SEM SINAL' END AS sinal, CASE WHEN s.side IN ('CALL','PUT') AND s.reason='ok' AND s.probability IS NOT NULL AND m.model_version IS NOT NULL AND extract(epoch from now()) < s.candle_epoch + 2 * p.period_seconds THEN round((s.probability * 100)::numeric,1) ELSE NULL END AS prob_call_pct, to_timestamp(s.candle_epoch + p.period_seconds) AS vela_fechada, CASE WHEN s.side IS NULL THEN 'sem_dados' WHEN extract(epoch from now()) >= s.candle_epoch + 2 * p.period_seconds THEN 'dados_atrasados' WHEN m.model_version IS NULL AND current_model.model_version IS NOT NULL AND s.model_version IS NOT NULL THEN 'modelo_atualizado_aguardando_fechamento' WHEN m.model_version IS NULL THEN 'modelo_indisponivel' ELSE s.reason END AS estado, CASE WHEN s.side IN ('CALL','PUT') AND s.reason='ok' AND s.probability IS NOT NULL AND m.model_version IS NOT NULL AND extract(epoch from now()) < s.candle_epoch + 2 * p.period_seconds THEN s.model_version ELSE NULL END AS modelo FROM indicator_symbols a CROSS JOIN (VALUES (300),(900),(3600)) p(period_seconds) LEFT JOIN LATERAL (SELECT * FROM indicator_signals x WHERE x.symbol=a.symbol AND x.period_seconds=p.period_seconds ORDER BY candle_epoch DESC LIMIT 1) s ON true LEFT JOIN indicator_model_versions m ON m.symbol=a.symbol AND m.period_seconds=p.period_seconds AND m.model_version=s.model_version LEFT JOIN indicator_model_versions current_model ON current_model.symbol=a.symbol AND current_model.period_seconds=p.period_seconds WHERE a.active ORDER BY a.symbol,p.period_seconds",
-          "editorMode": "code"
+          "refId": "A"
         }
       ],
-      "gridPos": {
-        "x": 0,
-        "y": 6,
-        "w": 24,
-        "h": 17
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
       },
-      "options": {}
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
     }
-  ]
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  }
 }

@@ -5,7 +5,7 @@ datasources:
     type: prometheus
     uid: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://aether-observe-metrics-prometheus:9090
     jsonData:
       timeInterval: 5s
     isDefault: true

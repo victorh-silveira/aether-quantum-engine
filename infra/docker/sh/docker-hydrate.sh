@@ -23,7 +23,7 @@ mapfile -t COMPOSE_FLAGS < <(compose_args)
 COMPOSE=(docker compose "${COMPOSE_FLAGS[@]}")
 PG_USER="${AETHER_PG_USER:-aether}"
 PG_DB="${AETHER_PG_DB:-aether}"
-SYMBOL="${AETHER_HYDRATE_SYMBOL:-1HZ75V}"
+SYMBOL="${AETHER_HYDRATE_SYMBOL:-$(python3 -c 'import json; print(json.load(open("config/settings.json", encoding="utf-8"))["anchor"])')}"
 MICRO_G="${AETHER_HYDRATE_MICRO_GRANULARITY:-300}"
 MACRO_G="${AETHER_HYDRATE_MACRO_GRANULARITY:-86400}"
 MICRO_MIN="${AETHER_HYDRATE_MICRO_MIN:-400}"
@@ -32,15 +32,15 @@ MACRO_MIN="${AETHER_HYDRATE_MACRO_MIN:-200}"
 printf '  %sHydrate TimescaleDB%s\n' "${DOCKER_UI_BOLD}" "${DOCKER_UI_RESET}"
 docker_ui_nl
 
-if ! "${COMPOSE[@]}" ps -q timescaledb 2>/dev/null | grep -q .; then
-  docker_ui_warn "timescaledb inativo - hydrate ignorado"
+if ! "${COMPOSE[@]}" ps -q aether-core-data-timescaledb 2>/dev/null | grep -q .; then
+  docker_ui_warn "aether-core-data-timescaledb inativo - hydrate ignorado"
   docker_ui_nl
   exit 0
 fi
 
-MICRO_COUNT="$("${COMPOSE[@]}" exec -T timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='${SYMBOL}' AND granularity=${MICRO_G} AND epoch % ${MICRO_G} = 0;" 2>/dev/null || echo "0")"
+MICRO_COUNT="$("${COMPOSE[@]}" exec -T aether-core-data-timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='${SYMBOL}' AND granularity=${MICRO_G} AND epoch % ${MICRO_G} = 0;" 2>/dev/null || echo "0")"
 MICRO_COUNT="$(echo "$MICRO_COUNT" | tr -d '[:space:]')"
-MACRO_COUNT="$("${COMPOSE[@]}" exec -T timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='${SYMBOL}' AND granularity=${MACRO_G} AND epoch % ${MACRO_G} = 0;" 2>/dev/null || echo "0")"
+MACRO_COUNT="$("${COMPOSE[@]}" exec -T aether-core-data-timescaledb psql -U "$PG_USER" -d "$PG_DB" -t -A -c "SELECT count(*) FROM ohlc_bars WHERE symbol='${SYMBOL}' AND granularity=${MACRO_G} AND epoch % ${MACRO_G} = 0;" 2>/dev/null || echo "0")"
 MACRO_COUNT="$(echo "$MACRO_COUNT" | tr -d '[:space:]')"
 if [ -z "$MICRO_COUNT" ]; then MICRO_COUNT=0; fi
 if [ -z "$MACRO_COUNT" ]; then MACRO_COUNT=0; fi

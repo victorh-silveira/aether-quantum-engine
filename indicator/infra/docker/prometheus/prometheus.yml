@@ -1,6 +1,0 @@
-global:
-  scrape_interval: 15s
-scrape_configs:
-  - job_name: synthetic_indicator
-    static_configs:
-      - targets: ["indicator:9101"]

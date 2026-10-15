@@ -46,28 +46,28 @@ require_service() {
 }
 
 if profile_active core; then
-  require_service redis Redis || true
-  if service_running redis; then
+  require_service aether-core-cache-redis Redis || true
+  if service_running aether-core-cache-redis; then
     checked=$((checked + 1))
-    if ! "${COMPOSE[@]}" exec -T redis redis-cli ping 2>/dev/null | grep -qi PONG; then
+    if ! "${COMPOSE[@]}" exec -T aether-core-cache-redis redis-cli ping 2>/dev/null | grep -qi PONG; then
       smoke_fail "Redis" "PING"
     else
       docker_ui_ok "Redis"
     fi
   fi
 
-  require_service timescaledb TimescaleDB || true
-  if service_running timescaledb; then
+  require_service aether-core-data-timescaledb TimescaleDB || true
+  if service_running aether-core-data-timescaledb; then
     checked=$((checked + 1))
-    if ! "${COMPOSE[@]}" exec -T timescaledb sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+    if ! "${COMPOSE[@]}" exec -T aether-core-data-timescaledb sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
       smoke_fail "TimescaleDB" "pg_isready"
     else
       docker_ui_ok "TimescaleDB"
     fi
   fi
 
-  require_service minio MinIO || true
-  if service_running minio; then
+  require_service aether-core-storage-minio MinIO || true
+  if service_running aether-core-storage-minio; then
     checked=$((checked + 1))
     if ! curl -sf "http://127.0.0.1:9000/minio/health/live" >/dev/null 2>&1; then
       smoke_fail "MinIO" "/minio/health/live"
@@ -78,8 +78,8 @@ if profile_active core; then
 fi
 
 if profile_active ml; then
-  require_service aether-meta-classifier Meta-classifier || true
-  if service_running aether-meta-classifier; then
+  require_service aether-ml-meta-classifier Meta-classifier || true
+  if service_running aether-ml-meta-classifier; then
     checked=$((checked + 1))
     meta_payload="$(curl -sf "http://127.0.0.1:8005/health" 2>/dev/null || true)"
     if [ -z "$meta_payload" ]; then
@@ -91,8 +91,8 @@ if profile_active ml; then
       docker_ui_ok "Meta-classifier"
     fi
   fi
-  require_service aether-loss-classifier Loss-classifier || true
-  if service_running aether-loss-classifier; then
+  require_service aether-ml-loss-classifier Loss-classifier || true
+  if service_running aether-ml-loss-classifier; then
     checked=$((checked + 1))
     loss_payload="$(curl -sf "http://127.0.0.1:8006/health" 2>/dev/null || true)"
     if [ -z "$loss_payload" ]; then
@@ -105,9 +105,21 @@ if profile_active ml; then
   fi
 fi
 
+if profile_active indicator; then
+  require_service aether-market-signal-indicator Indicador || true
+  if service_running aether-market-signal-indicator; then
+    checked=$((checked + 1))
+    if ! curl -sf "http://127.0.0.1:9102/metrics" >/dev/null 2>&1; then
+      smoke_fail "Indicador" "/metrics"
+    else
+      docker_ui_ok "Indicador"
+    fi
+  fi
+fi
+
 if profile_active telemetry; then
-  require_service prometheus Prometheus || true
-  if service_running prometheus; then
+  require_service aether-observe-metrics-prometheus Prometheus || true
+  if service_running aether-observe-metrics-prometheus; then
     checked=$((checked + 1))
     if ! curl -sf "http://127.0.0.1:9090/-/healthy" >/dev/null 2>&1; then
       smoke_fail "Prometheus" "/-/healthy"
@@ -116,8 +128,8 @@ if profile_active telemetry; then
     fi
   fi
 
-  require_service grafana Grafana || true
-  if service_running grafana; then
+  require_service aether-observe-dashboards-grafana Grafana || true
+  if service_running aether-observe-dashboards-grafana; then
     checked=$((checked + 1))
     if ! curl -sf "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
       smoke_fail "Grafana" "/api/health"

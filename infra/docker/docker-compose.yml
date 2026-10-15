@@ -12,9 +12,13 @@ x-omp-threads: &aether-omp
   NUMEXPR_NUM_THREADS: "2"
 
 services:
-  redis:
-    image: redis:7.4.2-alpine
-    container_name: aether-redis
+  aether-core-cache-redis:
+    image: aether-core-cache-redis:7.4.2
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM redis:7.4.2-alpine
+    container_name: aether-core-cache-redis
     profiles: [core]
     restart: unless-stopped
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
@@ -49,9 +53,13 @@ services:
     networks:
       - aether-net
 
-  timescaledb:
-    image: timescale/timescaledb:2.28.2-pg16
-    container_name: aether-timescaledb
+  aether-core-data-timescaledb:
+    image: aether-core-data-timescaledb:2.28.2
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM timescale/timescaledb:2.28.2-pg16
+    container_name: aether-core-data-timescaledb
     profiles: [core]
     restart: unless-stopped
     command:
@@ -103,9 +111,13 @@ services:
     networks:
       - aether-net
 
-  minio:
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
-    container_name: aether-minio
+  aether-core-storage-minio:
+    image: aether-core-storage-minio:2026-08-04
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    container_name: aether-core-storage-minio
     profiles: [core]
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
@@ -138,18 +150,22 @@ services:
     networks:
       - aether-net
 
-  minio-init:
-    image: pgsty/mc:RELEASE.2026-08-04T00-00-00Z
-    container_name: aether-minio-init
+  aether-core-storage-minio-init:
+    image: aether-core-storage-minio-init:2026-08-04
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM pgsty/mc:RELEASE.2026-08-04T00-00-00Z
+    container_name: aether-core-storage-minio-init
     profiles: [core]
     restart: "no"
     depends_on:
-      minio:
+      aether-core-storage-minio:
         condition: service_healthy
     environment:
       MINIO_ROOT_USER: ${AETHER_MINIO_ACCESS_KEY:-aether}
       MINIO_ROOT_PASSWORD: ${AETHER_MINIO_SECRET_KEY:-aethersecret}
-      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENDPOINT: http://aether-core-storage-minio:9000
       AETHER_MINIO_BUCKET: ${AETHER_MINIO_BUCKET:-dl-models}
       AETHER_MINIO_ILM_PREFIX: ${AETHER_MINIO_ILM_PREFIX:-optuna/}
       AETHER_MINIO_ILM_DAYS: ${AETHER_MINIO_ILM_DAYS:-7}
@@ -162,13 +178,14 @@ services:
     networks:
       - aether-net
 
-  aether-meta-classifier:
+  aether-ml-meta-classifier:
+    image: aether-ml-meta-classifier:local
     build:
       context: ./meta-classifier
       dockerfile: Dockerfile
       additional_contexts:
         ml_common: ./ml_common
-    container_name: aether-meta-classifier
+    container_name: aether-ml-meta-classifier
     profiles: [ml]
     restart: unless-stopped
     read_only: true
@@ -186,9 +203,9 @@ services:
     mem_swappiness: 0
     cpus: 0.75
     depends_on:
-      minio:
+      aether-core-storage-minio:
         condition: service_healthy
-      minio-init:
+      aether-core-storage-minio-init:
         condition: service_completed_successfully
     cap_drop:
       - ALL
@@ -218,13 +235,14 @@ services:
     networks:
       - aether-net
 
-  aether-loss-classifier:
+  aether-ml-loss-classifier:
+    image: aether-ml-loss-classifier:local
     build:
       context: ./loss-classifier
       dockerfile: Dockerfile
       additional_contexts:
         ml_common: ./ml_common
-    container_name: aether-loss-classifier
+    container_name: aether-ml-loss-classifier
     profiles: [ml]
     restart: unless-stopped
     read_only: true
@@ -249,9 +267,9 @@ services:
     mem_swappiness: 0
     cpus: 0.75
     depends_on:
-      minio:
+      aether-core-storage-minio:
         condition: service_healthy
-      minio-init:
+      aether-core-storage-minio-init:
         condition: service_completed_successfully
     cap_drop:
       - ALL
@@ -281,9 +299,46 @@ services:
     networks:
       - aether-net
 
-  prometheus:
-    image: prom/prometheus:v2.50.1
-    container_name: aether-prometheus
+  aether-market-signal-indicator:
+    image: aether-market-signal-indicator:local
+    build:
+      context: ../../indicator
+      dockerfile: app/Dockerfile
+    container_name: aether-market-signal-indicator
+    profiles: [indicator]
+    restart: unless-stopped
+    depends_on:
+      aether-core-data-timescaledb:
+        condition: service_healthy
+    environment:
+      AETHER_TIMESCALE_DSN: postgresql://${AETHER_PG_USER:-aether}:${AETHER_PG_PASSWORD:-aether}@aether-core-data-timescaledb:5432/${AETHER_PG_DB:-aether}
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ../../indicator/data/indicator-models:/opt/aether/data/indicator-models:ro
+    ports:
+      - "127.0.0.1:9102:9101"
+    logging: *aether-logging
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:9101/metrics', timeout=2).close()"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    networks:
+      - aether-net
+
+  aether-observe-metrics-prometheus:
+    image: aether-observe-metrics-prometheus:2.50.1
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM prom/prometheus:v2.50.1
+    container_name: aether-observe-metrics-prometheus
     profiles: [telemetry]
     restart: unless-stopped
     ports:
@@ -303,9 +358,13 @@ services:
     networks:
       - aether-net
 
-  grafana:
-    image: grafana/grafana:10.3.3
-    container_name: aether-grafana
+  aether-observe-dashboards-grafana:
+    image: aether-observe-dashboards-grafana:10.3.3
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM grafana/grafana:10.3.3
+    container_name: aether-observe-dashboards-grafana
     profiles: [telemetry]
     restart: unless-stopped
     ports:
@@ -318,9 +377,10 @@ services:
       - AETHER_PG_DB=${AETHER_PG_DB:-aether}
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../../indicator/infra/docker/grafana/provisioning/dashboards:/etc/grafana/indicator-dashboards:ro
       - aether_grafana_data:/var/lib/grafana
     depends_on:
-      - prometheus
+      - aether-observe-metrics-prometheus
     logging: *aether-logging
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]

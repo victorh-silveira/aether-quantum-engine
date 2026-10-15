@@ -24,11 +24,11 @@ COMPOSE=(docker compose "${COMPOSE_FLAGS[@]}")
 printf '  %sTimescale lifecycle%s\n' "${DOCKER_UI_BOLD}" "${DOCKER_UI_RESET}"
 docker_ui_nl
 
-"${COMPOSE[@]}" up -d timescaledb
+"${COMPOSE[@]}" up -d aether-core-data-timescaledb
 
 ready=0
 for _ in $(seq 1 40); do
-  if "${COMPOSE[@]}" exec -T timescaledb sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
+  if "${COMPOSE[@]}" exec -T aether-core-data-timescaledb sh -c 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"' >/dev/null 2>&1; then
     ready=1
     break
   fi
@@ -40,30 +40,30 @@ if [ "$ready" -ne 1 ]; then
   exit 1
 fi
 
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/004_timescale-lifecycle.sql >/dev/null'
 
 docker_ui_ok "compressao/retencao"
 
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/005_timescale_crags.sql >/dev/null'
 
 docker_ui_ok "continuous aggregates M5"
 
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/006_contract_executions.sql >/dev/null'
 
 docker_ui_ok "auditoria de contratos"
 
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/007_contract_executions_resilience.sql >/dev/null'
 
 docker_ui_ok "resiliencia de auditoria"
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/008_contract_model_attribution.sql >/dev/null'
 
 docker_ui_ok "atribuicao por modelo"
-"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' timescaledb sh -c \
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/009_contract_label_audit_m5.sql >/dev/null'
 
 docker_ui_ok "auditoria Rise/Fall M5"

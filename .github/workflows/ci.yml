@@ -60,10 +60,10 @@ jobs:
       - name: Instalar dependencias
         run: python -m pip install -r indicator/app/requirements-dev.txt
       - name: Validar indicador
-        run: make indicator-lint indicator-test
+        run: make indicator-lint indicator-security indicator-test
       - name: Validar Compose e dashboards
         run: |
-          docker compose -f indicator/infra/docker/docker-compose.yml config --quiet
+          COMPOSE_PROFILES=core,ml,telemetry,indicator docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker config --quiet
           python -c 'import json,pathlib; files=list(pathlib.Path("indicator/infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
 
   python:

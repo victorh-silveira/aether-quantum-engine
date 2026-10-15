@@ -38,6 +38,22 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: indicator-lint
+        name: Indicador | Lint
+        entry: make indicator-lint
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: workflows-lint
+        name: Workflows | Lint
+        entry: make app-workflows-lint
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: python-validate
         name: Python | Validate
         entry: python app/scripts/operations/clean_workspace.py --area python --stage validate
@@ -70,9 +86,25 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: indicator-security
+        name: Indicador | Seguranca
+        entry: make indicator-security
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: python-test
         name: Python | Testes
         entry: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
+      - id: indicator-test
+        name: Indicador | Testes
+        entry: make indicator-test
         language: system
         pass_filenames: false
         always_run: true

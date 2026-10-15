@@ -1087,7 +1087,7 @@
     {
       "id": 19,
       "title": "Resultado auditado por TCN e indicador",
-      "description": "Somente liquidações confirmadas pelo broker; sem inferência por closes M5.",
+      "description": "Contratos liquidados e confirmados pela Deriv via proposal_open_contract ou profit_table. Brier só usa contratos com spots de entrada e saída; não inferir resultado por closes M5.",
       "type": "table",
       "gridPos": {
         "h": 8,
@@ -1105,7 +1105,45 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT symbol AS ativo, account_mode AS conta, direction AS lado, model_version AS tcn, indicator_model_version AS indicador, broker_settled_count AS contratos, wins AS vitorias, round((100.0*wins/broker_settled_count)::numeric,1) AS acertos_pct, round(mean_unit_return::numeric,4) AS retorno_medio, round(indicator_brier::numeric,4) AS brier_indicador FROM contract_consensus_outcomes ORDER BY broker_settled_count DESC, symbol LIMIT 100",
+          "rawSql": "SELECT symbol AS ativo, account_mode AS conta, direction AS lado, model_version AS tcn, indicator_model_version AS indicador, broker_settled_count AS contratos_confirmados, wins AS vitorias, round((100.0*wins/broker_settled_count)::numeric,1) AS acertos_pct, round(mean_quoted_ev::numeric,4) AS ev_cotado_medio, round(mean_unit_return::numeric,4) AS retorno_real_medio, brier_samples AS amostras_brier, round(indicator_brier::numeric,4) AS brier_indicador FROM contract_consensus_outcomes ORDER BY broker_settled_count DESC, symbol LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 20,
+      "title": "Setup: piloto DEMO e aptidao REAL",
+      "description": "Somente contratos do setup liquidados pelo broker. O proxy de velas nao promove versoes.",
+      "type": "table",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 29
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "rawSql": "SELECT r.symbol AS ativo,r.period_seconds AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidados_broker,coalesce(e.wins,0) AS wins_demo,round(e.mean_return::numeric,4) AS retorno_medio,round(e.lower_95::numeric,4) AS limite_inferior_95,CASE WHEN e.settled>=200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.setup_version='pullback-1-2047d4129ad0' AND r.period_seconds=300 ORDER BY r.symbol,r.period_seconds",
           "format": "table",
           "refId": "A"
         }
