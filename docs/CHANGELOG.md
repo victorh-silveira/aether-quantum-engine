@@ -1,3 +1,9 @@
+## [4.4.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.0...v4.4.1) (2026-10-15)
+
+### Correcoes de Bug
+
+* **engine:** restaura variante base do pullback e flexibiliza tolerancia de payout ([7a3869a](https://github.com/victorh-silveira/aether-quantum-engine/commit/7a3869a357390be04d8a919b56086c2041f58563))
+
 ## [4.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.3.0...v4.4.0) (2026-10-15)
 
 ### Funcionalidades
