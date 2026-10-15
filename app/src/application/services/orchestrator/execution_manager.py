@@ -16,6 +16,7 @@ from src.application.services.recovery_hurst_store import (
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.presentation.terminal.log_context import clear_log_context, get_log_context, restore_log_context
 
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
@@ -49,9 +50,14 @@ class ExecutionManager:
         self.orch._buffer_result_logs, self.orch._pending_result_logs = True, []
 
     def _flush_result_buffer(self) -> None:
-        """Despeja logs pendentes de resultado no logger."""
-        for line in self.orch._pending_result_logs:
-            self.logger.info(line)
+        """Despeja logs pendentes de resultado no logger com isolamento de contexto."""
+        prev_cid, prev_sym = get_log_context()
+        clear_log_context()
+        try:
+            for line in self.orch._pending_result_logs:
+                self.logger.info(line)
+        finally:
+            restore_log_context(prev_cid, prev_sym)
         self.orch._pending_result_logs = []
 
     def _cluster_stake_block(self, orders: list[tuple[str, TradeDirection, dict]], bankroll: float) -> str | None:

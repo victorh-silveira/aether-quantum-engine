@@ -132,8 +132,6 @@ def _active_contracts_block_cycle(orch: Any) -> bool:
     if not orch.state.active_contracts:
         orch._settlement_wait_logged = False
         return False
-    if orch.config.get("pullback_strategy", {}).get("enabled", False):
-        return False
     if not orch._settlement_wait_logged:
         orch._settlement_wait_logged = True
     return True
@@ -193,6 +191,12 @@ def _require_signature_boundary(orch: Any) -> bool:
 
 def _signature_open_tolerance_seconds(orch: Any) -> float:
     """Janela pos-abertura M5 em que o ciclo ainda e elegivel."""
+    if orch.config.get("pullback_strategy", {}).get("enabled", False):
+        raw_pb = orch.config.get("pullback_strategy", {}).get("entry_window_seconds", 30.0)
+        try:
+            return max(1.0, float(raw_pb))
+        except (TypeError, ValueError):
+            return 30.0
     raw = _orchestrator_cfg(orch).get("signature_boundary_open_tolerance_seconds", 20.0)
     try:
         return max(1.0, float(raw))

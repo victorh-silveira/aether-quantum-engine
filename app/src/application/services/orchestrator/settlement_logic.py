@@ -30,6 +30,7 @@ from src.application.services.orchestrator.settlement_outcome import (
     update_state_manager_and_check_stop_win,
 )
 from src.application.services.orchestrator.settlement_process import (
+    emit_contract_settlement_log as _emit_contract_settlement_log,
     process_settlement_outcome as _process_contract_outcome,
 )
 from src.application.services.orchestrator.settlement_queue_ops import (
@@ -116,10 +117,9 @@ async def _complete_contract_settlement(
         )
         if price_audit:
             line = f"{line} | {price_audit}"
-        if orch._buffer_result_logs:
-            orch._pending_result_logs.append(line)
-        else:
-            orch.logger.info(line)
+        _emit_contract_settlement_log(
+            orch, line, c_id=c_id, sym=resolved_meta.get("symbol") if isinstance(resolved_meta, dict) else None
+        )
         orch._last_loss_clf_learn = None
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:

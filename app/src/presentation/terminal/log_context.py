@@ -34,3 +34,14 @@ def format_log_context_prefix() -> str:
     if cid is not None:
         return f"[c{int(cid)}] "
     return f"[{sym}] "
+
+
+def get_log_context() -> tuple[int | None, str | None]:
+    """Retorna (cycle_id, symbol) associados ao contexto atual."""
+    return _cycle_id.get(), _symbol.get()
+
+
+def restore_log_context(cycle_id: int | None, symbol: str | None) -> None:
+    """Restaura cycle_id e symbol ao contexto."""
+    _cycle_id.set(int(cycle_id) if cycle_id is not None else None)
+    _symbol.set(str(symbol) if symbol is not None else None)

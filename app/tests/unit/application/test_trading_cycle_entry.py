@@ -66,12 +66,22 @@ def test_trading_cycle_entry_waits_for_settlement(orch_ready):
     orch.logger.info.assert_not_called()
 
 
-def test_pullback_cycle_can_consider_other_asset_with_open_contract(orch_ready):
+def test_pullback_cycle_waits_for_settlement_with_open_contract(orch_ready):
     orch = orch_ready
     orch.config["pullback_strategy"] = {"enabled": True}
     orch.state.active_contracts = {1: object()}
     orch.config.setdefault("orchestrator", {})["require_signature_boundary"] = False
-    assert trading_cycle_entry_allowed(orch) is True
+    assert trading_cycle_entry_allowed(orch) is False
+
+
+def test_pullback_cycle_open_tolerance_uses_entry_window(orch_ready):
+    from src.application.services.orchestrator.trading_cycle_entry_guards import _signature_open_tolerance_seconds
+
+    orch = orch_ready
+    orch.config["pullback_strategy"] = {"enabled": True, "entry_window_seconds": 30.0}
+    assert _signature_open_tolerance_seconds(orch) == 30.0
+    orch.config["pullback_strategy"]["entry_window_seconds"] = "invalid"
+    assert _signature_open_tolerance_seconds(orch) == 30.0
 
 
 def test_trading_cycle_entry_allowed(orch_ready):
