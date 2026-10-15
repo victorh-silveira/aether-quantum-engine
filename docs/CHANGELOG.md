@@ -1,3 +1,9 @@
+## [4.4.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.2...v4.4.3) (2026-10-15)
+
+### Correcoes de Bug
+
+* **orchestrator:** aguarda liquidacao e isola logs de ciclo ([5092c50](https://github.com/victorh-silveira/aether-quantum-engine/commit/5092c5095e8e7e0fed3e4f8947b90a2a654f9071))
+
 ## [4.4.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.1...v4.4.2) (2026-10-15)
 
 ### Correcoes de Bug
