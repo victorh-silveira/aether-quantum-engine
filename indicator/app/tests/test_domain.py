@@ -41,8 +41,8 @@ def test_closed_candles_rejects_open_invalid_and_duplicates():
         {"epoch": 0, "open": "nan", "high": 3, "low": 1, "close": 2},
         {"epoch": 0, "open": 2},
     ]
-    assert closed_candles(rows, 900) == [Candle(300, 2, 4, 1, 3), Candle(600, 2, 3, 1, 2)]
-    assert closed_candles(rows, 700) == [Candle(300, 2, 4, 1, 3)]
+    assert closed_candles(rows, 900) == [Candle(600, 2, 3, 1, 2)]
+    assert closed_candles(rows, 700) == []
 
 
 def test_aggregate_requires_complete_uninterpolated_group():

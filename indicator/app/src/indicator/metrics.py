@@ -56,7 +56,10 @@ class Metrics:
             lines.append(f"aether_indicator_close{labels} {signal.close:.8f}")
             lines.append(f"aether_indicator_candle_epoch{labels} {signal.candle_epoch}")
             lines.append(f"aether_indicator_fresh{labels} {int(now < signal.candle_epoch + 2 * period)}")
-            lines.append(f"aether_indicator_validation{labels} {dict(ok=1, experimental=0).get(signal.reason, -1)}")
+            lines.append(
+                f"aether_indicator_validation{labels} "
+                f"{dict(ok=1, setup_confirmado=1, experimental=0).get(signal.reason, -1)}"
+            )
             live = self.live.get((symbol, period))
             if (
                 live is not None

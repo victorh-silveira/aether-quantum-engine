@@ -67,6 +67,7 @@ def synthetic_symbols(rows: list[dict[str, object]]) -> dict[str, str]:
 def closed_candles(rows: list[dict[str, object]], now: int, period: int = 300) -> list[Candle]:
     """Rejeita velas em formacao, duplicadas e valores invalidos."""
     candles = {}
+    conflicts = set()
     for row in rows:
         try:
             epoch = int(row["epoch"])
@@ -75,8 +76,11 @@ def closed_candles(rows: list[dict[str, object]], now: int, period: int = 300) -
             continue
         if epoch % period or epoch + period > now or not all(isfinite(value) for value in values):
             continue
-        candles[epoch] = Candle(epoch, *values)
-    return [candles[epoch] for epoch in sorted(candles)]
+        candle = Candle(epoch, *values)
+        if epoch in candles and candles[epoch] != candle:
+            conflicts.add(epoch)
+        candles[epoch] = candle
+    return [candles[epoch] for epoch in sorted(candles) if epoch not in conflicts]
 
 
 def current_spot(rows: list[dict[str, object]], now: int) -> float | None:

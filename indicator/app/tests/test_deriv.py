@@ -19,6 +19,10 @@ async def test_public_client_only_market_data():
     client = PublicDeriv(request=request)
     assert await client.symbols() == [{"market": "synthetic_index"}]
     assert await client.candles("R_75") == [{"epoch": 300}]
+    assert await client.candles("R_75", period=900) == [{"epoch": 300}]
+    assert payloads[-1]["granularity"] == 900
+    with pytest.raises(ValueError, match="periodo nao suportado"):
+        await client.candles("R_75", period=60)
     assert all("buy" not in payload and "authorize" not in payload for payload in payloads)
     with pytest.raises(ValueError):
         await client.request({"buy": "123"})

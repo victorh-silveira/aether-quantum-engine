@@ -2,8 +2,6 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 APP_DIR := app
-DOCKER_DIR := infra/docker
-DOCKER_COMPOSE := docker compose -f $(DOCKER_DIR)/docker-compose.yml
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3.13)
 PYTHON_CMD := $(if $(findstring /,$(PYTHON)),$(abspath $(PYTHON)),$(PYTHON))
 DOCKER_LOGS_TAIL ?= 200
@@ -30,7 +28,7 @@ help:
 	@echo 'App:'
 	@echo '  app-install         Instala dependencias na .venv'
 	@echo '  app-run             Executa o indicador local (pare o servico indicator antes)'
-	@echo '  app-train           Treina modelos Volatility M5/M15/H1'
+	@echo '  app-train           Delega o treino completo (indicador + TCN/meta/loss) a raiz'
 	@echo '  app-test            Testes e cobertura de 100%'
 	@echo '  app-lint            Ruff lint e formato'
 	@echo '  app-security        Ruff security'
@@ -40,12 +38,12 @@ help:
 	@echo '  app-setup-wsl       Prepara .venv com Python 3.13 no WSL'
 	@echo ''
 	@echo 'Docker:'
-	@echo '  docker-up           Sobe indicador, Timescale, Prometheus e Grafana'
-	@echo '  docker-down         Para a stack e preserva volumes'
-	@echo '  docker-restart      Reinicia a stack'
-	@echo '  docker-rebuild      Reconstroi a imagem do indicador'
-	@echo '  docker-reset        Remove volumes do indicador e sobe a stack novamente'
-	@echo '  docker-clean        Remove containers, rede e volumes do indicador'
+	@echo '  docker-up           Sobe a stack unificada na raiz do repositorio'
+	@echo '  docker-down         Para a stack unificada e preserva volumes'
+	@echo '  docker-restart      Reinicia a stack unificada'
+	@echo '  docker-rebuild      Reconstroi os servicos da stack unificada'
+	@echo '  docker-reset        Remove volumes da stack unificada e sobe novamente'
+	@echo '  docker-clean        Remove containers, rede e volumes da stack unificada'
 	@echo '  docker-ps           Exibe estado dos containers'
 	@echo '  docker-logs         Logs (DOCKER_SERVICE=grafana F=1 DOCKER_LOGS_TAIL=200)'
 	@echo '  docker-smoke        Valida endpoints e saude da stack'
@@ -75,7 +73,7 @@ app-run:
 	$(PYTHON) run.py
 
 app-train:
-	$(PYTHON) app/train.py
+	$(MAKE) -C .. app-train
 
 app-pre-commit:
 	$(PYTHON) -m pre_commit install -c .pre-commit-config.yaml
@@ -91,41 +89,34 @@ app-rust-lint app-rust-validate app-rust-security app-rust-test app-rust-build:
 	@echo 'Sem componentes Rust nesta branch do indicador.'
 
 docker-up:
-	$(DOCKER_COMPOSE) up -d --build
-	@$(MAKE) --no-print-directory docker-smoke
+	$(MAKE) -C .. docker-up
 
 docker-down:
-	$(DOCKER_COMPOSE) down
+	$(MAKE) -C .. docker-down
 
 docker-restart:
-	$(DOCKER_COMPOSE) restart
-	@$(MAKE) --no-print-directory docker-smoke
+	$(MAKE) -C .. docker-restart
 
 docker-rebuild:
-	$(DOCKER_COMPOSE) build --pull indicator
-	$(DOCKER_COMPOSE) up -d --force-recreate indicator
-	@$(MAKE) --no-print-directory docker-smoke
+	$(MAKE) -C .. docker-rebuild
 
 docker-reset:
-	@echo 'ATENCAO: os volumes Timescale e Grafana do indicador serao removidos.'
-	$(DOCKER_COMPOSE) down --volumes --remove-orphans
-	@$(MAKE) --no-print-directory docker-up
+	$(MAKE) -C .. docker-reset
 
 docker-clean:
-	@echo 'ATENCAO: os volumes Timescale e Grafana do indicador serao removidos.'
-	$(DOCKER_COMPOSE) down --volumes --remove-orphans
+	$(MAKE) -C .. docker-clean
 
 docker-ps:
-	$(DOCKER_COMPOSE) ps
+	$(MAKE) -C .. docker-ps
 
 docker-logs:
-	$(DOCKER_COMPOSE) logs --tail=$(DOCKER_LOGS_TAIL) $(if $(F),-f,) $(if $(DOCKER_SERVICE),$(call docker_service_name,$(DOCKER_SERVICE)),$(DOCKER_LOGS_SERVICES))
+	$(MAKE) -C .. docker-logs DOCKER_LOGS_TAIL=$(DOCKER_LOGS_TAIL) DOCKER_SERVICE=$(DOCKER_SERVICE) F=$(F)
 
 docker-smoke:
-	@bash $(DOCKER_DIR)/sh/docker-smoke.sh
+	$(MAKE) -C .. docker-smoke
 
 docker-bash:
-	$(DOCKER_COMPOSE) exec -it $(call docker_service_name,$(or $(DOCKER_SERVICE),timescaledb)) sh -c 'if [ -x /bin/bash ]; then exec /bin/bash; else exec /bin/sh; fi'
+	$(MAKE) -C .. docker-bash DOCKER_SERVICE=$(call docker_service_name,$(or $(DOCKER_SERVICE),timescaledb))
 
 docker-hydrate docker-timescale-lifecycle docker-sanitize-run docker-sanitize-run-keep-meta:
 	@echo 'O indicador cria tabelas e coleta o catalogo automaticamente; nao ha estado de contrato para hidratar ou sanitizar.'

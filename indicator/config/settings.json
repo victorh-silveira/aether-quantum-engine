@@ -4,6 +4,7 @@
   "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
   "periods_seconds": [300, 900, 3600],
   "models_dir": "data/indicator-models",
-  "timescale_dsn": "postgresql://aether:aether@127.0.0.1:15433/aether",
-  "metrics_port": 9101
+  "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
+  "metrics_port": 9101,
+  "pullback_variant": "improved"
 }

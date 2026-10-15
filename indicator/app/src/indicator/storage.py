@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
 
-from indicator.domain import LiveObservation, Signal
+from indicator.domain import Candle, LiveObservation, Signal
 
 
 class SignalStore:
@@ -46,6 +47,29 @@ class SignalStore:
                     interim_side TEXT NOT NULL,
                     PRIMARY KEY (symbol, period_seconds)
                 );
+                CREATE TABLE IF NOT EXISTS indicator_candles (
+                    symbol TEXT NOT NULL, period_seconds INTEGER NOT NULL,
+                    epoch BIGINT NOT NULL, time TIMESTAMPTZ NOT NULL,
+                    open DOUBLE PRECISION NOT NULL, high DOUBLE PRECISION NOT NULL,
+                    low DOUBLE PRECISION NOT NULL, close DOUBLE PRECISION NOT NULL,
+                    PRIMARY KEY (symbol, period_seconds, epoch)
+                );
+                CREATE TABLE IF NOT EXISTS indicator_model_registry (
+                    symbol TEXT NOT NULL, period_seconds INTEGER NOT NULL,
+                    model_version TEXT NOT NULL, state TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (symbol, period_seconds, model_version),
+                    CHECK (state IN ('pesquisa', 'piloto', 'ativo', 'reprovado'))
+                );
+                CREATE TABLE IF NOT EXISTS indicator_candidate_signals (
+                    symbol TEXT NOT NULL, period_seconds INTEGER NOT NULL,
+                    candle_epoch BIGINT NOT NULL, model_version TEXT NOT NULL,
+                    side TEXT NOT NULL, probability DOUBLE PRECISION,
+                    reason TEXT NOT NULL, close DOUBLE PRECISION NOT NULL,
+                    recorded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    PRIMARY KEY (symbol, period_seconds, candle_epoch, model_version)
+                );
                 """)
         except BaseException:
             await self.close()
@@ -66,6 +90,146 @@ class SignalStore:
                         name,
                     )
 
+    async def save_candles(self, symbol: str, period: int, candles: list[Candle]) -> None:
+        """Persiste velas diretas com instante canonico e chave unica."""
+        if period not in (300, 900, 3600):
+            raise ValueError("periodo nao suportado")
+        rows = [
+            (
+                symbol,
+                period,
+                candle.epoch,
+                datetime.fromtimestamp(candle.epoch, UTC),
+                candle.open,
+                candle.high,
+                candle.low,
+                candle.close,
+            )
+            for candle in candles
+        ]
+        async with self.pool.acquire() as connection:
+            await connection.executemany(
+                """
+                INSERT INTO indicator_candles
+                    (symbol, period_seconds, epoch, time, open, high, low, close)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                ON CONFLICT (symbol, period_seconds, epoch) DO UPDATE SET
+                    time=EXCLUDED.time, open=EXCLUDED.open, high=EXCLUDED.high,
+                    low=EXCLUDED.low, close=EXCLUDED.close
+                """,
+                rows,
+            )
+
+    async def register_model(self, symbol: str, period: int, version: str, state: str) -> None:
+        """Registra identidade imutavel e estado inicial do desafiante."""
+        if state not in {"pesquisa", "piloto", "reprovado"}:
+            raise ValueError("estado inicial invalido")
+        async with self.pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO indicator_model_registry(symbol, period_seconds, model_version, state)
+                VALUES ($1,$2,$3,$4)
+                ON CONFLICT (symbol, period_seconds, model_version) DO NOTHING
+                """,
+                symbol,
+                period,
+                version,
+                state,
+            )
+
+    async def promote_models(self) -> None:
+        """Conclui pilotos por evidencia confirmatoria sem substituir outro par."""
+        async with self.pool.acquire() as connection:
+            async with connection.transaction():
+                await connection.execute(
+                    """
+                    UPDATE indicator_model_registry r SET state='reprovado', updated_at=now()
+                    FROM indicator_broker_ev_status e
+                    WHERE r.symbol=e.symbol AND r.period_seconds=e.indicator_period_seconds
+                      AND r.model_version=e.indicator_model_version AND r.state='piloto'
+                      AND e.purchased >= 200 AND e.settled >= 200 AND NOT e.promoted
+                    """
+                )
+                await connection.execute(
+                    """
+                    UPDATE indicator_model_registry r SET state='reprovado', updated_at=now()
+                    WHERE r.state='ativo' AND EXISTS (
+                        SELECT 1 FROM indicator_model_registry pilot
+                        JOIN indicator_broker_ev_status e ON e.symbol=pilot.symbol
+                          AND e.indicator_period_seconds=pilot.period_seconds
+                          AND e.indicator_model_version=pilot.model_version
+                        WHERE pilot.symbol=r.symbol AND pilot.period_seconds=r.period_seconds
+                          AND pilot.state='piloto' AND e.promoted
+                    )
+                    """
+                )
+                await connection.execute(
+                    """
+                    UPDATE indicator_model_registry r SET state='ativo', updated_at=now()
+                    FROM (
+                        SELECT DISTINCT ON (p.symbol, p.period_seconds)
+                            p.symbol, p.period_seconds, p.model_version
+                        FROM indicator_model_registry p
+                        JOIN indicator_broker_ev_status e ON e.symbol=p.symbol
+                          AND e.indicator_period_seconds=p.period_seconds
+                          AND e.indicator_model_version=p.model_version
+                        WHERE p.state='piloto' AND e.promoted
+                        ORDER BY p.symbol, p.period_seconds, p.created_at ASC, p.model_version
+                    ) selected
+                    WHERE r.symbol=selected.symbol AND r.period_seconds=selected.period_seconds
+                      AND r.model_version=selected.model_version AND r.state='piloto'
+                    """
+                )
+                await connection.execute(
+                    """
+                    UPDATE indicator_model_registry r SET state='reprovado', updated_at=now()
+                    FROM indicator_broker_ev_status e
+                    WHERE r.symbol=e.symbol AND r.period_seconds=e.indicator_period_seconds
+                      AND r.model_version=e.indicator_model_version AND r.state='piloto'
+                      AND e.promoted AND EXISTS (
+                          SELECT 1 FROM indicator_model_registry active
+                          WHERE active.symbol=r.symbol AND active.period_seconds=r.period_seconds
+                            AND active.state='ativo'
+                      )
+                    """
+                )
+
+    async def trade_models(self) -> dict[tuple[str, int, str], str]:
+        """Seleciona uma unica versao por ativo, periodo e estado negociavel."""
+        async with self.pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT DISTINCT ON (symbol, period_seconds, state)
+                    symbol, period_seconds, state, model_version
+                FROM indicator_model_registry WHERE state IN ('piloto','ativo')
+                ORDER BY symbol, period_seconds, state, created_at ASC, model_version
+                """
+            )
+        return {
+            (str(row["symbol"]), int(row["period_seconds"]), str(row["state"])): str(row["model_version"])
+            for row in rows
+        }
+
+    async def save_candidate(self, signal: Signal) -> None:
+        """Persiste um sinal versionado sem alterar o sinal principal do painel."""
+        async with self.pool.acquire() as connection:
+            await connection.execute(
+                """
+                INSERT INTO indicator_candidate_signals
+                    (symbol, period_seconds, candle_epoch, model_version, side, probability, reason, close)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+                ON CONFLICT (symbol, period_seconds, candle_epoch, model_version) DO NOTHING
+                """,
+                signal.symbol,
+                signal.period,
+                signal.candle_epoch,
+                signal.model_version,
+                signal.side,
+                signal.probability,
+                signal.reason,
+                signal.close,
+            )
+
     async def replace_models(self, versions: dict[tuple[str, int], str]) -> None:
         """Publica somente as versoes de modelo atualmente carregaveis."""
         async with self.pool.acquire() as connection:
@@ -78,6 +242,24 @@ class SignalStore:
                         period,
                         version,
                     )
+
+    async def retained_broker_versions(self) -> dict[tuple[str, int], str]:
+        """Mantem a versao principal enquanto ela estiver em piloto ou ativa."""
+        async with self.pool.acquire() as connection:
+            rows = await connection.fetch(
+                """
+                SELECT m.symbol, m.period_seconds, m.model_version
+                FROM indicator_model_versions m
+                JOIN indicator_model_registry r ON r.symbol=m.symbol
+                  AND r.period_seconds=m.period_seconds AND r.model_version=m.model_version
+                LEFT JOIN indicator_broker_ev_status e ON e.symbol=r.symbol
+                  AND e.indicator_period_seconds=r.period_seconds
+                  AND e.indicator_model_version=r.model_version
+                WHERE r.state='ativo' OR (r.state='piloto'
+                    AND (coalesce(e.purchased,0) < 200 OR e.settled < e.purchased))
+                """
+            )
+        return {(str(row["symbol"]), int(row["period_seconds"])): str(row["model_version"]) for row in rows}
 
     async def latest_signals(self) -> list[Signal]:
         """Restaura a última leitura emitida por par após reinício."""

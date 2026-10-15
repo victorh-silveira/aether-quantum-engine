@@ -19,7 +19,16 @@ def main() -> None:
         raise ValueError("catalog_scope deve ser volatility_indices")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     dsn = os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"])
-    asyncio.run(run_indicator(dsn, root / config["models_dir"], config["public_ws_url"], config["metrics_port"]))
+    variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "improved"))
+    asyncio.run(
+        run_indicator(
+            dsn,
+            root / config["models_dir"],
+            config["public_ws_url"],
+            config["metrics_port"],
+            variant=variant,
+        )
+    )
 
 
 if __name__ == "__main__":

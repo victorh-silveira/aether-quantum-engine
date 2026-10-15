@@ -9,36 +9,34 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from indicator.deriv import PublicDeriv
-from indicator.model import load
-from indicator.storage import SignalStore
-from indicator.training import train_all
+from indicator.pullback_store import PullbackStore
+from indicator.pullback_training import diagnose_all
 
 
 async def train() -> None:
-    """Treina modelos por ativo e periodo usando somente OHLC publico."""
+    """Prepara dados e diagnosticos do setup fixo por ativo e periodo."""
     root = Path(__file__).resolve().parent.parent
     config = json.loads((root / "config" / "settings.json").read_text(encoding="utf-8"))
     if config.get("catalog_scope") != "volatility_indices":
         raise ValueError("catalog_scope deve ser volatility_indices")
     source = PublicDeriv(config["public_ws_url"])
-    models = root / config["models_dir"]
+    store = PullbackStore(os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"]))
     try:
-        result = await train_all(source, models)
-        versions = {}
-        for key in result:
-            symbol, period_text = key.rsplit(":", 1)
-            period = int(period_text)
-            model = load(models, symbol, period, allow_experimental=True)
-            if model is not None:
-                versions[(symbol, period)] = model.version
-        store = SignalStore(os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"]))
-        try:
-            await store.start()
-            await store.replace_models(versions)
-        finally:
-            await store.close()
-        print(json.dumps(result, indent=2, sort_keys=True))
+        await store.start()
+        result = await diagnose_all(source, store)
+        summary = {
+            "pares": len(result),
+            "pares_com_proxy": sum(row["estado"] == "PROXY DE VELAS" for row in result.values()),
+            "pares_sem_sinal": sum(row["estado"] == "SEM SINAL" for row in result.values()),
+            "setups": sum(row.get("setups", 0) for row in result.values()),
+            "acertos_proxy": sum(row.get("acertos", 0) for row in result.values()),
+            "erros_proxy": sum(row.get("erros", 0) for row in result.values()),
+            "empates_proxy": sum(row.get("empates", 0) for row in result.values()),
+            "qualificacao_broker": "nao realizada",
+        }
+        print(json.dumps(summary, indent=2, sort_keys=True))
     finally:
+        await store.close()
         await source.close()
 
 

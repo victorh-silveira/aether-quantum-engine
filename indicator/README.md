@@ -1,29 +1,15 @@
-# Aether Synthetic Indicator
+# Indicador público de índices Volatility
 
-Indicador observacional dos **índices Volatility** retornados pelo catálogo público da Deriv. Exibe CALL, PUT ou **SEM SINAL** por ativo em M5, M15 e H1. Não envia propostas, não compra contratos e não usa autenticação de conta. Sinais de sintéticos não são previsões para pares Forex.
+O serviço lê `active_symbols` e `ticks_history` sem credenciais de conta. Emite CALL, PUT ou SEM SINAL para cada índice Volatility e período M5/M15/H1, com a versão fixa do [setup de tendência e recuo](../docs/strategy-pullback.md). Usa apenas velas fechadas e contíguas; a vela em formação não entra no sinal. O serviço não propõe nem compra contratos, e os sinais sintéticos não são previsões de Forex.
 
-## Uso no WSL
-
-Requer Python 3.13, Docker Compose e acesso ao WebSocket público da Deriv. `make` abre o menu de ajuda, como na `main`; os targets `app-*` e `docker-*` usam a mesma interface com ações próprias do indicador.
+Na raiz do projeto, execute:
 
 ```bash
-python -m venv .venv
-.venv/bin/pip install -r app/requirements-dev.txt
 make docker-up
 make app-train
+make app-run
 ```
 
-O treino percorre somente as famílias `R_<número>` e `1HZ<número>V` ativas no catálogo público. Cada par com pelo menos 200 amostras recebe um modelo próprio em `data/indicator-models/`. A validação temporal distingue **APROVADO** (superou a maioria em acurácia e Brier) de **EXPERIMENTAL** (não superou ambos). O segundo estado permanece no catálogo como **SEM SINAL**; não é exibido como CALL/PUT ativo. Sem modelo, dados atuais ou histórico suficiente, permanece **SEM SINAL**. O terminal mostra progresso por ativo, página e período; requisições e ativos têm prazos limitados.
+`make app-train` coleta 5.000 velas contíguas por índice/período e imprime frequência e acerto direcional como **proxy de velas**. O diagnóstico não promove versões. O motor em DEMO testa até 200 setups com stake mínima; apenas contratos únicos liquidados pelo broker podem habilitar REAL. `make app-research-ml` mantém TCN/meta/loss como pesquisa separada.
 
-Grafana: `http://localhost:3001` (usuário `admin`, senha `aether`). **Sinteticos | Leituras atuais** e **Sinteticos | Ativo** exibem somente sinais CALL/PUT atuais de modelos **APROVADOS**, com movimento provisório; **Sinteticos | Todos os indices** mostra o catálogo completo, inclusive `SEM SINAL`. Prometheus: `http://localhost:19091`. Métricas do serviço indicador: `http://localhost:9102/metrics`.
-
-O motor recalcula a previsão com velas fechadas: M5 a cada 5 minutos, M15 a cada 15 minutos e H1 a cada hora. M15 e H1 são agregadas somente quando todas as velas M5 do bloco estão presentes. A cada 30 segundos, uma observação provisória do preço em formação mostra se o movimento atual está **A FAVOR** ou **CONTRA** o sinal emitido; ela não altera a previsão histórica. Cada leitura inclui horário da vela, horizonte de fechamento, probabilidade CALL, versão do modelo e validação. O resultado observado é preenchido após o fechamento da vela seguinte; representa direção de mercado, não resultado de contrato. Sem dados atuais ou histórico suficiente, aparece **SEM SINAL**.
-
-```bash
-make lint
-make test
-```
-
-Esta cópia está integrada à `main` como subsistema observacional. O CI principal valida seu lint, testes, cobertura e Compose antes da publicação do motor. O processo público não abre contratos; o motor usa apenas o sinal M5 aprovado em consenso com TCN, meta e loss-classifier. Consulte [a integração](../README.md#indicador-integrado-e-múltiplos-índices).
-
-`make infra-up` inicia o indicador junto com a stack. O treino é offline; os modelos exportados ficam visíveis ao serviço pelo volume local e são carregados no ciclo seguinte. `python run.py` serve apenas ao desenvolvimento quando o serviço Compose estiver parado, pois ambos usam a porta interna 9101.
+O Grafana em `http://localhost:3000` mostra setups atuais, estado do piloto, cotações e resultados confirmados. O painel de catálogo inclui também índices sem sinal. Não há interpolação de lacunas nem probabilidade fabricada para um setup DEMO. Execute `make app-lint` e `make app-test` para validar motor e indicador com cobertura de 100%.

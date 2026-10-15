@@ -53,10 +53,14 @@ class PublicDeriv:
         result = await self.request({"active_symbols": "brief"})
         return list(result.get("active_symbols") or [])
 
-    async def candles(self, symbol: str, count: int = 1000, end: str | int = "latest") -> list[dict[str, object]]:
-        """Le velas M5, sem subscricao a contratos."""
+    async def candles(
+        self, symbol: str, count: int = 1000, end: str | int = "latest", period: int = 300
+    ) -> list[dict[str, object]]:
+        """Le velas da granularidade solicitada, sem subscricao a contratos."""
+        if period not in (300, 900, 3600):
+            raise ValueError("periodo nao suportado")
         result = await self.request(
-            {"ticks_history": symbol, "style": "candles", "granularity": 300, "count": count, "end": end}
+            {"ticks_history": symbol, "style": "candles", "granularity": period, "count": count, "end": end}
         )
         return list(result.get("candles") or [])
 

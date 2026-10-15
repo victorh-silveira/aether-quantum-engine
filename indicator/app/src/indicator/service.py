@@ -10,11 +10,9 @@ from typing import Protocol
 
 import asyncpg
 
-from indicator.deriv import PublicDeriv
 from indicator.domain import (
     PERIODS,
     Signal,
-    aggregate,
     closed_candles,
     current_spot,
     latest_contiguous,
@@ -23,7 +21,9 @@ from indicator.domain import (
 )
 from indicator.metrics import Metrics
 from indicator.model import LOOKBACK, load
-from indicator.storage import SignalStore
+from indicator.pullback_service import PullbackService
+from indicator.pullback_source import PullbackSource
+from indicator.pullback_store import PullbackStore
 
 logger = logging.getLogger(__name__)
 REQUEST_TIMEOUT = 40
@@ -38,7 +38,9 @@ class Source(Protocol):
 
     async def symbols(self) -> list[dict[str, object]]: ...
 
-    async def candles(self, symbol: str, count: int = 1000, end: str | int = "latest") -> list[dict[str, object]]: ...
+    async def candles(
+        self, symbol: str, count: int = 1000, end: str | int = "latest", period: int = 300
+    ) -> list[dict[str, object]]: ...
 
 
 class Sink(Protocol):
@@ -47,6 +49,12 @@ class Sink(Protocol):
     async def set_symbols(self, symbols: dict[str, str]) -> None: ...
 
     async def replace_models(self, versions: dict[tuple[str, int], str]) -> None: ...
+
+    async def promote_models(self) -> None: ...
+
+    async def trade_models(self) -> dict[tuple[str, int, str], str]: ...
+
+    async def save_candidate(self, signal: Signal) -> None: ...
 
     async def save(self, signal: Signal, observed_side: str | None = None) -> None: ...
 
@@ -67,6 +75,8 @@ class IndicatorService:
         self.last_catalog = 0.0
         self.last_epoch: dict[tuple[str, int], int] = {}
         self.last_signals: dict[tuple[str, int], Signal] = {}
+        self.trade_versions: dict[tuple[str, int, str], str] = {}
+        self.candidate_epochs: dict[tuple[str, int, str], int] = {}
 
     def restore(self, signals: list[Signal]) -> None:
         """Recupera emissões persistidas para não recriar a mesma vela."""
@@ -90,12 +100,19 @@ class IndicatorService:
 
     async def observe(self, symbol: str, now: int) -> list[Signal]:
         """Publica uma leitura por vela fechada e periodo."""
-        rows = await asyncio.wait_for(self.source.candles(symbol), REQUEST_TIMEOUT)
-        base = closed_candles(rows, now)
+        rows = await asyncio.wait_for(self.source.candles(symbol, count=64, period=300), REQUEST_TIMEOUT)
         spot = current_spot(rows, now)
         result = []
         for period in PERIODS:
-            candles = latest_contiguous(aggregate(base, period), period)
+            expected = now // period * period - period
+            if period != 300 and self.last_epoch.get((symbol, period)) == expected:
+                continue
+            period_rows = (
+                rows
+                if period == 300
+                else await asyncio.wait_for(self.source.candles(symbol, count=64, period=period), REQUEST_TIMEOUT)
+            )
+            candles = latest_contiguous(closed_candles(period_rows, now, period), period)
             if not candles:
                 continue
             latest = candles[-1]
@@ -133,6 +150,30 @@ class IndicatorService:
                 self.last_epoch[key] = latest.epoch
                 self.last_signals[key] = signal
                 result.append(signal)
+            if len(candles) >= LOOKBACK + 1 and latest.epoch + 2 * period >= now:
+                for state in ("piloto", "ativo"):
+                    version = self.trade_versions.get((symbol, period, state))
+                    candidate_key = (symbol, period, version)
+                    if not version or self.candidate_epochs.get(candidate_key) == latest.epoch:
+                        continue
+                    if version == (self.last_signals.get(key).model_version if key in self.last_signals else None):
+                        continue
+                    candidate = load(self.models / "candidates" / version, symbol, period)
+                    if candidate is None or candidate.version != version:
+                        continue
+                    probability = candidate.predict(candles)
+                    signal = Signal(
+                        symbol,
+                        period,
+                        latest.epoch,
+                        "CALL" if probability >= 0.5 else "PUT",
+                        probability,
+                        version,
+                        "ok",
+                        latest.close,
+                    )
+                    await self.sink.save_candidate(signal)
+                    self.candidate_epochs[candidate_key] = latest.epoch
             if spot is not None and key in self.last_signals:
                 live = live_observation(self.last_signals[key], spot, now)
                 if live is not None:
@@ -170,6 +211,8 @@ class IndicatorService:
                         )
                     )
         await self.sink.replace_models(versions)
+        await self.sink.promote_models()
+        self.trade_versions = await self.sink.trade_models()
         prioritized = sorted(self.symbols, key=lambda symbol: (load(self.models, symbol, 300) is None, symbol))
         for symbol in prioritized:
             try:
@@ -196,10 +239,10 @@ class IndicatorService:
             await asyncio.sleep(delay)
 
 
-async def run_indicator(dsn: str, models: Path, url: str, metrics_port: int = 9100) -> None:
+async def run_indicator(dsn: str, models: Path, url: str, metrics_port: int = 9100, variant: str = "base") -> None:
     """Inicializa adapters e encerra recursos ordenadamente."""
-    source = PublicDeriv(url)
-    sink = SignalStore(dsn)
+    source = PullbackSource(url)
+    sink = PullbackStore(dsn)
     metrics = Metrics()
     try:
         for attempt in range(1, START_ATTEMPTS + 1):
@@ -212,8 +255,8 @@ async def run_indicator(dsn: str, models: Path, url: str, metrics_port: int = 91
                 logger.warning("BANCO indisponivel (%d/%d): %s", attempt, START_ATTEMPTS, exc)
                 await asyncio.sleep(min(attempt * 2, 10))
         await metrics.start(port=metrics_port)
-        service = IndicatorService(source, sink, metrics, models)
-        service.restore(await sink.latest_signals())
+        service = PullbackService(source, sink, metrics, variant=variant)
+        service.restore(await sink.latest_setups())
         await service.run()
     finally:
         await metrics.close()

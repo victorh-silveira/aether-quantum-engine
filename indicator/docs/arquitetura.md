@@ -1,6 +1,6 @@
 # Arquitetura
 
-`PublicDeriv` descobre os instrumentos com `active_symbols` e busca candles M5 com `ticks_history` no WebSocket público. O domínio filtra `market=synthetic_index` pelas famílias Volatility `R_<número>` e `1HZ<número>V`, remove velas em formação e agrega blocos M15/H1 completos. `IndicatorService` gera uma leitura por vela fechada e período. O modelo em JSON é independente por `(symbol, period)`; ausência ou incompatibilidade resulta em `SEM SINAL`.
+`PublicDeriv` descobre os instrumentos com `active_symbols` e busca candles M5/M15/H1 diretamente com `ticks_history` no WebSocket público. O domínio filtra `market=synthetic_index` pelas famílias Volatility `R_<número>` e `1HZ<número>V` e remove velas em formação. A agregação M5 serve apenas para conferir barras M15/H1 na sobreposição. `IndicatorService` gera uma leitura por vela fechada e período e grava previsões de candidatas em tabela separada. O modelo em JSON é independente por `(symbol, period, version)`; ausência ou incompatibilidade resulta em `SEM SINAL`.
 
 `SignalStore` grava catálogo, leituras, direção observada após o próximo fechamento e o preço provisório da vela em andamento no PostgreSQL/Timescale. `Metrics` expõe estado atual ao Prometheus. Grafana usa PostgreSQL para histórico real e Prometheus para disponibilidade da coleta. O serviço indicador roda no Compose e não possui adapter de negociação nem autenticação.
 
