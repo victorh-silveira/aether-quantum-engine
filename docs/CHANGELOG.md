@@ -1,3 +1,9 @@
+## [4.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.5.0...v4.6.0) (2026-10-15)
+
+### Funcionalidades
+
+* **app:** promove par M5 com melhor EV de pullback para o app-run ([251a355](https://github.com/victorh-silveira/aether-quantum-engine/commit/251a355bd7edfdda739897fc34dc2ee37217a6a5))
+
 ## [4.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.6...v4.5.0) (2026-10-15)
 
 ### Funcionalidades
