@@ -47,7 +47,9 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             and real_by_version.get((symbol, period, signal.model_version), BrokerEvEvidence(0, ())).suspended
         ):
             continue
-        probability = evidence.posterior_win_probability if mode == "real" else 0.5
+        win_count = sum(value > 0 for value in evidence.returns)
+        prob_estimate = (win_count + 0.5) / (evidence.settled + 1.0) if evidence.settled > 0 else 0.5
+        probability = evidence.posterior_win_probability or prob_estimate if mode == "real" else prob_estimate
         call_probability = probability if signal.side == "CALL" else 1.0 - probability
         metrics = {
             "indicator_controls_execution": True,
@@ -167,11 +169,19 @@ async def select_period_orders(orch, m5_orders: list[tuple]) -> list[tuple]:
             float(metrics["indicator_broker_lower_95"])
             if metrics.get("indicator_broker_lower_95") is not None
             else -math.inf,
+            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5),
             float(metrics["indicator_prequote_ev"])
             if metrics.get("indicator_prequote_ev") is not None
             else float(metrics.get("indicator_quote_rate") or 0.0),
+            float(metrics.get("indicator_quote_rate") or 0.0),
         )
         if symbol not in chosen or score > chosen[symbol][0]:
             chosen[symbol] = (score, order)
-    maximum = int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 3))
-    return [item[1] for _, item in sorted(chosen.items())[: max(1, maximum)]]
+    multi_enabled = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))
+    maximum = (
+        int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 1))
+        if multi_enabled
+        else 1
+    )
+    ranked = [item[1] for item in sorted(chosen.values(), key=lambda item: item[0], reverse=True)]
+    return ranked[: max(1, maximum)]

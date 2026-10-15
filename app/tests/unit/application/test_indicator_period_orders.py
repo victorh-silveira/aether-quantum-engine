@@ -22,7 +22,13 @@ def _orch(mode="demo"):
             "indicator_consensus": {"enabled": True, "multi_period_trading": True},
             "trading": {"mode": mode},
             "risk_management": {"params": {"stake_min": 1.0}},
-            "orchestrator": {"execution": {"quote_probability_haircut": 0.0, "max_orders_per_cycle": 3}},
+            "orchestrator": {
+                "execution": {
+                    "quote_probability_haircut": 0.0,
+                    "max_orders_per_cycle": 3,
+                    "multi_symbol_orders": True,
+                }
+            },
         },
         state=SimpleNamespace(active_contracts={}, balance=1000.0),
         risk_manager=SimpleNamespace(contract_to_symbol={}),
@@ -256,3 +262,38 @@ async def test_execution_manager_logs_selected_setup_assets(monkeypatch):
     monkeypatch.setattr(execution_manager, "prepare_recovery_skip_counter", AsyncMock())
     assert await executor.execute_cluster({}) == 0
     assert any("1HZ25V:15m:PUT" in call.args for call in executor.logger.info.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_period_ranking_respects_single_order_when_multi_disabled(monkeypatch):
+    orch = _orch("real")
+    orch.config["orchestrator"]["execution"]["multi_symbol_orders"] = False
+    monkeypatch.setattr(
+        orders,
+        "period_candidates",
+        lambda orch, base: [
+            ("R_10", TradeDirection.PUT, {"indicator_broker_lower_95": 0.2}),
+            ("R_25", TradeDirection.CALL, {"indicator_broker_lower_95": 0.1}),
+        ],
+    )
+
+    async def quote(orch, order, semaphore):
+        order[2]["indicator_prequote_ev"] = 0.1
+        return order
+
+    monkeypatch.setattr(orders, "_prequote", quote)
+    monkeypatch.setattr(orders.time, "time", lambda: 900)
+    selected = await orders.select_period_orders(orch, [])
+    assert [(symbol, direction) for symbol, direction, _ in selected] == [
+        ("R_10", TradeDirection.PUT),
+    ]
+
+
+def test_period_candidates_uses_bayesian_probability_in_demo(monkeypatch):
+    orch = _orch("demo")
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    orch._indicator_broker_evidence[("R_10", 300, "pullback-1-v5")] = BrokerEvEvidence(10, (1.0, 1.0, 1.0, -1.0))
+    candidates = orders.period_candidates(orch, [])
+    assert len(candidates) == 1
+    metrics = candidates[0][2]
+    assert metrics["trade_score"] == pytest.approx(3.5 / 5.0)
