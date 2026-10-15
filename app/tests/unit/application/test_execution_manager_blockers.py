@@ -76,7 +76,8 @@ def test_pullback_empty_cycle_reports_observed_setup_reason():
     assert "R_25:5m=padrao_incompleto" in str(logger.info.call_args)
     assert "R_50:5m=ativo_excluido(baixo_edge)" in str(logger.info.call_args)
     assert "R_100:5m=sem_sinal_m5" in str(logger.info.call_args)
-    assert logger.info.call_args.args[-2:] == (2, 1)
+    assert "MOTIVO:" in logger.info.call_args.args[0]
+    assert (logger.info.call_args.args[3], logger.info.call_args.args[4]) == (2, 1)
     orch._indicator_signal_status = {}
     logger.reset_mock()
     log_execution_blockers(executor, {})

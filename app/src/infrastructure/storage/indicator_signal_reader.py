@@ -44,7 +44,7 @@ WITH selected AS (
            r.symbol, r.period_seconds, r.setup_version
     FROM pullback_registry r
     JOIN indicator_symbols a ON a.symbol=r.symbol AND a.active
-    WHERE r.state=$1 AND r.setup_version=$3 AND r.period_seconds=300
+    WHERE (r.state=$1 OR ($1='piloto' AND r.state='ativo')) AND r.setup_version=$3 AND r.period_seconds=300
     ORDER BY r.symbol, r.period_seconds, r.created_at DESC, r.setup_version DESC
 )
 SELECT s.symbol, s.period_seconds, o.candle_epoch, o.setup_version AS model_version,

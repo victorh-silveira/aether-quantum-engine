@@ -86,10 +86,10 @@ def _log_cycle_indicators(orch: Any) -> None:
     """Registra indicadores M5 detalhados do ativo ancora no ciclo."""
     if not bool(orch.config.get("pullback_strategy", {}).get("enabled", False)):
         return
-    anchor = str(orch.config.get("anchor") or "R_25")
-    stream = getattr(orch, "stream_handler", None)
+    stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
     if stream is None:
         return
+    anchor = str(orch.config.get("anchor") or "R_25")
     candles = getattr(stream, "micro_candles", {}).get(anchor) or []
     if len(candles) < 55:
         return

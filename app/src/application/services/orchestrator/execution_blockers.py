@@ -104,13 +104,28 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 details.append(f"{symbol}:5m={statuses[(symbol, 300)]}")
             else:
                 details.append(f"{symbol}:5m=sem_sinal_m5")
+        motivo_map = {
+            "padrao_incompleto": "aguardando_recuo_e_confirmacao",
+            "corpo_fora_faixa": "corpo_vela_fora_limite_atr",
+            "ativo_excluido(baixo_edge)": "baixo_ev_historico",
+            "sem_sinal_m5": "sem_sinal_nesta_vela",
+        }
+        reasons = [
+            motivo_map.get(
+                statuses.get((s, 300), "ativo_excluido(baixo_edge)" if s in excluded else "sem_sinal_m5"),
+                str(statuses.get((s, 300), "sem_ordem")),
+            )
+            for s in symbols
+        ]
+        motivo_str = ", ".join(dict.fromkeys(reasons)) or "sem_ordem"
         active = sum(reason == "setup_confirmado" for reason in m5_statuses.values())
         executor.logger.info(
-            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d",
+            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d | MOTIVO: %s",
             cid,
             " ".join(details) or "sem_ativo_operacional",
             len(m5_statuses),
             active,
+            motivo_str,
         )
         return
     training: list[str] = []
