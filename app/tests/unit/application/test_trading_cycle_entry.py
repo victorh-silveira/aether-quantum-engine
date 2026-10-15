@@ -6,6 +6,7 @@ import pytest
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.application.services.orchestrator.trading_cycle_entry import (
     _execute_inference_cluster_cycle,
+    _log_cycle_indicators,
     acquire_trading_cycle_lock,
     trading_cycle_entry_allowed,
 )
@@ -187,3 +188,57 @@ def test_trading_cycle_entry_blocked_by_active_cooldown(orch_ready):
     orch = orch_ready
     orch._cooldown_until = 9999999999.0
     assert trading_cycle_entry_allowed(orch) is False
+
+
+def test_log_cycle_indicators_coverage():
+    from src.domain.models.market_data import Candle
+
+    logger = MagicMock()
+    orch = SimpleNamespace(config={}, logger=logger)
+    _log_cycle_indicators(orch)
+    assert logger.info.call_count == 0
+
+    orch.config = {"pullback_strategy": {"enabled": True}, "anchor": "R_25"}
+    _log_cycle_indicators(orch)
+    assert logger.info.call_count == 0
+
+    stream = SimpleNamespace(micro_candles={"R_25": []})
+    orch.stream_handler = stream
+    _log_cycle_indicators(orch)
+    assert logger.info.call_count == 0
+
+    from datetime import datetime
+
+    candles_up = [
+        Candle(
+            symbol="R_25",
+            open=100.0 + i * 0.5,
+            high=101.0 + i * 0.5,
+            low=99.0 + i * 0.5,
+            close=100.5 + i * 0.5,
+            time=datetime.fromtimestamp(i * 300),
+            epoch=i * 300,
+        )
+        for i in range(60)
+    ]
+    stream.micro_candles["R_25"] = candles_up
+    _log_cycle_indicators(orch)
+    assert logger.info.call_count == 1
+    assert logger.info.call_args[0][-1] == "ALTA"
+    assert "INDICADORES" in logger.info.call_args[0][0]
+
+    candles_down = [
+        Candle(
+            symbol="R_25",
+            open=200.0 - i * 0.5,
+            high=201.0 - i * 0.5,
+            low=199.0 - i * 0.5,
+            close=199.5 - i * 0.5,
+            time=datetime.fromtimestamp(i * 300),
+            epoch=i * 300,
+        )
+        for i in range(60)
+    ]
+    stream.micro_candles["R_25"] = candles_down
+    _log_cycle_indicators(orch)
+    assert logger.info.call_args[0][-1] == "BAIXA"

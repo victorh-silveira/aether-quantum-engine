@@ -131,16 +131,18 @@ def format_execution_ticket_line(
     cap: float = 0.0,
     recovery_infeasible: bool = False,
     payout_rate: float | None = None,
+    motivo: str | None = None,
 ) -> str:
     """Boleta [EXEC] em uma linha."""
     _ = cycle_id
     infeas = " | RECOVERY_INFEASIBLE" if recovery_infeasible else ""
+    motivo_token = f" | MOTIVO: {motivo}" if motivo else ""
     rate = (float(payout) / float(stake)) - 1.0 if payout_rate is None and float(stake) > 0.0 else payout_rate
     payout_token = f" | PAY: {float(payout):.2f}"
     if rate is not None and float(rate) > 0.0:
         payout_token += f" | RATE: {float(rate):.4f} | BE: {1.0 / (1.0 + float(rate)):.4f}"
     return (
-        f"[EXEC] || {direction} [{symbol}] || STAKE: {float(stake):.2f} ({mode_tag}){infeas} | "
+        f"[EXEC] || {direction} [{symbol}] || STAKE: {float(stake):.2f} ({mode_tag}){infeas}{motivo_token} | "
         f"PEND: {float(pending):.2f} | LIN: {int(linear)} | CAP: {float(cap):.2f} | "
         f"BANCA: {float(bankroll):.2f} | CID: {int(contract_id)}{payout_token}"
     )

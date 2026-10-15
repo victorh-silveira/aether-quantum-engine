@@ -98,6 +98,11 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             linear=int(audit.get("linear", 0)),
             cap=float(audit.get("cap", 0.0)),
             recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
+            motivo=(
+                "setup_confirmado"
+                if str(metrics_dict.get("indicator_model_version", "")).startswith("pullback-1-")
+                else None
+            ),
         ),
     )
     store_contract_audit(

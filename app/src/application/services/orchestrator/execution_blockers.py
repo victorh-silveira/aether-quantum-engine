@@ -88,15 +88,25 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
     if executor.orch.config.get("pullback_strategy", {}).get("enabled", False):
         statuses = getattr(executor.orch, "_indicator_signal_status", {})
         symbols = executor._trade_symbols()
-        details = [
-            f"{symbol}:{period // 60}m={statuses.get((symbol, period), 'aguardando_leitura')}"
-            for symbol in symbols
-            for period in (300,)
-        ]
         m5_statuses = {symbol: reason for (symbol, period), reason in statuses.items() if period == 300}
+        if not m5_statuses and symbols:
+            return
+        excluded = set(
+            executor.orch.config.get("pullback_strategy", {}).get("excluded_symbols")
+            or executor.orch.config.get("strategy", {}).get("excluded_symbols")
+            or []
+        )
+        details = []
+        for symbol in symbols:
+            if symbol in excluded:
+                details.append(f"{symbol}:5m=ativo_excluido(baixo_edge)")
+            elif (symbol, 300) in statuses:
+                details.append(f"{symbol}:5m={statuses[(symbol, 300)]}")
+            else:
+                details.append(f"{symbol}:5m=sem_sinal_m5")
         active = sum(reason == "setup_confirmado" for reason in m5_statuses.values())
         executor.logger.info(
-            "[%s] EXEC_EMPTY || setup sem ordem | %s | leituras=%d setups=%d",
+            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d",
             cid,
             " ".join(details) or "sem_ativo_operacional",
             len(m5_statuses),

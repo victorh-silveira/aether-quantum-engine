@@ -67,14 +67,20 @@ def test_pullback_empty_cycle_reports_observed_setup_reason():
 
     logger = MagicMock()
     orch = SimpleNamespace(
-        config={"pullback_strategy": {"enabled": True}},
+        config={"pullback_strategy": {"enabled": True, "excluded_symbols": ["R_50"]}},
         _active_cycle_id=1,
         _indicator_signal_status={("R_25", 300): "padrao_incompleto", ("R_10", 300): "setup_confirmado"},
     )
-    executor = SimpleNamespace(orch=orch, logger=logger, _trade_symbols=lambda: ["R_25"])
+    executor = SimpleNamespace(orch=orch, logger=logger, _trade_symbols=lambda: ["R_25", "R_50", "R_100"])
     log_execution_blockers(executor, {})
     assert "R_25:5m=padrao_incompleto" in str(logger.info.call_args)
+    assert "R_50:5m=ativo_excluido(baixo_edge)" in str(logger.info.call_args)
+    assert "R_100:5m=sem_sinal_m5" in str(logger.info.call_args)
     assert logger.info.call_args.args[-2:] == (2, 1)
+    orch._indicator_signal_status = {}
+    logger.reset_mock()
+    log_execution_blockers(executor, {})
+    assert logger.info.call_count == 0
     executor._trade_symbols = lambda: []
     log_execution_blockers(executor, {})
     assert "sem_ativo_operacional" in str(logger.info.call_args)

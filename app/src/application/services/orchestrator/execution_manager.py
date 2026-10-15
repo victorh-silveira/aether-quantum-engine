@@ -168,7 +168,9 @@ class ExecutionManager:
                     f"{symbol}:{int(metrics.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
                     for symbol, direction, metrics in orders
                 )
-                self.logger.info("[%s] SETUP || ordens selecionadas | %s", cid, selected)
+                self.logger.info(
+                    "[%s] EXEC_SETUP || ordens selecionadas | %s | MOTIVO: setup_confirmado", cid, selected
+                )
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(

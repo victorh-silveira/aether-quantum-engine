@@ -82,6 +82,51 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
     return True
 
 
+def _log_cycle_indicators(orch: Any) -> None:
+    """Registra indicadores M5 detalhados do ativo ancora no ciclo."""
+    if not bool(orch.config.get("pullback_strategy", {}).get("enabled", False)):
+        return
+    anchor = str(orch.config.get("anchor") or "R_25")
+    stream = getattr(orch, "stream_handler", None)
+    if stream is None:
+        return
+    candles = getattr(stream, "micro_candles", {}).get(anchor) or []
+    if len(candles) < 55:
+        return
+    bars = candles[-128:] if len(candles) >= 128 else candles
+    closes = [b.close for b in bars]
+    alpha20, alpha50 = 2.0 / 21.0, 2.0 / 51.0
+    fast = [closes[0]]
+    for val in closes[1:]:
+        fast.append(alpha20 * val + (1.0 - alpha20) * fast[-1])
+    slow = [closes[0]]
+    for val in closes[1:]:
+        slow.append(alpha50 * val + (1.0 - alpha50) * slow[-1])
+    ranges = [
+        max(curr.high - curr.low, abs(curr.high - prev.close), abs(curr.low - prev.close))
+        for prev, curr in zip(bars[-15:-1], bars[-14:], strict=False)
+    ]
+    atr = sum(ranges) / 14.0 if ranges else 1.0
+    pullback, confirmation = bars[-2:]
+    body = abs(confirmation.close - confirmation.open)
+    recuo = abs(pullback.low - fast[-2]) / atr if fast[-2] > slow[-2] else abs(pullback.high - fast[-2]) / atr
+    trend = "ALTA" if fast[-2] > slow[-2] else "BAIXA"
+    cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
+    orch.logger.info(
+        "[%s] INDICADORES [%s] || CLOSE: %.2f | EMA20: %.2f | EMA50: %.2f | "
+        "ATR14: %.2f | RECUO: %.2f ATR | CORPO: %.2f ATR | TENDENCIA: %s",
+        cid,
+        anchor,
+        confirmation.close,
+        fast[-2],
+        slow[-2],
+        atr,
+        recuo,
+        body / atr,
+        trend,
+    )
+
+
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
     setup_enabled = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
@@ -101,6 +146,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     ):
         await asyncio.sleep(2)
         await refresh_indicator_consensus(orch)
+    _log_cycle_indicators(orch)
     if (
         int(orch._cycle_seq)
         % max(
