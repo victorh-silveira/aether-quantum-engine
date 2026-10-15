@@ -230,6 +230,15 @@ def _signature_open_blocks_cycle(orch: Any) -> bool:
         return False
     tol = _signature_open_tolerance_seconds(orch)
     if at_m5_open_window(orch, tolerance=tol):
+        if orch.config.get("pullback_strategy", {}).get("enabled", False):
+            cur_b = int(time.time() // 300) * 300
+            if getattr(orch, "_last_m5_cycle_boundary", None) == cur_b:
+                wait = max(0.5, float(seconds_until_next_signature_boundary(orch)))
+                _log_awaiting_m5_open(orch, wait)
+                deadline = time.time() + wait
+                prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
+                orch._cooldown_until = max(prev, deadline)
+                return True
         return False
     wait = float(seconds_until_next_signature_boundary(orch))
     wait = max(0.5, wait)

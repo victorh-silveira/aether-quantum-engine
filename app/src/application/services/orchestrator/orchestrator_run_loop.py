@@ -128,7 +128,10 @@ def align_exec_empty_recovery_signature_cooldown(orch: Any) -> float:
         empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 45))
     except (TypeError, ValueError):
         empty_cap = 45.0
-    delay = min(max(delay, 1.0), max(15.0, empty_cap))
+    if bool(orch.config.get("pullback_strategy", {}).get("enabled", False)):
+        delay = max(5.0, delay)
+    else:
+        delay = min(max(delay, 1.0), max(15.0, empty_cap))
     orch._cooldown_until = time.time() + delay
     orch._post_settlement_incomplete_streak = 0
     return delay

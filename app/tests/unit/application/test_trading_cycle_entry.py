@@ -242,3 +242,54 @@ def test_log_cycle_indicators_coverage():
     stream.micro_candles["R_25"] = candles_down
     _log_cycle_indicators(orch)
     assert logger.info.call_args[0][-1] == "BAIXA"
+
+
+def test_signature_open_blocks_duplicate_pullback_boundary(orch_ready):
+    from src.application.services.orchestrator.trading_cycle_entry_guards import _signature_open_blocks_cycle
+
+    orch = orch_ready
+    orch.config["pullback_strategy"] = {"enabled": True}
+    orch.config["orchestrator"] = {"require_signature_boundary": True}
+    now_ts = 1700000010.0
+    cur_b = int(now_ts // 300) * 300
+    orch._last_m5_cycle_boundary = cur_b
+    with (
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=now_ts),
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.at_m5_open_window", return_value=True),
+    ):
+        assert _signature_open_blocks_cycle(orch) is True
+
+
+@pytest.mark.asyncio
+async def test_tick_interval_cycle_if_due_respects_last_end():
+    from src.application.services.orchestrator import Orchestrator
+
+    with patch.object(Orchestrator, "__init__", lambda self, *a, **k: None):
+        orch = Orchestrator.__new__(Orchestrator)
+        orch.config = {"orchestrator": {"cycle_interval_seconds": 300}}
+        orch._last_cluster_cycle_end = 1000.0
+        orch._run_trading_cycle_if_ready = AsyncMock()
+        with patch("src.application.services.orchestrator.time.time", return_value=1050.0):
+            await orch._tick_interval_cycle_if_due()
+        orch._run_trading_cycle_if_ready.assert_not_called()
+
+
+def test_align_exec_empty_recovery_pullback_delay():
+    from src.application.services.orchestrator.orchestrator_run_loop import (
+        align_exec_empty_recovery_signature_cooldown,
+    )
+
+    orch = MagicMock()
+    orch._last_cycle_cluster_executed = False
+    orch.risk_manager.pending_loss_total.return_value = 100.0
+    orch.config = {"pullback_strategy": {"enabled": True}, "orchestrator": {"exec_empty_retry_seconds": 15}}
+    with (
+        patch(
+            "src.application.services.orchestrator.orchestrator_run_loop.seconds_until_next_signature_boundary",
+            return_value=250.0,
+        ),
+        patch("src.application.services.orchestrator.orchestrator_run_loop.time.time", return_value=1000.0),
+    ):
+        delay = align_exec_empty_recovery_signature_cooldown(orch)
+        assert delay == 250.0
+        assert orch._cooldown_until == 1250.0

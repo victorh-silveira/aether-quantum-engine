@@ -48,7 +48,7 @@ def test_sem_sinal_on_missing_forming_stale_or_incomplete():
     assert evaluate(shifted, 300, MIN_BARS * 300).reason == "padrao_incompleto"
     broken = list(bars)
     last = broken[-1]
-    broken[-1] = Candle(last.epoch, last.open, last.high, last.low, last.open + 0.01)
+    broken[-1] = Candle(last.epoch, last.open, last.high, last.low, last.open + 0.001)
     assert evaluate(broken, 300, MIN_BARS * 300).reason == "corpo_fora_faixa"
     flat = [Candle(bar.epoch, 100, 100, 100, 100) for bar in bars]
     assert evaluate(flat, 300, MIN_BARS * 300).reason == "atr_invalido"

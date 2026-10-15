@@ -2,7 +2,7 @@
   "anchor": "R_25",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-86c2df9cf4d6",
+    "version": "pullback-1-12e8797327d5",
     "variant": "improved",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 30,

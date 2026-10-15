@@ -167,6 +167,10 @@ class Orchestrator:
         cycle_iv = int(self.config.get("orchestrator", {}).get("cycle_interval_seconds") or 0)
         if cycle_iv <= 0:
             return  # pragma: no cover
+        now = time.time()
+        last_end = float(getattr(self, "_last_cluster_cycle_end", 0.0) or 0.0)
+        if last_end > 0.0 and now - last_end < cycle_iv:
+            return
         if post_settlement_cycle_pending(self):
             return
         if self.stream.is_synchronized and trading_cycle_entry_allowed(self):

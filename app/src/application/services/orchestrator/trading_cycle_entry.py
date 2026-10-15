@@ -212,7 +212,9 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                         except (TypeError, ValueError):
                             empty_cap = 15.0
                         setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
-                        if setup_active and time.time() % 300 >= 30:
+                        if setup_active:
+                            orch._last_m5_cycle_boundary = int(time.time() // 300) * 300
+                            orch._last_processed_epoch = orch._last_epoch
                             delay = max(5.0, boundary_wait)
                         else:
                             delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))

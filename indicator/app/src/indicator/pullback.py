@@ -8,7 +8,7 @@ from math import isfinite
 
 from indicator.domain import Candle
 
-SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.2_1.5:confirmacao1:m5"
+SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"
 VERSION = "pullback-1-" + sha256(SPEC.encode()).hexdigest()[:12]
 MIN_BARS = 128
 VARIANTS = ("base", "ema50_slope", "countertrend_retrace", "entry_distance", "improved")
@@ -19,7 +19,7 @@ def version_for_variant(variant: str = "base") -> str:
     if variant == "base":
         return VERSION
     if variant == "improved":
-        spec = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.2_1.1:confirmacao1:countertrend:ema50slope:m5"
+        spec = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.1:confirmacao1:countertrend:ema50slope:m5"
         return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
     spec = f"{SPEC}:{variant}"
     return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
@@ -82,7 +82,7 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
     body = abs(confirmation.close - confirmation.open)
     max_body = 1.1 * atr if variant == "improved" else 1.5 * atr
-    if not 0.2 * atr <= body <= max_body:
+    if not 0.03 * atr <= body <= max_body:
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)
     trend_up = fast[-2] > slow[-2] and fast[-5] < fast[-4] < fast[-3] < fast[-2]
     trend_down = fast[-2] < slow[-2] and fast[-5] > fast[-4] > fast[-3] > fast[-2]
