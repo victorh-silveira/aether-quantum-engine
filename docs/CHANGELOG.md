@@ -1,3 +1,9 @@
+## [4.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.6...v4.5.0) (2026-10-15)
+
+### Funcionalidades
+
+* **orchestrator:** detalha indicadores e motivos de exec e skip no ciclo ([daeed97](https://github.com/victorh-silveira/aether-quantum-engine/commit/daeed974a0f782100ad9efd6b2a02183318c82a6))
+
 ## [4.4.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.5...v4.4.6) (2026-10-15)
 
 ### Correcoes de Bug
