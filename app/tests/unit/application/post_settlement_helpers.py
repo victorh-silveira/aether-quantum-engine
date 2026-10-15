@@ -35,7 +35,7 @@ def strong_cycle_decisions() -> dict:
 async def _yield_to_event_loop() -> None:
     loop = asyncio.get_running_loop()
     done = loop.create_future()
-    done.set_result(None)
+    loop.call_soon(done.set_result, None)
     await done
 
 

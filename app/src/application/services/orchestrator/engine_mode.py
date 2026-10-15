@@ -2,6 +2,7 @@
 
 from src.application.services.deep_learning.dl_horizon import resolve_label_horizon_bars
 from src.application.services.deep_learning.dl_params_timeframe import resolve_dl_granularity
+from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 
 
 ENGINE_MODE_TRAIN = "train"
@@ -32,6 +33,15 @@ def apply_engine_mode(config: dict, mode: str) -> dict:
         if not isinstance(dl, dict):
             dl = {}
             config["deep_learning"] = dl
+        train_symbols = dl.get("train_symbols")
+        if isinstance(train_symbols, list) and train_symbols:
+            symbols = resolve_dl_train_symbols(config)
+            dl["train_symbols"] = symbols
+            config["symbols"] = symbols
+            config["anchor"] = symbols[0]
+            indicator_cfg = config.get("indicator_consensus")
+            if isinstance(indicator_cfg, dict):
+                indicator_cfg["auto_symbols"] = False
         data = config.get("data_handler") if isinstance(config.get("data_handler"), dict) else {}
         risk = config.get("risk_management") if isinstance(config.get("risk_management"), dict) else {}
         params = risk.get("params") if isinstance(risk.get("params"), dict) else {}

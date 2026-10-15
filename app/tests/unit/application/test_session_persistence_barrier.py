@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -174,10 +175,17 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
     orch.risk_manager.active_contract_ids = [320]
     orch.risk_manager.contract_to_symbol[320] = "R_10"
     orch.risk_manager.begin_cluster(1)
-    with patch_instant_post_settlement_poll():
+    with (
+        patch_instant_post_settlement_poll(),
+        patch(
+            "src.application.services.orchestrator.post_settlement_cycle._attempt_post_settlement_trading_cycle",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
         await process_contract_settlement(orch, loss_data)
         if orch._post_settlement_task is not None:
-            await orch._post_settlement_task
+            await asyncio.wait_for(orch._post_settlement_task, timeout=2.0)
     assert orch.risk_manager.consecutive_losses_linear == 1
     assert orch.risk_manager.pending_loss["R_10"] == pytest.approx(10.0)
 
@@ -200,7 +208,7 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, win_data)
         if orch._post_settlement_task is not None:
-            await orch._post_settlement_task
+            await asyncio.wait_for(orch._post_settlement_task, timeout=2.0)
     barrier_mock.assert_awaited_once()
     assert orch.risk_manager.consecutive_losses_linear == 0
     assert session_persistence_write_active(orch) is False

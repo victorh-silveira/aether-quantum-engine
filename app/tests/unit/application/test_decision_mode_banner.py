@@ -57,6 +57,12 @@ def test_emit_decision_engine_banner_inactive():
     assert "INATIVO" in logger.debug.call_args.args[0]
 
 
+def test_emit_decision_engine_banner_pullback():
+    logger = MagicMock()
+    emit_decision_engine_banner(logger, {"pullback_strategy": {"enabled": True}}, decision_mode="pullback")
+    assert "SETUP pullback" in logger.info.call_args.args[0]
+
+
 def test_granularity_label_minutes_and_hours():
     assert granularity_label(60) == "M1"
     assert granularity_label(120) == "M2"

@@ -10,6 +10,7 @@ from typing import Any
 import redis.asyncio as aioredis
 
 from src.application.services.orchestrator.engine_supervisor import shield_critical
+from src.application.services.orchestrator.settlement_dedupe import settlement_seen
 from src.application.services.orchestrator.settlement_ws_queries import fetch_profit_table
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed, log_settle_warning_if_changed
 from src.presentation.terminal.settle_log import (
@@ -36,6 +37,7 @@ def cancel_settlement_queue_fast(orch: Any) -> None:
             queue.get_nowait()
             queue.task_done()
     orch._settlement_worker_task = None
+    orch._settlement_queued_ids = set()
 
 
 def _enqueued_ids(orch: Any) -> set[int]:
@@ -129,8 +131,8 @@ async def _confirm_queued_item(orch: Any, client: Any, item_str: str) -> None:
         settlement_payload_from_profit_row,
     )
     from src.application.services.orchestrator.settlement_logic import (  # noqa: PLC0415
-        _process_confirmed_settlement,
         contract_payload_is_settled,
+        process_contract_settlement,
         process_late_settlement_from_payload,
     )
 
@@ -141,13 +143,21 @@ async def _confirm_queued_item(orch: Any, client: Any, item_str: str) -> None:
         await client.zrem(REDIS_SETTLEMENT_QUEUE_KEY, item_str)
         return
     c_id = int(c_id)
+    risk = orch.risk_manager
+    owned = (
+        c_id in orch.state.active_contracts
+        or c_id in risk.active_contract_ids
+        or c_id in risk.contract_to_symbol
+        or c_id in settlement_seen(orch)
+    )
+    if not owned:
+        return
     confirmed = False
     try:
         confirmed_poc = await fetch_open_contract(orch.ws, c_id, timeout=10.0, subscribe=False)
         if confirmed_poc and contract_payload_is_settled(confirmed_poc):
-            contract = await orch.state.finalize_contract(c_id)
-            if contract:
-                await _process_confirmed_settlement(orch, {"proposal_open_contract": confirmed_poc}, contract)
+            if c_id in orch.state.active_contracts:
+                await process_contract_settlement(orch, {"proposal_open_contract": confirmed_poc})
             else:
                 await process_late_settlement_from_payload(orch, confirmed_poc)
             confirmed = True
@@ -157,9 +167,8 @@ async def _confirm_queued_item(orch: Any, client: Any, item_str: str) -> None:
             if row:
                 confirmed_payload = settlement_payload_from_profit_row(c_id, row)
                 poc = confirmed_payload["proposal_open_contract"]
-                contract = await orch.state.finalize_contract(c_id)
-                if contract:
-                    await _process_confirmed_settlement(orch, confirmed_payload, contract)
+                if c_id in orch.state.active_contracts:
+                    await process_contract_settlement(orch, confirmed_payload)
                 else:
                     await process_late_settlement_from_payload(orch, poc)
                 confirmed = True

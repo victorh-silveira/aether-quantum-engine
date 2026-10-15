@@ -1,10 +1,11 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, apply_engine_mode
 from src.application.services.orchestrator.trading_cycle_entry import (
+    _execute_inference_cluster_cycle,
     acquire_trading_cycle_lock,
     trading_cycle_entry_allowed,
 )
@@ -12,6 +13,36 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import _st
 
 
 GUARDS_MODULE = "src.application.services.orchestrator.trading_cycle_entry_guards"
+
+
+@pytest.mark.asyncio
+async def test_pullback_aguarda_publicacao_m5_antes_de_exec_empty():
+    orch = SimpleNamespace(
+        config={"pullback_strategy": {"enabled": True}, "infra": {"correlation": {"correlation_refresh_cycles": 5}}},
+        logger=MagicMock(),
+        _active_cycle_id=1,
+        _cycle_seq=1,
+        symbols=["R_25"],
+        _indicator_signal_status={},
+        executor=SimpleNamespace(execute_cluster=AsyncMock(return_value=0)),
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.refresh_indicator_consensus",
+            new_callable=AsyncMock,
+        ) as refresh,
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.asyncio.sleep", new_callable=AsyncMock
+        ) as wait,
+        patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=301),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.session_persistence_blocks_trading_cycle",
+            return_value=False,
+        ),
+    ):
+        assert await _execute_inference_cluster_cycle(orch) is False
+    assert refresh.await_count == 2
+    wait.assert_awaited_once_with(2)
 
 
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
@@ -33,6 +64,14 @@ def test_trading_cycle_entry_waits_for_settlement(orch_ready):
     assert trading_cycle_entry_allowed(orch) is False
     assert orch._settlement_wait_logged is True
     orch.logger.info.assert_not_called()
+
+
+def test_pullback_cycle_can_consider_other_asset_with_open_contract(orch_ready):
+    orch = orch_ready
+    orch.config["pullback_strategy"] = {"enabled": True}
+    orch.state.active_contracts = {1: object()}
+    orch.config.setdefault("orchestrator", {})["require_signature_boundary"] = False
+    assert trading_cycle_entry_allowed(orch) is True
 
 
 def test_trading_cycle_entry_allowed(orch_ready):

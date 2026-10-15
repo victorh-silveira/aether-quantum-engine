@@ -26,3 +26,36 @@ def test_resolve_dl_train_symbols_honors_explicit_list():
 def test_resolve_dl_train_symbols_empty_list_skips_training():
     config = {"anchor": ANCHOR, "symbols": [ANCHOR, ALT_SYMBOL], "deep_learning": {"train_symbols": []}}
     assert resolve_dl_train_symbols(config) == []
+
+
+def test_explicit_training_symbols_include_approved_runtime_discovery(tmp_path, monkeypatch):
+    import json
+
+    from src.application.services.orchestrator import config_symbols
+
+    models = tmp_path / "indicator/data/indicator-models"
+    models.mkdir(parents=True)
+    (models / "R_50_300.json").write_text(
+        json.dumps(
+            {
+                "symbol": "R_50",
+                "period": 300,
+                "status": "aprovado",
+                "validation_accuracy": 0.55,
+                "baseline_accuracy": 0.5,
+                "validation_brier": 0.2,
+                "baseline_brier": 0.25,
+            }
+        )
+    )
+    monkeypatch.setattr(config_symbols, "_REPOSITORY_ROOT", tmp_path)
+    config = {
+        "anchor": "R_25",
+        "symbols": ["R_25"],
+        "deep_learning": {"train_symbols": ["R_10", "R_25", "R_10"]},
+        "indicator_consensus": {"enabled": True, "auto_symbols": True},
+    }
+    assert resolve_dl_train_symbols(config) == ["R_10", "R_25", "R_50"]
+    assert normalize_symbols_and_anchor(config) == ("R_25", ["R_25", "R_50"])
+    config["pullback_strategy"] = {"enabled": True}
+    assert normalize_symbols_and_anchor(config) == ("R_25", ["R_25"])

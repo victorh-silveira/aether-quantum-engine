@@ -9,6 +9,8 @@ from typing import Any
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.engine_supervisor import spawn_background
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
+from src.application.services.orchestrator.settlement_dedupe import settlement_seen
+from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
 from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
 )
@@ -166,13 +168,33 @@ async def start_settlement_worker(orch: Any) -> None:
 
 async def enqueue_contract_settlement(orch: Any, data: dict) -> None:
     """Enfileira payload de liquidacao para processamento fora do hot path."""
+    poc = data.get("proposal_open_contract") if isinstance(data, dict) else None
+    if not isinstance(poc, dict) or not contract_payload_is_settled(poc):
+        return
+    try:
+        c_id = int(poc["contract_id"])
+    except (KeyError, TypeError, ValueError):
+        return
+    if c_id in settlement_seen(orch):
+        return
     queue = getattr(orch, "_settlement_queue", None)
     if queue is None:
         await process_contract_settlement(orch, data)
         return
+    queued = getattr(orch, "_settlement_queued_ids", None)
+    if not isinstance(queued, set):
+        queued = set()
+        orch._settlement_queued_ids = queued
+    if c_id in queued:
+        return
+    queued.add(c_id)
     if float(getattr(orch, "_settlement_pending_since", 0.0) or 0.0) <= 0.0:
         orch._settlement_pending_since = time.monotonic()
-    await queue.put(data)
+    try:
+        await queue.put(data)
+    except BaseException:
+        queued.discard(c_id)
+        raise
 
 
 async def _maybe_run_orphan_cleaner(orch: Any) -> None:
@@ -207,6 +229,9 @@ async def _settlement_worker_loop(orch: Any) -> None:
         try:
             await process_contract_settlement(orch, payload)
         finally:
+            poc = payload.get("proposal_open_contract") if isinstance(payload, dict) else None
+            if isinstance(poc, dict) and poc.get("contract_id") is not None:
+                getattr(orch, "_settlement_queued_ids", set()).discard(int(poc["contract_id"]))
             queue.task_done()
             if queue.empty() and not _known_contract_ids(orch):
                 orch._settlement_pending_since = 0.0

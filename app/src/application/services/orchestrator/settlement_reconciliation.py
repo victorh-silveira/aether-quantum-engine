@@ -113,7 +113,7 @@ async def _settle_from_profit_burst(
         if not isinstance(poc, dict):
             continue
         try:
-            if await orch.state.finalize_contract(c_id):
+            if c_id in orch.state.active_contracts:
                 await process_contract_settlement(orch, payload)
             else:
                 await process_late_settlement_from_payload(orch, poc)

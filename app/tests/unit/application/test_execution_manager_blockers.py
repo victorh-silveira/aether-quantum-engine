@@ -35,6 +35,13 @@ def test_candidate_block_reason_from_skip_reason_only():
     assert _candidate_block_reason({"skip_reason": "exhaustion_put"}) == "exhaustion_put"
     assert _candidate_block_reason({"deploy_ok": False}) == "deploy"
     assert _candidate_block_reason({"execution_candidate_ready": True}) == "ready_not_selected"
+    assert (
+        _candidate_block_reason(
+            {"execution_candidate_ready": True, "indicator_selection_reason": "indicator_no_approved_m5"}
+        )
+        == "indicator_no_approved_m5"
+    )
+    assert _candidate_block_reason({"indicator_selection_reason": "indicator_selected"}) is None
     assert _candidate_block_reason({"signal_status": "SIGNAL_SUSPENDED"}) == "SIGNAL_SUSPENDED"
     assert _candidate_block_reason({"skip_reason": "not_a_gate"}) is None
 
@@ -51,6 +58,26 @@ def test_log_execution_blockers_force_trade_early_return():
     executor = SimpleNamespace(orch=orch)
     # deve retornar None imediatamente sem erro
     assert log_execution_blockers(executor, {}) is None
+
+
+def test_pullback_empty_cycle_reports_observed_setup_reason():
+    from types import SimpleNamespace
+
+    from src.application.services.orchestrator.execution_blockers import log_execution_blockers
+
+    logger = MagicMock()
+    orch = SimpleNamespace(
+        config={"pullback_strategy": {"enabled": True}},
+        _active_cycle_id=1,
+        _indicator_signal_status={("R_25", 300): "padrao_incompleto", ("R_10", 300): "setup_confirmado"},
+    )
+    executor = SimpleNamespace(orch=orch, logger=logger, _trade_symbols=lambda: ["R_25"])
+    log_execution_blockers(executor, {})
+    assert "R_25:5m=padrao_incompleto" in str(logger.info.call_args)
+    assert logger.info.call_args.args[-2:] == (2, 1)
+    executor._trade_symbols = lambda: []
+    log_execution_blockers(executor, {})
+    assert "sem_ativo_operacional" in str(logger.info.call_args)
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):

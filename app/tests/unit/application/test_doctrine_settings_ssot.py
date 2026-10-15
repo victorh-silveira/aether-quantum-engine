@@ -43,6 +43,8 @@ def test_production_checkpoint_policy():
     from src.domain.config_knobs import load_settings_json
 
     settings = load_settings_json()
+    assert settings["indicator_consensus"]["broker_ev_promotion"] is True
+    assert "allow_negative_ev" not in settings["indicator_consensus"]
     dl = settings["deep_learning"]
     quality = dl["training_quality"]
     assert "deploy_gate" not in dl
@@ -196,7 +198,9 @@ def test_production_loss_classifier_flip_floor_ssot():
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 300
     assert bool(orch["require_signature_boundary"]) is True
-    assert settings.get("anchor") == "1HZ75V"
+    assert settings.get("anchor") == "R_25"
+    assert settings.get("symbols") == ["R_25"]
+    assert dl.get("train_symbols") == ["R_10", "R_25"]
     kelly = settings["risk_management"]["kelly"]
     assert float(kelly["default_payout"]) == pytest.approx(0.85)
     assert float(kelly["max_stake_pct"]) == pytest.approx(0.05)

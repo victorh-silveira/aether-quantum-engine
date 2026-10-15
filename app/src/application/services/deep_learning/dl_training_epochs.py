@@ -231,17 +231,15 @@ def fit_training_epochs(
         )
         best_val_loss, best_val_acc, best_sharp_acc, best_sharp_loss = ck_res[:4]
         best_sharp_value, improved_state, sharp_state = ck_res[4:7]
+        if sharp_state is not None:
+            best_sharp_state = sharp_state
         if improved_state is not None:
             best_state, patience_counter = improved_state, 0
-        elif sharp_state is not None:
-            patience_counter = 0
         elif epochs_ran >= min_ep:
             patience_counter += 1
             eff = patience
             if patience > 0 and patience_counter >= eff:
                 break
-        if sharp_state is not None:
-            best_sharp_state = sharp_state
         scheduler.step(val_loss) if scheduler_mode == "reduce_on_plateau" else scheduler.step()
     chosen = prefer_sharp_checkpoint(
         best_state,

@@ -10,6 +10,7 @@ _TECHNICAL_REASONS = frozenset(
         "training",
         "data",
         "deploy",
+        "model_unavailable",
         "predict_error",
         "neg_edge",
         "call_top_rejection",
@@ -69,6 +70,9 @@ def _candidate_block_reason(metrics: dict) -> str | None:
             return token
     if metrics.get("deploy_ok") is False:
         return "deploy"
+    indicator_reason = metrics.get("indicator_selection_reason")
+    if indicator_reason and indicator_reason != "indicator_selected":
+        return str(indicator_reason)
     if bool(metrics.get("execution_candidate_ready")):
         return "ready_not_selected"
     if metrics.get("signal_status") == "SIGNAL_SUSPENDED":
@@ -81,6 +85,24 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
     if force_trade_from_orch(executor.orch):
         return
     cid = f"C{int(executor.orch._active_cycle_id):04d}"
+    if executor.orch.config.get("pullback_strategy", {}).get("enabled", False):
+        statuses = getattr(executor.orch, "_indicator_signal_status", {})
+        symbols = executor._trade_symbols()
+        details = [
+            f"{symbol}:{period // 60}m={statuses.get((symbol, period), 'aguardando_leitura')}"
+            for symbol in symbols
+            for period in (300,)
+        ]
+        m5_statuses = {symbol: reason for (symbol, period), reason in statuses.items() if period == 300}
+        active = sum(reason == "setup_confirmado" for reason in m5_statuses.values())
+        executor.logger.info(
+            "[%s] EXEC_EMPTY || setup sem ordem | %s | leituras=%d setups=%d",
+            cid,
+            " ".join(details) or "sem_ativo_operacional",
+            len(m5_statuses),
+            active,
+        )
+        return
     training: list[str] = []
     blocked: list[str] = []
     for symbol in executor._trade_symbols():

@@ -54,8 +54,8 @@ def test_training_prefers_noncollapsed_epoch_with_collapsed_fallback(validation,
     assert chosen["weight"].item() == pytest.approx(expected_weight + initial_weight)
 
 
-def test_sharp_only_improvement_resets_early_stopping_patience():
-    """Melhora apenas de sharpness reinicia paciencia, independentemente do treino aleatorio."""
+def test_sharp_only_improvement_keeps_checkpoint_without_extending_training():
+    """Nitidez isolada preserva o checkpoint sem alongar treino estagnado."""
     from src.application.services.deep_learning import dl_training_epochs as epochs
 
     model = torch.nn.Linear(1, 1)
@@ -96,7 +96,7 @@ def test_sharp_only_improvement_resets_early_stopping_patience():
             early_stopping_patience=3,
             min_val_accuracy=0.53,
         )
-    assert ran == checkpoint.call_count == 6
+    assert ran == checkpoint.call_count == 4
     assert abs(loss - 0.6) < 1e-9
     assert chosen is state
 

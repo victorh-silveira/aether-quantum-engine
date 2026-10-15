@@ -1,9 +1,14 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from src.application.services.deep_learning.dl_symbol_runtime import get_symbol_runtime
+from src.application.services.deep_learning.dl_symbol_runtime import candle_epoch, get_symbol_runtime
 from src.application.services.deep_learning.model import fit_norm_stats
+
+
+def test_candle_epoch_without_stream_reader_returns_zero():
+    assert candle_epoch(SimpleNamespace(stream=object()), "R_10") == 0
 
 
 def _loaded_checkpoint(*, deploy_ok: bool, val_brier: float = 0.22):
@@ -193,3 +198,5 @@ def test_checkpoint_fingerprint_tracks_exact_file_bytes(tmp_path):
     assert first is not None and len(first) == 64
     path.write_bytes(b"second")
     assert checkpoint_fingerprint(path) != first
+    with patch.object(type(path), "open", side_effect=OSError("arquivo indisponivel")):
+        assert checkpoint_fingerprint(path) is None

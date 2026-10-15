@@ -23,6 +23,7 @@ from .execution_cuda import clear_cuda_cache
 from .execution_manager_execute import execute_cluster_orders
 from .execution_orders import place_order
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
+from .indicator_period_orders import select_period_orders
 
 
 class ExecutionManager:
@@ -138,7 +139,8 @@ class ExecutionManager:
             self.orch.risk_manager.decay_proposal_skip_cycles()
             self._start_result_buffer()
 
-            if self._training_phase_gate():
+            setup_enabled = bool(self.orch.config.get("pullback_strategy", {}).get("enabled", False))
+            if not setup_enabled and self._training_phase_gate():
                 return None
 
             bankroll_snapshot = float(self.orch.state.balance)
@@ -151,8 +153,16 @@ class ExecutionManager:
             exec_chunk = self.orch.config.get("orchestrator", {}).get("execution", {})
             inter_delay = float(exec_chunk.get("inter_symbol_delay", 0.8))
 
-            orders = self._collect_orders(decisions)
+            orders = [] if setup_enabled else self._collect_orders(decisions)
+            if setup_enabled or self.orch.config.get("indicator_consensus", {}).get("multi_period_trading", False):
+                orders = await select_period_orders(self.orch, orders)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
+            if setup_enabled and orders:
+                selected = " ".join(
+                    f"{symbol}:{int(metrics.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
+                    for symbol, direction, metrics in orders
+                )
+                self.logger.info("[%s] SETUP || ordens selecionadas | %s", cid, selected)
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(
@@ -174,7 +184,7 @@ class ExecutionManager:
                 self.orch.is_trading = False
             else:
                 self.orch._last_cycle_was_exec_empty = False
-                block = self._cluster_stake_block(orders, bankroll_snapshot)
+                block = None if setup_enabled else self._cluster_stake_block(orders, bankroll_snapshot)
                 if block:
                     self.logger.info("[%s] EXEC_PAUSE || %s", cid, block)
                     orders = []

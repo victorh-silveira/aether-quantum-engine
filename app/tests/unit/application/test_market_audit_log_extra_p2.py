@@ -87,6 +87,20 @@ def test_format_decision_origin_line_variants():
     )
     assert "TCN_DIRECT | p=0.528" in line_put
 
+    line_indicator = format_decision_origin_line(
+        "R_25",
+        "PUT",
+        {
+            "direction_origin": "INDICATOR_APPROVED",
+            "indicator_call_probability": 0.471973,
+            "indicator_model_version": "v2",
+            "tcn_direction": "CALL",
+            "cal_side_edge": 0.037,
+        },
+    )
+    assert "INDICATOR_APPROVED | p=0.528 | tcn=CALL | version=v2" in line_indicator
+    assert "edge=" not in line_indicator
+
     line_flip_clf = format_decision_origin_line(
         "1HZ75V",
         "PUT",

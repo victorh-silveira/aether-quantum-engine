@@ -222,7 +222,9 @@ async def test_enqueue_contract_settlement_uses_queue(orch_ready):
                 new_callable=AsyncMock,
             ),
         ):
-            await enqueue_contract_settlement(orch, {"proposal_open_contract": {"contract_id": 1}})
+            await enqueue_contract_settlement(
+                orch, {"proposal_open_contract": {"contract_id": 1, "is_settled": 1, "status": "won"}}
+            )
             await asyncio.wait_for(orch._settlement_queue.join(), timeout=1.0)
         settle_mock.assert_awaited_once()
     finally:
@@ -237,7 +239,9 @@ async def test_enqueue_contract_settlement_fallback_without_worker(orch_ready):
         "src.application.services.orchestrator.orchestrator_settlement_queue.process_contract_settlement",
         new_callable=AsyncMock,
     ) as settle_mock:
-        await enqueue_contract_settlement(orch, {"proposal_open_contract": {"contract_id": 2}})
+        await enqueue_contract_settlement(
+            orch, {"proposal_open_contract": {"contract_id": 2, "is_settled": 1, "status": "won"}}
+        )
     settle_mock.assert_awaited_once()
 
 

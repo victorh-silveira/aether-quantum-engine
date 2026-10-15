@@ -38,7 +38,11 @@ def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     strategy = config.get("strategy", {})
     raw = config.get("symbols") or [anchor]
     indicator_cfg = config.get("indicator_consensus", {})
-    if indicator_cfg.get("enabled") and indicator_cfg.get("auto_symbols"):
+    if (
+        indicator_cfg.get("enabled")
+        and indicator_cfg.get("auto_symbols")
+        and not config.get("pullback_strategy", {}).get("enabled", False)
+    ):
         models_dir = _REPOSITORY_ROOT / "indicator/data/indicator-models"
         raw = [*raw, *approved_indicator_symbols(models_dir)]
     excluded = {str(x) for x in ((strategy or {}).get("excluded_symbols") or [])}
@@ -55,6 +59,8 @@ def resolve_dl_train_symbols(config: dict) -> list[str]:
     indicator_cfg = config.get("indicator_consensus", {})
     if indicator_cfg.get("enabled") and indicator_cfg.get("auto_symbols"):
         _, symbols = normalize_symbols_and_anchor(config)
+        if isinstance(raw, list):
+            return list(dict.fromkeys([*(str(symbol) for symbol in raw), *symbols]))
         return symbols
     if isinstance(raw, list):
         return [str(symbol) for symbol in dict.fromkeys(raw)]

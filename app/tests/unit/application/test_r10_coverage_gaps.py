@@ -30,7 +30,7 @@ def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
     runtime = {"deploy_ok": False}
     prices = np.linspace(1.0, 2.0, 32)
     dl_config = {}
-    params = {"training_history_bars": 32}
+    params = {"training_history_bars": 32, "online_training": True}
     with (
         patch(
             "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
@@ -57,6 +57,23 @@ def test_maybe_schedule_training_skips_non_first_bootstrap_symbol():
         )
     assert reason is None
     mock_enqueue.assert_not_called()
+
+
+def test_maybe_schedule_training_does_not_bootstrap_in_execute_mode():
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"engine_mode": "execute"}}
+    with (
+        patch(
+            "src.application.services.deep_learning.decision_bridge.should_retrain_symbol",
+            return_value=(True, "bootstrap"),
+        ),
+        patch("src.application.services.deep_learning.decision_bridge.enqueue_deferred_symbol_training") as enqueue,
+    ):
+        reason = _maybe_schedule_training(
+            orch, "R_50", {}, np.ones(40), {}, {"online_training": False}, 100, 300, frozenset(), None, None, None, None
+        )
+    assert reason is None
+    enqueue.assert_not_called()
 
 
 def test_symbol_order_deprioritizes_last_loss_symbol_in_core():

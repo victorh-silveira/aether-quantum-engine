@@ -57,8 +57,18 @@ def runtime_in_training(runtime: dict, params: dict) -> bool:
     return brier + 1e-9 >= float(params.get("brier_untrained_floor", 0.99))
 
 
+def apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
+    """Marca treino pendente somente quando o runtime permite treino online."""
+    if params.get("online_training", False) and runtime_in_training(runtime, params):
+        entry["metrics"]["execute"] = False
+        entry["metrics"]["gate_reason"] = "training"
+    return entry
+
+
 def training_priority_symbols(orch, dl_config: dict, params: dict) -> frozenset[str]:
     """Lista simbolos sem primeiro treino valido que tem prioridade no slot de treino."""
+    if not dl_config.get("online_training", False):
+        return frozenset()
     symbols = getattr(orch, "symbols", None) or TRADING_SYMBOLS
     pending = []
     for symbol in symbols:

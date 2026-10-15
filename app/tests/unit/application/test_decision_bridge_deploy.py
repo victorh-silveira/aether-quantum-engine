@@ -5,8 +5,8 @@ import pytest
 
 from src.application.services.deep_learning.decision_bridge import (
     collect_deep_learning_decisions,
-    runtime_in_training,
 )
+from src.application.services.deep_learning.dl_training_gate import apply_training_gate, runtime_in_training
 from src.domain.models.trade import TradeDirection
 from tests.unit.application.dl_collect_fixtures import MockOrchestrator
 
@@ -178,8 +178,16 @@ def test_runtime_in_training_requires_session_training():
     assert runtime_in_training({"val_brier": 0.25, "session_trained": False}, params) is True
 
 
+@pytest.mark.parametrize(("online", "reason"), [(False, None), (True, "training")])
+def test_training_gate_only_applies_to_online_training(online, reason):
+    entry = {"metrics": {"execute": True}}
+    result = apply_training_gate(entry, {"session_trained": False}, {"online_training": online})
+    assert result["metrics"].get("gate_reason") == reason
+    assert result["metrics"]["execute"] is (not online)
+
+
 @pytest.mark.asyncio
-async def test_collect_marks_symbol_in_training_until_first_valid_train():
+async def test_collect_marks_missing_checkpoint_unavailable_without_predicting():
     prices = np.sin(np.linspace(0, 10, 90)) + 10.0
     orch = MockOrchestrator(["R_10"], prices)
     orch.symbols = ["R_10"]
@@ -196,7 +204,7 @@ async def test_collect_marks_symbol_in_training_until_first_valid_train():
             "src.application.services.deep_learning.decision_bridge.predict_symbol_decision",
             new_callable=AsyncMock,
             return_value=entry,
-        ),
+        ) as predict,
         patch(
             "src.application.services.deep_learning.decision_bridge.get_symbol_runtime",
         ) as mock_rt,
@@ -214,4 +222,6 @@ async def test_collect_marks_symbol_in_training_until_first_valid_train():
         }
         decisions = await collect_deep_learning_decisions(orch)
     assert decisions["R_10"]["metrics"]["execute"] is False
-    assert decisions["R_10"]["metrics"]["gate_reason"] == "training"
+    assert decisions["R_10"]["metrics"]["gate_reason"] == "model_unavailable"
+    assert decisions["R_10"]["direction"] is None
+    predict.assert_not_awaited()

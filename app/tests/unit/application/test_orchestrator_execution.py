@@ -31,6 +31,7 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
             "indicator_call_probability": 0.61,
             "indicator_candle_epoch": 300,
         },
+        contract=SimpleNamespace(buy_price=10.0, quote_price=10.0, quote_payout=18.0, quote_ev=0.026),
     )
     row = writer.enqueue_contract_audit.await_args.args[0]
     assert row == {
@@ -44,6 +45,11 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
         "indicator_model_version": "indicator-v1",
         "indicator_call_prob": 0.61,
         "indicator_candle_epoch": 300,
+        "quote_price": 10.0,
+        "quote_payout": 18.0,
+        "quote_ev": 0.026,
+        "indicator_period_seconds": 300,
+        "quote_cohort": "confirmatory",
     }
     writer.enqueue_contract_audit.side_effect = RuntimeError("db down")
     await record_model_attribution(orch, 43, "1HZ75V", "PUT", {"model_version": "a" * 64})
@@ -56,6 +62,26 @@ async def test_model_attribution_persists_version_and_probability_without_rebuy(
     )
     assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
     await record_model_attribution(orch, 46, "1HZ75V", "PUT", {"model_version": "a" * 64, "calibrated_prob": "invalid"})
+    assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
+    await record_model_attribution(
+        orch,
+        47,
+        "R_25",
+        "PUT",
+        {"indicator_model_version": "v2", "indicator_period_seconds": 900},
+        contract=SimpleNamespace(quote_price="invalido", quote_payout=18, quote_ev=0.1),
+    )
+    assert writer.enqueue_contract_audit.await_args.args[0]["quote_cohort"] == "exploratory"
+    orch.config["trading"]["mode"] = "demo"
+    await record_model_attribution(
+        orch,
+        48,
+        "R_25",
+        "CALL",
+        {"indicator_model_version": "pullback-1-fixed", "indicator_period_seconds": 300},
+        contract=SimpleNamespace(buy_price=1.0, quote_price=1.0, quote_payout=1.8, quote_ev=-0.1),
+    )
+    assert writer.enqueue_contract_audit.await_args.args[0]["quote_cohort"] == "setup_pilot"
     assert writer.enqueue_contract_audit.await_args.args[0]["calibrated_call_prob"] is None
 
 

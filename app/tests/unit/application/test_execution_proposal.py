@@ -1,3 +1,5 @@
+import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -11,6 +13,107 @@ from src.application.services.orchestrator.execution_proposal import (
     proposal_stake_attempts,
 )
 from src.domain.models.trade import TradeDirection, TradeStatus
+
+
+@pytest.mark.asyncio
+async def test_confirmed_purchase_is_registered_before_subscription():
+    contract = SimpleNamespace(
+        contract_id=510,
+        buy_price=10.0,
+        payout=18.0,
+        stake=10.0,
+        entry_spot=None,
+        entry_time=None,
+    )
+    orch = MagicMock()
+    orch.config = {
+        "risk_management": {"params": {"duration": 5, "duration_unit": "m"}},
+        "orchestrator": {"execution": {}},
+    }
+    orch._active_cycle_id = 1
+    orch.trading_transport = "ws"
+    orch.trade_handler.buy_with_parameters = AsyncMock(return_value=contract)
+    executor = MagicMock(orch=orch)
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_orders.register_confirmed_contract",
+            new=AsyncMock(return_value=True),
+        ) as register,
+        patch("src.application.services.orchestrator.execution_orders._emit_execution_ticket"),
+        patch("src.application.services.orchestrator.execution_orders.register_contract_for_hedge"),
+        patch(
+            "src.application.services.orchestrator.execution_orders._subscribe_open_contract_background",
+            new=AsyncMock(),
+        ),
+    ):
+        result = await place_order(
+            executor,
+            "R_10",
+            TradeDirection.CALL,
+            10.0,
+            metrics={"_register_before_tracking": True, "model_input_candle_epoch": 300},
+        )
+        await asyncio.sleep(0)
+    assert result is contract
+    register.assert_awaited_once_with(orch, contract, "R_10", 10.0)
+    assert orch.trade_handler.buy_with_parameters.await_args.kwargs["params"]["_signal_candle_epoch"] == 300
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("period", "duration"), [(900, 15), (3600, 60)])
+async def test_indicator_period_sets_exact_contract_duration(period, duration):
+    orch = MagicMock()
+    orch.config = {
+        "risk_management": {"params": {"duration": 5, "duration_unit": "s", "stake_min": 1.0}},
+        "orchestrator": {"execution": {}},
+        "trading": {"mode": "demo"},
+    }
+    orch._active_cycle_id = 1
+    orch.trading_transport = "ws"
+    contract = SimpleNamespace(contract_id=71, buy_price=1.0, payout=1.8, stake=1.0, entry_time=None)
+    orch.trade_handler.buy_with_parameters = AsyncMock(return_value=contract)
+    executor = MagicMock(orch=orch)
+    with (
+        patch("src.application.services.orchestrator.execution_orders.register_confirmed_contract", new=AsyncMock()),
+        patch("src.application.services.orchestrator.execution_orders._emit_execution_ticket"),
+        patch("src.application.services.orchestrator.execution_orders.register_contract_for_hedge"),
+        patch(
+            "src.application.services.orchestrator.execution_orders._subscribe_open_contract_background",
+            new=AsyncMock(),
+        ),
+    ):
+        await place_order(
+            executor,
+            "R_10",
+            TradeDirection.CALL,
+            1.0,
+            metrics={
+                "indicator_controls_execution": True,
+                "indicator_period_seconds": period,
+                "indicator_candle_epoch": period,
+                "indicator_model_version": "v1",
+                "_register_before_tracking": True,
+            },
+        )
+        await asyncio.sleep(0)
+    params = orch.trade_handler.buy_with_parameters.await_args.kwargs["params"]
+    assert params["duration"] == duration
+    assert params["duration_unit"] == "m"
+    assert params["_indicator_period_seconds"] == period
+
+
+@pytest.mark.asyncio
+async def test_indicator_order_rejects_unsupported_period():
+    executor = MagicMock()
+    executor.orch.config = {"risk_management": {"params": {}}, "orchestrator": {"execution": {}}}
+    with pytest.raises(RuntimeError, match="Periodo do indicador invalido"):
+        await place_order(
+            executor,
+            "R_10",
+            TradeDirection.CALL,
+            1.0,
+            metrics={"indicator_controls_execution": True, "indicator_period_seconds": 600},
+        )
 
 
 @pytest.mark.asyncio

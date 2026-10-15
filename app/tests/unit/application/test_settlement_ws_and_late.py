@@ -76,7 +76,9 @@ async def test_process_late_settlement_from_payload():
     orch._buffer_result_logs = False
     orch.risk_manager.pending_loss = {}
     orch.risk_manager.active_contract_ids = []
+    orch.risk_manager.contract_to_symbol = {303: "R_10"}
     orch.state.active_contracts = {}
+    orch.state.finalize_contract = AsyncMock(return_value=None)
     orch.running = True
     orch._persist_full_state_unlocked = AsyncMock()
     orch.schedule_trading_cycle_after_settlement = MagicMock()

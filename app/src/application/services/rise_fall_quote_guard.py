@@ -6,6 +6,20 @@ import math
 from typing import Any
 
 
+def unit_ev(side_probability: float | None, payout_rate: float | None) -> float | None:
+    """EV liquido por unidade de stake com entradas verificaveis."""
+    try:
+        probability = float(side_probability)
+        rate = float(payout_rate)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(probability) or not 0.0 <= probability <= 1.0:
+        return None
+    if not math.isfinite(rate) or rate <= 0.0:
+        return None
+    return probability * (1.0 + rate) - 1.0
+
+
 def calculate_payout_breakeven_prob(payout_rate: float | None) -> float | None:
     """Calcula a probabilidade teorica de break-even (1 / (1 + rate))."""
     if payout_rate is None:
@@ -60,7 +74,7 @@ def quoted_edge(
     p_side = resolve_effective_side_probability(metrics, direction)
     if p_side is None:
         return None
-    return max(0.0, p_side - haircut) * (1.0 + rate) - 1.0
+    return unit_ev(max(0.0, p_side - haircut), rate)
 
 
 def is_quote_edge_acceptable(
@@ -76,13 +90,13 @@ def is_quote_edge_acceptable(
     edge = quoted_edge(metrics, direction, payout_rate, probability_haircut=probability_haircut)
     if edge is None:
         return False, None, "insufficient_evidence"
-    if edge + 1e-12 < float(min_edge):
+    if edge <= float(min_edge):
         return False, edge, "quote_edge_below_min"
     p_side = resolve_effective_side_probability(metrics or {}, direction)
     p_be = calculate_payout_breakeven_prob(payout_rate)
     if p_side is not None and p_be is not None:
         margin_floor = float(safety_margin)
-        if p_side + 1e-12 < p_be + margin_floor:
+        if p_side - float(probability_haircut) < p_be + margin_floor:
             return False, edge, "below_payout_breakeven_margin"
     return True, edge, "ok"
 
@@ -103,6 +117,7 @@ def flip_candidate_has_edge(metrics: dict[str, Any], direction: str, payout: flo
 
 
 __all__ = [
+    "unit_ev",
     "calculate_payout_breakeven_prob",
     "is_quote_edge_acceptable",
     "flip_candidate_has_edge",

@@ -132,6 +132,8 @@ def _active_contracts_block_cycle(orch: Any) -> bool:
     if not orch.state.active_contracts:
         orch._settlement_wait_logged = False
         return False
+    if orch.config.get("pullback_strategy", {}).get("enabled", False):
+        return False
     if not orch._settlement_wait_logged:
         orch._settlement_wait_logged = True
     return True

@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-from typing import Any
 
 from src.application.services.market_audit_log import (
     emit_audit_info,
@@ -20,11 +19,10 @@ from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 from .api_maintenance_guard import handle_broker_maintenance_error
-from .execution_proposal import (
-    is_retriable_proposal_error,
-    proposal_retry_scales,
-    proposal_stake_attempts,
-)
+from .execution_contract_registration import register_confirmed_contract
+from .execution_order_identity import attach_indicator_identity, set_indicator_duration
+from .execution_order_quote_guard import _attach_quote_guard_params
+from .execution_proposal import is_retriable_proposal_error, proposal_retry_scales, proposal_stake_attempts
 from .settlement_backfill import subscribe_open_contract
 from .settlement_rest import schedule_rest_contract_settlement
 
@@ -45,8 +43,8 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
         executor.orch.risk_manager,
         balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
     )
-    mode_tag = str(audit.get("mode_tag") or "EXPLORE_KELLY")
     metrics_dict = metrics if isinstance(metrics, dict) else {}
+    mode_tag = str(metrics_dict.get("indicator_stake_mode") or audit.get("mode_tag") or "EXPLORE_KELLY")
     observed_rate = record_observed_payout(
         executor.orch.risk_manager.risk_params,
         payout=float(contract.payout),
@@ -57,7 +55,12 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
     haircut = float(
         executor.orch.config.get("orchestrator", {}).get("execution", {}).get("quote_probability_haircut", 0.0)
     )
-    quote_ev = quoted_edge(metrics_dict, direction.name, observed_rate, probability_haircut=haircut)
+    setup_pilot = bool(metrics_dict.get("indicator_demo_pilot")) and str(
+        metrics_dict.get("indicator_model_version", "")
+    ).startswith("pullback-1-")
+    quote_ev = (
+        None if setup_pilot else quoted_edge(metrics_dict, direction.name, observed_rate, probability_haircut=haircut)
+    )
     metrics_dict["quote_edge"] = quote_ev
     if quote_ev is not None and quote_ev <= 0.0:
         logger.warning(
@@ -67,15 +70,19 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
             quote_ev,
             float(observed_rate),
         )
-    emit_audit_info(
-        logger,
-        format_kelly_audit_line(
-            metrics_dict,
-            stake=float(stake),
-            mode_tag=mode_tag,
-            audit=audit,
-        ),
-    )
+    if metrics_dict.get("indicator_stake_mode"):
+        side_probability = None if setup_pilot else resolve_effective_side_probability(metrics_dict, direction.name)
+        logger.info(
+            "[INDICATOR_STAKE] || lado=%s p_side=%s stake=%.2f mode=%s",
+            direction.name,
+            f"{side_probability:.4f}" if side_probability is not None else "n/a",
+            float(stake),
+            mode_tag,
+        )
+    else:
+        emit_audit_info(
+            logger, format_kelly_audit_line(metrics_dict, stake=float(stake), mode_tag=mode_tag, audit=audit)
+        )
     emit_audit_info(
         logger,
         format_execution_ticket_line(
@@ -101,35 +108,11 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
         edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
         meta_payoff_edge_zscore=resolve_meta_payoff_zscore(metrics if isinstance(metrics, dict) else None),
         raw_prob=(
-            float(metrics["raw_prob"]) if isinstance(metrics, dict) and metrics.get("raw_prob") is not None else None
+            float(metrics.get("tcn_raw_prob", metrics.get("raw_prob")))
+            if isinstance(metrics, dict) and metrics.get("tcn_raw_prob", metrics.get("raw_prob")) is not None
+            else None
         ),
     )
-
-
-def _attach_quote_guard_params(params: dict, metrics: dict | None, direction: Any, exec_cfg: dict) -> None:
-    """Anexa probabilidade efetiva e piso de edge para quote guard no proposal."""
-    if not isinstance(metrics, dict) or not bool(exec_cfg.get("require_quote_edge", False)):
-        params.pop("_quote_guard_side_probability", None)
-        params.pop("_quote_guard_min_edge", None)
-        params.pop("_quote_guard_safety_margin", None)
-        params.pop("min_payout_rate", None)
-        return
-    dir_name = getattr(direction, "name", str(direction)).upper()
-    p_side = resolve_effective_side_probability(metrics, dir_name)
-    if p_side is None:
-        return
-    try:
-        haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
-        p_eff = max(0.0, p_side - haircut)
-        is_rec = float(metrics.get("pending_loss_total", 0.0) or 0.0) > 0.5
-        raw_floor = exec_cfg.get("recovery_neg_edge_floor", 0.0) if is_rec else exec_cfg.get("min_edge_execute", 0.0)
-        min_edge = float(raw_floor or 0.0)
-        params["_quote_guard_side_probability"] = p_eff
-        params["_quote_guard_min_edge"] = min_edge
-        params["_quote_guard_safety_margin"] = float(exec_cfg.get("quote_safety_margin", 0.0) or 0.0)
-        params["min_payout_rate"] = float(exec_cfg.get("min_payout_rate", 0.76) or 0.0)
-    except (TypeError, ValueError):
-        pass
 
 
 async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):
@@ -139,6 +122,7 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
     params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
     if duration:
         params["duration"] = duration
+    set_indicator_duration(params, metrics)
     if params.get("contract_type") == "MULTIPLIER":
         target_total = resolve_stop_win_target(
             executor.orch.config.get("risk_management"), executor.orch.risk_manager.initial_bankroll
@@ -153,7 +137,21 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             lo.pop("stop_loss", None)
             params["limit_order"] = lo
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
-    _attach_quote_guard_params(params, metrics, direction, exec_cfg)
+    _attach_quote_guard_params(
+        params,
+        metrics,
+        direction,
+        exec_cfg,
+        trading_mode=str(executor.orch.config.get("trading", {}).get("mode", "demo")),
+    )
+    attach_indicator_identity(params, metrics)
+    setup = isinstance(metrics, dict) and str(metrics.get("indicator_model_version", "")).startswith("pullback-1-")
+    if setup:
+        params["_pullback_stake_cap"] = float(metrics.get("_pullback_stake_cap") or 0.0)
+        params["_pullback_quote_rate"] = float(metrics.get("indicator_quote_rate") or 0.0)
+        params["_pullback_recovery_amount"] = float(metrics.get("_pullback_recovery_amount") or 0.0)
+        if float(stake) > params["_pullback_stake_cap"] + 1e-9:
+            raise RuntimeError("Stake do pullback excede teto da banca disponivel")
     rm_cfg = executor.orch.config.get("risk_management", {})
     max_stake_cap = float(
         rm_cfg.get("kelly", {}).get("max_stake", 0.0) or rm_cfg.get("params", {}).get("max_stake", 0.0)
@@ -162,6 +160,8 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         stake = min(float(stake), max_stake_cap)
     stake_min = float(params.get("stake_min", 1.0))
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
+    if setup:
+        attempts = [float(stake)] if float(stake) + 1e-9 >= stake_min else []
     if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
         cap_pct = checkpoint_stake_cap_pct(metrics)
         cap = float(executor.orch.state.balance) * cap_pct
@@ -192,9 +192,11 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             last_error = exc
             if "perdeu vantagem" in str(exc).lower() or "compra bloqueada" in str(exc).lower():
                 logger.warning(
-                    "[PROPOSAL] || Cotacao Deriv rejeitada para %s (%s): %s",
+                    "[PROPOSAL] || Compra bloqueada pelo guard de EV para %s (%s) | origem=%s | modelo=%s: %s",
                     symbol,
                     getattr(direction, "name", str(direction)),
+                    "indicador" if isinstance(metrics, dict) and metrics.get("indicator_controls_execution") else "TCN",
+                    metrics.get("indicator_model_version", "-") if isinstance(metrics, dict) else "-",
                     exc,
                 )
                 return None
@@ -204,6 +206,8 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
                 raise
     if contract is None:
         raise last_error or RuntimeError("Erro na proposta: falha desconhecida")
+    if isinstance(metrics, dict) and metrics.get("_register_before_tracking"):
+        await register_confirmed_contract(executor.orch, contract, str(symbol), float(contract.buy_price))
     _emit_execution_ticket(
         executor,
         cycle_id=int(executor.orch._active_cycle_id),

@@ -172,7 +172,13 @@ def collect_cluster_orders(exec_mgr, decisions: dict) -> list[tuple[str, TradeDi
             min_signal=min_signal,
             min_val=min_val,
         )
+    reviewed = list(candidates)
     candidates = filter_indicator_candidates(exec_mgr.orch, candidates)
+    for symbol, _, metrics in reviewed:
+        entry = decisions.get(symbol) if isinstance(decisions, dict) else None
+        entry_metrics = entry.get("metrics") if isinstance(entry, dict) else None
+        if isinstance(entry_metrics, dict) and metrics.get("indicator_selection_reason"):
+            entry_metrics["indicator_selection_reason"] = metrics["indicator_selection_reason"]
     if consensus_enabled(exec_mgr.orch.config) and not candidates:
         return []
     candidates = apply_cointegration_redirect(candidates, exec_mgr.orch.risk_manager)

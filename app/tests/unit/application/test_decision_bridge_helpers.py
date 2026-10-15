@@ -235,7 +235,14 @@ async def test_contract_prediction_uses_last_closed_bar_and_keeps_live_snapshot(
         live_tick_count=lambda _symbol: 3,
         microstructure_arrays=lambda _symbol, _length: {"tick_count": np.arange(90, dtype=np.float64)},
     )
-    runtime = {"model": MagicMock(), "norm_stats": MagicMock(), "val_accuracy": 0.5, "trained_granularity": 300}
+    runtime = {
+        "model": MagicMock(),
+        "norm_stats": MagicMock(),
+        "val_accuracy": 0.5,
+        "trained_granularity": 300,
+        "checkpoint_loaded": True,
+        "session_trained": True,
+    }
     entry = {"direction": TradeDirection.CALL, "metrics": {"execute": True}}
     with (
         patch("src.application.services.deep_learning.decision_bridge.get_symbol_runtime", return_value=runtime),

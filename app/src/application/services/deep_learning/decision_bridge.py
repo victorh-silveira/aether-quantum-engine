@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 from src.application.services.deep_learning.dl_bridge_helpers import (
+    build_insufficient_data_entry,
     guard_inference_price_history,
     parse_dl_params,
     pending_loss_total,
@@ -37,8 +38,8 @@ from src.application.services.deep_learning.dl_symbol_runtime import (
 )
 from src.application.services.deep_learning.dl_symbol_train import run_symbol_training
 from src.application.services.deep_learning.dl_training_gate import (
+    apply_training_gate as _apply_training_gate,
     min_dl_history_len as _min_dl_history_len,
-    runtime_in_training,
     training_priority_symbols,
 )
 from src.application.services.meta_classifier_stacking import prefetch_meta_payoff_for_decisions
@@ -58,15 +59,6 @@ _get_symbol_runtime = get_symbol_runtime
 _candle_epoch = candle_epoch
 _granularity_seconds = granularity_seconds
 _run_symbol_training = run_symbol_training
-
-
-def _apply_training_gate(entry: dict, runtime: dict, params: dict) -> dict:
-    """Suspende execucao e marca o simbolo como em treinamento ate o primeiro treino valido."""
-    if not runtime_in_training(runtime, params):
-        return entry
-    entry["metrics"]["execute"] = False
-    entry["metrics"]["gate_reason"] = "training"
-    return entry
 
 
 def _log_retrain_batch(trained: list[str], train_reason: str, params: dict) -> None:
@@ -101,7 +93,7 @@ def _maybe_schedule_training(
     do_train, reason = should_retrain_symbol(orch, symbol, runtime, params, epoch)
     bootstrap_train = reason == "bootstrap"
     online = bool(params.get("online_training", False))
-    may_schedule_train = training_enabled(orch) or bootstrap_train or (online and do_train)
+    may_schedule_train = training_enabled(orch) or online
     if not may_schedule_train:
         return None
 
@@ -208,6 +200,10 @@ async def _collect_symbol_decision(
     )
     if blocked is not None:
         return blocked, None
+    if not training_enabled(orch) and not bool(runtime.get("checkpoint_loaded", False)):
+        entry = build_insufficient_data_entry()
+        entry["metrics"].update(gate_reason="model_unavailable", deploy_ok=False)
+        return entry, None
     epoch = candle_epoch(orch, symbol)
     train_loss = None
     train_reason = _maybe_schedule_training(

@@ -74,17 +74,13 @@ def _training_startup_fetch_bars(data_config: dict[str, Any], dl_config: dict[st
     return 500
 
 
-def resolve_startup_fetch_bars(config: dict[str, Any], symbols: list[str]) -> tuple[int, str]:
+def resolve_startup_fetch_bars(config: dict[str, Any], _symbols: list[str]) -> tuple[int, str]:
     """Retorna barras a buscar no startup e rotulo do modo (inferencia ou treino)."""
     data_config = config.get("data_handler") or {}
     dl_config = config.get("deep_learning") or {}
     warmup = int(data_config.get("history_warmup_bars", 64))
     is_training_mode = resolve_engine_mode(config) == ENGINE_MODE_TRAIN
-    if (
-        is_training_mode
-        or not inference_startup_enabled(dl_config)
-        or not all_symbols_have_checkpoints(symbols, dl_config, data_config)
-    ):
+    if is_training_mode or not inference_startup_enabled(dl_config):
         return _training_startup_fetch_bars(data_config, dl_config, warmup), "treino"
     risk_params = (config.get("risk_management") or {}).get("params") or {}
     params = parse_dl_params(dl_config, data_config, risk_params)

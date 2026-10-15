@@ -154,14 +154,19 @@ def _settlement_tag(*, profit: float, linear_before: int) -> str:
 
 
 def format_decision_origin_line(symbol: str, direction: Any, metrics: dict[str, Any]) -> str:
-    """Linha [DECISION] com direcao e origem (TCN_DIRECT / FLIP_LOSS_CLF / FLIP_ANTI_TREND_LOCK)."""
+    """Linha [DECISION] com direcao e origem efetiva da ordem."""
     dir_name = direction.name if hasattr(direction, "name") else str(direction).upper()
     origin = str(metrics.get("direction_origin") or "TCN_DIRECT")
     tcn_dir = str(metrics.get("tcn_direction") or dir_name).upper()
     prob = _f(metrics, "conviction", "calibrated_prob", "tcn_probability", default=0.5)
     edge = _f(metrics, "cal_side_edge", "edge", default=0.0)
     trend = str(metrics.get("trend_direction") or "-").upper()
-    if origin == "FLIP_ANTI_TREND_LOCK":
+    if origin == "INDICATOR_APPROVED":
+        call_prob = _f(metrics, "indicator_call_probability", default=0.5)
+        p_side = call_prob if dir_name == "CALL" else 1.0 - call_prob
+        version = str(metrics.get("indicator_model_version") or "-")
+        detail = f"INDICATOR_APPROVED | p={p_side:.3f} | tcn={tcn_dir} | version={version}"
+    elif origin == "FLIP_ANTI_TREND_LOCK":
         from_dir = str(metrics.get("anti_trend_lock_from") or tcn_dir)
         detail = f"FLIP anti_trend_lock ({from_dir}->{dir_name}) | trend={trend} | p_orig={prob:.3f}"
     elif origin == "FLIP_LOSS_CLF":

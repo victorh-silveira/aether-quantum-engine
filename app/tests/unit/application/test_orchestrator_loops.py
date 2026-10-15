@@ -1,3 +1,4 @@
+import asyncio
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -14,7 +15,10 @@ from src.application.services.orchestrator.settlement_logic import process_contr
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from tests.unit.application.post_settlement_helpers import patch_instant_post_settlement_poll, strong_cycle_decisions
+from tests.unit.application.post_settlement_helpers import (
+    patch_instant_post_settlement_poll,
+    strong_cycle_decisions,
+)
 
 
 FREEZE_YIELD_MODULE = "src.application.services.orchestrator.regime_freeze_yield"
@@ -55,7 +59,7 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, data)
         if orch._post_settlement_task is not None:
-            await orch._post_settlement_task
+            await asyncio.wait_for(orch._post_settlement_task, timeout=2.0)
     assert orch.risk_manager.pending_loss.get("R_10") == pytest.approx(390.92)
     assert orch.risk_manager.last_loss_stake == pytest.approx(332.28)
     assert orch.risk_manager.total_session_profit == pytest.approx(-332.28)
@@ -230,10 +234,19 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
     orch.risk_manager.active_contract_ids = [431]
     orch.risk_manager.contract_to_symbol[431] = "R_10"
     orch.risk_manager.begin_cluster(1)
-    with patch_instant_post_settlement_poll():
+    with (
+        patch_instant_post_settlement_poll(),
+        patch(
+            "src.application.services.orchestrator.post_settlement_cycle._attempt_post_settlement_trading_cycle",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
         await process_contract_settlement(orch, loss_data)
+        assert not orch.state.active_contracts
+        assert not orch.is_trading
         if orch._post_settlement_task is not None:
-            await orch._post_settlement_task
+            await asyncio.wait_for(orch._post_settlement_task, timeout=2.0)
 
     await orch.state.add_contract(win_contract)
     orch.risk_manager.active_contract_ids = [432]
@@ -254,7 +267,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, win_data)
         if orch._post_settlement_task is not None:
-            await orch._post_settlement_task
+            await asyncio.wait_for(orch._post_settlement_task, timeout=2.0)
     barrier_mock.assert_awaited_once()
     assert session_persistence_write_active(orch) is False
     collect_mock.assert_awaited_once()

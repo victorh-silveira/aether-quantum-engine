@@ -30,6 +30,54 @@ def test_apply_engine_mode(orch_config):
     assert orch_config["orchestrator"]["engine_mode"] == ENGINE_MODE_TRAIN
 
 
+def test_train_mode_preloads_explicit_and_approved_indicator_symbols(orch_config, tmp_path, monkeypatch):
+    import json
+    from unittest.mock import AsyncMock, patch
+
+    from src.application.services.orchestrator import Orchestrator, config_symbols
+    from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
+
+    models = tmp_path / "indicator/data/indicator-models"
+    models.mkdir(parents=True)
+    (models / "R_50_300.json").write_text(
+        json.dumps(
+            {
+                "symbol": "R_50",
+                "period": 300,
+                "status": "aprovado",
+                "validation_accuracy": 0.55,
+                "baseline_accuracy": 0.5,
+                "validation_brier": 0.2,
+                "baseline_brier": 0.25,
+            }
+        )
+    )
+    monkeypatch.setattr(config_symbols, "_REPOSITORY_ROOT", tmp_path)
+
+    orch_config["anchor"] = "R_25"
+    orch_config["symbols"] = ["R_25"]
+    orch_config["deep_learning"]["train_symbols"] = ["R_10", "R_25", "R_10"]
+    orch_config["indicator_consensus"] = {"enabled": True, "auto_symbols": True}
+    apply_engine_mode(orch_config, ENGINE_MODE_TRAIN)
+    assert orch_config["symbols"] == ["R_10", "R_25", "R_50"]
+    assert orch_config["deep_learning"]["train_symbols"] == ["R_10", "R_25", "R_50"]
+    assert resolve_dl_train_symbols(orch_config) == ["R_10", "R_25", "R_50"]
+    assert orch_config["anchor"] == "R_10"
+    assert orch_config["indicator_consensus"]["auto_symbols"] is False
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()):
+        orch = Orchestrator(orch_config, "token")
+    assert orch.symbols == ["R_10", "R_25", "R_50"]
+    assert orch.stream.symbols == ["R_10", "R_25", "R_50"]
+    assert set(orch.stream.micro_candles) == {"R_10", "R_25", "R_50"}
+
+
+def test_train_mode_without_explicit_symbols_keeps_runtime_selection(orch_config):
+    original = list(orch_config["symbols"])
+    orch_config["deep_learning"]["train_symbols"] = []
+    apply_engine_mode(orch_config, ENGINE_MODE_TRAIN)
+    assert orch_config["symbols"] == original
+
+
 def test_apply_engine_mode_aligns_label_horizon_to_micro_contract():
     config = {
         "orchestrator": {},

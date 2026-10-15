@@ -62,8 +62,17 @@ def test_resolve_startup_fetch_bars_full_when_checkpoint_missing(tmp_path, monke
         lambda dl_cfg, symbol: tmp_path / "missing.pth",
     )
     bars, mode = resolve_startup_fetch_bars(config, ["R_10"])
-    assert mode == "treino"
-    assert bars == 15616
+    assert mode == "inferencia"
+    assert bars < 15616
+
+
+def test_offline_execution_has_no_training_priority():
+    from types import SimpleNamespace
+
+    from src.application.services.deep_learning.dl_training_gate import training_priority_symbols
+
+    orch = SimpleNamespace(symbols=["R_25", "R_50"])
+    assert training_priority_symbols(orch, {"online_training": False}, {}) == frozenset()
 
 
 def test_all_symbols_have_checkpoints(tmp_path, monkeypatch):

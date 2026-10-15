@@ -2,7 +2,15 @@
 
 import pytest
 
-from src.application.services.rise_fall_quote_guard import quoted_edge
+from src.application.services.rise_fall_quote_guard import quoted_edge, unit_ev
+
+
+@pytest.mark.parametrize(
+    ("probability", "rate"),
+    [(None, 0.8), ("bad", 0.8), (float("nan"), 0.8), (1.1, 0.8), (0.6, float("nan")), (0.6, 0.0)],
+)
+def test_unit_ev_rejects_invalid_inputs(probability, rate):
+    assert unit_ev(probability, rate) is None
 
 
 @pytest.mark.parametrize(
@@ -81,3 +89,45 @@ def test_is_quote_edge_acceptable():
     assert ok is True
     assert ev is not None and ev > 0.05
     assert reason == "ok"
+
+
+def test_quote_guard_requires_strictly_positive_ev_at_breakeven():
+    from src.application.services.rise_fall_quote_guard import is_quote_edge_acceptable
+
+    probability = 1.0 / 1.8
+    accepted, ev, reason = is_quote_edge_acceptable({"calibrated_prob": probability}, "CALL", 0.8)
+    assert accepted is False
+    assert ev == pytest.approx(0.0)
+    assert reason == "quote_edge_below_min"
+
+
+def test_quote_guard_margin_uses_discounted_probability():
+    from src.application.services.rise_fall_quote_guard import is_quote_edge_acceptable
+
+    accepted, ev, reason = is_quote_edge_acceptable(
+        {"calibrated_prob": 0.58},
+        "CALL",
+        0.8,
+        probability_haircut=0.02,
+        safety_margin=0.01,
+    )
+    assert accepted is False
+    assert ev == pytest.approx(0.008)
+    assert reason == "below_payout_breakeven_margin"
+
+
+@pytest.mark.parametrize(
+    ("p_call", "side", "accepted", "expected_ev"),
+    [
+        (0.5007, "CALL", False, -0.1072519),
+        (0.4993, "PUT", False, -0.1072519),
+        (0.59, "CALL", True, 0.05197),
+        (0.41, "PUT", True, 0.05197),
+    ],
+)
+def test_log_quote_ev_sign_for_both_sides(p_call, side, accepted, expected_ev):
+    from src.application.services.rise_fall_quote_guard import is_quote_edge_acceptable
+
+    ok, ev, _ = is_quote_edge_acceptable({"calibrated_prob": p_call}, side, 0.783, safety_margin=0.01)
+    assert ok is accepted
+    assert ev == pytest.approx(expected_ev)

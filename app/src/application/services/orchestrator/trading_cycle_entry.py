@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 from typing import Any
 
@@ -49,7 +50,9 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     orch._signature_invalidation_logged_key = ""
     orch.running = True
     orch._trading_slot_poll_task = None
-    orch._dl_bootstrap_completed = prepare_inference_run_loop(orch)
+    orch._dl_bootstrap_completed = (
+        True if orch.config.get("pullback_strategy", {}).get("enabled", False) else prepare_inference_run_loop(orch)
+    )
     mode = resolve_decision_mode(orch.config)
     emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
     start_correlation_worker(orch)
@@ -59,8 +62,8 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
             try_enqueue_next_bootstrap_training(orch)
         else:
             orch.logger.warning(
-                "DL: modelo nao pronto para inferencia (checkpoint ausente/incompativel). "
-                "Treino offline: app/scripts/batch/launch-train.bat — DEMO nao treina."
+                "DL: um ou mais ativos sem checkpoint compativel; somente esses ativos ficam inelegiveis. "
+                "Execute make app-train para gerar checkpoints; app-run nao treina."
             )
     orch.logger.info("")
     orch.logger.debug(
@@ -81,14 +84,23 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
+    setup_enabled = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
     orch.logger.debug(
-        "[C%04d] CICLO: coletando decisoes DL (%d simbolos)",
+        "[C%04d] CICLO: consultando %s (%d simbolos no stream)",
         orch._active_cycle_id,
+        "setup" if setup_enabled else "DL",
         len(orch.symbols),
     )
     cluster_executed = False
-    decisions = await collect_deep_learning_decisions(orch)
+    decisions = {} if setup_enabled else await collect_deep_learning_decisions(orch)
     await refresh_indicator_consensus(orch)
+    if (
+        setup_enabled
+        and not any(period == 300 for _, period in getattr(orch, "_indicator_signal_status", {}))
+        and time.time() % 300 < 10
+    ):
+        await asyncio.sleep(2)
+        await refresh_indicator_consensus(orch)
     if (
         int(orch._cycle_seq)
         % max(
@@ -153,7 +165,11 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                             empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 15))
                         except (TypeError, ValueError):
                             empty_cap = 15.0
-                        delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
+                        setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
+                        if setup_active and time.time() % 300 >= 30:
+                            delay = max(5.0, boundary_wait)
+                        else:
+                            delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
                         orch._cooldown_until = time.time() + delay
     except Exception as e:
         orch.logger.error("FALHA: Ciclo: %s", e)

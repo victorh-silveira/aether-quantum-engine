@@ -97,7 +97,7 @@ async def test_reconcile_after_ws_recovery_late_settlement():
 
 
 @pytest.mark.asyncio
-async def test_reconcile_after_ws_recovery_processes_profit_row_with_finalize():
+async def test_reconcile_after_ws_recovery_processes_profit_row_without_active_contract():
     orch = MagicMock()
     orch._reconciliation_pending = False
     orch.config = {
@@ -130,7 +130,7 @@ async def test_reconcile_after_ws_recovery_processes_profit_row_with_finalize():
             new=AsyncMock(return_value=[row]),
         ),
         patch(
-            "src.application.services.orchestrator.settlement_reconciliation.process_contract_settlement",
+            "src.application.services.orchestrator.settlement_reconciliation.process_late_settlement_from_payload",
             new=AsyncMock(),
         ) as settle_mock,
     ):

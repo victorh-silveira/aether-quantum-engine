@@ -11,7 +11,7 @@ from src.infrastructure.handlers.trade_handler import build_proposal_request
 
 def test_rise_fall_settings_and_indicators_are_consistent():
     settings = load_settings_json()
-    assert resolve_decision_mode(settings) == "deep_learning"
+    assert resolve_decision_mode(settings) == "pullback"
     assert "touch" not in settings
     assert "barrier_contracts" not in settings["risk_management"]
     assert settings["risk_management"]["params"]["contract_type"] == "CALL"

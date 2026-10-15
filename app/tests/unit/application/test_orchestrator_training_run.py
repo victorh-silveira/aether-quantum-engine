@@ -88,7 +88,7 @@ async def test_orchestrator_run_skips_bootstrap_when_online_training_off(orch_co
         mock_train.assert_not_called()
         mock_enqueue.assert_not_called()
         warn = " ".join(str(c) for c in orch.logger.warning.call_args_list)
-        assert "launch-train" in warn or "DEMO nao treina" in warn
+    assert "make app-train" in warn or "DEMO nao treina" in warn
 
 
 @pytest.mark.asyncio
