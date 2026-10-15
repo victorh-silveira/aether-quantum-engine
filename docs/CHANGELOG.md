@@ -1,3 +1,9 @@
+## [4.4.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.1...v4.4.2) (2026-10-15)
+
+### Correcoes de Bug
+
+* **orchestrator:** restringe execucao a uma ordem por ciclo e prioriza por probabilidade ([4fbc993](https://github.com/victorh-silveira/aether-quantum-engine/commit/4fbc993576caa3ef2d8770488c7daa98afe6dd9c))
+
 ## [4.4.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.0...v4.4.1) (2026-10-15)
 
 ### Correcoes de Bug
