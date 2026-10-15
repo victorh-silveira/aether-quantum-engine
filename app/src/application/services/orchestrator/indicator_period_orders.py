@@ -33,8 +33,13 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
     writer = getattr(orch, "market_writer", None)
     if not isinstance(writer, TimescaleMarketWriter) or writer._last_error is not None:
         return []
+    excluded = set(
+        orch.config.get("pullback_strategy", {}).get("excluded_symbols")
+        or orch.config.get("strategy", {}).get("excluded_symbols")
+        or []
+    )
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
-        if period != 300 or symbol in active_symbols:
+        if period != 300 or symbol in active_symbols or symbol in excluded:
             continue
         if not signal.model_version.startswith("pullback-1-"):
             continue

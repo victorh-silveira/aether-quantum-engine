@@ -2,10 +2,17 @@
   "anchor": "R_25",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-9b7e582c3fd7",
+    "version": "pullback-1-86c2df9cf4d6",
     "variant": "improved",
     "demo_pilot_contracts": 200,
-    "entry_window_seconds": 30
+    "entry_window_seconds": 30,
+    "excluded_symbols": [
+      "1HZ15V",
+      "1HZ30V",
+      "1HZ75V",
+      "R_50",
+      "R_100"
+    ]
   },
   "indicator_consensus": {
     "enabled": true,

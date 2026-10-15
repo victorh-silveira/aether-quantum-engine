@@ -1143,7 +1143,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT r.symbol AS ativo,r.period_seconds AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidados_broker,coalesce(e.wins,0) AS wins_demo,round(e.mean_return::numeric,4) AS retorno_medio,round(e.lower_95::numeric,4) AS limite_inferior_95,CASE WHEN e.settled>=200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.setup_version='pullback-1-9b7e582c3fd7' AND r.period_seconds=300 ORDER BY r.symbol,r.period_seconds",
+          "rawSql": "SELECT r.symbol AS ativo,r.period_seconds AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidados_broker,coalesce(e.wins,0) AS wins_demo,round(e.mean_return::numeric,4) AS retorno_medio,round(e.lower_95::numeric,4) AS limite_inferior_95,CASE WHEN e.settled>=200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.setup_version='pullback-1-86c2df9cf4d6' AND r.period_seconds=300 ORDER BY r.symbol,r.period_seconds",
           "format": "table",
           "refId": "A"
         }

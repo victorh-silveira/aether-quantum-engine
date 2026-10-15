@@ -19,9 +19,7 @@ def version_for_variant(variant: str = "base") -> str:
     if variant == "base":
         return VERSION
     if variant == "improved":
-        spec = (
-            "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.2_1.5:confirmacao1:countertrend:ema50slope:entrydist0.75:m5"
-        )
+        spec = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.2_1.1:confirmacao1:countertrend:ema50slope:m5"
         return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
     spec = f"{SPEC}:{variant}"
     return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
@@ -83,7 +81,8 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
     body = abs(confirmation.close - confirmation.open)
-    if not 0.2 * atr <= body <= 1.5 * atr:
+    max_body = 1.1 * atr if variant == "improved" else 1.5 * atr
+    if not 0.2 * atr <= body <= max_body:
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)
     trend_up = fast[-2] > slow[-2] and fast[-5] < fast[-4] < fast[-3] < fast[-2]
     trend_down = fast[-2] < slow[-2] and fast[-5] > fast[-4] > fast[-3] > fast[-2]
@@ -111,18 +110,8 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
         call = call and abs(confirmation.close - fast[-1]) <= 0.75 * atr
         put = put and abs(confirmation.close - fast[-1]) <= 0.75 * atr
     elif variant == "improved":
-        call = (
-            call
-            and slow[-2] > slow[-5]
-            and pullback.close < pullback.open
-            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
-        )
-        put = (
-            put
-            and slow[-2] < slow[-5]
-            and pullback.close > pullback.open
-            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
-        )
+        call = call and slow[-2] >= slow[-5] and pullback.close < pullback.open
+        put = put and slow[-2] <= slow[-5] and pullback.close > pullback.open
     elif variant != "base":
         return SetupResult("SEM SINAL", "variante_invalida", version=version)
     if call:

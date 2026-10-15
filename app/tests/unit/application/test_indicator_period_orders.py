@@ -23,11 +23,7 @@ def _orch(mode="demo"):
             "trading": {"mode": mode},
             "risk_management": {"params": {"stake_min": 1.0}},
             "orchestrator": {
-                "execution": {
-                    "quote_probability_haircut": 0.0,
-                    "max_orders_per_cycle": 3,
-                    "multi_symbol_orders": True,
-                }
+                "execution": {"quote_probability_haircut": 0.0, "max_orders_per_cycle": 3, "multi_symbol_orders": True}
             },
         },
         state=SimpleNamespace(active_contracts={}, balance=1000.0),
@@ -50,6 +46,9 @@ def test_period_candidates_isolate_open_symbol_and_mode(monkeypatch):
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     candidate = ("R_25", TradeDirection.CALL, {})
     assert len(orders.period_candidates(orch, [candidate])) == 2
+    orch.config["pullback_strategy"] = {"excluded_symbols": ["R_10"]}
+    assert orders.period_candidates(orch, [candidate]) == [candidate]
+    orch.config.pop("pullback_strategy")
     orch.state.active_contracts = {7: object()}
     orch.risk_manager.contract_to_symbol = {7: "R_10"}
     assert orders.period_candidates(orch, [candidate]) == [candidate]
