@@ -1,3 +1,9 @@
+## [4.4.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.4...v4.4.5) (2026-10-15)
+
+### Correcoes de Bug
+
+* **orchestrator:** ativa variante improved do pullback para estancar perdas ([188b63a](https://github.com/victorh-silveira/aether-quantum-engine/commit/188b63a290c7ac38125e8c5386bbb985ea0fd9ac))
+
 ## [4.4.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.3...v4.4.4) (2026-10-15)
 
 ### Correcoes de Bug
