@@ -1,3 +1,10 @@
+## [4.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.6.0...v4.7.0) (2026-10-15)
+
+### Funcionalidades
+
+* **app:** ajusta resolucao de raiz para settings e drift ([48e3429](https://github.com/victorh-silveira/aether-quantum-engine/commit/48e34291144bf240e902ad192a397ac6b85702a5))
+* **orchestrator:** detalha indicadores e motivo claro de skip no ciclo ([694054d](https://github.com/victorh-silveira/aether-quantum-engine/commit/694054d610162a2cdfde07b582d00ba7372a6d81))
+
 ## [4.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.5.0...v4.6.0) (2026-10-15)
 
 ### Funcionalidades
