@@ -1,3 +1,9 @@
+## [4.4.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.5...v4.4.6) (2026-10-15)
+
+### Correcoes de Bug
+
+* **orchestrator:** calibra variante improved e exclui ativos sem edge no pullback ([139177f](https://github.com/victorh-silveira/aether-quantum-engine/commit/139177fe8987c27bf4b64c26cbafddaa865f1e87))
+
 ## [4.4.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.4.4...v4.4.5) (2026-10-15)
 
 ### Correcoes de Bug
