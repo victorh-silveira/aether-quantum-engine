@@ -16,5 +16,6 @@ description: >-
 4. Orphans na janela — `SETTLE: estado reconciliado` pode ser OK
 5. Apos resolve: pending/linear; limpeza `recovery:skip_counter`
 6. Spam de log: manter SettlementSpamFilter
+7. Em suspeita de duplicacao, comparar `contract_id` no stream, fila local, ZSET e `contract_executions`; a reconciliacao deve passar pelo processador comum sem remover previamente o contrato ativo.
 
 Doc: `docs/engineering-settlement.md`
