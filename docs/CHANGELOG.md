@@ -1,3 +1,18 @@
+## [4.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.3.0...v4.4.0) (2026-10-15)
+
+### Funcionalidades
+
+* **api:** aprimora manipulador de ordens e persistencia de cotacoes do indicador ([8c60287](https://github.com/victorh-silveira/aether-quantum-engine/commit/8c6028742b68b2f4db29bbec429b137e6d165ec7))
+* **config:** atualiza settings ssot para versao aprimorada do pullback ([ed849ca](https://github.com/victorh-silveira/aether-quantum-engine/commit/ed849ca7560d7f4391eddda6fc55ab733a630469))
+* **domain:** adiciona calculo de stake e evidencias broker ev do setup pullback ([24f1caf](https://github.com/victorh-silveira/aether-quantum-engine/commit/24f1caf1a8e8c4c6484f4e08f2a1fe41e834bf6e))
+* **engine:** implementa subsistema de indicador publico e setup pullback aprimorado ([2fd790b](https://github.com/victorh-silveira/aether-quantum-engine/commit/2fd790ba1378019ec0c240abd601f637ad46a2c9))
+* **orchestrator:** integra fluxo de execucao e recuperacao do pullback m5 ([2499091](https://github.com/victorh-silveira/aether-quantum-engine/commit/2499091d5435c871f9a2507e8712694857136ef7))
+
+### Documentacao
+
+* **repo:** adicionar badges de qualidade e arquitetura ([805d523](https://github.com/victorh-silveira/aether-quantum-engine/commit/805d52308f4e38b1af97a8d4ba2f991cea204211))
+* **repo:** atualiza doutrina operacional e especificacao da estrategia pullback ([20ca187](https://github.com/victorh-silveira/aether-quantum-engine/commit/20ca187787a2977941df1b10e981b518469fbee6))
+
 ## [4.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.2.0...v4.3.0) (2026-10-11)
 
 ### Funcionalidades
