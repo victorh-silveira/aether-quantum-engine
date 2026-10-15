@@ -6,6 +6,7 @@ import time
 from typing import TYPE_CHECKING
 
 from src.application.services.log_dedupe import clear_log_channel, log_warning_if_changed
+from src.presentation.terminal.log_context import clear_log_context
 
 from . import settlement_utils
 from .settlement_backfill import backfill_pending_contracts, reconcile_single_contract
@@ -39,10 +40,7 @@ def _settlement_timed_out(exec_mgr: "ExecutionManager", start_time: float, timeo
     if time.time() - start_time <= timeout:
         return False
     exec_mgr.logger.error("EXEC: Timeout fatal aguardando liquidacao.")
-    settlement_utils.clear_contract_tracking(
-        list(exec_mgr.orch.risk_manager.active_contract_ids),
-        exec_mgr.orch.risk_manager,
-    )
+    exec_mgr.orch.risk_manager.active_contract_ids = []
     return True
 
 
@@ -123,11 +121,13 @@ async def _handle_stagnant_settlement(
 
 async def run_settlement_watch(exec_mgr: "ExecutionManager") -> None:
     """Aguarda liquidacao em background e dispara novo ciclo ao concluir."""
+    clear_log_context()
     try:
         await wait_for_settlement(exec_mgr)
     except Exception as e:
         exec_mgr.logger.error("SETTLE.settle_track: falha no acompanhamento: %s", e)
     finally:
+        clear_log_context()
         if exec_mgr.orch.running and not exec_mgr.orch.state.active_contracts:
             exec_mgr.orch.schedule_trading_cycle_after_settlement()
 

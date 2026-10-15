@@ -42,7 +42,6 @@ from src.domain.risk.stop_win_target import resolve_stop_win_target
 
 
 _sync_state_manager_session = sync_state_manager_session
-_update_state_manager_and_check_stop_win = update_state_manager_and_check_stop_win
 
 __all__ = (
     "check_session_limits_before_post_settlement",
@@ -61,6 +60,36 @@ async def _finalize_settlement_persistence(orch: Any) -> bool:
     return False
 
 
+def _format_audit_row(
+    orch: Any, c_id: int, outcome: str, profit: float, direction: Any, sym: str, edge: float, linear_before: int
+) -> str:
+    """Monta a linha padronizada de auditoria para o contrato liquidado."""
+    stake_audit = resolve_stake_audit_context(orch.risk_manager)
+    learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
+    pnl = float(getattr(orch.risk_manager, "total_session_profit", 0.0) or 0.0)
+    target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
+    c_cycle = int(orch._contract_cycle.get(c_id, 0) or getattr(orch, "_last_result_cycle_id", 0) or 0)
+    pending = float(stake_audit.get("pending", 0.0))
+    tag = resolve_settlement_tag(profit=profit, linear_before=linear_before, pending_after=pending)
+    mode = str(getattr(orch, "_pullback_contract_modes", {}).get(c_id) or stake_audit.get("mode_tag") or "")
+    return format_settlement_audit_line(
+        c_cycle,
+        outcome,
+        profit,
+        direction,
+        sym,
+        edge,
+        settlement_tag=tag,
+        pending=pending,
+        linear=int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0),
+        mode_tag=mode,
+        recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
+        learn_detail=learn or None,
+        session_pnl=pnl,
+        target_pnl=target,
+    )
+
+
 async def _complete_contract_settlement(
     orch: Any,
     c: dict,
@@ -74,39 +103,22 @@ async def _complete_contract_settlement(
     resolved_meta: dict[str, Any] | None = None,
 ) -> None:
     """Processa liquidação, risco e persistencia sob lock atomico."""
+    contract_cycle = int(orch._contract_cycle.get(c_id, 0) or getattr(orch, "_last_result_cycle_id", 0) or 0)
     _process_contract_outcome(
-        orch,
-        c,
-        contract,
-        c_id,
-        profit,
-        audit_direction=audit_direction,
-        audit_raw_prob=audit_raw_prob,
+        orch, c, contract, c_id, profit, audit_direction=audit_direction, audit_raw_prob=audit_raw_prob
     )
     pnl = float(getattr(orch.risk_manager, "total_session_profit", 0.0) or 0.0)
     target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
     if result_line is None and isinstance(resolved_meta, dict):
-        stake_audit = resolve_stake_audit_context(orch.risk_manager)
-        linear_before = int(resolved_meta.get("linear_before", 0) or 0)
-        linear_after = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
-        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
-        result_line = format_settlement_audit_line(
-            orch._contract_cycle.get(c_id, 0),
+        result_line = _format_audit_row(
+            orch,
+            c_id,
             str(resolved_meta.get("outcome") or ""),
             profit,
             resolved_meta.get("direction"),
             str(resolved_meta.get("symbol") or ""),
             float(resolved_meta.get("edge") or 0.0),
-            settlement_tag=resolve_settlement_tag(
-                profit=profit, linear_before=linear_before, pending_after=float(stake_audit.get("pending", 0.0))
-            ),
-            pending=float(stake_audit.get("pending", 0.0)),
-            linear=linear_after,
-            mode_tag=str(getattr(orch, "_pullback_contract_modes", {}).get(c_id) or stake_audit.get("mode_tag") or ""),
-            recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
-            learn_detail=learn or None,
-            session_pnl=pnl,
-            target_pnl=target,
+            int(resolved_meta.get("linear_before", 0) or 0),
         )
         orch._last_loss_clf_learn = None
     if result_line is not None:
@@ -118,14 +130,18 @@ async def _complete_contract_settlement(
         if price_audit:
             line = f"{line} | {price_audit}"
         _emit_contract_settlement_log(
-            orch, line, c_id=c_id, sym=resolved_meta.get("symbol") if isinstance(resolved_meta, dict) else None
+            orch,
+            line,
+            c_id=c_id,
+            sym=resolved_meta.get("symbol") if isinstance(resolved_meta, dict) else None,
+            cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
         orch._last_loss_clf_learn = None
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
 
-    stop_win_triggered = _update_state_manager_and_check_stop_win(orch, target, pnl)
+    stop_win_triggered = update_state_manager_and_check_stop_win(orch, target, pnl)
 
     if stop_win_triggered:
         orch.logger.debug(
@@ -175,48 +191,20 @@ async def _process_late_settlement_once(orch: Any, poc: dict, c_id: int) -> None
     profit = float(poc.get("profit", 0.0))
     api_status_raw = (poc.get("status") or "").strip()
     outcome = api_settlement_label(api_status_raw, profit)
+    contract_cycle = int(orch._contract_cycle.get(c_id, 0) or getattr(orch, "_last_result_cycle_id", 0) or 0)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, poc.get("underlying", "UNK"))
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     async with orchestrator_atomic_state_context(orch):
-        _process_contract_outcome(
+        _process_contract_outcome(orch, poc, None, c_id, profit, audit_direction=direction, audit_raw_prob=raw_prob)
+        audit_line = _format_audit_row(orch, c_id, outcome, profit, direction, str(sym), edge, linear_before)
+        _emit_contract_settlement_log(
             orch,
-            poc,
-            None,
-            c_id,
-            profit,
-            audit_direction=direction,
-            audit_raw_prob=raw_prob,
-        )
-        stake_audit = resolve_stake_audit_context(orch.risk_manager)
-        linear_after = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
-        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
-        pnl = float(getattr(orch.risk_manager, "total_session_profit", 0.0) or 0.0)
-        target = resolve_stop_win_target(orch.config.get("risk_management", {}), orch.risk_manager.initial_bankroll)
-        orch.logger.info(
-            "%s || API: %s (late)",
-            format_settlement_audit_line(
-                orch._contract_cycle.get(c_id, 0),
-                outcome,
-                profit,
-                direction,
-                str(sym),
-                edge,
-                settlement_tag=resolve_settlement_tag(
-                    profit=profit, linear_before=linear_before, pending_after=float(stake_audit.get("pending", 0.0))
-                ),
-                pending=float(stake_audit.get("pending", 0.0)),
-                linear=linear_after,
-                mode_tag=str(
-                    getattr(orch, "_pullback_contract_modes", {}).get(c_id) or stake_audit.get("mode_tag") or ""
-                ),
-                recovery_infeasible=bool(stake_audit.get("recovery_infeasible", False)),
-                learn_detail=learn or None,
-                session_pnl=pnl,
-                target_pnl=target,
-            ),
-            api_status_raw.lower() or "-",
+            f"{audit_line} || API: {api_status_raw.lower() or '-'} (late)",
+            c_id=c_id,
+            sym=str(sym),
+            cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
         orch._last_loss_clf_learn = None
         getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
@@ -233,7 +221,12 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     c_id = int(c["contract_id"])
     profit = float(c.get("profit", 0.0))
     outcome = api_settlement_label((c.get("status") or "").strip(), profit)
-    sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "UNK"))
+    sym = (
+        getattr(contract, "symbol", None)
+        or orch.risk_manager.contract_to_symbol.get(c_id)
+        or c.get("underlying")
+        or "UNK"
+    )
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     await record_settlement_audit(orch, c, contract, str(sym), signal_prob=raw_prob)
     record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)

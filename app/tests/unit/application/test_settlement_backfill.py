@@ -217,3 +217,85 @@ async def test_backfill_profit_table_exception_and_bad_rows():
     assert await backfill_contract_from_profit_table(orch, 1) is False
     orch.ws.send = AsyncMock(return_value={"profit_table": {}})
     assert await backfill_contract_from_profit_table(orch, 1) is False
+
+
+def test_extract_underlying_from_row():
+    from src.application.services.orchestrator.settlement_backfill import _extract_underlying_from_row
+
+    assert _extract_underlying_from_row({"symbol": "R_25"}) == "R_25"
+    assert _extract_underlying_from_row({"underlying": "1HZ10V"}) == "1HZ10V"
+    assert _extract_underlying_from_row({"shortcode": "PUT_1HZ75V_10.00_170000"}) == "1HZ75V"
+    assert _extract_underlying_from_row({"shortcode": "PLAIN"}) == "PLAIN"
+    assert _extract_underlying_from_row({}) is None
+
+
+@pytest.mark.asyncio
+async def test_reconcile_expired_contract_via_rest_flow():
+    import time
+
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"execution": {"settlement_request_timeout_seconds": 5}}}
+    orch.state.balance = 5000.0
+    mock_contract = MagicMock()
+    mock_contract.expiry_time = time.time() - 10.0
+    orch.state.active_contracts = {99: mock_contract}
+    orch.auth.rest_client = MagicMock()
+
+    with (
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.backfill_contract_from_profit_table",
+            AsyncMock(return_value=False),
+        ),
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.settle_rest_contract_when_due",
+            AsyncMock(),
+        ) as mock_settle,
+    ):
+        ok = await reconcile_single_contract(orch, 99)
+        assert ok is True
+        mock_settle.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_reconcile_single_contract_settled_via_profit_table():
+    orch = MagicMock()
+    orch.config = {"orchestrator": {"execution": {"settlement_request_timeout_seconds": 5}}}
+    with (
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+            AsyncMock(return_value=None),
+        ),
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.backfill_contract_from_profit_table",
+            AsyncMock(return_value=True),
+        ),
+    ):
+        assert await reconcile_single_contract(orch, 55) is True
+
+
+@pytest.mark.asyncio
+async def test_reconcile_expired_contract_via_rest_edge_branches():
+    from src.application.services.orchestrator.settlement_backfill import _reconcile_expired_contract_via_rest
+
+    orch = MagicMock()
+    orch.state.active_contracts = {1: MagicMock(expiry_time="invalid"), 2: MagicMock(expiry_time=9999999999.0)}
+    assert await _reconcile_expired_contract_via_rest(orch, 999) is False
+    assert await _reconcile_expired_contract_via_rest(orch, 1) is False
+    assert await _reconcile_expired_contract_via_rest(orch, 2) is False
+    c_due = MagicMock(expiry_time=100.0)
+    orch.state.active_contracts[3] = c_due
+    orch.auth = None
+    assert await _reconcile_expired_contract_via_rest(orch, 3) is False
+    orch.auth = MagicMock(spec=[])
+    assert await _reconcile_expired_contract_via_rest(orch, 3) is False
+    orch.auth = MagicMock()
+    orch.auth.rest_client = MagicMock()
+    with patch(
+        "src.application.services.orchestrator.settlement_backfill.settle_rest_contract_when_due",
+        AsyncMock(side_effect=RuntimeError("err")),
+    ):
+        assert await _reconcile_expired_contract_via_rest(orch, 3) is False

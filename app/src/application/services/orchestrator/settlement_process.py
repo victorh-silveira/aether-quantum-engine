@@ -35,10 +35,18 @@ def process_settlement_outcome(
     )
 
 
-def emit_contract_settlement_log(orch: Any, line: str, *, c_id: int, sym: str | None = None) -> None:
+def emit_contract_settlement_log(
+    orch: Any, line: str, *, c_id: int, sym: str | None = None, cycle_id: int | None = None
+) -> None:
     """Emite linha [RESOLVED] com o contexto exato do ciclo e ativo do contrato."""
-    orig_cycle = getattr(orch, "_contract_cycle", {}).get(c_id, None)
+    orig_cycle = cycle_id if cycle_id is not None else getattr(orch, "_contract_cycle", {}).get(c_id, None)
+    if orig_cycle in (None, 0):
+        orig_cycle = getattr(orch, "_last_result_cycle_id", None) or None
     symbol = sym or getattr(getattr(orch, "risk_manager", None), "contract_to_symbol", {}).get(c_id)
+    if not symbol or symbol == "UNK":
+        active_c = getattr(getattr(orch, "state", None), "active_contracts", {}).get(c_id)
+        if active_c and getattr(active_c, "symbol", None):
+            symbol = active_c.symbol
     prev_cid, prev_sym = get_log_context()
     bind_log_context(cycle_id=orig_cycle, symbol=symbol)
     try:

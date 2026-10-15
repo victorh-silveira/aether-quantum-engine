@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
+from src.application.services.orchestrator.settlement_rest import settle_rest_contract_when_due
 from src.application.services.orchestrator.settlement_utils import is_transient_broker_error, mark_ws_offline
 
 
@@ -18,6 +20,20 @@ def _profit_from_row(row: dict) -> float:
     if sell_p or buy_p:
         return sell_p - buy_p
     return 0.0
+
+
+def _extract_underlying_from_row(row: dict) -> str | None:
+    """Extrai ativo de linha do profit_table, parseando shortcode se necessario."""
+    if row.get("symbol"):
+        return str(row["symbol"])
+    if row.get("underlying"):
+        return str(row["underlying"])
+    shortcode = row.get("shortcode")
+    if isinstance(shortcode, str) and "_" in shortcode:
+        parts = shortcode.split("_")
+        if len(parts) >= 2 and parts[1]:
+            return parts[1]
+    return shortcode if isinstance(shortcode, str) else None
 
 
 def settlement_payload_from_profit_row(c_id: int, row: dict) -> dict:
@@ -34,7 +50,7 @@ def settlement_payload_from_profit_row(c_id: int, row: dict) -> dict:
             "status": api_status,
             "profit": profit,
             "balance_after": row.get("balance_after"),
-            "underlying": row.get("symbol") or row.get("underlying") or row.get("shortcode"),
+            "underlying": _extract_underlying_from_row(row),
         }
     }
 
@@ -63,6 +79,32 @@ async def fetch_open_contract(ws: Any, contract_id: int, *, timeout: float, subs
     return poc if isinstance(poc, dict) else None
 
 
+async def _reconcile_expired_contract_via_rest(orch: Any, contract_id: int) -> bool:
+    """Fallback para liquidar contrato expirado via saldo REST quando WS nao responde."""
+    active = getattr(getattr(orch, "state", None), "active_contracts", None)
+    if not isinstance(active, dict):
+        return False
+    contract = active.get(contract_id)
+    if not contract:
+        return False
+    try:
+        expiry = float(getattr(contract, "expiry_time", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        return False
+    now = time.time()
+    if expiry <= 0 or now < expiry + 3.0:
+        return False
+    auth = getattr(orch, "auth", None)
+    if not auth or not hasattr(auth, "rest_client"):
+        return False
+    try:
+        balance_after_buy = float(getattr(orch.state, "balance", 0.0) or 0.0)
+        await settle_rest_contract_when_due(orch, contract, balance_after_buy=balance_after_buy)
+        return True
+    except Exception:
+        return False
+
+
 async def reconcile_single_contract(orch: Any, contract_id: int) -> bool:
     """Tenta liquidar um contrato via poll; retorna True se processou settlement."""
     ex = orch.config.get("orchestrator", {}).get("execution", {})
@@ -77,7 +119,10 @@ async def reconcile_single_contract(orch: Any, contract_id: int) -> bool:
         await process_contract_settlement(orch, {"proposal_open_contract": poc})
         return True
     if not poc:
-        return await backfill_contract_from_profit_table(orch, contract_id)
+        settled = await backfill_contract_from_profit_table(orch, contract_id)
+        if settled:
+            return True
+        return await _reconcile_expired_contract_via_rest(orch, contract_id)
     return False
 
 

@@ -22,6 +22,7 @@ from src.application.services.orchestrator.settlement_logic import check_session
 from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
 from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, prune_orphan_contract_ids
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed
+from src.presentation.terminal.log_context import clear_log_context
 from src.presentation.terminal.settle_log import SETTLE_TOLERANCE
 
 
@@ -36,21 +37,18 @@ def _release_post_settlement_task(orch: Any, task: asyncio.Task) -> None:
 
 def post_settlement_cycle_pending(orch: Any) -> bool:
     """True enquanto a task pos-liquidacao ainda esta em execucao."""
-    task = getattr(orch, "_post_settlement_task", None)
-    return task is not None and not task.done()
+    return (task := getattr(orch, "_post_settlement_task", None)) is not None and not task.done()
 
 
 async def _poll_delay(seconds: float) -> None:
-    """Aguarda intervalo de polling entre tentativas pos-liquidacao."""
+    """Aguarda intervalo de polling entre reconciliacoes de liquidacao."""
     await asyncio.sleep(seconds)
 
 
 def _ensure_trading_slot_poll(orch: Any, *, wait_limit: float) -> None:
     """Dispara polling atomico do slot de ciclo sem bloquear a corrotina chamadora."""
-    task = getattr(orch, "_trading_slot_poll_task", None)
-    if task is not None and not task.done():
-        return
-    orch._trading_slot_poll_task = asyncio.ensure_future(_release_stuck_trading_slot(orch, wait_limit=wait_limit))
+    if not (task := getattr(orch, "_trading_slot_poll_task", None)) or task.done():
+        orch._trading_slot_poll_task = asyncio.ensure_future(_release_stuck_trading_slot(orch, wait_limit=wait_limit))
 
 
 async def _release_stuck_trading_slot(orch: Any, *, wait_limit: float) -> None:
@@ -265,6 +263,8 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
             orch._post_settlement_incomplete_streak = 0
             orch._post_settlement_deadlock = False
             return
+        if orch.config.get("pullback_strategy", {}).get("enabled", False):
+            return
         failed_attempts += 1
         if time.monotonic() >= window_deadline or failed_attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS:
             await _apply_tolerance_window_recovery(orch, window=window, failed_attempts=failed_attempts)
@@ -280,6 +280,7 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
 
 async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
     """Aplica folego pos-liquidacao antes de um novo ciclo."""
+    clear_log_context()
     try:
         if await _try_stop_win_fast_path(orch):
             return
@@ -289,6 +290,7 @@ async def run_post_settlement_breath_and_cycle(orch: Any) -> None:
         await _await_post_settlement_breath(orch, breath, poll)
         await _run_post_settlement_retry_loop(orch, orch_cfg, poll)
     finally:
+        clear_log_context()
         current = asyncio.current_task()
         if current is not None:
             _release_post_settlement_task(orch, current)

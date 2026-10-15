@@ -202,3 +202,16 @@ async def test_schedule_spawns_task_even_when_is_trading(orch_ready):
         assert orch._post_settlement_task is not None
         await orch._post_settlement_task
     orch.executor.execute_cluster.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_post_settlement_returns_early_when_pullback_enabled(orch_ready):
+    orch = orch_ready
+    orch.config.setdefault("orchestrator", {})["post_settlement_breath_seconds"] = 0
+    orch.config["pullback_strategy"] = {"enabled": True}
+    with (
+        patch.object(orch, "_run_trading_cycle_if_ready", new_callable=AsyncMock, return_value=False),
+        patch_instant_post_settlement_poll(),
+    ):
+        await run_post_settlement_breath_and_cycle(orch)
+    assert orch.running is True

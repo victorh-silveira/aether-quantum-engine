@@ -13,6 +13,7 @@ from src.application.services.orchestrator.orchestrator_data_signature import (
 )
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.presentation.terminal.log_context import clear_log_context, get_log_context, restore_log_context
 
 
 def _orchestrator_cfg(orch: Any) -> dict:
@@ -205,16 +206,22 @@ def _signature_open_tolerance_seconds(orch: Any) -> float:
 
 
 def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
-    """Log deduplicado de espera pela abertura M5 do relogio."""
+    """Log deduplicado de espera pela abertura M5 do relogio com isolamento de contexto."""
     logger = getattr(orch, "logger", None)
     if logger is None:
         return
-    next_epoch = int(time.time() + wait)
-    key = f"m5_open:{next_epoch}"
+    now_ts = time.time()
+    target_boundary = int(now_ts // 300 + 1) * 300
+    key = f"m5_open:{target_boundary}"
     if str(getattr(orch, "_m5_open_wait_logged_key", "") or "") == key:
         return
     orch._m5_open_wait_logged_key = key
-    logger.info("CICLO: aguardando abertura M5 | restante=%.0fs", wait)
+    prev_cid, prev_sym = get_log_context()
+    clear_log_context()
+    try:
+        logger.info("CICLO: aguardando abertura M5 | restante=%.0fs", wait)
+    finally:
+        restore_log_context(prev_cid, prev_sym)
 
 
 def _signature_open_blocks_cycle(orch: Any) -> bool:
