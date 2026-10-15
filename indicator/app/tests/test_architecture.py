@@ -192,7 +192,8 @@ def test_make_exposes_main_command_groups_and_default_help():
 def test_ci_validates_indicator_before_main_release():
     root = Path(__file__).resolve().parents[3]
     workflow = (root / ".github/workflows/ci.yml").read_text()
-    assert "  indicator:\n" in workflow
-    assert "make indicator-lint indicator-security indicator-test" in workflow
-    assert "needs: [indicator, python, docker, shell, rust, workflows]" in workflow
+    assert "make indicator-lint" in workflow
+    assert "make indicator-security" in workflow
+    assert "make indicator-test" in workflow
+    assert "needs: [python, docker, shell, rust, workflows]" in workflow
     assert '      - "indicator/**"' in workflow

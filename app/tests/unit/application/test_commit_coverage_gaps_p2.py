@@ -127,7 +127,7 @@ async def test_trading_cycle_empty_cap_invalid_and_orch_cfg():
         orch.stream.is_synchronized = True
         return orch
 
-    async def _run(config):
+    async def _run(config, current_time=10.0):
         orch = _orch(config)
         with (
             patch(f"{module}.process_redis_settlement_queue", new=AsyncMock()),
@@ -142,12 +142,14 @@ async def test_trading_cycle_empty_cap_invalid_and_orch_cfg():
             patch(f"{module}.clear_log_context"),
             patch(f"{module}.mark_cycle_attempt_complete"),
             patch(f"{module}.bind_log_context"),
+            patch(f"{module}.time.time", return_value=current_time),
         ):
             assert await run_trading_cycle_if_ready(orch) is True
             assert orch._cooldown_until > 0
 
     await _run({"orchestrator": "bad"})
     await _run({"orchestrator": {"exec_empty_retry_seconds": "bad"}})
+    await _run({"pullback_strategy": {"enabled": True}}, current_time=45.0)
 
 
 def test_orchestrator_loss_tracker_property():
