@@ -138,8 +138,10 @@ def _available_ram_gb() -> float | None:
 def resolve_test_execution_profile() -> TestExecutionProfile:
     cpu_cap = os.cpu_count() or 4
     avail = _available_ram_gb()
+    if sys.platform == "win32":
+        return TestExecutionProfile("windows-conda-seguro", 0, avail)
     if avail is None:
-        return TestExecutionProfile("fallback", max(2, min(4, cpu_cap)), None)
+        return TestExecutionProfile("fallback", min(2, cpu_cap), None)
     tiers = (
         (6, "ram-6gb", 2),
         (8, "ram-8gb", 4),
@@ -148,8 +150,8 @@ def resolve_test_execution_profile() -> TestExecutionProfile:
     )
     for threshold, name, workers in tiers:
         if avail < threshold:
-            return TestExecutionProfile(name, min(workers, cpu_cap), avail)
-    return TestExecutionProfile("ram-64gb", min(10, cpu_cap), avail)
+            return TestExecutionProfile(name, min(workers, cpu_cap, 2), avail)
+    return TestExecutionProfile("ram-64gb", min(2, cpu_cap), avail)
 
 
 def format_profile_summary(profile: TestExecutionProfile) -> str:
@@ -399,9 +401,11 @@ def stage_test(fail_under: int = 100) -> None:
         f"--cov-fail-under={fail_under}",
         "tests/",
     ]
-    print(f">>> pytest-xdist + pytest-cov ({workers} workers)")
-    _run_subprocess(command, cwd=APP_ROOT, env=env)
-    _release_parent_memory()
+    print(f">>> pytest + pytest-cov ({workers} workers xdist)")
+    try:
+        subprocess.run(command, check=True, text=True, shell=False, cwd=APP_ROOT, env=env, timeout=600)
+    finally:
+        _release_parent_memory()
 
 
 def _resolve_gitleaks_bin() -> str | None:

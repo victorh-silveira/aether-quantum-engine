@@ -1,8 +1,18 @@
 {
-  "anchor": "1HZ75V",
+  "anchor": "R_25",
+  "pullback_strategy": {
+    "enabled": true,
+    "version": "pullback-1-9b7e582c3fd7",
+    "variant": "improved",
+    "demo_pilot_contracts": 200,
+    "entry_window_seconds": 30
+  },
   "indicator_consensus": {
     "enabled": true,
-    "auto_symbols": true
+    "auto_symbols": true,
+    "broker_ev_promotion": true,
+    "multi_period_trading": true,
+    "stake_pct": 0.01
   },
   "api_config": {
     "deriv_app_id": "",
@@ -220,7 +230,8 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
-      "1HZ75V"
+      "R_10",
+      "R_25"
     ],
     "train_timeframe": "micro",
     "training_batch_size": 128,
@@ -763,7 +774,7 @@
     }
   },
   "symbols": [
-    "1HZ75V"
+    "R_25"
   ],
   "telemetry": {
     "host": "0.0.0.0",

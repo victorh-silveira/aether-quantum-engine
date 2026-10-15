@@ -267,7 +267,7 @@ def train_lgbm_candidate(
     train_hist, val_hist = _eval_l1_histories(evals_result)
     n_iter = _booster_trained_iterations(model)
     if type(model).__name__ == "Booster":
-        n_iter = max(n_iter, int(rounds))
+        n_iter = max(1, _booster_best_iteration(model)) if early_stopping else max(n_iter, int(rounds))
         train_hist, val_hist = _mae_curves_from_booster(
             model,
             x_train_np,
@@ -472,6 +472,7 @@ def run_optuna_study(
         frame,
         y,
         sample_weight=sample_weight,
+        embargo=int((hygiene or {}).get("embargo_rows", PURGED_SPLIT_EMBARGO)),
     )
     train_std = _target_std(y_train)
     val_std = _target_std(y_val)
@@ -659,7 +660,7 @@ def run_optuna_study(
         best_params,
         sample_weight=w_train,
         num_boost_round=boost_rounds,
-        early_stopping=False,
+        early_stopping=True,
     )
     if _export_untrainable(model) or _booster_best_iteration(model) <= 0:
         model._aether_export_iteration = max(1, int(boost_rounds))

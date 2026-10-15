@@ -77,3 +77,27 @@ def test_main_reports_missing_and_compatible_checkpoint(settings, tmp_path):
             path,
         )
         assert main() == 0
+
+
+def test_main_checks_every_approved_training_symbol(settings, tmp_path):
+    from scripts.operations import check_dl_checkpoint as gate
+
+    with (
+        patch.object(gate, "REPO_ROOT", tmp_path),
+        patch.object(gate, "_load_settings", return_value=settings),
+        patch.object(gate, "resolve_dl_train_symbols", return_value=["1HZ75V", "R_10"]),
+        patch.object(sys, "argv", ["check_dl_checkpoint.py"]),
+    ):
+        for symbol in ("1HZ75V", "R_10"):
+            path = tmp_path / "data/dl" / f"{symbol}.pth"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(
+                {
+                    **_expected_geometry(settings),
+                    "state_dict": create_direction_model(arch="tcn").state_dict(),
+                    "norm_mean": torch.zeros(FEATURE_DIM),
+                    "norm_std": torch.ones(FEATURE_DIM),
+                },
+                path,
+            )
+            assert main() == (1 if symbol == "1HZ75V" else 0)

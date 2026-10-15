@@ -469,6 +469,78 @@ def _validate_sample_floor(rows: int, fetch_count: int) -> None:
     )
 
 
+def _pooled_symbol_dataset(
+    bundles: list[OhlcBundle],
+    *,
+    micro_granularity: int,
+    contract_duration_seconds: int | None,
+    reference_stake: float,
+    fetch_count: int,
+    teacher_probs: dict[str, np.ndarray] | None,
+) -> tuple[pl.DataFrame, np.ndarray, np.ndarray, np.ndarray, dict[str, Any]]:
+    parts = [
+        build_paired_training_dataset(
+            [bundle],
+            micro_granularity=micro_granularity,
+            contract_duration_seconds=contract_duration_seconds,
+            reference_stake=reference_stake,
+            fetch_count=fetch_count,
+            teacher_probs=teacher_probs,
+        )
+        for bundle in bundles
+    ]
+    modes = {int(part[4]["label_mode"]) for part in parts}
+    if len(modes) != 1:
+        raise RuntimeError("Modos de alvo divergentes entre indices; treino meta conjunto bloqueado.")
+    epochs = []
+    for bundle, (_, labels, _, _, hygiene) in zip(bundles, parts, strict=True):
+        start = FEATURE_LOOKBACK_SKIP + int(hygiene["n_dropped_flat_prefix"])
+        ordered = np.sort(np.asarray(bundle.epochs, dtype=np.int64))
+        epochs.append(ordered[start : start + len(labels)])
+    if any(len(epoch) != len(part[1]) for epoch, part in zip(epochs, parts, strict=True)):
+        raise RuntimeError("Alinhamento temporal do treino meta diverge dos labels.")
+    all_epochs = np.concatenate(epochs)
+    symbol_index = np.concatenate([np.full(len(part[1]), index) for index, part in enumerate(parts)])
+    order = np.lexsort((symbol_index, all_epochs))
+    embargo_rows = FEATURE_LOOKBACK_SKIP * len(parts)
+    train_end = len(order) - max(32, int(len(order) * 0.25)) - embargo_rows
+    if train_end < 32:
+        raise RuntimeError("Amostras insuficientes para separacao temporal do meta conjunto.")
+    train_epoch = int(all_epochs[order][train_end - 1])
+    columns = meta_classifier_column_names()
+    matrix = np.concatenate([part[0].to_numpy() for part in parts], axis=0)[order]
+    frame = pl.DataFrame({name: matrix[:, index] for index, name in enumerate(columns)})
+    scaled_labels = []
+    for epoch, (_, labels, _, _, _) in zip(epochs, parts, strict=True):
+        train_labels = labels[epoch <= train_epoch]
+        if len(train_labels) < 32:
+            raise RuntimeError("Indice sem amostras suficientes antes da validacao temporal do meta.")
+        scale = max(float(np.std(train_labels)), PAYOFF_SCALE_STD_FLOOR)
+        scaled_labels.append(np.asarray(labels, dtype=np.float32) / scale)
+    y = np.concatenate(scaled_labels)[order]
+    proxy = np.concatenate([part[2] for part in parts])[order]
+    pnl = np.concatenate([part[3] for part in parts])[order]
+    hygiene: dict[str, Any] = {
+        "n_before_gray_filter": len(y),
+        "n_dropped_gray": sum(int(part[4]["n_dropped_gray"]) for part in parts),
+        "n_gray_soft_retained": sum(int(part[4]["n_gray_soft_retained"]) for part in parts),
+        "n_dropped_flat_prefix": sum(int(part[4]["n_dropped_flat_prefix"]) for part in parts),
+        "n_kept": len(y),
+        "gray_filter_mode": int(GRAY_FILTER_SOFT),
+        "label_mode": modes.pop(),
+        "label_scale": 1.0,
+        "forward_var": float(np.var(y)),
+        "close_nunique": sum(int(part[4]["close_nunique"]) for part in parts),
+        "z_collapse_pct": max(int(part[4]["z_collapse_pct"]) for part in parts),
+        "data_source": ",".join(sorted({str(part[4]["data_source"]) for part in parts})),
+        "bars_loaded": sum(int(part[4]["bars_loaded"]) for part in parts),
+        "symbol_count": len(parts),
+        "symbols_used": ",".join(bundle.symbol for bundle in bundles),
+        "embargo_rows": embargo_rows,
+    }
+    return frame, y, proxy, pnl, hygiene
+
+
 def build_paired_training_dataset(
     bundles: list[OhlcBundle],
     *,
@@ -481,6 +553,15 @@ def build_paired_training_dataset(
     planned_fetch = int(fetch_count)
     if not bundles:
         raise RuntimeError("Treino meta-classificador exige ao menos um bundle OHLC.")
+    if len(bundles) > 1:
+        return _pooled_symbol_dataset(
+            bundles,
+            micro_granularity=micro_granularity,
+            contract_duration_seconds=contract_duration_seconds,
+            reference_stake=reference_stake,
+            fetch_count=fetch_count,
+            teacher_probs=teacher_probs,
+        )
     by_symbol = {bundle.symbol: bundle for bundle in bundles}
     primary = by_symbol.get("1HZ75V") or next(iter(by_symbol.values()))
     duration = int(contract_duration_seconds) if contract_duration_seconds is not None else int(micro_granularity)

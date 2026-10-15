@@ -17,6 +17,7 @@ if str(_APP) not in sys.path:
 from aether_paths import REPO_ROOT
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import load_model_checkpoint
+from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 from src.presentation.terminal.logger import setup_logger
 
 _LOGGER = setup_logger("AETH.train", log_file=None)
@@ -84,7 +85,7 @@ def main() -> int:
     parser.add_argument("--symbols", nargs="+", default=None)
     args = parser.parse_args()
     settings = _load_settings()
-    symbols = args.symbols or settings.get("symbols") or ["1HZ75V"]
+    symbols = args.symbols or resolve_dl_train_symbols(settings)
     results = [evaluate_checkpoint(path, settings=settings) for path in _checkpoint_paths(settings, symbols)]
     for _, message in results:
         _LOGGER.info("DL checkpoint | %s", message)

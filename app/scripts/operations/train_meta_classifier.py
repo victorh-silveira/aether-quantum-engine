@@ -45,6 +45,7 @@ from scripts.operations.train_meta_vector import (
     teacher_sample_weights,
 )
 from src.application.services.deep_learning.dl_params import parse_dl_params
+from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
 from src.presentation.terminal.logger import setup_logger
 
 
@@ -272,6 +273,14 @@ def _parse_args(settings: dict[str, Any]) -> argparse.Namespace:
     return parser.parse_args()
 
 
+def resolve_meta_symbols(settings: dict[str, Any], requested: list[str] | None = None) -> list[str]:
+    """Treina o meta nos mesmos indices M5 selecionados para a TCN."""
+    symbols = [str(symbol) for symbol in requested] if requested is not None else resolve_dl_train_symbols(settings)
+    if not symbols:
+        raise ValueError("Nenhum indice selecionado para o treino meta; confira deep_learning.train_symbols.")
+    return list(dict.fromkeys(symbols))
+
+
 def main() -> None:
     silence_asyncio_debug()
     setup_logger("AETH.meta", log_file=None)
@@ -279,11 +288,8 @@ def main() -> None:
     settings = _load_settings()
     args = _parse_args(settings)
     dsn = _resolve_dsn(settings)
-    meta_symbols = (
-        [str(s) for s in args.symbols]
-        if args.symbols is not None
-        else [str(s) for s in (settings.get("symbols") or ["1HZ75V"])]
-    )
+    meta_symbols = resolve_meta_symbols(settings, args.symbols)
+    logger.info("[META] indices M5 selecionados: %s", ", ".join(meta_symbols))
     summary = run_async(
         train_meta_classifier(
             settings=settings,
@@ -305,7 +311,8 @@ def main() -> None:
     except ValueError:
         out_rel = out_path.name
     logger.info(
-        "[META] ok samples=%s n_val=%s ir=%.2f z=%.2f mae=%.2f gran=%s src=%s out=%s",
+        "[META] ok symbols=%s samples=%s n_val=%s ir=%.2f z=%.2f mae=%.2f gran=%s src=%s out=%s",
+        ",".join(meta_symbols),
         summary.get("samples"),
         summary.get("n_val"),
         float(summary.get("oos_information_ratio") or 0.0),

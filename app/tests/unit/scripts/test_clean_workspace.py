@@ -1,6 +1,35 @@
 from pathlib import Path
 
+from scripts.operations import clean_workspace
 from scripts.operations.clean_workspace import _repo_root_for_bash, build_safe_remove
+
+
+def test_test_profile_limits_parallel_workers_on_windows(monkeypatch):
+    monkeypatch.setattr(clean_workspace.sys, "platform", "win32")
+    monkeypatch.setattr(clean_workspace, "_available_ram_gb", lambda: 64.0)
+    assert clean_workspace.resolve_test_execution_profile().parallel_workers == 0
+
+
+def test_test_profile_limits_parallel_workers_on_linux(monkeypatch):
+    monkeypatch.setattr(clean_workspace.sys, "platform", "linux")
+    monkeypatch.setattr(clean_workspace, "_available_ram_gb", lambda: 64.0)
+    assert clean_workspace.resolve_test_execution_profile().parallel_workers <= 2
+
+
+def test_stage_test_uses_bounded_streamed_process(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        clean_workspace,
+        "resolve_test_execution_profile",
+        lambda: clean_workspace.TestExecutionProfile("seguro", 0, 8.0),
+    )
+    monkeypatch.setattr(clean_workspace, "_purge_coverage_artifacts", lambda _root: None)
+    monkeypatch.setattr(clean_workspace, "_release_parent_memory", lambda: None)
+    monkeypatch.setattr(clean_workspace.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    clean_workspace.stage_test()
+    assert calls[0][0][0][calls[0][0][0].index("-n") + 1] == "0"
+    assert calls[0][1]["timeout"] == 600
+    assert "capture_output" not in calls[0][1]
 
 
 def test_gitleaks_source_uses_linux_path_for_wsl_checkout():

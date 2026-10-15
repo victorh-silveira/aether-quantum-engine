@@ -10,6 +10,7 @@ import pytest
 
 from scripts.operations.train_meta_classifier import (
     build_training_summary,
+    resolve_meta_symbols,
     target_variance,
     validate_target_variance,
 )
@@ -72,6 +73,14 @@ from src.application.services.meta_classifier_features import meta_classifier_co
 
 
 GRAY_KEEP_FLOOR = 96
+
+
+def test_meta_symbols_follow_dl_selection_and_explicit_override():
+    settings = {"anchor": "1HZ75V", "symbols": ["1HZ75V"], "deep_learning": {"train_symbols": ["R_10", "R_25"]}}
+    assert resolve_meta_symbols(settings) == ["R_10", "R_25"]
+    assert resolve_meta_symbols(settings, ["R_50", "R_50"]) == ["R_50"]
+    with pytest.raises(ValueError, match="Nenhum indice"):
+        resolve_meta_symbols(settings, [])
 
 
 @pytest.mark.asyncio
@@ -426,6 +435,26 @@ def test_build_paired_training_dataset_has_continuous_target_and_named_columns()
         "micro_tick_acceleration",
         "keltner_deviation_ratio",
     ]
+
+
+def test_meta_dataset_uses_each_symbol_in_time_order():
+    first = _synthetic_bundle("1HZ75V", n=600, phase=0.0)
+    second = _synthetic_bundle("R_25", n=600, phase=0.8)
+    first_frame, _, first_proxy, _, _ = build_paired_training_dataset([first], micro_granularity=60, fetch_count=600)
+    _, _, second_proxy, _, _ = build_paired_training_dataset([second], micro_granularity=60, fetch_count=600)
+    frame, y, proxy, pnl, hygiene = build_paired_training_dataset(
+        [first, second], micro_granularity=60, fetch_count=600
+    )
+    assert frame.height > first_frame.height
+    assert frame.height == len(y) == len(proxy) == len(pnl) == hygiene["n_kept"]
+    assert hygiene["symbol_count"] == 2
+    assert hygiene["symbols_used"] == "1HZ75V,R_25"
+    assert hygiene["embargo_rows"] == 64
+    assert hygiene["bars_loaded"] == 1200
+    assert proxy[0] == first_proxy[0]
+    assert proxy[1] == second_proxy[0]
+    x_train, x_val, *_ = _purged_frame_split(frame, y, embargo=hygiene["embargo_rows"])
+    assert x_train.height + x_val.height + 64 == frame.height
 
 
 def test_train_lgbm_candidate_uses_train_api():
