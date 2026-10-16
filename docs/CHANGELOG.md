@@ -1,3 +1,9 @@
+## [4.7.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.1...v4.7.2) (2026-10-16)
+
+### Correcoes de Bug
+
+* **orchestrator:** garante emissao de EXEC_SKIP mesmo sem leituras no banco ([6e13289](https://github.com/victorh-silveira/aether-quantum-engine/commit/6e132897b47afe90badff4350324fd3a1051bb0e))
+
 ## [4.7.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.0...v4.7.1) (2026-10-16)
 
 ### Correcoes de Bug
