@@ -81,7 +81,8 @@ def test_pullback_empty_cycle_reports_observed_setup_reason():
     orch._indicator_signal_status = {}
     logger.reset_mock()
     log_execution_blockers(executor, {})
-    assert logger.info.call_count == 0
+    assert "aguardando_leitura" in str(logger.info.call_args)
+    assert "aguardando_leitura_indicador" in str(logger.info.call_args)
     executor._trade_symbols = lambda: []
     log_execution_blockers(executor, {})
     assert "sem_ativo_operacional" in str(logger.info.call_args)

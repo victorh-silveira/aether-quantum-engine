@@ -89,8 +89,7 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         statuses = getattr(executor.orch, "_indicator_signal_status", {})
         symbols = executor._trade_symbols()
         m5_statuses = {symbol: reason for (symbol, period), reason in statuses.items() if period == 300}
-        if not m5_statuses and symbols:
-            return
+        default_status = "aguardando_leitura" if not m5_statuses else "sem_sinal_m5"
         excluded = set(
             executor.orch.config.get("pullback_strategy", {}).get("excluded_symbols")
             or executor.orch.config.get("strategy", {}).get("excluded_symbols")
@@ -103,16 +102,17 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             elif (symbol, 300) in statuses:
                 details.append(f"{symbol}:5m={statuses[(symbol, 300)]}")
             else:
-                details.append(f"{symbol}:5m=sem_sinal_m5")
+                details.append(f"{symbol}:5m={default_status}")
         motivo_map = {
             "padrao_incompleto": "aguardando_recuo_e_confirmacao",
             "corpo_fora_faixa": "corpo_vela_fora_limite_atr",
             "ativo_excluido(baixo_edge)": "baixo_ev_historico",
             "sem_sinal_m5": "sem_sinal_nesta_vela",
+            "aguardando_leitura": "aguardando_leitura_indicador",
         }
         reasons = [
             motivo_map.get(
-                statuses.get((s, 300), "ativo_excluido(baixo_edge)" if s in excluded else "sem_sinal_m5"),
+                statuses.get((s, 300), "ativo_excluido(baixo_edge)" if s in excluded else default_status),
                 str(statuses.get((s, 300), "sem_ordem")),
             )
             for s in symbols
