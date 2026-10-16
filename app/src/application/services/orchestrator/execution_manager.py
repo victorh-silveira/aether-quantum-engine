@@ -164,8 +164,9 @@ class ExecutionManager:
                 orders = await select_period_orders(self.orch, orders)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:
+                inv_tag = " (INVERTIDO)" if self.orch.config.get("pullback_strategy", {}).get("invert_signal") else ""
                 selected = " ".join(
-                    f"{symbol}:{int(metrics.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
+                    f"{symbol}:{int(metrics.get('indicator_period_seconds') or 300) // 60}m:{direction.name}{inv_tag}"
                     for symbol, direction, metrics in orders
                 )
                 self.logger.info(

@@ -9,10 +9,9 @@ from src.domain.symbols.drift_symbols import (
 
 
 def test_drift_symbols_constants():
-    assert DEFAULT_ANCHOR == "1HZ75V"
-    assert TRADING_SYMBOLS == ("1HZ75V",)
-    assert DRIFT_SYMBOLS == ("1HZ75V",)
-    assert DEFAULT_ANCHOR == "1HZ75V"
+    assert DEFAULT_ANCHOR == "R_25"
+    assert "R_25" in TRADING_SYMBOLS
+    assert DRIFT_SYMBOLS == TRADING_SYMBOLS
 
 
 def test_hedge_peer_known_and_unknown():

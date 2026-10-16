@@ -110,21 +110,24 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             "sem_sinal_m5": "sem_sinal_nesta_vela",
             "aguardando_leitura": "aguardando_leitura_indicador",
         }
-        reasons = [
-            motivo_map.get(
-                statuses.get((s, 300), "ativo_excluido(baixo_edge)" if s in excluded else default_status),
-                str(statuses.get((s, 300), "sem_ordem")),
-            )
-            for s in symbols
-        ]
+        reasons = []
+        for s in symbols:
+            if s in excluded:
+                reasons.append(motivo_map.get("ativo_excluido(baixo_edge)", "baixo_ev_historico"))
+            elif (s, 300) in statuses:
+                reasons.append(motivo_map.get(statuses[(s, 300)], str(statuses[(s, 300)])))
+            else:
+                reasons.append(motivo_map.get(default_status, default_status))
         motivo_str = ", ".join(dict.fromkeys(reasons)) or "sem_ordem"
-        active = sum(reason == "setup_confirmado" for reason in m5_statuses.values())
+        confirmed = [sym for sym, reason in m5_statuses.items() if reason == "setup_confirmado"]
+        setups_desc = f" ({','.join(confirmed[:3])})" if confirmed else ""
         executor.logger.info(
-            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d | MOTIVO: %s",
+            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d%s | MOTIVO: %s",
             cid,
             " ".join(details) or "sem_ativo_operacional",
             len(m5_statuses),
-            active,
+            len(confirmed),
+            setups_desc,
             motivo_str,
         )
         return

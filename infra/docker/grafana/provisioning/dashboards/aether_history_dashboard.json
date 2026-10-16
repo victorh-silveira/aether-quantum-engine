@@ -293,6 +293,75 @@
           "sort": "none"
         }
       }
+    },
+    {
+      "id": 5,
+      "title": "Uptime da sessão do bot (HH:MM:SS)",
+      "description": "Evolução temporal do tempo decorrido da sessão do bot em formato HH:MM:SS desde o início até o Stop Win.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 18
+      },
+      "maxDataPoints": 1200,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "instant": false,
+          "range": true,
+          "interval": "$__interval",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dhh:mm:ss",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "gradientMode": "opacity",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     }
   ],
   "refresh": "5s",
@@ -301,8 +370,10 @@
   "tags": [
     "aether",
     "aether-history-m5",
+    "historico",
     "m5",
-    "telemetry"
+    "pullback",
+    "telemetria"
   ],
   "time": {
     "from": "now-1h",
@@ -320,7 +391,7 @@
   "timezone": "browser",
   "title": "Aether | Histórico M5",
   "uid": "aether-history-m5",
-  "version": 1,
+  "version": 3,
   "templating": {
     "list": [
       {

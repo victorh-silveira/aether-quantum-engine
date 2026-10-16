@@ -1,14 +1,15 @@
 {
   "uid": "aether-synthetic-catalog",
-  "title": "Sinteticos - catalogo completo",
+  "title": "Sintéticos | Catálogo Completo",
   "tags": [
     "aether",
+    "sinteticos",
     "pullback",
-    "synthetic"
+    "catalogo"
   ],
   "timezone": "browser",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": "10s",
   "panels": [
     {

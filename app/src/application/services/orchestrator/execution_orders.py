@@ -17,6 +17,7 @@ from src.application.services.rise_fall_quote_guard import quoted_edge, resolve_
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.payout_observation import record_observed_payout
 from src.domain.risk.stop_win_target import resolve_stop_win_target
+from src.presentation.terminal.log_context import bind_log_context, get_log_context, restore_log_context
 
 from .api_maintenance_guard import handle_broker_maintenance_error
 from .execution_contract_registration import register_confirmed_contract
@@ -39,72 +40,85 @@ async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: 
 def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake, contract, metrics) -> None:
     """Emite linha EXEC e persiste auditoria do contrato."""
     logger = logging.getLogger("AETH")
-    audit = resolve_stake_audit_context(
-        executor.orch.risk_manager,
-        balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
-    )
-    metrics_dict = metrics if isinstance(metrics, dict) else {}
-    mode_tag = str(metrics_dict.get("indicator_stake_mode") or audit.get("mode_tag") or "EXPLORE_KELLY")
-    observed_rate = record_observed_payout(
-        executor.orch.risk_manager.risk_params,
-        payout=float(contract.payout),
-        buy_price=float(contract.buy_price),
-    )
-    if observed_rate is not None:
-        metrics_dict["payout_observed"] = observed_rate
-    haircut = float(
-        executor.orch.config.get("orchestrator", {}).get("execution", {}).get("quote_probability_haircut", 0.0)
-    )
-    setup_pilot = bool(metrics_dict.get("indicator_demo_pilot")) and str(
-        metrics_dict.get("indicator_model_version", "")
-    ).startswith("pullback-1-")
-    quote_ev = (
-        None if setup_pilot else quoted_edge(metrics_dict, direction.name, observed_rate, probability_haircut=haircut)
-    )
-    metrics_dict["quote_edge"] = quote_ev
-    if quote_ev is not None and quote_ev <= 0.0:
-        logger.warning(
-            "QUOTE | compra confirmada com EV estimado negativo | cid=%s lado=%s EV=%.4f rate=%.4f",
-            int(contract.contract_id),
-            direction.name,
-            quote_ev,
-            float(observed_rate),
+    prev_cid, prev_sym = get_log_context()
+    bind_log_context(cycle_id=cycle_id, symbol=str(symbol))
+    try:
+        audit = resolve_stake_audit_context(
+            executor.orch.risk_manager,
+            balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
         )
-    if metrics_dict.get("indicator_stake_mode"):
-        side_probability = None if setup_pilot else resolve_effective_side_probability(metrics_dict, direction.name)
-        logger.info(
-            "[INDICATOR_STAKE] || lado=%s p_side=%s stake=%.2f mode=%s",
-            direction.name,
-            f"{side_probability:.4f}" if side_probability is not None else "n/a",
-            float(stake),
-            mode_tag,
-        )
-    else:
-        emit_audit_info(
-            logger, format_kelly_audit_line(metrics_dict, stake=float(stake), mode_tag=mode_tag, audit=audit)
-        )
-    emit_audit_info(
-        logger,
-        format_execution_ticket_line(
-            cycle_id,
-            direction=direction.name,
-            symbol=str(symbol),
-            stake=float(stake),
-            mode_tag=mode_tag,
-            pending=float(audit.get("pending", 0.0)),
-            bankroll=float(audit.get("bankroll", 0.0)),
-            contract_id=int(contract.contract_id),
+        metrics_dict = metrics if isinstance(metrics, dict) else {}
+        mode_tag = str(metrics_dict.get("indicator_stake_mode") or audit.get("mode_tag") or "EXPLORE_KELLY")
+        observed_rate = record_observed_payout(
+            executor.orch.risk_manager.risk_params,
             payout=float(contract.payout),
-            linear=int(audit.get("linear", 0)),
-            cap=float(audit.get("cap", 0.0)),
-            recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
-            motivo=(
-                "setup_confirmado"
-                if str(metrics_dict.get("indicator_model_version", "")).startswith("pullback-1-")
-                else None
+            buy_price=float(contract.buy_price),
+        )
+        if observed_rate is not None:
+            metrics_dict["payout_observed"] = observed_rate
+        haircut = float(
+            executor.orch.config.get("orchestrator", {}).get("execution", {}).get("quote_probability_haircut", 0.0)
+        )
+        setup_pilot = bool(metrics_dict.get("indicator_demo_pilot")) and str(
+            metrics_dict.get("indicator_model_version", "")
+        ).startswith("pullback-1-")
+        quote_ev = (
+            None
+            if setup_pilot
+            else quoted_edge(metrics_dict, direction.name, observed_rate, probability_haircut=haircut)
+        )
+        metrics_dict["quote_edge"] = quote_ev
+        if quote_ev is not None and quote_ev <= 0.0:
+            logger.warning(
+                "QUOTE | compra confirmada com EV estimado negativo | cid=%s lado=%s EV=%.4f rate=%.4f",
+                int(contract.contract_id),
+                direction.name,
+                quote_ev,
+                float(observed_rate),
+            )
+        if metrics_dict.get("indicator_stake_mode"):
+            if setup_pilot:
+                prob_desc = "n/a"
+            else:
+                side_prob = resolve_effective_side_probability(metrics_dict, direction.name)
+                prob_fallback = metrics_dict.get("calibrated_prob") or metrics_dict.get("trade_score")
+                prob_desc = (
+                    f"{side_prob:.4f}"
+                    if side_prob is not None
+                    else (f"{float(prob_fallback):.4f} (Beta)" if prob_fallback is not None else "n/a")
+                )
+            logger.info(
+                "[INDICATOR_STAKE] || lado=%s p_side=%s stake=%.2f mode=%s",
+                direction.name,
+                prob_desc,
+                float(stake),
+                mode_tag,
+            )
+        else:
+            emit_audit_info(
+                logger, format_kelly_audit_line(metrics_dict, stake=float(stake), mode_tag=mode_tag, audit=audit)
+            )
+        versao = metrics_dict.get("indicator_model_version")
+        emit_audit_info(
+            logger,
+            format_execution_ticket_line(
+                cycle_id,
+                direction=direction.name,
+                symbol=str(symbol),
+                stake=float(stake),
+                mode_tag=mode_tag,
+                pending=float(audit.get("pending", 0.0)),
+                bankroll=float(audit.get("bankroll", 0.0)),
+                contract_id=int(contract.contract_id),
+                payout=float(contract.payout),
+                linear=int(audit.get("linear", 0)),
+                cap=float(audit.get("cap", 0.0)),
+                recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
+                motivo=f"setup_confirmado ({versao})" if str(versao or "").startswith("pullback-1-") else None,
             ),
-        ),
-    )
+        )
+    finally:
+        restore_log_context(prev_cid, prev_sym)
     store_contract_audit(
         executor.orch,
         int(contract.contract_id),

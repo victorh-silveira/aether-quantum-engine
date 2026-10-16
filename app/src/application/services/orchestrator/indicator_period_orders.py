@@ -55,14 +55,18 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         win_count = sum(value > 0 for value in evidence.returns)
         prob_estimate = (win_count + 0.5) / (evidence.settled + 1.0) if evidence.settled > 0 else 0.5
         probability = evidence.posterior_win_probability or prob_estimate if mode == "real" else prob_estimate
-        call_probability = probability if signal.side == "CALL" else 1.0 - probability
+        side = signal.side
+        if orch.config.get("pullback_strategy", {}).get("invert_signal", False):
+            side = "PUT" if side == "CALL" else "CALL"
+        call_probability = probability if side == "CALL" else 1.0 - probability
         metrics = {
             "indicator_controls_execution": True,
             "indicator_candle_epoch": signal.candle_epoch,
             "indicator_period_seconds": period,
             "indicator_model_version": signal.model_version,
             "indicator_call_probability": None,
-            "indicator_execution_side": signal.side,
+            "indicator_execution_side": side,
+            "indicator_signal_side": signal.side,
             "indicator_demo_pilot": pilot,
             "indicator_broker_settled": evidence.settled,
             "indicator_broker_lower_95": evidence.lower_95,
@@ -77,7 +81,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             "duration": 5,
         }
         if signal_epoch_current(orch.config, metrics):
-            result.append((symbol, TradeDirection[signal.side], metrics))
+            result.append((symbol, TradeDirection[side], metrics))
     return result
 
 

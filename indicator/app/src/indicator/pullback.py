@@ -81,24 +81,29 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
     body = abs(confirmation.close - confirmation.open)
-    max_body = 1.1 * atr if variant == "improved" else 1.5 * atr
+    max_body = 1.2 * atr
     if not 0.03 * atr <= body <= max_body:
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)
-    trend_up = fast[-2] > slow[-2] and fast[-5] < fast[-4] < fast[-3] < fast[-2]
-    trend_down = fast[-2] < slow[-2] and fast[-5] > fast[-4] > fast[-3] > fast[-2]
+    trend_up = fast[-2] > slow[-2] and fast[-4] < fast[-2] and (fast[-2] - slow[-2]) >= 0.20 * atr
+    trend_down = fast[-2] < slow[-2] and fast[-4] > fast[-2] and (slow[-2] - fast[-2]) >= 0.20 * atr
+    cf_range = confirmation.high - confirmation.low
     call = (
         trend_up
-        and abs(pullback.low - fast[-2]) <= 0.5 * atr
+        and abs(pullback.low - fast[-2]) <= 0.85 * atr
         and pullback.close > slow[-2]
         and confirmation.close > confirmation.open
         and confirmation.close > pullback.high
+        and cf_range > 0
+        and (confirmation.high - confirmation.close) <= 0.35 * cf_range
     )
     put = (
         trend_down
-        and abs(pullback.high - fast[-2]) <= 0.5 * atr
+        and abs(pullback.high - fast[-2]) <= 0.85 * atr
         and pullback.close < slow[-2]
         and confirmation.close < confirmation.open
         and confirmation.close < pullback.low
+        and cf_range > 0
+        and (confirmation.close - confirmation.low) <= 0.35 * cf_range
     )
     if variant == "ema50_slope":
         call = call and slow[-2] > slow[-5]
@@ -110,8 +115,18 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
         call = call and abs(confirmation.close - fast[-1]) <= 0.75 * atr
         put = put and abs(confirmation.close - fast[-1]) <= 0.75 * atr
     elif variant == "improved":
-        call = call and slow[-2] >= slow[-5] and pullback.close < pullback.open
-        put = put and slow[-2] <= slow[-5] and pullback.close > pullback.open
+        call = (
+            call
+            and slow[-2] >= slow[-5]
+            and pullback.close <= pullback.open
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+        )
+        put = (
+            put
+            and slow[-2] <= slow[-5]
+            and pullback.close >= pullback.open
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+        )
     elif variant != "base":
         return SetupResult("SEM SINAL", "variante_invalida", version=version)
     if call:

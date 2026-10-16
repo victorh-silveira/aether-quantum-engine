@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol 1HZ75V - Volatility 75 (1s) Index)."""
+"""Simbolos de trading Deriv (universo single-symbol R_25)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("1HZ75V",)
+TRADING_SYMBOLS: tuple[str, ...] = ("R_25",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "1HZ75V"
+DEFAULT_ANCHOR = "R_25"
 
 HEDGE_PEER: dict[str, str] = {}
 

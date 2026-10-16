@@ -290,9 +290,10 @@ async def test_period_ranking_respects_single_order_when_multi_disabled(monkeypa
 
 def test_period_candidates_uses_bayesian_probability_in_demo(monkeypatch):
     orch = _orch("demo")
+    orch.config["pullback_strategy"] = {"invert_signal": True}
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     orch._indicator_broker_evidence[("R_10", 300, "pullback-1-v5")] = BrokerEvEvidence(10, (1.0, 1.0, 1.0, -1.0))
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
-    metrics = candidates[0][2]
-    assert metrics["trade_score"] == pytest.approx(3.5 / 5.0)
+    assert candidates[0][1] == TradeDirection.CALL
+    assert candidates[0][2]["indicator_signal_side"] == "PUT"

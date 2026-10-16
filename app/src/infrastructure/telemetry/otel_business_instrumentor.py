@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import logging
 import math
+import time
 
 
 logger = logging.getLogger("AETH")
@@ -13,8 +14,7 @@ try:
     otel_metrics = importlib.import_module("opentelemetry.metrics")
     _OTEL_SDK_AVAILABLE = True
 except ImportError:
-    otel_metrics = None
-    _OTEL_SDK_AVAILABLE = False
+    otel_metrics, _OTEL_SDK_AVAILABLE = None, False
 
 
 class BusinessMetricsInstrumentor:
@@ -23,15 +23,12 @@ class BusinessMetricsInstrumentor:
     def __init__(self, service_name: str = "aether_quantum_engine") -> None:
         """Inicializa medidores compativeis com OpenTelemetry e buffers locais."""
         self._service_name = service_name
-        self._current_balance: float = 0.0
-        self._session_start_balance: float = 0.0
-        self._session_target_win: float = 0.0
+        self._current_balance = self._session_start_balance = self._session_target_win = 0.0
+        self._total_pnl = self._high_water_mark = self._max_drawdown_pct = 0.0
+        self._session_start_time: float = 0.0
+        self._session_stop_win_time: float | None = None
         self._active_contracts_count: int = 0
-        self._total_pnl: float = 0.0
-        self._high_water_mark: float = 0.0
-        self._max_drawdown_pct: float = 0.0
-        self._recent_probs: list[float] = []
-        self._recent_outcomes: list[int] = []
+        self._recent_probs, self._recent_outcomes = [], []
         self._contract_counts: dict[tuple[str, str, str], int] = {}
         self._contract_predictions: dict[int, float] = {}
         self._indicator_contracts: dict[int, tuple[str, float, float | None, int]] = {}
@@ -42,8 +39,7 @@ class BusinessMetricsInstrumentor:
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:
             try:
                 self._meter = otel_metrics.get_meter(self._service_name)
-            except Exception as exc:
-                logger.debug("OTEL: Falha ao obter meter: %s", exc)
+            except Exception:
                 self._meter = None
 
     @staticmethod
@@ -53,10 +49,22 @@ class BusinessMetricsInstrumentor:
 
     def set_session_targets(self, start_balance: float, target_win: float) -> None:
         """Define o saldo de abertura e a meta de stop win financeiro da sessao."""
-        self._session_start_balance = float(start_balance)
-        self._session_target_win = float(target_win)
+        self._session_start_balance, self._session_target_win = float(start_balance), float(target_win)
+        self._session_start_time, self._session_stop_win_time = time.time(), None
         if self._current_balance <= 0.0 and self._session_start_balance > 0.0:
             self.update_balance(self._session_start_balance)
+
+    def mark_stop_win(self) -> None:
+        """Fixa o instante em que a meta da sessao foi alcancada."""
+        if self._session_stop_win_time is None:
+            self._session_stop_win_time = time.time()
+
+    def session_uptime_seconds(self) -> float:
+        """Retorna o tempo decorrido da sessao do bot em segundos."""
+        if self._session_start_time <= 0.0:
+            return 0.0
+        end = self._session_stop_win_time if self._session_stop_win_time is not None else time.time()
+        return max(0.0, end - self._session_start_time)
 
     def update_active_contracts_count(self, count: int) -> None:
         """Atualiza contagem instantanea de contratos em aberto no broker."""
@@ -70,6 +78,9 @@ class BusinessMetricsInstrumentor:
         if self._high_water_mark > 0.0:
             dd = (self._high_water_mark - val) / self._high_water_mark * 100.0
             self._max_drawdown_pct = max(self._max_drawdown_pct, dd)
+        profit = val - self._session_start_balance if self._session_start_balance > 0.0 else self._total_pnl
+        if self._session_target_win > 0.0 and profit >= self._session_target_win:
+            self.mark_stop_win()
 
     def record_cycle(
         self,
@@ -234,53 +245,54 @@ class BusinessMetricsInstrumentor:
             lines.append(f"aether_trading_brier_score {round(brier, 4)}")
             lines.append(f"aether_trading_brier_samples {len(self._recent_outcomes)}")
         if self._session_start_balance > 0.0 and self._session_target_win > 0.0:
-            lines.extend(
-                (
-                    f"aether_session_balance_usd {round(self._current_balance, 2)}",
-                    f"aether_session_start_balance_usd {round(self._session_start_balance, 2)}",
-                    f"aether_session_profit_usd {round(profit, 4)}",
-                    f"aether_session_target_win_usd {round(self._session_target_win, 2)}",
-                    f"aether_session_target_balance_usd {round(target_bal, 2)}",
-                    f"aether_session_remaining_usd {round(rem, 2)}",
-                    f"aether_session_progress_pct {round(prog, 2)}",
-                    f"aether_session_roi_pct {round(roi, 2)}",
-                    f"aether_session_active_trades {self._active_contracts_count}",
-                )
-            )
+            lines += [
+                f"aether_session_balance_usd {round(self._current_balance, 2)}",
+                f"aether_session_start_balance_usd {round(self._session_start_balance, 2)}",
+                f"aether_session_profit_usd {round(profit, 4)}",
+                f"aether_session_target_win_usd {round(self._session_target_win, 2)}",
+                f"aether_session_target_balance_usd {round(target_bal, 2)}",
+                f"aether_session_remaining_usd {round(rem, 2)}",
+                f"aether_session_progress_pct {round(prog, 2)}",
+                f"aether_session_roi_pct {round(roi, 2)}",
+                f"aether_session_active_trades {self._active_contracts_count}",
+                f"aether_session_uptime_seconds {round(self.session_uptime_seconds(), 1)}",
+                f"aether_session_start_time_seconds {int(self._session_start_time)}",
+                f"aether_session_stop_win_reached {1 if self._session_stop_win_time is not None else 0}",
+            ]
 
-        for sym, data in self._radar.items():
-            lines.append(f'aether_inference_prob{{symbol="{sym}"}} {round(data["prob"], 4)}')
-            if data["cal"] is not None:
-                lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(data["cal"], 4)}')
-            lines.append(f'aether_inference_directional_margin{{symbol="{sym}"}} {round(data["margin"], 4)}')
-            if data["edge"] is not None:
-                lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(data["edge"], 4)}')
-            lines.append(f'aether_inference_conviction{{symbol="{sym}"}} {round(data["conviction"], 4)}')
-            lines.append(f'aether_loss_classifier_p_loss{{symbol="{sym}"}} {round(data["p_loss"], 4)}')
-            if data["p_eff"] is not None:
-                lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(data["p_eff"], 4)}')
-            lines.append(f'aether_loss_classifier_flip_active{{symbol="{sym}"}} {int(data["is_flip"])}')
-            lines.append(f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(data["anti_trend_lock"])}')
-            lines.append(f'aether_trading_direction{{symbol="{sym}"}} {round(data["direction_num"], 1)}')
-            lines.append(f'aether_trading_stake_usd{{symbol="{sym}"}} {round(data["stake_usd"], 2)}')
+        for sym, d in self._radar.items():
+            lines += [
+                f'aether_inference_prob{{symbol="{sym}"}} {round(d["prob"], 4)}',
+                f'aether_inference_directional_margin{{symbol="{sym}"}} {round(d["margin"], 4)}',
+                f'aether_inference_conviction{{symbol="{sym}"}} {round(d["conviction"], 4)}',
+                f'aether_loss_classifier_p_loss{{symbol="{sym}"}} {round(d["p_loss"], 4)}',
+                f'aether_loss_classifier_flip_active{{symbol="{sym}"}} {int(d["is_flip"])}',
+                f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(d["anti_trend_lock"])}',
+                f'aether_trading_direction{{symbol="{sym}"}} {round(d["direction_num"], 1)}',
+                f'aether_trading_stake_usd{{symbol="{sym}"}} {round(d["stake_usd"], 2)}',
+            ]
+            if d["cal"] is not None:
+                lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(d["cal"], 4)}')
+            if d["edge"] is not None:
+                lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(d["edge"], 4)}')
+            if d["p_eff"] is not None:
+                lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(d["p_eff"], 4)}')
 
         for contract_id, (sym, direction, probability, epoch) in self._indicator_contracts.items():
-            labels = f'symbol="{sym}",contract_id="{contract_id}"'
-            lines.append(f"aether_indicator_active_trade_direction{{{labels}}} {direction}")
+            lbl = f'symbol="{sym}",contract_id="{contract_id}"'
+            lines.append(f"aether_indicator_active_trade_direction{{{lbl}}} {direction}")
             if probability is not None:
-                lines.append(f"aether_indicator_active_trade_call_probability{{{labels}}} {round(probability, 4)}")
-            lines.append(f"aether_indicator_active_trade_candle_epoch{{{labels}}} {epoch}")
+                lines.append(f"aether_indicator_active_trade_call_probability{{{lbl}}} {round(probability, 4)}")
+            lines.append(f"aether_indicator_active_trade_candle_epoch{{{lbl}}} {epoch}")
 
-        for (sym, direction, outcome), count in self._contract_counts.items():
-            line = (
-                f'aether_trading_contracts_total{{symbol="{sym}",direction="{direction}",outcome="{outcome}"}} {count}'
-            )
-            lines.append(line)
-
-        for (sym, verdict, reason), count in self._gate_verdicts.items():
-            line = f'aether_trading_gate_verdicts_total{{symbol="{sym}",verdict="{verdict}",reason="{reason}"}} {count}'
-            lines.append(line)
-
+        lines.extend(
+            f'aether_trading_contracts_total{{symbol="{s}",direction="{d}",outcome="{o}"}} {c}'
+            for (s, d, o), c in self._contract_counts.items()
+        )
+        lines.extend(
+            f'aether_trading_gate_verdicts_total{{symbol="{s}",verdict="{v}",reason="{r}"}} {c}'
+            for (s, v, r), c in self._gate_verdicts.items()
+        )
         return "\n".join(lines) + "\n"
 
 

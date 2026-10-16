@@ -9,8 +9,19 @@ def broker_price_audit(payload: dict, direction: str | None) -> str | None:
     """Resume deslocamento real sem inferir outcome a partir da vela M5."""
     if str(payload.get("audit_source") or "broker") != "broker":
         return None
-    raw_entry = payload.get("entry_spot", payload.get("entry_tick"))
-    raw_exit = payload.get("exit_spot", payload.get("exit_tick"))
+    raw_entry = (
+        payload.get("entry_spot")
+        or payload.get("entry_tick")
+        or payload.get("barrier")
+        or payload.get("entry_tick_display_value")
+    )
+    raw_exit = (
+        payload.get("exit_spot")
+        or payload.get("exit_tick")
+        or payload.get("sell_spot")
+        or payload.get("current_spot")
+        or payload.get("exit_tick_display_value")
+    )
     try:
         entry = float(raw_entry)
         exit_ = float(raw_exit)

@@ -9,7 +9,7 @@ from src.domain.risk.soft_recovery_policy import load_soft_recovery_from_setting
 from src.domain.symbols.drift_symbols import TRADING_SYMBOLS
 
 
-DRIFT_PAIR_SYMBOLS = frozenset(TRADING_SYMBOLS)
+DRIFT_PAIR_SYMBOLS = frozenset(TRADING_SYMBOLS) | frozenset({"1HZ75V", "R_25"})
 
 
 def _rs() -> dict:
@@ -35,7 +35,6 @@ def clear_dust_pending_loss(risk_manager: Any, *, soft_recovery: dict[str, Any] 
     if not isinstance(soft, dict) or "dust_pending_clear_max" not in soft:
         soft = load_soft_recovery_from_settings()
     dust_max = float(soft["dust_pending_clear_max"])
-    # Dust is a rounding tolerance, never a fraction of bankroll or session P&L.
     pending = getattr(risk_manager, "pending_loss", None)
     if not isinstance(pending, dict):
         return False

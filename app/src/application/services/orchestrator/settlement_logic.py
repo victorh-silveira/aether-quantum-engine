@@ -87,6 +87,7 @@ def _format_audit_row(
         learn_detail=learn or None,
         session_pnl=pnl,
         target_pnl=target,
+        bankroll=float(getattr(orch.state, "balance", 0.0) or (orch.risk_manager.initial_bankroll + pnl)),
     )
 
 
@@ -144,6 +145,8 @@ async def _complete_contract_settlement(
     stop_win_triggered = update_state_manager_and_check_stop_win(orch, target, pnl)
 
     if stop_win_triggered:
+        if getattr(orch, "business_metrics", None):
+            orch.business_metrics.mark_stop_win()
         orch.logger.debug(
             "[C%04d] STOP_WIN | pnl_sessao=$%+.2f | alvo=$%.2f",
             orch._last_result_cycle_id,

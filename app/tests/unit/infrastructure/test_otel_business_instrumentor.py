@@ -270,3 +270,28 @@ def test_business_metrics_instrumentor_flat_and_trade_variants():
     payload = instrumentor.format_prometheus_metrics()
     assert 'aether_trading_direction{symbol="1HZ75V"} 0.0' in payload
     assert 'aether_trading_contracts_total{symbol="1HZ75V",direction="CALL",outcome="LOSS"} 1' in payload
+
+
+def test_business_metrics_session_uptime_and_stop_win():
+    instrumentor = BusinessMetricsInstrumentor()
+    assert instrumentor.session_uptime_seconds() == 0.0
+
+    instrumentor.set_session_targets(5000.0, 200.0)
+    assert instrumentor.session_uptime_seconds() >= 0.0
+    payload = instrumentor.format_prometheus_metrics()
+    assert "aether_session_uptime_seconds" in payload
+    assert "aether_session_start_time_seconds" in payload
+    assert "aether_session_stop_win_reached 0" in payload
+
+    instrumentor.mark_stop_win()
+    frozen_uptime = instrumentor.session_uptime_seconds()
+    assert frozen_uptime >= 0.0
+    assert instrumentor._session_stop_win_time is not None
+    payload_stop = instrumentor.format_prometheus_metrics()
+    assert "aether_session_stop_win_reached 1" in payload_stop
+
+    instrumentor2 = BusinessMetricsInstrumentor()
+    instrumentor2.set_session_targets(1000.0, 50.0)
+    assert instrumentor2._session_stop_win_time is None
+    instrumentor2.update_balance(1055.0)
+    assert instrumentor2._session_stop_win_time is not None

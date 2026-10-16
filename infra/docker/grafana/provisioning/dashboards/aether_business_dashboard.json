@@ -28,7 +28,7 @@
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -88,14 +88,68 @@
       }
     },
     {
+      "id": 21,
+      "title": "Uptime do bot",
+      "description": "Tempo decorrido da sessão do bot (HH:MM:SS) desde a inicialização até o alcance do Stop Win.",
+      "type": "stat",
+      "gridPos": {
+        "h": 4,
+        "w": 5,
+        "x": 4,
+        "y": 0
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_uptime_seconds",
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dhh:mm:ss",
+          "decimals": 0,
+          "noValue": "00:00:00",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "values": false,
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": ""
+        },
+        "orientation": "auto",
+        "textMode": "value",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
       "id": 2,
       "title": "Saldo atual",
       "description": "Saldo da sessão informado pelo motor.",
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
+        "w": 5,
+        "x": 9,
         "y": 0
       },
       "datasource": {
@@ -148,8 +202,8 @@
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
+        "w": 5,
+        "x": 14,
         "y": 0
       },
       "datasource": {
@@ -218,8 +272,8 @@
       "type": "stat",
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
+        "w": 5,
+        "x": 19,
         "y": 0
       },
       "datasource": {
@@ -1159,6 +1213,75 @@
           "show": false
         }
       }
+    },
+    {
+      "id": 22,
+      "title": "Evolução do Uptime da Sessão do Bot (HH:MM:SS)",
+      "description": "Tempo decorrido contínuo da sessão do bot em formato HH:MM:SS desde o início até o Stop Win.",
+      "type": "timeseries",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "maxDataPoints": 1200,
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "instant": false,
+          "range": true,
+          "interval": "$__interval",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dhh:mm:ss",
+          "decimals": 0,
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "#5794F2"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "pointSize": 5,
+            "showPoints": "auto",
+            "spanNulls": false,
+            "gradientMode": "opacity",
+            "axisPlacement": "auto",
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
     }
   ],
   "refresh": "5s",
@@ -1168,7 +1291,9 @@
     "aether",
     "aether-overview-m5",
     "m5",
-    "telemetry"
+    "operacional",
+    "pullback",
+    "telemetria"
   ],
   "time": {
     "from": "now-6h",
@@ -1183,9 +1308,9 @@
     ]
   },
   "timezone": "browser",
-  "title": "Aether | Visão operacional M5",
+  "title": "Aether | Visão Operacional M5",
   "uid": "aether-business-m5",
-  "version": 4,
+  "version": 6,
   "description": "Snapshots reais do motor. Consultas instantâneas; ausência de medição aparece como —.",
   "templating": {
     "list": [

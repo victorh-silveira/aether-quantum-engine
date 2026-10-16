@@ -43,7 +43,7 @@ async def test_pullback_aguarda_publicacao_m5_antes_de_exec_empty():
     ):
         assert await _execute_inference_cluster_cycle(orch) is False
     assert refresh.await_count == 2
-    wait.assert_awaited_once_with(2)
+    wait.assert_awaited_once_with(4)
 
 
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
