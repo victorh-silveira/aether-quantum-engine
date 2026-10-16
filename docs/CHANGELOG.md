@@ -1,3 +1,9 @@
+## [4.7.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.0...v4.7.1) (2026-10-16)
+
+### Correcoes de Bug
+
+* **orchestrator:** elimina duplo ciclo no minuto e ajusta confirmacao M5 ([4b151ee](https://github.com/victorh-silveira/aether-quantum-engine/commit/4b151eec402e1d2aea1968e9f512f8693688bd76))
+
 ## [4.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.6.0...v4.7.0) (2026-10-15)
 
 ### Funcionalidades
