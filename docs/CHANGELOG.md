@@ -1,3 +1,9 @@
+## [4.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.2...v4.8.0) (2026-10-16)
+
+### Funcionalidades
+
+* **engine:** otimizar filtros do pullback e observabilidade ([84a008c](https://github.com/victorh-silveira/aether-quantum-engine/commit/84a008c83d0321ac080e2bc01f7b5b25c499bdba))
+
 ## [4.7.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.1...v4.7.2) (2026-10-16)
 
 ### Correcoes de Bug
