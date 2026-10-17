@@ -1,3 +1,9 @@
+## [4.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.8.0...v4.9.0) (2026-10-17)
+
+### Funcionalidades
+
+* **engine:** refinar separacao de medias e fechamento no pullback ([9983a2c](https://github.com/victorh-silveira/aether-quantum-engine/commit/9983a2cba5db58c18ec761c9a5b01e893f70bd09))
+
 ## [4.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.7.2...v4.8.0) (2026-10-16)
 
 ### Funcionalidades
