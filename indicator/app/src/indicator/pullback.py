@@ -84,13 +84,14 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
     max_body = 1.2 * atr
     if not 0.03 * atr <= body <= max_body:
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)
-    trend_up = fast[-2] > slow[-2] and fast[-4] < fast[-2] and (fast[-2] - slow[-2]) >= 0.20 * atr
-    trend_down = fast[-2] < slow[-2] and fast[-4] > fast[-2] and (slow[-2] - fast[-2]) >= 0.20 * atr
+    trend_up = fast[-2] > slow[-2] and fast[-4] < fast[-2] and (fast[-2] - slow[-2]) >= 0.25 * atr
+    trend_down = fast[-2] < slow[-2] and fast[-4] > fast[-2] and (slow[-2] - fast[-2]) >= 0.25 * atr
     cf_range = confirmation.high - confirmation.low
     call = (
         trend_up
-        and abs(pullback.low - fast[-2]) <= 0.85 * atr
+        and abs(pullback.low - fast[-2]) <= 0.80 * atr
         and pullback.close > slow[-2]
+        and confirmation.close > fast[-1]
         and confirmation.close > confirmation.open
         and confirmation.close > pullback.high
         and cf_range > 0
@@ -98,8 +99,9 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
     )
     put = (
         trend_down
-        and abs(pullback.high - fast[-2]) <= 0.85 * atr
+        and abs(pullback.high - fast[-2]) <= 0.80 * atr
         and pullback.close < slow[-2]
+        and confirmation.close < fast[-1]
         and confirmation.close < confirmation.open
         and confirmation.close < pullback.low
         and cf_range > 0
@@ -119,13 +121,13 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
             call
             and slow[-2] >= slow[-5]
             and pullback.close <= pullback.open
-            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
         )
         put = (
             put
             and slow[-2] <= slow[-5]
             and pullback.close >= pullback.open
-            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
         )
     elif variant != "base":
         return SetupResult("SEM SINAL", "variante_invalida", version=version)
