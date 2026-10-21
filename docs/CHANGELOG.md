@@ -1,3 +1,13 @@
+## [4.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.9.0...v4.10.0) (2026-10-21)
+
+### Funcionalidades
+
+* **engine:** implementar variante momentum burst e otimizar docker ([d808929](https://github.com/victorh-silveira/aether-quantum-engine/commit/d8089296d0df17fa502783e674c4bb0e76de4a43))
+
+### Refatoracoes Tecnicas
+
+* **engine:** unificar pipeline de ci e padronizar rotas de mercado ([4741475](https://github.com/victorh-silveira/aether-quantum-engine/commit/4741475e2aef0de0147f0ed6198ea4b1190014e8))
+
 ## [4.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.8.0...v4.9.0) (2026-10-17)
 
 ### Funcionalidades
