@@ -11,7 +11,15 @@ from indicator.domain import Candle
 SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"
 VERSION = "pullback-1-" + sha256(SPEC.encode()).hexdigest()[:12]
 MIN_BARS = 64
-VARIANTS = ("base", "ema50_slope", "countertrend_retrace", "entry_distance", "improved", "pool_rsi_bb")
+VARIANTS = (
+    "base",
+    "ema50_slope",
+    "countertrend_retrace",
+    "entry_distance",
+    "improved",
+    "pool_rsi_bb",
+    "momentum_burst",
+)
 
 
 def version_for_variant(variant: str = "base") -> str:
@@ -21,6 +29,9 @@ def version_for_variant(variant: str = "base") -> str:
     if variant in ("improved", "pool_rsi_bb"):
         spec = "ema20_50:warmup128:atr14:recuo1.8:dist1.4:rsi_bb_di_v3:m5"
         return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
+    if variant == "momentum_burst":
+        spec = "momentum_burst:score4_conviction:hurst0.45:adx18:v1"
+        return "momentum-1-" + sha256(spec.encode()).hexdigest()[:12]
     spec = f"{SPEC}:{variant}"
     return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
 
@@ -284,7 +295,7 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
     elif variant == "entry_distance":
         call = call and abs(confirmation.close - fast[-1]) <= 1.40 * atr
         put = put and abs(confirmation.close - fast[-1]) <= 1.40 * atr
-    elif variant in ("improved", "pool_rsi_bb"):
+    elif variant in ("improved", "pool_rsi_bb", "momentum_burst"):
         rsi = _rsi(closes, 14)
         rsi_prev = _rsi(closes[:-1], 14)
         pct_b = _bollinger_pct_b(closes, 14)
@@ -366,7 +377,13 @@ def evaluate(candles: list[Candle], period: int, now: int, variant: str = "base"
 
         score_call = sum([ok_pr_call, ok_mo_call, ok_os_call, ok_vo_call, ok_re_call])
         score_put = sum([ok_pr_put, ok_mo_put, ok_os_put, ok_vo_put, ok_re_put])
-        if score_call > score_put:
+        if variant == "momentum_burst":
+            min_momentum_score = 4
+            call = (
+                score_call >= min_momentum_score and score_call >= score_put + 2 and not call_rejection and not is_doji
+            )
+            put = score_put >= min_momentum_score and score_put >= score_call + 2 and not put_rejection and not is_doji
+        elif score_call > score_put:
             call, put = True, False
         elif score_put > score_call:
             call, put = False, True

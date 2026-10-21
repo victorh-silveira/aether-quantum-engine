@@ -1,7 +1,9 @@
 """Contratos do setup fixo por velas fechadas."""
 
+from unittest.mock import patch
+
 from indicator.domain import Candle
-from indicator.pullback import MIN_BARS, VERSION, evaluate
+from indicator.pullback import MIN_BARS, VERSION, evaluate, version_for_variant
 
 
 def call_bars(period=300):
@@ -65,6 +67,37 @@ def test_predeclared_variants_are_causal_and_not_operational_default():
     assert evaluate(mirrored, 300, MIN_BARS * 300, "ema50_slope").side == "PUT"
     assert evaluate(mirrored, 300, MIN_BARS * 300, "countertrend_retrace").side == "SEM SINAL"
     assert evaluate(bars, 300, MIN_BARS * 300, "pool_rsi_bb").side in ("CALL", "PUT", "SEM SINAL")
+    assert version_for_variant("momentum_burst").startswith("momentum-1-")
+    assert evaluate(bars, 300, MIN_BARS * 300, "momentum_burst").side in ("CALL", "PUT", "SEM SINAL")
+    with (
+        patch("indicator.pullback._rsi", return_value=60.0),
+        patch("indicator.pullback._adx", return_value=(30.0, 35.0, 5.0)),
+        patch("indicator.pullback._stochastic", return_value=(60.0, 50.0)),
+        patch("indicator.pullback._macd", return_value=(1.0, 0.5, 0.5)),
+        patch("indicator.pullback._cci", return_value=50.0),
+        patch("indicator.pullback._cmo", return_value=10.0),
+        patch("indicator.pullback._williams_r", return_value=-20.0),
+        patch("indicator.pullback._roc", return_value=0.5),
+        patch("indicator.pullback._bollinger_pct_b", return_value=0.6),
+        patch("indicator.pullback._keltner_pct_b", return_value=0.6),
+        patch("indicator.pullback._hurst_exponent", return_value=0.6),
+    ):
+        assert evaluate(bars, 300, MIN_BARS * 300, "momentum_burst").side == "CALL"
+
+    with (
+        patch("indicator.pullback._rsi", return_value=40.0),
+        patch("indicator.pullback._adx", return_value=(30.0, 5.0, 35.0)),
+        patch("indicator.pullback._stochastic", return_value=(40.0, 50.0)),
+        patch("indicator.pullback._macd", return_value=(-1.0, -0.5, -0.5)),
+        patch("indicator.pullback._cci", return_value=-50.0),
+        patch("indicator.pullback._cmo", return_value=-10.0),
+        patch("indicator.pullback._williams_r", return_value=-80.0),
+        patch("indicator.pullback._roc", return_value=-0.5),
+        patch("indicator.pullback._bollinger_pct_b", return_value=0.4),
+        patch("indicator.pullback._keltner_pct_b", return_value=0.4),
+        patch("indicator.pullback._hurst_exponent", return_value=0.6),
+    ):
+        assert evaluate(mirrored, 300, MIN_BARS * 300, "momentum_burst").side == "PUT"
 
 
 def test_rsi_and_bollinger_helpers():

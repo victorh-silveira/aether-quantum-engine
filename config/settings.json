@@ -1,28 +1,28 @@
 {
-  "anchor": "OTC_SPC",
+  "anchor": "OTC_SSMI",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-ff900a2cf1a2",
-    "variant": "improved",
+    "version": "momentum-1-a1ce3c4b44a6",
+    "variant": "momentum_burst",
     "demo_pilot_contracts": 200,
-    "entry_window_seconds": 120,
-    "period_seconds": 900,
-    "duration": 15,
+    "entry_window_seconds": 300,
+    "period_seconds": 300,
+    "duration": 5,
     "duration_unit": "m",
-    "never_skip": true,
+    "never_skip": false,
     "excluded_symbols": [
       "OTC_HSI",
       "OTC_AS51",
       "OTC_FTSE",
       "OTC_N225"
     ],
-    "promoted_symbol": "OTC_SPC",
-    "promoted_ev": -0.1617,
-    "promoted_win_rate": 0.499,
-    "promoted_setups": 2031,
-    "promoted_variant": "improved",
-    "promoted_at": "2026-10-21T15:51:40.594887+00:00",
-    "promoted_max_losses_consecutivos": 7,
+    "promoted_symbol": "OTC_SSMI",
+    "promoted_ev": 0.0738,
+    "promoted_win_rate": 0.6392,
+    "promoted_setups": 98,
+    "promoted_variant": "momentum_burst",
+    "promoted_at": "2026-10-21T23:21:44.377667+00:00",
+    "promoted_max_losses_consecutivos": 4,
     "single_strike": false,
     "invert_signal": false,
     "organic_direction": true,
@@ -254,6 +254,7 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
+      "OTC_SSMI",
       "OTC_SPC",
       "OTC_SX5E",
       "OTC_AEX",
@@ -806,7 +807,7 @@
     }
   },
   "symbols": [
-    "OTC_SPC"
+    "OTC_SSMI"
   ],
   "telemetry": {
     "host": "0.0.0.0",

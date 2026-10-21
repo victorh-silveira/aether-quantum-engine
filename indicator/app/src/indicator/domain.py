@@ -59,10 +59,8 @@ def synthetic_symbols(rows: list[dict[str, object]], scope: str = "all") -> dict
         if suspended:
             continue
         is_synthetic = market == "synthetic_index" and VOLATILITY_SYMBOL.fullmatch(symbol)
-        is_stock_index = (
-            market == "indices"
-            and (row.get("underlying_symbol_type") == "stockindex" or symbol.startswith("OTC_"))
-            and row.get("exchange_is_open") in (1, True, "1")
+        is_stock_index = market == "indices" and (
+            row.get("underlying_symbol_type") == "stockindex" or symbol.startswith("OTC_")
         )
         if scope == "stock_indices" and is_stock_index:
             found[symbol] = str(row.get("underlying_symbol_name") or row.get("display_name") or symbol)

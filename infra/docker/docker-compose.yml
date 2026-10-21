@@ -14,6 +14,7 @@ x-omp-threads: &aether-omp
 services:
   aether-core-cache-redis:
     image: aether-core-cache-redis:7.4.2
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |
@@ -55,6 +56,7 @@ services:
 
   aether-core-data-timescaledb:
     image: aether-core-data-timescaledb:2.28.2
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |
@@ -113,6 +115,7 @@ services:
 
   aether-core-storage-minio:
     image: aether-core-storage-minio:2026-08-04
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |
@@ -152,6 +155,7 @@ services:
 
   aether-core-storage-minio-init:
     image: aether-core-storage-minio-init:2026-08-04
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |
@@ -180,6 +184,7 @@ services:
 
   aether-ml-meta-classifier:
     image: aether-ml-meta-classifier:local
+    pull_policy: build
     build:
       context: ./meta-classifier
       dockerfile: Dockerfile
@@ -237,6 +242,7 @@ services:
 
   aether-ml-loss-classifier:
     image: aether-ml-loss-classifier:local
+    pull_policy: build
     build:
       context: ./loss-classifier
       dockerfile: Dockerfile
@@ -301,6 +307,7 @@ services:
 
   aether-market-signal-indicator:
     image: aether-market-signal-indicator:local
+    pull_policy: build
     build:
       context: ../../indicator
       dockerfile: app/Dockerfile
@@ -336,6 +343,7 @@ services:
 
   aether-observe-metrics-prometheus:
     image: aether-observe-metrics-prometheus:2.50.1
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |
@@ -362,6 +370,7 @@ services:
 
   aether-observe-dashboards-grafana:
     image: aether-observe-dashboards-grafana:10.3.3
+    pull_policy: build
     build:
       context: .
       dockerfile_inline: |

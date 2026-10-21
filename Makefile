@@ -219,8 +219,7 @@ docker-up:
 	@test -f .env || cp .env.example .env
 	@mkdir -p indicator/data/indicator-models
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
-	$(DOCKER_COMPOSE) up -d --build aether-market-signal-indicator
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) up -d --build
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'
 	@bash infra/docker/sh/docker-wait-healthy.sh
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 4 5 "Timescale lifecycle + hydrate"'
