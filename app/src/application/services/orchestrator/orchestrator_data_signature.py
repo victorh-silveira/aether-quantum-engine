@@ -54,6 +54,14 @@ def _orchestrator_cfg(orch: Any) -> dict:
 
 def resolve_signature_boundary_seconds(orch: Any) -> int:
     """Le fronteira de assinatura em segundos (padrao M3 = 180s)."""
+    cfg = getattr(orch, "config", {})
+    if isinstance(cfg, dict):
+        pb = cfg.get("pullback_strategy")
+        if isinstance(pb, dict) and pb.get("enabled") and pb.get("period_seconds"):
+            try:
+                return max(15, int(pb["period_seconds"]))
+            except (TypeError, ValueError):
+                pass
     orchestrator = _orchestrator_cfg(orch)
     if not orchestrator:
         return DEFAULT_SIGNATURE_BOUNDARY_SECONDS

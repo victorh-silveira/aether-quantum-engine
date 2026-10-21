@@ -84,8 +84,10 @@ def _ordered_targets(host: str, port: int, *, force_ip: str | None = None) -> li
 
 
 def _tcp_connect_ip(ip: str, port: int, timeout: float) -> socket.socket:
-    """Abre TCP ate um IP especifico."""
-    return socket.create_connection((ip, port), timeout=max(1.0, float(timeout)))
+    """Abre TCP ate um IP especifico com TCP_NODELAY."""
+    sock = socket.create_connection((ip, port), timeout=max(1.0, float(timeout)))
+    sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    return sock
 
 
 async def _connect_one_ip(

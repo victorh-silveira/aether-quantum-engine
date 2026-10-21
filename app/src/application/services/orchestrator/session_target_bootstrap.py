@@ -45,14 +45,14 @@ async def bootstrap_active_session_targets(orch: Any, live_balance: float) -> No
         bm.update_balance(start_balance)
     if swm.is_small_account(start_balance):
         orch.logger.info(
-            "SESSAO INICIADA | Alvo fixo micro-banca: $%.2f | Stop Loss: DESATIVADO | banca=$%.2f",
+            "SESSAO | Alvo fixo micro-banca: $%.2f | Banca: $%.2f | SL: DESATIVADO",
             target_win,
             start_balance,
         )
     else:
         rate_pct = swm.compounding_rate() * 100.0
         orch.logger.info(
-            "SESSAO INICIADA | Alvo de %.2f%%: $%.2f | Stop Loss: DESATIVADO | banca=$%.2f",
+            "SESSAO | Alvo %.2f%% ($%.2f) | Banca: $%.2f | SL: DESATIVADO",
             rate_pct,
             target_win,
             start_balance,

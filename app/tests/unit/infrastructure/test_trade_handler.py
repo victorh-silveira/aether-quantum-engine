@@ -660,3 +660,27 @@ async def test_final_buy_proposal_blocks_quote_safety_margin(trade_handler, mock
     with pytest.raises(RuntimeError, match="perdeu margem de seguranca sobre break-even"):
         await trade_handler.buy_with_parameters("1HZ75V", TradeDirection.CALL, 10.0, params=params)
     mock_ws.send.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_prequoted_proposal_reused_skips_redundant_send(trade_handler, mock_ws, monkeypatch):
+    import time
+
+    mock_ws.send.return_value = {"buy": {"contract_id": 12345, "buy_price": 10.0, "payout": 18.5, "date_expiry": 1000}}
+    params = {
+        "duration": 5,
+        "duration_unit": "m",
+        "_prequoted_proposal_id": "prop_cached_123",
+        "_prequoted_ask_price": 10.0,
+        "_prequoted_payout": 18.5,
+        "_prequoted_rate": 0.85,
+        "_prequoted_timestamp": time.time(),
+        "_signal_candle_epoch": 300,
+        "_indicator_candle_epoch": 300,
+    }
+    monkeypatch.setattr("src.infrastructure.handlers.trade_handler.require_current_signal_candle", lambda p: None)
+    contract = await trade_handler.buy_with_parameters("1HZ10V", TradeDirection.CALL, 10.0, params=params)
+    assert contract.contract_id == 12345
+    assert contract.proposal_id == "prop_cached_123"
+    assert mock_ws.send.call_count == 1
+    assert mock_ws.send.call_args[0][0]["buy"] == "prop_cached_123"

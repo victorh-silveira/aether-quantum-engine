@@ -366,6 +366,102 @@ def stage_lint() -> None:
         "Vulture Dead Code Detection",
     )
     stage_structure()
+    _run_indicator_lint()
+
+
+def _indicator_app_dir() -> Path:
+    return REPO_ROOT / "indicator" / "app"
+
+
+def _run_indicator_lint() -> None:
+    ind_app = _indicator_app_dir()
+    if ind_app.is_dir():
+        print("\n>>> Executando: Indicador Ruff Check")
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                "check",
+                "--fix",
+                "src",
+                "tests",
+                "run.py",
+                "train.py",
+                "../run.py",
+                "../train.py",
+            ],
+            cwd=str(ind_app),
+            check=True,
+            text=True,
+            shell=False,
+        )
+        print("\n>>> Executando: Indicador Ruff Format")
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                "format",
+                "--check",
+                "src",
+                "tests",
+                "run.py",
+                "train.py",
+                "../run.py",
+                "../train.py",
+            ],
+            cwd=str(ind_app),
+            check=True,
+            text=True,
+            shell=False,
+        )
+
+
+def _run_indicator_security() -> None:
+    ind_app = _indicator_app_dir()
+    if ind_app.is_dir():
+        print("\n>>> Executando: Indicador Security Scan")
+        subprocess.run(
+            [sys.executable, "-m", "ruff", "check", "--select", "S", "--ignore", "S104", "src", "run.py", "train.py"],
+            cwd=str(ind_app),
+            check=True,
+            text=True,
+            shell=False,
+        )
+
+
+def _run_indicator_test() -> None:
+    ind_app = _indicator_app_dir()
+    if ind_app.is_dir():
+        print("\n>>> Executando: Indicador Pytest (100% coverage)")
+        env = _test_env_base()
+        env["PYTHONPATH"] = "src"
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "tests",
+                "--cov=src",
+                "--cov-report=term-missing",
+                "--cov-fail-under=100",
+            ],
+            cwd=str(ind_app),
+            env=env,
+            check=True,
+            text=True,
+            shell=False,
+        )
+
+
+def _run_indicator_compileall(*, quiet: bool) -> None:
+    ind_src = _indicator_app_dir() / "src"
+    if ind_src.is_dir():
+        print("\n>>> Executando: compileall indicator/app/src")
+        ok = compileall.compile_dir(str(ind_src), quiet=1 if quiet else 0, force=False)
+        if not ok:
+            sys.exit(1)
 
 
 def _test_env_base() -> dict[str, str]:
@@ -404,6 +500,7 @@ def stage_test(fail_under: int = 100) -> None:
     print(f">>> pytest + pytest-cov ({workers} workers xdist)")
     try:
         subprocess.run(command, check=True, text=True, shell=False, cwd=APP_ROOT, env=env, timeout=600)
+        _run_indicator_test()
     finally:
         _release_parent_memory()
 
@@ -467,6 +564,7 @@ def stage_python_compileall(*, quiet: bool) -> None:
     ok = compileall.compile_dir(str(target), quiet=1 if quiet else 0, force=False)
     if not ok:
         sys.exit(1)
+    _run_indicator_compileall(quiet=quiet)
 
 
 def _run_pip_audit(ignore_args: list[str]) -> None:
@@ -519,6 +617,7 @@ def stage_security() -> None:
     ignore_args = [*requirements] + [item for vuln in ignored_vulns for item in ("--ignore-vuln", vuln)]
     _run_pip_audit(ignore_args)
     _run_gitleaks()
+    _run_indicator_security()
 
 
 def main() -> None:

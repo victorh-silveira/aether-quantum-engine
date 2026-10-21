@@ -317,6 +317,7 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - ../../indicator/data/indicator-models:/opt/aether/data/indicator-models:ro
+      - ../../indicator/app/src:/opt/aether/app/src:ro
     ports:
       - "127.0.0.1:9102:9101"
     logging: *aether-logging

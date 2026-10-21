@@ -23,10 +23,14 @@ def test_synthetic_catalog_filters_forex_suspended_and_bad_symbol():
         {"market": "synthetic_index", "symbol": "1HZ25V", "display_name": "Volatility 25 (1s)"},
         {"market": "synthetic_index", "symbol": "BOOM1000", "display_name": "Boom"},
         {"market": "synthetic_index", "symbol": "R_ABC", "display_name": "Bad"},
+        {"market": "synthetic_index", "symbol": "RDBEAR", "display_name": "Bear Market Index"},
+        {"market": "synthetic_index", "symbol": "RDBULL", "display_name": "Bull Market Index"},
     ]
     assert synthetic_symbols(rows) == {
         "1HZ25V": "Volatility 25 (1s)",
         "1HZ75V": "V75",
+        "RDBEAR": "Bear Market Index",
+        "RDBULL": "Bull Market Index",
         "R_10": "Volatility 10",
         "R_75": "Volatility 75",
     }

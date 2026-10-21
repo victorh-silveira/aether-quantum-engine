@@ -9,6 +9,7 @@ from src.application.services.orchestrator.api_maintenance_guard import api_main
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_data_signature import (
     at_m5_open_window,
+    resolve_signature_boundary_seconds,
     seconds_until_next_signature_boundary,
 )
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
@@ -206,32 +207,35 @@ def _signature_open_tolerance_seconds(orch: Any) -> float:
 
 
 def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
-    """Log deduplicado de espera pela abertura M5 do relogio com isolamento de contexto."""
+    """Log deduplicado de espera pela abertura da vela com isolamento de contexto."""
     logger = getattr(orch, "logger", None)
     if logger is None:
         return
     now_ts = time.time()
-    target_boundary = int(now_ts // 300 + 1) * 300
-    key = f"m5_open:{target_boundary}"
+    boundary = resolve_signature_boundary_seconds(orch)
+    target_boundary = int(now_ts // boundary + 1) * boundary
+    key = f"cycle_open:{target_boundary}"
     if str(getattr(orch, "_m5_open_wait_logged_key", "") or "") == key:
         return
     orch._m5_open_wait_logged_key = key
     prev_cid, prev_sym = get_log_context()
     clear_log_context()
+    tf_name = f"M{boundary // 60}" if boundary % 60 == 0 else f"{boundary}s"
     try:
-        logger.info("CICLO: aguardando abertura M5 | restante=%.0fs", wait)
+        logger.info("CICLO: aguardando %s | restante=%.0fs", tf_name, wait)
     finally:
         restore_log_context(prev_cid, prev_sym)
 
 
 def _signature_open_blocks_cycle(orch: Any) -> bool:
-    """True fora da janela de abertura M5; agenda cooldown ate o proximo multiplo."""
+    """True fora da janela de abertura da vela; agenda cooldown ate o proximo multiplo."""
     if not _require_signature_boundary(orch):
         return False
     tol = _signature_open_tolerance_seconds(orch)
     if at_m5_open_window(orch, tolerance=tol):
         if orch.config.get("pullback_strategy", {}).get("enabled", False):
-            cur_b = int(time.time() // 300) * 300
+            boundary = resolve_signature_boundary_seconds(orch)
+            cur_b = int(time.time() // boundary) * boundary
             if getattr(orch, "_last_m5_cycle_boundary", None) == cur_b:
                 wait = max(0.5, float(seconds_until_next_signature_boundary(orch)))
                 _log_awaiting_m5_open(orch, wait)

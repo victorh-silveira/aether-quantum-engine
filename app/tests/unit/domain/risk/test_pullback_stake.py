@@ -26,3 +26,15 @@ def test_invalid_or_unaffordable(available, pending, rate, minimum):
 def test_rounding_minimum_and_negative_loss():
     assert pullback_stake(123.45, -2, 0.8, 1) == (1.23, 0)
     assert pullback_stake(100, 0, 0.8, 2) == (2, 0)
+
+
+def test_single_strike_target_behavior():
+    assert pullback_stake(1000, 0, 0.8, 1, single_strike_target=24) == (30.0, 0.0)
+    assert pullback_stake(1000, 0, 0.8, 1, single_strike_target=80) == (50.0, 0.0)
+    assert pullback_stake(1000, 0, 0.8, 1, single_strike_target=5) == (10.0, 0.0)
+    assert pullback_stake(1000, 16, 0.8, 1, single_strike_target=24) == (20.0, 16.0)
+
+
+def test_amort_steps_smooth_recovery():
+    assert pullback_stake(1000, 40, 0.8, 1, amort_steps=1) == (50.0, 40.0)
+    assert pullback_stake(1000, 40, 0.8, 1, amort_steps=2) == (25.0, 20.0)

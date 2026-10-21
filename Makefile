@@ -98,7 +98,6 @@ app-lint:
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage lint
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage lint
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage lint
-	@$(MAKE) --no-print-directory indicator-lint
 	@$(MAKE) --no-print-directory app-workflows-lint
 
 app-workflows-lint:
@@ -118,14 +117,12 @@ app-test:
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage test
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage test
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage test
-	@$(MAKE) --no-print-directory indicator-test
 
 app-security:
 	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage security
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage security
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage security
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage security
-	@$(MAKE) --no-print-directory indicator-security
 
 app-build:
 	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage build

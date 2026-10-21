@@ -255,7 +255,7 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                     orch.stream.config["_startup_train_lean"] = True
                 boot_log = orch.logger.debug if reconnect_quiet else orch.logger.info
                 boot_log(
-                    "DATA: Startup %s | %d simbolos | alvo %d velas micro%s",
+                    "DATA: Startup %s | %d ativo(s) | %d velas%s",
                     mode,
                     len(orch.symbols),
                     bars,

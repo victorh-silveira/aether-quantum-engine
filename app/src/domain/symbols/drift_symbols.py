@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol R_25)."""
+"""Simbolos de trading Deriv (universo single-symbol OTC_SPC)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("R_25",)
+TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SPC",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "R_25"
+DEFAULT_ANCHOR = "OTC_SPC"
 
 HEDGE_PEER: dict[str, str] = {}
 

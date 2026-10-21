@@ -68,5 +68,6 @@ def require_current_signal_candle(parameters: dict) -> None:
         raise RuntimeError("Periodo do sinal invalido")
     now = time.time()
     expected = int(now // period) * period - period
-    if int(epoch) != expected or now % period > 30:
+    window = int(parameters.get("entry_window_seconds", 30))
+    if int(epoch) != expected or now % period > window:
         raise RuntimeError("Sinal expirou antes da compra; nova inferencia necessaria")

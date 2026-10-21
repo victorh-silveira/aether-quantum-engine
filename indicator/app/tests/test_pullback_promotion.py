@@ -14,6 +14,7 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
             "acertos": 12,
             "erros": 8,
             "empates": 0,
+            "max_losses_consecutivos": 4,
         },
         "1HZ25V:300": {
             "estado": "PROXY DE VELAS",
@@ -21,6 +22,7 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
             "acertos": 21,
             "erros": 9,
             "empates": 0,
+            "max_losses_consecutivos": 3,
         },
         "R_50:300": {
             "estado": "SEM SINAL",
@@ -31,6 +33,7 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
             "setups": 15,
             "acertos": 10,
             "erros": 5,
+            "max_losses_consecutivos": 2,
         },
         "1HZ10V:300": {
             "estado": "PROXY DE VELAS",
@@ -45,6 +48,7 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
     assert ranked[0]["symbol"] == "1HZ25V"
     assert ranked[0]["eligible"] is True
     assert ranked[0]["win_rate"] == 0.70
+    assert ranked[0]["max_consecutive_losses"] == 3
     assert ranked[0]["ev"] > ranked[1]["ev"]
 
     excluded_ranked = rank_m5_pairs(report, excluded_symbols={"1HZ25V"}, payout=0.85)
@@ -60,6 +64,7 @@ def test_format_ranking_table():
             "wins": 14,
             "losses": 6,
             "ties": 0,
+            "max_consecutive_losses": 2,
             "win_rate": 0.70,
             "ev": 0.295,
             "eligible": True,
@@ -72,6 +77,7 @@ def test_format_ranking_table():
             "wins": 4,
             "losses": 6,
             "ties": 0,
+            "max_consecutive_losses": 4,
             "win_rate": 0.40,
             "ev": -0.26,
             "eligible": False,
@@ -81,6 +87,7 @@ def test_format_ranking_table():
     table = format_ranking_table(ranked)
     assert "RANKING DO SETUP PULLBACK M5" in table
     assert "1HZ25V" in table
+    assert "MAX LOSS" in table
     assert "PROMOVIDO" in table
     assert "EXCLUIDO" in table
 
@@ -120,6 +127,7 @@ def test_promote_best_m5_pair(tmp_path: Path):
         "wins": 24,
         "losses": 11,
         "ties": 0,
+        "max_consecutive_losses": 3,
         "win_rate": 24.0 / 35.0,
         "ev": (24.0 / 35.0) * 0.85 - (11.0 / 35.0) * 1.0,
     }
@@ -130,6 +138,7 @@ def test_promote_best_m5_pair(tmp_path: Path):
     new_model = json.loads(new_model_file.read_text(encoding="utf-8"))
     assert new_model["status"] == "aprovado"
     assert new_model["symbol"] == "1HZ25V"
+    assert new_model["max_losses_consecutivos"] == 3
 
     old_content = json.loads(old_model.read_text(encoding="utf-8"))
     assert old_content["status"] == "candidato"
@@ -138,6 +147,7 @@ def test_promote_best_m5_pair(tmp_path: Path):
     assert cfg["anchor"] == "1HZ25V"
     assert cfg["symbols"] == ["1HZ25V"]
     assert cfg["pullback_strategy"]["promoted_symbol"] == "1HZ25V"
+    assert cfg["pullback_strategy"]["promoted_max_losses_consecutivos"] == 3
     assert "1HZ25V" in cfg["deep_learning"]["train_symbols"]
 
     drift_file = drift_dir / "drift_symbols.py"

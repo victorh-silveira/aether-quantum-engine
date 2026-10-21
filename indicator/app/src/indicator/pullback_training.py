@@ -14,10 +14,12 @@ from indicator.training import history
 logger = logging.getLogger(__name__)
 
 
-async def diagnose_all(source, store, now: int | None = None, variant: str = "base") -> dict[str, dict]:
+async def diagnose_all(
+    source, store, now: int | None = None, variant: str = "base", scope: str = "all"
+) -> dict[str, dict]:
     """Coleta velas diretas e mede apenas o proxy de fechamento seguinte."""
     timestamp = int(time.time()) if now is None else now
-    symbols = synthetic_symbols(await asyncio.wait_for(source.symbols(), 40))
+    symbols = synthetic_symbols(await asyncio.wait_for(source.symbols(), 40), scope=scope)
     if not symbols:
         raise RuntimeError("catalogo sintetico vazio")
     version = version_for_variant(variant)
@@ -31,21 +33,26 @@ async def diagnose_all(source, store, now: int | None = None, variant: str = "ba
         for period in PERIODS:
             key = f"{symbol}:{period}"
             try:
-                candles = latest_contiguous(
-                    await asyncio.wait_for(history(source, symbol, timestamp, period=period), 90), period
-                )
+                raw_candles = await asyncio.wait_for(history(source, symbol, timestamp, period=period), 90)
+                is_stock = scope == "stock_indices" or symbol.startswith("OTC_")
+                candles = raw_candles if is_stock else latest_contiguous(raw_candles, period)
                 if candles:
                     await store.save_candles(symbol, period, candles)
-                if len(candles) < 5000 or candles[-1].epoch + 2 * period <= timestamp:
+                min_candles = 200 if is_stock else 5000
+                if len(candles) < min_candles:
                     report[key] = {
                         "estado": "SEM SINAL",
-                        "motivo": "historico_continuo_insuficiente",
+                        "motivo": "historico_insuficiente",
                         "velas": len(candles),
                     }
                     continue
                 wins = losses = ties = 0
+                current_consecutive_losses = 0
+                max_consecutive_losses = 0
                 by_side = {"CALL": [0, 0], "PUT": [0, 0]}
                 for index in range(MIN_BARS - 1, len(candles) - 1):
+                    if is_stock and candles[index + 1].epoch - candles[index].epoch > period:
+                        continue
                     result = evaluate(
                         candles[index - MIN_BARS + 1 : index + 1],
                         period,
@@ -59,12 +66,17 @@ async def diagnose_all(source, store, now: int | None = None, variant: str = "ba
                     won = delta > 0 if result.side == "CALL" else delta < 0
                     if delta == 0:
                         ties += 1
+                        current_consecutive_losses = 0
                     elif won:
                         wins += 1
                         by_side[result.side][0] += 1
+                        current_consecutive_losses = 0
                     else:
                         losses += 1
                         by_side[result.side][1] += 1
+                        current_consecutive_losses += 1
+                        if current_consecutive_losses > max_consecutive_losses:
+                            max_consecutive_losses = current_consecutive_losses
                 report[key] = {
                     "estado": "PROXY DE VELAS",
                     "versao": version,
@@ -73,6 +85,7 @@ async def diagnose_all(source, store, now: int | None = None, variant: str = "ba
                     "acertos": wins,
                     "erros": losses,
                     "empates": ties,
+                    "max_losses_consecutivos": max_consecutive_losses,
                     "por_lado": by_side,
                     "variantes": compare_variants(candles, period) if period == 300 else {},
                 }
@@ -80,7 +93,7 @@ async def diagnose_all(source, store, now: int | None = None, variant: str = "ba
                 report[key] = {"estado": "SEM SINAL", "motivo": str(exc) or "tempo limite"}
             result = report[key]
             logger.info(
-                "TREINO SETUP %s %ds estado=%s velas=%d setups=%d acertos_proxy=%d erros_proxy=%d motivo=%s",
+                "TREINO SETUP %s %ds estado=%s velas=%d setups=%d acertos_proxy=%d erros_proxy=%d max_losses=%d motivo=%s",
                 symbol,
                 period,
                 result["estado"],
@@ -88,6 +101,7 @@ async def diagnose_all(source, store, now: int | None = None, variant: str = "ba
                 result.get("setups", 0),
                 result.get("acertos", 0),
                 result.get("erros", 0),
+                result.get("max_losses_consecutivos", 0),
                 result.get("motivo", "-"),
             )
     return report

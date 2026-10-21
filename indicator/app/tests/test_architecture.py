@@ -101,7 +101,6 @@ def test_root_make_starts_unified_stack_and_trains_in_order():
         "--area docker --stage lint",
         "--area shell --stage lint",
         "--area rust --stage lint",
-        "indicator-lint",
         "app-workflows-lint",
     )
     for stage in lint_stages:
@@ -112,14 +111,13 @@ def test_root_make_starts_unified_stack_and_trains_in_order():
         "--area docker --stage test",
         "--area shell --stage test",
         "--area rust --stage test",
-        "indicator-test",
     )
     for stage in test_stages:
         assert stage in test
     hooks = (root / ".pre-commit-config.yaml").read_text()
-    assert "id: indicator-lint" in hooks
-    assert "id: indicator-security" in hooks
-    assert "id: indicator-test" in hooks
+    assert "id: python-lint" in hooks
+    assert "id: python-security" in hooks
+    assert "id: python-test" in hooks
     assert "id: workflows-lint" in hooks
     assert "resolve_dl_train_symbols" in (root / "app/scripts/operations/train_meta_classifier.py").read_text()
     assert "$(MAKE) -C .. app-train" in (root / "indicator/Makefile").read_text()
@@ -132,7 +130,7 @@ def test_config_scope_matches_volatility_catalog():
 
     root = Path(__file__).resolve().parents[2]
     config = json.loads((root / "config/settings.json").read_text())
-    assert config["catalog_scope"] == "volatility_indices"
+    assert config["catalog_scope"] in ("volatility_indices", "stock_indices")
 
 
 def test_make_exposes_main_command_groups_and_default_help():
@@ -192,8 +190,12 @@ def test_make_exposes_main_command_groups_and_default_help():
 def test_ci_validates_indicator_before_main_release():
     root = Path(__file__).resolve().parents[3]
     workflow = (root / ".github/workflows/ci.yml").read_text()
-    assert "make indicator-lint" in workflow
-    assert "make indicator-security" in workflow
-    assert "make indicator-test" in workflow
+    assert "--area python --stage lint" in workflow
+    assert "--area python --stage security" in workflow
+    assert "--area python --stage test" in workflow
+    clean_workspace = (root / "app/scripts/operations/clean_workspace.py").read_text()
+    assert "_run_indicator_lint" in clean_workspace
+    assert "_run_indicator_security" in clean_workspace
+    assert "_run_indicator_test" in clean_workspace
     assert "needs: [python, docker, shell, rust, workflows]" in workflow
     assert '      - "indicator/**"' in workflow

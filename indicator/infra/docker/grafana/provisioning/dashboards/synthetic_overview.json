@@ -143,7 +143,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT to_timestamp(date_start) AS horario,symbol AS ativo,indicator_period_seconds AS periodo,direction AS lado,indicator_model_version AS versao,account_mode AS conta,contract_id,round(buy_price::numeric,2) AS stake,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE indicator_model_version LIKE 'pullback-1-%' AND settlement_source='broker' AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
+          "rawSql": "SELECT to_timestamp(date_start) AS horario,symbol AS ativo,indicator_period_seconds AS periodo,direction AS lado,indicator_model_version AS versao,account_mode AS conta,contract_id,round(buy_price::numeric,2) AS stake,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE indicator_model_version LIKE 'pullback-1-%' AND settlement_source IN ('broker', 'profit_table') AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
           "format": "table",
           "refId": "A"
         }

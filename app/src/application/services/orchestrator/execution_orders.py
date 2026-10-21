@@ -88,7 +88,7 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
                     else (f"{float(prob_fallback):.4f} (Beta)" if prob_fallback is not None else "n/a")
                 )
             logger.info(
-                "[INDICATOR_STAKE] || lado=%s p_side=%s stake=%.2f mode=%s",
+                "[INDICATOR_STAKE] %s | p_side=%s | stake=%.2f (%s)",
                 direction.name,
                 prob_desc,
                 float(stake),
@@ -114,7 +114,7 @@ def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake,
                 linear=int(audit.get("linear", 0)),
                 cap=float(audit.get("cap", 0.0)),
                 recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
-                motivo=f"setup_confirmado ({versao})" if str(versao or "").startswith("pullback-1-") else None,
+                motivo="setup" if str(versao or "").startswith("pullback-1-") else None,
             ),
         )
     finally:
@@ -169,6 +169,12 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         params["_pullback_stake_cap"] = float(metrics.get("_pullback_stake_cap") or 0.0)
         params["_pullback_quote_rate"] = float(metrics.get("indicator_quote_rate") or 0.0)
         params["_pullback_recovery_amount"] = float(metrics.get("_pullback_recovery_amount") or 0.0)
+        if metrics.get("_prequoted_proposal_id"):
+            params["_prequoted_proposal_id"] = str(metrics["_prequoted_proposal_id"])
+            params["_prequoted_ask_price"] = float(metrics.get("_prequoted_ask_price") or 0.0)
+            params["_prequoted_payout"] = float(metrics.get("_prequoted_payout") or 0.0)
+            params["_prequoted_rate"] = float(metrics.get("_prequoted_rate") or 0.0)
+            params["_prequoted_timestamp"] = float(metrics.get("_prequoted_timestamp") or 0.0)
         if float(stake) > params["_pullback_stake_cap"] + 1e-9:
             raise RuntimeError("Stake do pullback excede teto da banca disponivel")
     rm_cfg = executor.orch.config.get("risk_management", {})

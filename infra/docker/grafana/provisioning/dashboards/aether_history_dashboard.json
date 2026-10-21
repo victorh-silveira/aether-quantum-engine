@@ -325,7 +325,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "dhh:mm:ss",
+          "unit": "dthms",
           "decimals": 0,
           "color": {
             "mode": "fixed",
@@ -402,8 +402,8 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(aether_inference_prob, symbol)",
-        "definition": "label_values(aether_inference_prob, symbol)",
+        "query": "label_values(symbol)",
+        "definition": "label_values(symbol)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",

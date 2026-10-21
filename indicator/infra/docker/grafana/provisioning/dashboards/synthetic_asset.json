@@ -106,7 +106,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT to_timestamp(date_start) AS horario,account_mode AS conta,direction AS lado,contract_id,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'R_25') AND indicator_period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 300) AND indicator_model_version LIKE 'pullback-1-%' AND settlement_source='broker' AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
+          "rawSql": "SELECT to_timestamp(date_start) AS horario,account_mode AS conta,direction AS lado,contract_id,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'R_25') AND indicator_period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 300) AND indicator_model_version LIKE 'pullback-1-%' AND settlement_source IN ('broker', 'profit_table') AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
           "format": "table",
           "refId": "A"
         }
@@ -133,10 +133,8 @@
           "type": "grafana-postgresql-datasource",
           "uid": "timescale"
         },
-        "query": {
-          "query": "SELECT name AS __text,symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
-          "refId": "A"
-        },
+        "query": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
+        "definition": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
         "current": {
           "selected": true,
           "text": "Volatility 25 Index",

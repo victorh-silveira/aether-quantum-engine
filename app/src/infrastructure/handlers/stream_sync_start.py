@@ -56,20 +56,17 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
         raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
     sync_log = handler.logger.debug if quiet else handler.logger.info
     sync_log(
-        "DATA: Sincronizando historico | %d simbolos | macro=%ds x%d | micro=%ds x%d | mini=%ds x%d%s",
+        "DATA: Sync historico | %d ativo(s) | macro=%ds micro=%ds mini=%ds%s",
         len(handler.symbols),
         handler.macro_granularity,
-        macro_count,
         handler.micro_granularity,
-        micro_count,
         handler.mini_granularity,
-        mini_count,
-        " | lean_treino" if bool(handler.config.get("_startup_train_lean")) else "",
+        " (lean)" if bool(handler.config.get("_startup_train_lean")) else "",
     )
     fetch_cfg = parse_history_fetch_config(handler.config)
     total = len(handler.symbols)
     for index, symbol in enumerate(handler.symbols, start=1):
-        sync_log("DATA: Historico %s (%d/%d) | iniciando", symbol, index, total)
+        sync_log("DATA: %s (%d/%d) iniciando", symbol, index, total)
         if macro_count > 0:
             await handler._fetch_symbol_history(
                 symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
@@ -87,13 +84,12 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
                 symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
             )
         sync_log(
-            "DATA: Historico %s (%d/%d) | macro=%d micro=%d mini=%d",
+            "DATA: %s (%d/%d) | D1:%d M5:%d",
             symbol,
             index,
             total,
             len(handler.macro_candles[symbol]),
             len(handler.micro_candles[symbol]),
-            len(handler.mini_candles[symbol]),
         )
         symbol_delay = float(fetch_cfg["symbol_delay"])
         if symbol_delay > 0:
@@ -101,14 +97,12 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     if handler.symbols:
         sym0 = handler.symbols[0]
         sync_log(
-            "DATA | buffer %d simbolos | macro=%s x%d | micro=%s x%d | mini=%s x%d",
+            "DATA | Buffer %d ativo(s) | %s:%d %s:%d",
             len(handler.symbols),
             granularity_label(handler.macro_granularity),
             len(handler.macro_candles.get(sym0, [])),
             granularity_label(handler.micro_granularity),
             len(handler.micro_candles.get(sym0, [])),
-            granularity_label(handler.mini_granularity),
-            len(handler.mini_candles.get(sym0, [])),
         )
     if not handler.ws.is_running:
         raise ConnectionError("STREAM: WebSocket desconectado após sincronização histórica.")

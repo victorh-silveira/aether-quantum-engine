@@ -224,7 +224,7 @@ def test_log_cycle_indicators_coverage():
     stream.micro_candles["R_25"] = candles_up
     _log_cycle_indicators(orch)
     assert logger.info.call_count == 1
-    assert logger.info.call_args[0][-1] == "ALTA"
+    assert "ALTA" in logger.info.call_args[0][0]
     assert "INDICADORES" in logger.info.call_args[0][0]
 
     candles_down = [
@@ -241,15 +241,16 @@ def test_log_cycle_indicators_coverage():
     ]
     stream.micro_candles["R_25"] = candles_down
     _log_cycle_indicators(orch)
-    assert logger.info.call_args[0][-1] == "BAIXA"
+    assert logger.info.call_count == 2
+    assert "BAIXA" in logger.info.call_args[0][0]
 
 
 def test_signature_open_blocks_duplicate_pullback_boundary(orch_ready):
     from src.application.services.orchestrator.trading_cycle_entry_guards import _signature_open_blocks_cycle
 
     orch = orch_ready
-    orch.config["pullback_strategy"] = {"enabled": True}
-    orch.config["orchestrator"] = {"require_signature_boundary": True}
+    orch.config["pullback_strategy"] = {"enabled": True, "period_seconds": 300}
+    orch.config["orchestrator"] = {"require_signature_boundary": True, "signature_boundary_seconds": 300}
     now_ts = 1700000010.0
     cur_b = int(now_ts // 300) * 300
     orch._last_m5_cycle_boundary = cur_b

@@ -12,7 +12,10 @@ from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
 from src.infrastructure.handlers.trade_handler_buy_recovery import recover_unknown_contract_proposal
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
-from src.infrastructure.handlers.trade_handler_proposal_quote import fetch_proposal_snapshot
+from src.infrastructure.handlers.trade_handler_proposal_quote import (
+    fetch_proposal_snapshot,
+    resolve_order_proposal,
+)
 from src.infrastructure.handlers.trade_handler_purchase_audit import record_purchase_audit
 from src.infrastructure.handlers.trade_handler_quote_guard import validate_quote_guard_params
 from src.infrastructure.handlers.trade_handler_quote_observation import record_indicator_quote
@@ -98,32 +101,10 @@ class TradeHandler:
             raise RuntimeError("EV negativo permitido somente no piloto DEMO; compra bloqueada")
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
-        proposal_resp = await self.ws.send(proposal_req, timeout=timeout)
-        if "error" in proposal_resp:
-            msg = proposal_resp["error"].get("message", "Erro desconhecido")
-            raise RuntimeError(f"Erro na proposta: {msg}")
-
-        proposal = proposal_resp.get("proposal")
-        if not isinstance(proposal, dict):
-            raise RuntimeError("Erro na proposta: resposta sem proposal")
-
-        prop_id = proposal.get("id")
-        if not prop_id:
-            raise RuntimeError("Erro na proposta: id ausente")
-
-        if "_quote_guard_side_probability" in p_cfg and (
-            proposal.get("ask_price") is None or proposal.get("payout") is None
-        ):
-            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout; compra bloqueada")
-
+        prop_id, ask_price, payout_val, proposal = await resolve_order_proposal(
+            self, symbol, direction, stake, p_cfg, proposal_req, timeout
+        )
         is_multiplier = str(p_cfg.get("contract_type", "")).upper() == "MULTIPLIER"
-        try:
-            raw_ask = proposal.get("ask_price")
-            ask_price = float(raw_ask if raw_ask is not None else stake)
-            raw_payout = proposal.get("payout")
-            payout_val = float(raw_payout) if raw_payout is not None else (0.0 if is_multiplier else None)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada") from exc
         if not math.isfinite(ask_price) or ask_price <= 0:
             raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
         if "_pullback_stake_cap" in p_cfg and ask_price > float(p_cfg["_pullback_stake_cap"]) + 1e-9:

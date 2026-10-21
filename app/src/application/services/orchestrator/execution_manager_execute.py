@@ -43,6 +43,7 @@ from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.pullback_stake import pullback_stake
 from src.domain.risk.stake_sizing import resolve_stake_conviction
+from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
 
 
@@ -83,10 +84,24 @@ async def execute_cluster_orders(
             multi_symbol=multi_symbol,
         )
         setup = metrics.get("direction_origin") == "PULLBACK_SETUP"
+        sst = 0.0
         if setup:
+            pb_cfg = executor.orch.config.get("pullback_strategy", {})
+            if pb_cfg.get("single_strike", False):
+                rm_cfg = executor.orch.config.get("risk_management", {})
+                init_b = float(getattr(executor.orch.risk_manager, "initial_bankroll", 0.0) or bankroll_snapshot)
+                sw = resolve_stop_win_target(rm_cfg, init_b)
+                pnl = float(getattr(executor.orch.risk_manager, "total_session_profit", 0.0) or 0.0)
+                sst = max(0.0, sw - pnl) if sw > 0.0 else 0.0
             minimum = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
+            lin_n = int(getattr(executor.orch.risk_manager, "consecutive_losses_linear", 0) or 0)
             stake, covered = pullback_stake(
-                available, unreserved_loss(executor.orch), float(metrics.get("indicator_quote_rate") or 0.0), minimum
+                available,
+                unreserved_loss(executor.orch),
+                float(metrics.get("indicator_quote_rate") or 0.0),
+                minimum,
+                single_strike_target=sst,
+                amort_steps=(2 if lin_n >= 2 else 1),
             )
             metrics["_pullback_recovery_amount"] = covered
             metrics["_pullback_stake_cap"] = math.floor(available * 0.05 * 100) / 100
@@ -163,7 +178,11 @@ async def execute_cluster_orders(
                         executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0)
                     )
                     stake, _ = pullback_stake(
-                        available, 0.0, float(metrics.get("indicator_quote_rate") or 0.0), minimum
+                        available,
+                        0.0,
+                        float(metrics.get("indicator_quote_rate") or 0.0),
+                        minimum,
+                        single_strike_target=sst,
                     )
                     metrics["_pullback_recovery_amount"] = 0.0
                     metrics["indicator_stake_mode"] = "PULLBACK_BASE"
@@ -262,13 +281,15 @@ async def execute_cluster_orders(
             err_msg = str(e).lower()
             if "closed" in err_msg or "trading is not available" in err_msg:
                 executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
-            elif is_proposal_runtime_error(e):
-                hold = int(
-                    executor.orch.config.get("orchestrator", {})
-                    .get("execution", {})
-                    .get("proposal_failure_skip_cycles", 6)
-                )
-                executor.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
+            else:
+                executor.logger.warning("EXEC_FAIL: falha na ordem para %s (%s): %s", symbol, direction.name, e)
+                if is_proposal_runtime_error(e):
+                    hold = int(
+                        executor.orch.config.get("orchestrator", {})
+                        .get("execution", {})
+                        .get("proposal_failure_skip_cycles", 1)
+                    )
+                    executor.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
         finally:
             if not registered_contract:
                 await release_unbought_order_claim(executor.orch, symbol, order_metrics)

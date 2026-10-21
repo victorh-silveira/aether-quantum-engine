@@ -1,10 +1,36 @@
 {
-  "product": "synthetic_indicator",
-  "catalog_scope": "volatility_indices",
+  "product": "stock_indices_indicator",
+  "catalog_scope": "stock_indices",
   "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
-  "periods_seconds": [300, 900, 3600],
+  "periods_seconds": [
+    900,
+    3600,
+    86400
+  ],
   "models_dir": "data/indicator-models",
   "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
   "metrics_port": 9101,
-  "pullback_variant": "improved"
+  "pullback_variant": "improved",
+  "pullback_strategy": {
+    "excluded_symbols": [
+      "OTC_HSI"
+    ],
+    "dynamic_rotation": true,
+    "promoted_setups": 120,
+    "promoted_win_rate": 0.620,
+    "promoted_ev": 0.0850,
+    "breakeven_floor": 0.5800,
+    "min_prob_threshold": 0.5800
+  },
+  "anchor": "OTC_DJI",
+  "symbols": [
+    "OTC_DJI",
+    "OTC_NDX",
+    "OTC_SPC",
+    "OTC_GDAXI",
+    "OTC_FTSE",
+    "OTC_N225",
+    "OTC_AS51",
+    "OTC_SX5E"
+  ]
 }

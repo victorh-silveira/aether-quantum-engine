@@ -23,6 +23,9 @@ def test_resolve_signature_boundary_seconds_defaults():
     orch_none = None
     assert resolve_signature_boundary_seconds(orch_none) == 180
 
+    orch_bad_pb = SimpleNamespace(config={"pullback_strategy": {"enabled": True, "period_seconds": "invalid"}})
+    assert resolve_signature_boundary_seconds(orch_bad_pb) == 180
+
     orch_explicit = SimpleNamespace(config={"orchestrator": {"signature_boundary_seconds": 300}})
     assert resolve_signature_boundary_seconds(orch_explicit) == 300
 

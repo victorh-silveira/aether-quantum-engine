@@ -18,32 +18,50 @@ from indicator.pullback_training import diagnose_all
 async def train() -> None:
     """Prepara dados e diagnosticos do setup fixo por ativo e periodo."""
     root = Path(__file__).resolve().parent.parent
+    repo_root = root.parent if root.name == "indicator" else root
+    repo_cfg_path = repo_root / "config" / "settings.json"
+    repo_cfg = json.loads(repo_cfg_path.read_text(encoding="utf-8")) if repo_cfg_path.is_file() else {}
     config = json.loads((root / "config" / "settings.json").read_text(encoding="utf-8"))
-    if config.get("catalog_scope") != "volatility_indices":
-        raise ValueError("catalog_scope deve ser volatility_indices")
+    if config.get("catalog_scope") not in ("volatility_indices", "stock_indices"):
+        raise ValueError("catalog_scope deve ser volatility_indices ou stock_indices")
     source = PublicDeriv(config["public_ws_url"])
     store = PullbackStore(os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"]))
     variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "base"))
     try:
         await store.start()
-        result = await diagnose_all(source, store, variant=variant)
+        scope = config.get("catalog_scope", "stock_indices")
+        result = await diagnose_all(source, store, variant=variant, scope=scope)
         variant_version = version_for_variant(variant)
         excluded = set(
-            config.get("pullback_strategy", {}).get("excluded_symbols")
+            repo_cfg.get("pullback_strategy", {}).get("excluded_symbols")
+            or repo_cfg.get("strategy", {}).get("excluded_symbols")
+            or config.get("pullback_strategy", {}).get("excluded_symbols")
             or config.get("strategy", {}).get("excluded_symbols")
             or []
         )
-        ranked = rank_m5_pairs(result, excluded_symbols=excluded)
+        target_period = int(
+            repo_cfg.get("pullback_strategy", {}).get(
+                "period_seconds", 900 if config.get("catalog_scope") == "stock_indices" else 300
+            )
+        )
+        payout_rate = float(
+            repo_cfg.get("pullback_strategy", {}).get(
+                "min_payout_rate", 0.7245 if config.get("catalog_scope") == "stock_indices" else 0.85
+            )
+        )
+        ranked = rank_m5_pairs(result, excluded_symbols=excluded, payout=payout_rate, target_period=target_period)
+        if not any(r["setups"] > 0 for r in ranked) and target_period != 300:
+            ranked = rank_m5_pairs(result, excluded_symbols=excluded, payout=payout_rate, target_period=300)
         promoted_symbol = None
-        if ranked:
+        best = ranked[0] if ranked else None
+        if best:
             print("\n" + format_ranking_table(ranked) + "\n")
-            best = ranked[0]
             if best["eligible"]:
-                promote_best_m5_pair(best, root, variant=variant)
+                promote_best_m5_pair(best, root, variant=variant, target_period=target_period)
                 promoted_symbol = best["symbol"]
                 if getattr(store, "pool", None) is not None:
                     try:
-                        await store.promote_symbol_setup(best["symbol"], 300, variant_version)
+                        await store.promote_symbol_setup(best["symbol"], target_period, variant_version)
                     except Exception as exc:
                         logging.warning("Nao foi possivel atualizar pullback_registry no banco: %s", exc)
                 print("=" * 88)
@@ -52,20 +70,26 @@ async def train() -> None:
                     f"   - Taxa de Acerto: {best['win_rate'] * 100:.2f}% (Wins: {best['wins']} | Losses: {best['losses']})"
                 )
                 print(f"   - EV Estimado: {best['ev']:+.4f} (base payout 85%)")
+                print(f"   - Maximo de Losses Consecutivos: {best.get('max_consecutive_losses', 0)}")
                 print(f"   - Total de Setups M5: {best['setups']}")
                 print(f"   - Configuracao atualizada: config/settings.json (anchor: {best['symbol']})")
                 print("   - Execute 'make app-run' para iniciar a operacao no ativo promovido.")
                 print("=" * 88 + "\n")
+        max_losses_promovido = int(best.get("max_consecutive_losses", 0)) if best and best.get("eligible") else 0
+        max_losses_global = max((int(row.get("max_losses_consecutivos", 0)) for row in result.values()), default=0)
         summary = {
+            "acertos_proxy": sum(row.get("acertos", 0) for row in result.values()),
+            "empates_proxy": sum(row.get("empates", 0) for row in result.values()),
+            "erros_proxy": sum(row.get("erros", 0) for row in result.values()),
+            "max_losses_consecutivos": max_losses_promovido,
+            "max_losses_consecutivos_global": max_losses_global,
+            "max_losses_consecutivos_promovido": max_losses_promovido,
             "pares": len(result),
             "pares_com_proxy": sum(row["estado"] == "PROXY DE VELAS" for row in result.values()),
             "pares_sem_sinal": sum(row["estado"] == "SEM SINAL" for row in result.values()),
-            "setups": sum(row.get("setups", 0) for row in result.values()),
-            "acertos_proxy": sum(row.get("acertos", 0) for row in result.values()),
-            "erros_proxy": sum(row.get("erros", 0) for row in result.values()),
-            "empates_proxy": sum(row.get("empates", 0) for row in result.values()),
             "promovido": promoted_symbol,
             "qualificacao_broker": "nao realizada",
+            "setups": sum(row.get("setups", 0) for row in result.values()),
         }
         print(json.dumps(summary, indent=2, sort_keys=True))
     finally:

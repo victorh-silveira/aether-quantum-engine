@@ -34,12 +34,11 @@ def consensus_enabled(config: dict) -> bool:
 
 async def refresh_indicator_consensus(orch) -> None:
     """Busca um snapshot por ciclo sem reutilizar leituras de ciclos anteriores."""
-    orch._indicator_signals = {}
-    orch._indicator_broker_evidence = {}
-    orch._indicator_real_evidence = {}
-    orch._indicator_period_signals = {}
+    orch._indicator_signals, orch._indicator_period_signals = {}, {}
+    orch._indicator_broker_evidence, orch._indicator_real_evidence = {}, {}
     orch._indicator_signal_status = {}
-    orch._indicator_epoch = int(time.time() // 300) * 300 - 300
+    period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
+    orch._indicator_epoch = int(time.time() // period_seconds) * period_seconds - period_seconds
     if not consensus_enabled(orch.config):
         return
     dsn = os.environ.get("AETHER_INDICATOR_DSN", DEFAULT_DSN)
@@ -55,7 +54,9 @@ async def refresh_indicator_consensus(orch) -> None:
                 status_out=orch._indicator_signal_status,
             )
             orch._indicator_signals = {
-                s: v for (s, p), v in orch._indicator_period_signals.items() if p == 300 and s in orch.symbols
+                s: v
+                for (s, p), v in orch._indicator_period_signals.items()
+                if p == period_seconds and s in orch.symbols
             }
         else:
             orch._indicator_signals = await read_approved_m5_signals(
@@ -90,10 +91,11 @@ def candidate_agrees_with_indicator(orch, symbol: str, direction: str, metrics: 
     if int(metrics.get("model_input_candle_epoch") or 0) != epoch:
         metrics["indicator_selection_reason"] = "indicator_candle_mismatch"
         return False
+    period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     metrics["indicator_model_version"] = signal.model_version
     metrics["indicator_call_probability"] = signal.probability
     metrics["indicator_candle_epoch"] = signal.candle_epoch
-    metrics["indicator_period_seconds"] = 300
+    metrics["indicator_period_seconds"] = period_seconds
     metrics["indicator_execution_side"] = signal.side
     metrics["indicator_tcn_discord"] = str(metrics.get("tcn_direction") or direction).upper() != signal.side
     metrics["indicator_selection_reason"] = "indicator_selected"
@@ -107,8 +109,8 @@ def filter_indicator_candidates(orch, candidates: list[tuple]) -> list[tuple]:
     active_ids = set(getattr(orch.state, "active_contracts", {}))
     contract_symbols = getattr(orch.risk_manager, "contract_to_symbol", {})
     active_symbols = {symbol for contract_id, symbol in contract_symbols.items() if contract_id in active_ids}
-    accepted = []
-    seen_symbols = set(active_symbols)
+    accepted, seen_symbols = [], set(active_symbols)
+    period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     for item in candidates:
         symbol, direction, metrics = item
         if symbol in seen_symbols:
@@ -119,7 +121,7 @@ def filter_indicator_candidates(orch, candidates: list[tuple]) -> list[tuple]:
         signal = orch._indicator_signals[symbol]
         if orch.config.get("indicator_consensus", {}).get("broker_ev_promotion", False):
             evidence = getattr(orch, "_indicator_broker_evidence", {}).get(
-                (symbol, 300, signal.model_version), BrokerEvEvidence(0, ())
+                (symbol, period, signal.model_version), BrokerEvEvidence(0, ())
             )
             mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
             pilot = mode == "demo" and evidence.pilot_available and not evidence.promoted
@@ -143,7 +145,7 @@ def filter_indicator_candidates(orch, candidates: list[tuple]) -> list[tuple]:
             if (
                 mode == "real"
                 and getattr(orch, "_indicator_real_evidence", {})
-                .get((symbol, 300, signal.model_version), BrokerEvEvidence(0, ()))
+                .get((symbol, period, signal.model_version), BrokerEvEvidence(0, ()))
                 .suspended
             ):
                 metrics["indicator_selection_reason"] = "real_return_lower_bound_nonpositive"
@@ -199,11 +201,9 @@ def signal_epoch_current(config: dict, metrics: dict) -> bool:
         period = int(metrics.get("indicator_period_seconds") or 300)
         now = time.time()
         expected = int(now // period) * period - period
-        return (
-            period in (300, 900, 3600)
-            and int(metrics.get("indicator_candle_epoch") or 0) == expected
-            and now % period <= 30
-        )
+        window = int(config.get("pullback_strategy", {}).get("entry_window_seconds", 30))
+        epoch_val = int(metrics.get("indicator_candle_epoch") or 0)
+        return period in (300, 900, 3600) and epoch_val == expected and now % period <= window
     expected_epoch = int(time.time() // 300) * 300 - 300
     if consensus_enabled(config):
         return int(metrics.get("indicator_candle_epoch") or 0) == expected_epoch

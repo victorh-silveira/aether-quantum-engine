@@ -239,7 +239,9 @@ class IndicatorService:
             await asyncio.sleep(delay)
 
 
-async def run_indicator(dsn: str, models: Path, url: str, metrics_port: int = 9100, variant: str = "base") -> None:
+async def run_indicator(
+    dsn: str, models: Path, url: str, metrics_port: int = 9100, variant: str = "base", scope: str = "all"
+) -> None:
     """Inicializa adapters e encerra recursos ordenadamente."""
     source = PullbackSource(url)
     sink = PullbackStore(dsn)
@@ -255,7 +257,7 @@ async def run_indicator(dsn: str, models: Path, url: str, metrics_port: int = 91
                 logger.warning("BANCO indisponivel (%d/%d): %s", attempt, START_ATTEMPTS, exc)
                 await asyncio.sleep(min(attempt * 2, 10))
         await metrics.start(port=metrics_port)
-        service = PullbackService(source, sink, metrics, variant=variant)
+        service = PullbackService(source, sink, metrics, variant=variant, scope=scope)
         service.restore(await sink.latest_setups())
         await service.run()
     finally:

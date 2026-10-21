@@ -47,7 +47,7 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["neutral_bankroll_pct"] == pytest.approx(0.01)
     assert inv["min_stake_pct"] == pytest.approx(0.01)
     assert inv["max_safe_stake_pct_linear3"] == pytest.approx(0.025)
-    assert inv["large_account_stop_win_pct"] == pytest.approx(4.31)
+    assert inv["large_account_stop_win_pct"] == pytest.approx(1.5)
     assert inv["min_validation_accuracy_gate"] >= 0.53
     assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
     assert inv["invert_exec_side"] is False

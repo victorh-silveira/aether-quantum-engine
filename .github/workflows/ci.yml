@@ -73,9 +73,6 @@ jobs:
       - name: Python | YAML Lint
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
-      - name: Indicador | Lint
-        shell: bash
-        run: make indicator-lint
       - name: Python | Validate
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage validate
@@ -88,18 +85,12 @@ jobs:
       - name: Python | Seguranca
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage security
-      - name: Indicador | Seguranca
-        shell: bash
-        run: make indicator-security
       - name: Python | Testes
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
       - name: Python | JSON Testes
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage test --config-text json
-      - name: Indicador | Testes
-        shell: bash
-        run: make indicator-test
       - name: Python | Build
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area python --stage build
@@ -132,7 +123,7 @@ jobs:
       - name: Docker | Validate
         shell: bash
         run: python app/scripts/operations/clean_workspace.py --area docker --stage validate
-      - name: Docker | Compose e Dashboards do Indicador
+      - name: Docker | Compose e Dashboards
         shell: bash
         run: |
           COMPOSE_PROFILES=core,ml,telemetry,indicator docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker config --quiet

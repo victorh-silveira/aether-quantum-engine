@@ -232,10 +232,7 @@ def format_settlement_audit_line(
         sess_tok = f" | SESSAO: {float(session_pnl):>+7.2f}"
         if target_pnl is not None and float(target_pnl) > 0.0:
             pct = (float(session_pnl) / float(target_pnl)) * 100.0
-            falta_s = (
-                f" | FALTA: ${max(0.0, float(target_pnl) - float(session_pnl)):.2f}" if bankroll is not None else ""
-            )
-            sess_tok += f" | ALVO: ${float(target_pnl):.2f} ({pct:.1f}%{falta_s})"
+            sess_tok += f" | ALVO: ${float(target_pnl):.2f} ({pct:.1f}%)"
     banca_tok = f" | BANCA: ${float(bankroll):.2f}" if bankroll is not None and float(bankroll) > 0.0 else ""
     return (
         f"[RESOLVED] || STATUS: {str(outcome):<4} | P&L: {float(profit):>+7.2f}{sess_tok}{banca_tok} | {tag} | "

@@ -15,11 +15,12 @@ logger = logging.getLogger(__name__)
 class PullbackService:
     """Publica setups fechados com estado de piloto separado dos modelos antigos."""
 
-    def __init__(self, source, sink, metrics, variant: str = "base") -> None:
+    def __init__(self, source, sink, metrics, variant: str = "base", scope: str = "all") -> None:
         self.source = source
         self.sink = sink
         self.metrics = metrics
         self.variant = variant
+        self.scope = scope
         self.version = version_for_variant(variant)
         self.symbols: dict[str, str] = {}
         self.last_catalog = 0
@@ -35,7 +36,7 @@ class PullbackService:
     async def tick(self, now: int) -> None:
         """Consulta velas diretas e publica a ultima vela fechada de cada periodo."""
         if now - self.last_catalog >= 21600 or not self.symbols:
-            symbols = synthetic_symbols(await asyncio.wait_for(self.source.symbols(), 40))
+            symbols = synthetic_symbols(await asyncio.wait_for(self.source.symbols(), 40), scope=self.scope)
             if not symbols:
                 raise RuntimeError("catalogo sintetico vazio")
             await self.sink.set_symbols(symbols)

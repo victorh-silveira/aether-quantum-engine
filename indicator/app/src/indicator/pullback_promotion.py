@@ -14,12 +14,14 @@ def rank_m5_pairs(
     report: dict[str, dict],
     excluded_symbols: set[str] | None = None,
     payout: float = 0.85,
+    target_period: int = 300,
 ) -> list[dict[str, Any]]:
-    """Ranqueia pares M5 com base em EV, taxa de acerto e consistencia."""
+    """Ranqueia pares com base em EV, taxa de acerto e consistencia."""
     excluded = excluded_symbols or set()
     ranked = []
+    suffix = f":{target_period}"
     for key, data in report.items():
-        if not key.endswith(":300"):
+        if not key.endswith(suffix):
             continue
         symbol = key.split(":")[0]
         if data.get("estado") != "PROXY DE VELAS":
@@ -28,6 +30,7 @@ def rank_m5_pairs(
         wins = int(data.get("acertos", 0))
         losses = int(data.get("erros", 0))
         ties = int(data.get("empates", 0))
+        max_consecutive_losses = int(data.get("max_losses_consecutivos", 0))
         decisions = wins + losses
         win_rate = (wins / decisions) if decisions > 0 else 0.0
         ev = (win_rate * payout) - ((1.0 - win_rate) * 1.0) if decisions > 0 else -1.0
@@ -35,11 +38,12 @@ def rank_m5_pairs(
         ranked.append(
             {
                 "symbol": symbol,
-                "period": 300,
+                "period": target_period,
                 "setups": setups,
                 "wins": wins,
                 "losses": losses,
                 "ties": ties,
+                "max_consecutive_losses": max_consecutive_losses,
                 "decisions": decisions,
                 "win_rate": win_rate,
                 "ev": ev,
@@ -48,9 +52,10 @@ def rank_m5_pairs(
             }
         )
 
-    def _sort_key(item: dict[str, Any]) -> tuple[int, float, float, int]:
+    def _sort_key(item: dict[str, Any]) -> tuple[int, int, float, float, int]:
         elig = 1 if item["eligible"] else 0
-        return (elig, item["ev"], item["win_rate"], item["setups"])
+        max_loss = int(item.get("max_consecutive_losses", 999))
+        return (elig, -max_loss, item["ev"], item["win_rate"], item["setups"])
 
     ranked.sort(key=_sort_key, reverse=True)
     return ranked
@@ -59,21 +64,22 @@ def rank_m5_pairs(
 def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
     """Gera tabela visual do ranking dos pares M5 avaliados."""
     lines = [
-        "=" * 88,
+        "=" * 100,
         "RANKING DO SETUP PULLBACK M5 (PROXY DE VELAS)",
-        "=" * 88,
-        f"{'POS':<4} | {'ATIVO':<8} | {'SETUPS':<7} | {'WINS':<5} | {'LOSS':<5} | {'EMP':<4} | {'ACERTO %':<9} | {'EV (85%)':<9} | {'STATUS':<12}",
-        "-" * 88,
+        "=" * 100,
+        f"{'POS':<4} | {'ATIVO':<8} | {'SETUPS':<7} | {'WINS':<5} | {'LOSS':<5} | {'EMP':<4} | {'MAX LOSS':<8} | {'ACERTO %':<9} | {'EV (85%)':<9} | {'STATUS':<12}",
+        "-" * 100,
     ]
     for idx, row in enumerate(ranked, 1):
         status = "EXCLUIDO" if row["excluded"] else ("PROMOVIDO" if idx == 1 and row["eligible"] else "CANDIDATO")
         wr_pct = f"{row['win_rate'] * 100:.1f}%"
         ev_str = f"{row['ev']:+.4f}"
+        max_l = str(row.get("max_consecutive_losses", 0))
         lines.append(
             f"{idx:<4} | {row['symbol']:<8} | {row['setups']:<7} | {row['wins']:<5} | "
-            f"{row['losses']:<5} | {row['ties']:<4} | {wr_pct:<9} | {ev_str:<9} | {status:<12}"
+            f"{row['losses']:<5} | {row['ties']:<4} | {max_l:<8} | {wr_pct:<9} | {ev_str:<9} | {status:<12}"
         )
-    lines.append("=" * 88)
+    lines.append("=" * 100)
     return "\n".join(lines)
 
 
@@ -81,9 +87,11 @@ def promote_best_m5_pair(
     best: dict[str, Any],
     root_path: Path,
     variant: str = "improved",
+    target_period: int = 300,
 ) -> None:
-    """Promove o melhor par M5, atualizando modelos e configuracao para app-run."""
+    """Promove o melhor par M5/M15, atualizando modelos e configuracao para app-run."""
     symbol = str(best["symbol"])
+    period = int(best.get("period", target_period))
     version = version_for_variant(variant)
     repo_root = root_path.parent if root_path.name == "indicator" else root_path
     models_dir = (
@@ -93,8 +101,8 @@ def promote_best_m5_pair(
     )
     models_dir.mkdir(parents=True, exist_ok=True)
 
-    for old_path in models_dir.glob("*_300.json"):
-        if old_path.name == f"{symbol}_300.json":
+    for old_path in models_dir.glob(f"*_{period}.json"):
+        if old_path.name == f"{symbol}_{period}.json":
             continue
         try:
             content = json.loads(old_path.read_text(encoding="utf-8"))
@@ -106,7 +114,7 @@ def promote_best_m5_pair(
 
     model_payload = {
         "symbol": symbol,
-        "period": 300,
+        "period": period,
         "status": "aprovado",
         "validation_accuracy": round(float(best["win_rate"]), 4),
         "baseline_accuracy": 0.5405,
@@ -117,12 +125,13 @@ def promote_best_m5_pair(
         "acertos": int(best["wins"]),
         "erros": int(best["losses"]),
         "empates": int(best["ties"]),
+        "max_losses_consecutivos": int(best.get("max_consecutive_losses", 0)),
         "variant": variant,
         "version": version,
-        "selection_reason": "melhor_ev_pullback_m5",
+        "selection_reason": f"melhor_ev_pullback_{period}s",
         "promoted_at": datetime.now(UTC).isoformat(),
     }
-    model_file = models_dir / f"{symbol}_300.json"
+    model_file = models_dir / f"{symbol}_{period}.json"
     model_file.write_text(json.dumps(model_payload, indent=2, sort_keys=True), encoding="utf-8")
 
     settings_path = repo_root / "config" / "settings.json"
@@ -132,10 +141,13 @@ def promote_best_m5_pair(
         cfg["symbols"] = [symbol]
         pullback_cfg = cfg.setdefault("pullback_strategy", {})
         if isinstance(pullback_cfg, dict):
+            pullback_cfg["version"] = version
+            pullback_cfg["variant"] = variant
             pullback_cfg["promoted_symbol"] = symbol
             pullback_cfg["promoted_ev"] = round(float(best["ev"]), 4)
             pullback_cfg["promoted_win_rate"] = round(float(best["win_rate"]), 4)
             pullback_cfg["promoted_setups"] = int(best["setups"])
+            pullback_cfg["promoted_max_losses_consecutivos"] = int(best.get("max_consecutive_losses", 0))
             pullback_cfg["promoted_variant"] = variant
             pullback_cfg["promoted_at"] = model_payload["promoted_at"]
         dl_cfg = cfg.setdefault("deep_learning", {})

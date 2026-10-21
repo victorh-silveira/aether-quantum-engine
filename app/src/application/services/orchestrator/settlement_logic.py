@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from src.application.services.log_dedupe import log_warning_if_changed
@@ -33,9 +34,7 @@ from src.application.services.orchestrator.settlement_process import (
     emit_contract_settlement_log as _emit_contract_settlement_log,
     process_settlement_outcome as _process_contract_outcome,
 )
-from src.application.services.orchestrator.settlement_queue_ops import (
-    push_to_redis_priority_queue,
-)
+from src.application.services.orchestrator.settlement_queue_ops import push_to_redis_priority_queue
 from src.application.services.pullback_recovery_claim import release_recovery
 from src.application.services.recovery_hurst_store import reset_recovery_skip_counter_for_orch
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -139,6 +138,8 @@ async def _complete_contract_settlement(
         )
         orch._last_loss_clf_learn = None
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
+    if profit < 0.0 and isinstance(resolved_meta, dict) and resolved_meta.get("symbol"):
+        orch.__dict__.setdefault("_symbol_loss_quarantine", {})[str(resolved_meta["symbol"])] = time.time() + 900.0
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
 

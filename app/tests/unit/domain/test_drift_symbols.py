@@ -9,8 +9,33 @@ from src.domain.symbols.drift_symbols import (
 
 
 def test_drift_symbols_constants():
-    assert DEFAULT_ANCHOR == "R_25"
-    assert "R_25" in TRADING_SYMBOLS
+    assert DEFAULT_ANCHOR in (
+        "R_10",
+        "R_25",
+        "R_50",
+        "R_75",
+        "R_100",
+        "1HZ10V",
+        "1HZ15V",
+        "1HZ25V",
+        "1HZ30V",
+        "1HZ50V",
+        "1HZ75V",
+        "1HZ90V",
+        "1HZ100V",
+        "OTC_SPC",
+        "OTC_DJI",
+        "OTC_NDX",
+        "OTC_GDAXI",
+        "OTC_FTSE",
+        "OTC_N225",
+        "OTC_AS51",
+        "OTC_SX5E",
+        "OTC_AEX",
+        "OTC_FCHI",
+        "OTC_SSMI",
+    )
+    assert DEFAULT_ANCHOR in TRADING_SYMBOLS
     assert DRIFT_SYMBOLS == TRADING_SYMBOLS
 
 

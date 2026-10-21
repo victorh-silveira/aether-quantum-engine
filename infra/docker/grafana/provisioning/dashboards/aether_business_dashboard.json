@@ -108,15 +108,15 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_uptime_seconds",
-          "instant": false,
-          "range": true,
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "instant": true,
+          "range": false,
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "dhh:mm:ss",
+          "unit": "dthms",
           "decimals": 0,
           "noValue": "00:00:00",
           "color": {
@@ -137,7 +137,7 @@
         "orientation": "auto",
         "textMode": "value",
         "colorMode": "value",
-        "graphMode": "area",
+        "graphMode": "none",
         "justifyMode": "auto"
       }
     },
@@ -804,7 +804,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(aether_trading_contracts_total{outcome=\"WIN\"})",
+          "expr": "sum(aether_trading_contracts_total{outcome=\"WIN\"}) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -814,7 +814,7 @@
         "defaults": {
           "unit": "short",
           "decimals": 0,
-          "noValue": "—",
+          "noValue": "0",
           "color": {
             "mode": "fixed",
             "fixedColor": "#C8D0D9"
@@ -858,7 +858,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(aether_trading_contracts_total{outcome=\"LOSS\"})",
+          "expr": "sum(aether_trading_contracts_total{outcome=\"LOSS\"}) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -868,7 +868,7 @@
         "defaults": {
           "unit": "short",
           "decimals": 0,
-          "noValue": "—",
+          "noValue": "0",
           "color": {
             "mode": "fixed",
             "fixedColor": "#C8D0D9"
@@ -912,7 +912,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"EXEC\"})",
+          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"EXEC\"}) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -922,7 +922,7 @@
         "defaults": {
           "unit": "short",
           "decimals": 0,
-          "noValue": "—",
+          "noValue": "0",
           "color": {
             "mode": "fixed",
             "fixedColor": "#C8D0D9"
@@ -966,7 +966,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"SKIP\"})",
+          "expr": "sum(aether_trading_gate_verdicts_total{verdict=\"SKIP\"}) or vector(0)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -976,7 +976,7 @@
         "defaults": {
           "unit": "short",
           "decimals": 0,
-          "noValue": "—",
+          "noValue": "0",
           "color": {
             "mode": "fixed",
             "fixedColor": "#C8D0D9"
@@ -1159,7 +1159,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT symbol AS ativo, account_mode AS conta, direction AS lado, model_version AS tcn, indicator_model_version AS indicador, broker_settled_count AS contratos_confirmados, wins AS vitorias, round((100.0*wins/broker_settled_count)::numeric,1) AS acertos_pct, round(mean_quoted_ev::numeric,4) AS ev_cotado_medio, round(mean_unit_return::numeric,4) AS retorno_real_medio, brier_samples AS amostras_brier, round(indicator_brier::numeric,4) AS brier_indicador FROM contract_consensus_outcomes ORDER BY broker_settled_count DESC, symbol LIMIT 100",
+          "rawSql": "SELECT symbol AS ativo, account_mode AS conta, direction AS lado, coalesce(indicator_model_version, model_version, 'standalone') AS versao, count(*) AS contratos_confirmados, count(*) FILTER (WHERE profit > 0) AS vitorias, round((100.0 * count(*) FILTER (WHERE profit > 0) / count(*))::numeric, 1) AS acertos_pct, round(avg(profit / buy_price)::numeric, 4) AS retorno_real_medio, round(coalesce(avg(quote_ev), 0)::numeric, 4) AS ev_cotado_medio FROM contract_executions WHERE profit IS NOT NULL AND buy_price > 0 GROUP BY symbol, account_mode, direction, coalesce(indicator_model_version, model_version, 'standalone') ORDER BY contratos_confirmados DESC, symbol LIMIT 100",
           "format": "table",
           "refId": "A"
         }
@@ -1197,7 +1197,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT r.symbol AS ativo,r.period_seconds AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidados_broker,coalesce(e.wins,0) AS wins_demo,round(e.mean_return::numeric,4) AS retorno_medio,round(e.lower_95::numeric,4) AS limite_inferior_95,CASE WHEN e.settled>=200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.setup_version='pullback-1-86c2df9cf4d6' AND r.period_seconds=300 ORDER BY r.symbol,r.period_seconds",
+          "rawSql": "SELECT r.symbol AS ativo,r.period_seconds AS periodo,r.setup_version AS versao,upper(r.state) AS estado,coalesce(e.purchased,0) AS compras_demo,coalesce(e.settled,0) AS liquidados_broker,coalesce(e.wins,0) AS wins_demo,round(e.mean_return::numeric,4) AS retorno_medio,round(e.lower_95::numeric,4) AS limite_inferior_95,CASE WHEN e.settled>=200 THEN round(((e.wins+0.5)/(e.settled+1.0))::numeric,4) END AS prob_empirica FROM pullback_registry r LEFT JOIN pullback_broker_status e ON e.symbol=r.symbol AND e.period_seconds=r.period_seconds AND e.setup_version=r.setup_version WHERE r.period_seconds=300 ORDER BY r.symbol,r.period_seconds",
           "format": "table",
           "refId": "A"
         }
@@ -1245,7 +1245,7 @@
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "dhh:mm:ss",
+          "unit": "dthms",
           "decimals": 0,
           "color": {
             "mode": "fixed",
@@ -1322,8 +1322,8 @@
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(aether_inference_prob, symbol)",
-        "definition": "label_values(aether_inference_prob, symbol)",
+        "query": "label_values(symbol)",
+        "definition": "label_values(symbol)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",

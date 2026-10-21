@@ -1,22 +1,35 @@
 {
-  "anchor": "R_25",
+  "anchor": "OTC_SPC",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-12e8797327d5",
+    "version": "pullback-1-ff900a2cf1a2",
     "variant": "improved",
     "demo_pilot_contracts": 200,
-    "entry_window_seconds": 30,
+    "entry_window_seconds": 120,
+    "period_seconds": 900,
+    "duration": 15,
+    "duration_unit": "m",
+    "never_skip": true,
     "excluded_symbols": [
-      "1HZ15V",
-      "1HZ25V",
-      "1HZ30V",
-      "1HZ75V",
-      "1HZ90V",
-      "1HZ100V",
-      "R_50",
-      "R_75",
-      "R_100"
-    ]
+      "OTC_HSI",
+      "OTC_AS51",
+      "OTC_FTSE",
+      "OTC_N225"
+    ],
+    "promoted_symbol": "OTC_SPC",
+    "promoted_ev": -0.1617,
+    "promoted_win_rate": 0.499,
+    "promoted_setups": 2031,
+    "promoted_variant": "improved",
+    "promoted_at": "2026-10-21T15:51:40.594887+00:00",
+    "promoted_max_losses_consecutivos": 7,
+    "single_strike": false,
+    "invert_signal": false,
+    "organic_direction": true,
+    "dynamic_rotation": false,
+    "min_payout_rate": 0.68,
+    "min_prob_threshold": 0.5,
+    "breakeven_floor": 0.5
   },
   "indicator_consensus": {
     "enabled": true,
@@ -241,6 +254,14 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
+      "OTC_SPC",
+      "OTC_SX5E",
+      "OTC_AEX",
+      "1HZ90V",
+      "1HZ25V",
+      "R_100",
+      "1HZ100V",
+      "1HZ10V",
       "R_10",
       "R_25"
     ],
@@ -446,7 +467,7 @@
       "min_edge": 0.0,
       "min_payout_rate": 0.0,
       "quote_safety_margin": 0.01,
-      "veto_weak_regime_flip": true,
+      "veto_weak_regime_flip": false,
       "conformal_uncertainty_gate": false,
       "regime_ensemble_gate": true,
       "veto_compression_doji": false,
@@ -720,11 +741,11 @@
       "enabled": true,
       "default_payout": 0.85
     },
-    "large_account_stop_win_pct": 4.31,
+    "large_account_stop_win_pct": 1.5,
     "min_validation_accuracy_gate": 0.53,
     "params": {
       "compounding_enabled": true,
-      "compounding_rate_daily": 0.0431,
+      "compounding_rate_daily": 0.015,
       "contract_type": "CALL",
       "duration": 5,
       "duration_unit": "m",
@@ -785,7 +806,7 @@
     }
   },
   "symbols": [
-    "R_25"
+    "OTC_SPC"
   ],
   "telemetry": {
     "host": "0.0.0.0",

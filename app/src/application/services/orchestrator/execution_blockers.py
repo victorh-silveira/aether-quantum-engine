@@ -88,8 +88,14 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
     if executor.orch.config.get("pullback_strategy", {}).get("enabled", False):
         statuses = getattr(executor.orch, "_indicator_signal_status", {})
         symbols = executor._trade_symbols()
-        m5_statuses = {symbol: reason for (symbol, period), reason in statuses.items() if period == 300}
-        default_status = "aguardando_leitura" if not m5_statuses else "sem_sinal_m5"
+        period_seconds = int(executor.orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
+        tf_label = f"{period_seconds // 60}m"
+        m_statuses = {symbol: reason for (symbol, period), reason in statuses.items() if period == period_seconds}
+        default_status = (
+            "aguardando_leitura"
+            if not m_statuses
+            else ("sem_sinal_m5" if period_seconds == 300 else f"sem_sinal_{tf_label}")
+        )
         excluded = set(
             executor.orch.config.get("pullback_strategy", {}).get("excluded_symbols")
             or executor.orch.config.get("strategy", {}).get("excluded_symbols")
@@ -98,15 +104,16 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         details = []
         for symbol in symbols:
             if symbol in excluded:
-                details.append(f"{symbol}:5m=ativo_excluido(baixo_edge)")
-            elif (symbol, 300) in statuses:
-                details.append(f"{symbol}:5m={statuses[(symbol, 300)]}")
+                details.append(f"{symbol}:{tf_label}=ativo_excluido(baixo_edge)")
+            elif (symbol, period_seconds) in statuses:
+                details.append(f"{symbol}:{tf_label}={statuses[(symbol, period_seconds)]}")
             else:
-                details.append(f"{symbol}:5m={default_status}")
+                details.append(f"{symbol}:{tf_label}={default_status}")
         motivo_map = {
             "padrao_incompleto": "aguardando_recuo_e_confirmacao",
             "corpo_fora_faixa": "corpo_vela_fora_limite_atr",
             "ativo_excluido(baixo_edge)": "baixo_ev_historico",
+            f"sem_sinal_{tf_label}": "sem_sinal_nesta_vela",
             "sem_sinal_m5": "sem_sinal_nesta_vela",
             "aguardando_leitura": "aguardando_leitura_indicador",
         }
@@ -114,20 +121,18 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
         for s in symbols:
             if s in excluded:
                 reasons.append(motivo_map.get("ativo_excluido(baixo_edge)", "baixo_ev_historico"))
-            elif (s, 300) in statuses:
-                reasons.append(motivo_map.get(statuses[(s, 300)], str(statuses[(s, 300)])))
+            elif (s, period_seconds) in statuses:
+                reasons.append(motivo_map.get(statuses[(s, period_seconds)], str(statuses[(s, period_seconds)])))
             else:
                 reasons.append(motivo_map.get(default_status, default_status))
         motivo_str = ", ".join(dict.fromkeys(reasons)) or "sem_ordem"
-        confirmed = [sym for sym, reason in m5_statuses.items() if reason == "setup_confirmado"]
-        setups_desc = f" ({','.join(confirmed[:3])})" if confirmed else ""
+        confirmed = [sym for sym, reason in m_statuses.items() if reason == "setup_confirmado"]
         executor.logger.info(
-            "[%s] EXEC_SKIP || setup sem ordem | %s | leituras=%d setups=%d%s | MOTIVO: %s",
+            "[%s] EXEC_SKIP | %s | leituras=%d setups=%d | MOTIVO: %s",
             cid,
             " ".join(details) or "sem_ativo_operacional",
-            len(m5_statuses),
+            len(m_statuses),
             len(confirmed),
-            setups_desc,
             motivo_str,
         )
         return

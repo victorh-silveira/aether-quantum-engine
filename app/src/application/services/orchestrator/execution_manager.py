@@ -164,14 +164,18 @@ class ExecutionManager:
                 orders = await select_period_orders(self.orch, orders)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:
-                inv_tag = " (INVERTIDO)" if self.orch.config.get("pullback_strategy", {}).get("invert_signal") else ""
                 selected = " ".join(
-                    f"{symbol}:{int(metrics.get('indicator_period_seconds') or 300) // 60}m:{direction.name}{inv_tag}"
-                    for symbol, direction, metrics in orders
+                    f"{symbol}:{int(m.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
+                    + (
+                        f" ({m.get('organic_decision_reason')})"
+                        if m.get("organic_decision_reason")
+                        else (
+                            " (INVERTIDO)" if self.orch.config.get("pullback_strategy", {}).get("invert_signal") else ""
+                        )
+                    )
+                    for symbol, direction, m in orders
                 )
-                self.logger.info(
-                    "[%s] EXEC_SETUP || ordens selecionadas | %s | MOTIVO: setup_confirmado", cid, selected
-                )
+                self.logger.info("EXEC_SETUP | %s | MOTIVO: setup_confirmado", selected)
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(

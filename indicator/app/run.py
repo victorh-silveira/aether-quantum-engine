@@ -15,11 +15,12 @@ def main() -> None:
     """Carrega configuracao do indicador e inicia observacao."""
     root = Path(__file__).resolve().parent.parent
     config = json.loads((root / "config" / "settings.json").read_text(encoding="utf-8"))
-    if config.get("catalog_scope") != "volatility_indices":
-        raise ValueError("catalog_scope deve ser volatility_indices")
+    if config.get("catalog_scope") not in ("volatility_indices", "stock_indices"):
+        raise ValueError("catalog_scope deve ser volatility_indices ou stock_indices")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
     dsn = os.environ.get("AETHER_TIMESCALE_DSN", config["timescale_dsn"])
     variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "base"))
+    scope = config.get("catalog_scope", "stock_indices")
     asyncio.run(
         run_indicator(
             dsn,
@@ -27,6 +28,7 @@ def main() -> None:
             config["public_ws_url"],
             config["metrics_port"],
             variant=variant,
+            scope=scope,
         )
     )
 

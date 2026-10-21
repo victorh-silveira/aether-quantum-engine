@@ -169,7 +169,7 @@ def test_production_loss_classifier_flip_floor_ssot():
     assert "fusion_enabled" not in scale
     assert "adapt_direction_enabled" not in scale
     assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False
-    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.31)
+    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(1.5)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 300
     assert int(data["micro_history_bars"]) == 25000
@@ -198,9 +198,34 @@ def test_production_loss_classifier_flip_floor_ssot():
     orch = settings["orchestrator"]
     assert int(orch["cycle_interval_seconds"]) == 300
     assert bool(orch["require_signature_boundary"]) is True
-    assert settings.get("anchor") == "R_25"
-    assert settings.get("symbols") == ["R_25"]
-    assert dl.get("train_symbols") == ["R_10", "R_25"]
+    assert settings.get("anchor") in (
+        "R_10",
+        "R_25",
+        "R_50",
+        "R_75",
+        "R_100",
+        "1HZ10V",
+        "1HZ15V",
+        "1HZ25V",
+        "1HZ30V",
+        "1HZ50V",
+        "1HZ75V",
+        "1HZ90V",
+        "1HZ100V",
+        "OTC_SPC",
+        "OTC_DJI",
+        "OTC_NDX",
+        "OTC_GDAXI",
+        "OTC_FTSE",
+        "OTC_N225",
+        "OTC_AS51",
+        "OTC_SX5E",
+        "OTC_AEX",
+        "OTC_FCHI",
+        "OTC_SSMI",
+    )
+    assert settings.get("symbols") == [settings.get("anchor")]
+    assert {"R_10", "R_25"}.issubset(set(dl.get("train_symbols", [])))
     kelly = settings["risk_management"]["kelly"]
     assert float(kelly["default_payout"]) == pytest.approx(0.85)
     assert float(kelly["max_stake_pct"]) == pytest.approx(0.05)

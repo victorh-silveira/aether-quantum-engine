@@ -18,7 +18,7 @@ def call_bars(period=300):
     ]
     base = 100 + (MIN_BARS - 2) * 0.1 - 0.25
     bars.append(Candle((MIN_BARS - 2) * period, base, base + 0.1, base - 0.75, base + 0.05))
-    bars.append(Candle((MIN_BARS - 1) * period, base + 0.05, base + 0.23, base + 0.04, base + 0.2))
+    bars.append(Candle((MIN_BARS - 1) * period, base + 0.05, base + 0.25, base + 0.04, base + 0.2))
     return bars
 
 
@@ -64,3 +64,63 @@ def test_predeclared_variants_are_causal_and_not_operational_default():
     mirrored = [Candle(bar.epoch, 200 - bar.open, 200 - bar.low, 200 - bar.high, 200 - bar.close) for bar in bars]
     assert evaluate(mirrored, 300, MIN_BARS * 300, "ema50_slope").side == "PUT"
     assert evaluate(mirrored, 300, MIN_BARS * 300, "countertrend_retrace").side == "SEM SINAL"
+    assert evaluate(bars, 300, MIN_BARS * 300, "pool_rsi_bb").side in ("CALL", "PUT", "SEM SINAL")
+
+
+def test_rsi_and_bollinger_helpers():
+    from indicator.pullback import _adx, _bollinger_pct_b, _macd, _rsi, _stochastic
+
+    assert _rsi([]) == 50.0
+    assert _rsi([10.0] * 20) == 50.0
+    assert _rsi(list(range(20))) == 100.0
+    assert _bollinger_pct_b([]) == 0.5
+    assert _bollinger_pct_b([10.0] * 5) == 0.5
+    assert _bollinger_pct_b([10.0] * 20) == 0.5
+    assert 0.0 <= _bollinger_pct_b(list(range(25))) <= 1.0
+    assert _adx([]) == (0.0, 0.0, 0.0)
+    flat_bars = [Candle(i * 300, 100.0, 100.0, 100.0, 100.0) for i in range(20)]
+    assert _adx(flat_bars) == (0.0, 0.0, 0.0)
+    trend_bars = [Candle(i * 300, 100.0 + i, 101.0 + i, 99.0 + i, 100.5 + i) for i in range(25)]
+    dx, pdi, mdi = _adx(trend_bars)
+    assert pdi > mdi
+    assert dx >= 0.0
+    assert _macd([10.0] * 5) == (0.0, 0.0, 0.0)
+    m_val, s_val, hist = _macd([10.0 + i * 0.1 for i in range(40)])
+    assert isinstance(m_val, float)
+    assert isinstance(s_val, float)
+    assert isinstance(hist, float)
+    assert _stochastic([], 14, 3) == (50.0, 50.0)
+    stoch_flat = [Candle(i * 300, 100.0, 100.0, 100.0, 100.0) for i in range(20)]
+    k, d = _stochastic(stoch_flat, 14, 3)
+    assert k == 50.0
+    assert d == 50.0
+    stoch_trend = [Candle(i * 300, 100.0 + i, 101.0 + i, 99.0 + i, 100.5 + i) for i in range(20)]
+    kt, dt = _stochastic(stoch_trend, 14, 3)
+    assert isinstance(kt, float)
+    assert isinstance(dt, float)
+
+    from indicator.pullback import _cci, _cmo, _hurst_exponent, _keltner_pct_b, _roc, _williams_r
+
+    assert _cci([], 14) == 0.0
+    assert _cci(flat_bars, 14) == 0.0
+    assert isinstance(_cci(trend_bars, 14), float)
+
+    assert _cmo([], 14) == 0.0
+    assert _cmo([10.0] * 20, 14) == 0.0
+    assert isinstance(_cmo(list(range(20)), 14), float)
+
+    assert _williams_r([], 14) == -50.0
+    assert _williams_r(flat_bars, 14) == -50.0
+    assert isinstance(_williams_r(trend_bars, 14), float)
+
+    assert _roc([], 10) == 0.0
+    assert _roc([0.0] * 15, 10) == 0.0
+    assert isinstance(_roc([10.0 + i for i in range(15)], 10), float)
+
+    assert _keltner_pct_b([], 20) == 0.5
+    assert _keltner_pct_b(flat_bars, 20) == 0.5
+    assert isinstance(_keltner_pct_b(trend_bars, 20), float)
+
+    assert _hurst_exponent([], 32) == 0.5
+    assert _hurst_exponent([10.0] * 40, 32) == 0.5
+    assert 0.0 <= _hurst_exponent([10.0 + i * 0.1 for i in range(40)], 32) <= 1.0

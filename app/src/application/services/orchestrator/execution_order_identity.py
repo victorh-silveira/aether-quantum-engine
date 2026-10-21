@@ -18,8 +18,12 @@ def set_indicator_duration(params: dict, metrics: dict | None) -> None:
     if not isinstance(metrics, dict) or not metrics.get("indicator_controls_execution"):
         return
     period = int(metrics.get("indicator_period_seconds") or 300)
-    if str(metrics.get("indicator_model_version", "")).startswith("pullback-1-") and period != 300:
-        raise RuntimeError("Setup pullback opera somente em M5")
+    allowed = metrics.get("allowed_period_seconds")
+    if str(metrics.get("indicator_model_version", "")).startswith("pullback-1-"):
+        if allowed is not None and period == allowed:
+            pass
+        elif period != 300:
+            raise RuntimeError("Setup pullback opera somente em M5")
     if period not in (300, 900, 3600):
         raise RuntimeError("Periodo do indicador invalido para contrato")
     params["duration"] = period // 60

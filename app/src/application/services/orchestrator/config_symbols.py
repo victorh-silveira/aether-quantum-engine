@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 
-_VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V)\Z")
+_VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V|RDBEAR|RDBULL)\Z")
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
 
 

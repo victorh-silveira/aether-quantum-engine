@@ -189,6 +189,7 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
     assert report["R_25:300"]["acertos"] == 1
     assert report["R_25:300"]["erros"] == 1
     assert report["R_25:300"]["empates"] == 1
+    assert report["R_25:300"]["max_losses_consecutivos"] == 1
     assert bars[MIN_BARS].close > bars[MIN_BARS - 1].close
     assert bars[MIN_BARS].close < bars[MIN_BARS].open
     assert bars[MIN_BARS + 1].close > bars[MIN_BARS].close

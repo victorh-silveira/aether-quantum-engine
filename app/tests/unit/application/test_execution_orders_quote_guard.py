@@ -226,6 +226,33 @@ async def test_pullback_order_enforces_five_minute_stake_cap():
     assert params["_pullback_recovery_amount"] == 20
 
 
+@pytest.mark.asyncio
+async def test_pullback_order_attaches_prequoted_proposal():
+    executor = MagicMock()
+    executor.orch._active_cycle_id = 1
+    executor.orch.config = {"trading": {"mode": "demo"}, "risk_management": {"params": {"stake_min": 1}}}
+    metrics = {
+        "indicator_controls_execution": True,
+        "indicator_model_version": "pullback-1-v2",
+        "indicator_period_seconds": 300,
+        "_pullback_stake_cap": 50,
+        "_prequoted_proposal_id": "prop-12345",
+        "_prequoted_ask_price": 10.0,
+        "_prequoted_payout": 19.5,
+        "_prequoted_rate": 0.95,
+        "_prequoted_timestamp": 1700000000.0,
+    }
+    executor.orch.trade_handler.buy_with_parameters = AsyncMock(side_effect=RuntimeError("stop_flow"))
+    with pytest.raises(RuntimeError, match="stop_flow"):
+        await place_order(executor, "R_25", TradeDirection.CALL, 10.0, metrics=metrics)
+    params = executor.orch.trade_handler.buy_with_parameters.await_args.kwargs["params"]
+    assert params["_prequoted_proposal_id"] == "prop-12345"
+    assert params["_prequoted_ask_price"] == 10.0
+    assert params["_prequoted_payout"] == 19.5
+    assert params["_prequoted_rate"] == 0.95
+    assert params["_prequoted_timestamp"] == 1700000000.0
+
+
 def test_attach_quote_guard_params_flips_and_error():
     params = {}
     metrics_flip = {"calibrated_prob": 0.501, "loss_clf_flip": True, "loss_clf_p_eff": 0.72}

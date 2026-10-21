@@ -34,7 +34,9 @@ class PublicDeriv:
             for attempt in range(2):
                 try:
                     if self._socket is None:
-                        self._socket = await websockets.connect(self.url, open_timeout=15, max_size=8_000_000)
+                        self._socket = await websockets.connect(
+                            self.url, open_timeout=15, max_size=8_000_000, ping_interval=20.0, ping_timeout=10.0
+                        )
                     self._request_id += 1
                     await self._socket.send(json.dumps({**payload, "req_id": self._request_id}))
                     response = json.loads(await asyncio.wait_for(self._socket.recv(), timeout=20))

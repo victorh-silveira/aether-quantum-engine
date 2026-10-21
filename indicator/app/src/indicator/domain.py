@@ -8,7 +8,7 @@ from math import isfinite
 
 PERIODS = (300, 900, 3600)
 PERIOD_NAMES = {300: "M5", 900: "M15", 3600: "H1"}
-VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V)\Z")
+VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V|RDBEAR|RDBULL)\Z")
 
 
 @dataclass(frozen=True)
@@ -49,17 +49,26 @@ class LiveObservation:
     interim_side: str
 
 
-def synthetic_symbols(rows: list[dict[str, object]]) -> dict[str, str]:
-    """Seleciona apenas indices Volatility ativos do catalogo publico."""
+def synthetic_symbols(rows: list[dict[str, object]], scope: str = "all") -> dict[str, str]:
+    """Seleciona indices Volatility ou Stocks & Indices abertos do catalogo publico."""
     found = {}
     for row in rows:
         market = str(row.get("market", "")).lower()
         symbol = str(row.get("underlying_symbol") or row.get("symbol") or "").strip()
-        if (
-            market == "synthetic_index"
-            and VOLATILITY_SYMBOL.fullmatch(symbol)
-            and row.get("is_trading_suspended") not in (1, True, "1")
-        ):
+        suspended = row.get("is_trading_suspended") in (1, True, "1")
+        if suspended:
+            continue
+        is_synthetic = market == "synthetic_index" and VOLATILITY_SYMBOL.fullmatch(symbol)
+        is_stock_index = (
+            market == "indices"
+            and (row.get("underlying_symbol_type") == "stockindex" or symbol.startswith("OTC_"))
+            and row.get("exchange_is_open") in (1, True, "1")
+        )
+        if scope == "stock_indices" and is_stock_index:
+            found[symbol] = str(row.get("underlying_symbol_name") or row.get("display_name") or symbol)
+        elif scope == "volatility_indices" and is_synthetic:
+            found[symbol] = str(row.get("underlying_symbol_name") or row.get("display_name") or symbol)
+        elif scope == "all" and (is_synthetic or is_stock_index):
             found[symbol] = str(row.get("underlying_symbol_name") or row.get("display_name") or symbol)
     return dict(sorted(found.items()))
 

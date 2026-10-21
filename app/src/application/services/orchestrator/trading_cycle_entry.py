@@ -12,6 +12,7 @@ from src.application.services.deep_learning.dl_startup import prepare_inference_
 from src.application.services.execution_ema_cache import invalidate_ema_cache
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.indicator_consensus import refresh_indicator_consensus
+from src.application.services.orchestrator.cycle_indicators_logger import log_cycle_indicators
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
@@ -84,50 +85,7 @@ async def acquire_trading_cycle_lock(orch: Any) -> bool:
 
 def _log_cycle_indicators(orch: Any) -> None:
     """Registra indicadores M5 detalhados dos ativos ativos no ciclo."""
-    if not bool(orch.config.get("pullback_strategy", {}).get("enabled", False)):
-        return
-    stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-    if stream is None:
-        return
-    cid = f"C{int(getattr(orch, '_active_cycle_id', 0) or 0):04d}"
-    symbols = list(getattr(orch, "symbols", [])) or [str(orch.config.get("anchor") or "R_25")]
-    for symbol in symbols:
-        candles = getattr(stream, "micro_candles", {}).get(symbol) or []
-        if len(candles) < 55:
-            continue
-        bars = candles[-128:] if len(candles) >= 128 else candles
-        closes = [b.close for b in bars]
-        alpha20, alpha50 = 2.0 / 21.0, 2.0 / 51.0
-        fast = [closes[0]]
-        for val in closes[1:]:
-            fast.append(alpha20 * val + (1.0 - alpha20) * fast[-1])
-        slow = [closes[0]]
-        for val in closes[1:]:
-            slow.append(alpha50 * val + (1.0 - alpha50) * slow[-1])
-        ranges = [
-            max(curr.high - curr.low, abs(curr.high - prev.close), abs(curr.low - prev.close))
-            for prev, curr in zip(bars[-15:-1], bars[-14:], strict=False)
-        ]
-        atr = sum(ranges) / 14.0 if ranges else 1.0
-        pullback, confirmation = bars[-2:]
-        body = abs(confirmation.close - confirmation.open)
-        recuo = abs(pullback.low - fast[-2]) / atr if fast[-2] > slow[-2] else abs(pullback.high - fast[-2]) / atr
-        dist = abs(confirmation.close - fast[-1]) / atr
-        trend = "ALTA" if fast[-2] > slow[-2] else "BAIXA"
-        orch.logger.info(
-            "[%s] INDICADORES [%s] || CLOSE: %.2f | EMA20: %.2f | EMA50: %.2f | "
-            "ATR14: %.2f | RECUO: %.2f ATR | CORPO: %.2f ATR | DIST: %.2f ATR | TENDENCIA: %s",
-            cid,
-            symbol,
-            confirmation.close,
-            fast[-2],
-            slow[-2],
-            atr,
-            recuo,
-            body / atr,
-            dist,
-            trend,
-        )
+    log_cycle_indicators(orch)
 
 
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
@@ -142,13 +100,19 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     cluster_executed = False
     decisions = {} if setup_enabled else await collect_deep_learning_decisions(orch)
     await refresh_indicator_consensus(orch)
-    if (
-        setup_enabled
-        and not any(period == 300 for _, period in getattr(orch, "_indicator_signal_status", {}))
-        and time.time() % 300 < 10
-    ):
-        await asyncio.sleep(4)
-        await refresh_indicator_consensus(orch)
+    if setup_enabled:
+        period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
+        target_symbol = orch.config.get("pullback_strategy", {}).get("promoted_symbol") or orch.config.get("anchor")
+        status = getattr(orch, "_indicator_signal_status", {})
+        signals = getattr(orch, "_indicator_period_signals", {})
+        missing = (
+            not any(p == period_seconds for _, p in status)
+            if not target_symbol
+            else (str(target_symbol), period_seconds) not in signals
+        )
+        if missing and time.time() % period_seconds < 20:
+            await asyncio.sleep(4)
+            await refresh_indicator_consensus(orch)
     _log_cycle_indicators(orch)
     if (
         int(orch._cycle_seq)
