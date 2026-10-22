@@ -1,24 +1,17 @@
 ---
-description: Execution gates — TCN + loss-clf FLIP; SKIP tecnico e neg_edge
-globs: app/src/application/services/execution*.py,app/src/application/services/orchestrator/execution*.py,app/src/application/services/loss_classifier*.py
+description: Execution gates — setup institucional senior M5 (senior_institutional), Killzones BRT, VWAP, FVG e quote guard
+globs: app/src/application/services/execution*.py,app/src/application/services/orchestrator/execution*.py,indicator/app/src/indicator/**
 alwaysApply: true
 ---
 
 # Execution gates
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-- Quatro vetos de mercado extremos seguem ativos. `skip_tcn_noise_discord`, `skip_trend_discord`, `conformal_uncertainty_gate`, `veto_compression_doji` e `skip_neg_edge` estao desligados no SSOT; o regime permanece telemetrico.
-- TCN sempre CALL se Cal ≥ **0.5**, PUT se Cal < **0.5**
-- Anti-loss loss-clf: **FLIP** CALL↔PUT se `p_eff` >= piso configurado no runtime e o candidato passar EV, haircut e margem com payout observado. Inversao rejeitada preserva o lado TCN; **sem** `candle_holds`, **sem HARD SKIP**, **sem Soft Kelly**.
-- Anti-trend-lock e Alpha Flip so alteram o lado se P(lado) calibrada sustentar EV e margem no payout observado. Se falhar, preservar o lado anterior. Nunca substituir P(lado) por conviccao fixa na proposta.
-- SCALE adapt **desligado** (`adapt_retract_enabled` **false**); vela/tape/regime **nao** viram lado nem SKIP
-- `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**
-- Confluencia de indicadores e telemetria; nunca sobrescreve a direcao TCN/loss-clf.
-- Edge CLUSTER = estimativa previa de EV \(p_{\text{lado}}\times(1+payout)-1\). A cotacao final revalida a probabilidade e o payout efetivo.
-- Na proposta final, `require_quote_edge=true`: usar payout liquido efetivamente cotado. A rota TCN sem indicador exige EV acima de `min_edge_execute=0` e margem sobre break-even `0.01`. A rota com indicador M5 aprovado aceita EV estimado negativo por mandato do operador e usa stake fixa de 1% da banca disponivel. Payout ausente ou invalido bloqueia ambas as rotas.
-- `p_eff`: shrink de `p_loss` para 0.5 se `n_train < flip_trust_n` (**64**, `flip_young_shrink` **0.50**)
-- Piso: young **`flip_young_p_eff_floor` 0.58**; mature **`hard_p_loss_floor` 0.70**; FLIP so apos `auto_learn` (saida seed live **`LOSS_BOOTSTRAP_EXIT_N` 2**) e `n_train >= flip_min_n_train` (**1**)
-- Ordem: TCN → loss-clf FLIP → anti-trend-lock/Alpha Flip condicionados ao edge do candidato → `invert_exec_side` (**false**) → quatro vetos extremos e gatilho de reconciliacao sob o mesmo quote guard → Kelly / cover amort **1** (`cover_l0`) → proposta com EV e margem verificados.
-- META: telemetria/LEARN apenas; **sem** soft Kelly (`meta_soft_kelly` inerte)
-- **Proibido** reabrir quality gate amplo, Soft Kelly do loss-clf, fusao EV, SCALE adapt de lado, micro/regime/vol/exhaust generico, anti-loss EMA/RSI, trava `cal_soft_edge`
-- Catalogo: `docs/engineering-indicator-gates.md` + playbook
+- Rota operacional soberana: `pullback_strategy.enabled=true` com `pullback_variant="senior_institutional"`. Somente sinais M5 abrem contratos Rise/Fall de 5 minutos.
+- Hard Gate de Killzones no Horario de Brasilia (BRT / UTC-3): Londres (03h-08h), Nova York (10h-13h) e London Fix (14h-16h). Fora dessas janelas, emite SEM SINAL.
+- Session VWAP e Bandas de Dispersao (+/- 1.5 sigma): fechamento favoravel a VWAP diaria e contido no canal de 1.5 desvio padrao institucional. Compras no topo de exaustao e vendas no fundo sao sumariamente vetadas.
+- Mitigacao de Fair Value Gap (FVG): exige teste e preenchimento de desequilibrio institucional entre t-2 e t antes da expansao.
+- Cotacao final: `require_quote_edge=true`. Exige payout liquido cotado pela Deriv com expectativa matematica estritamente positiva ($EV = p \times (1 + payout) - 1 > 0$) e margem minima de 0,01 sobre o break-even. Payout ausente ou invalido bloqueia a execucao.
+- Dimensionamento institucional: stake base soberana de 1% da banca disponivel. Amortizacao linear 1/1 em perdas com teto maximo estrito de 5% por ordem. Kelly, D'Alembert e Martingale geometricos sao estritamente proibidos.
+- Quarentena e Deduplicacao: reserva Redis com `SET NX` por conta/ativo/vela M5; quarentena de 900 s apos timeout sem confirmacao de compra.
+- TCN, Meta-Learner e Loss-Classifier operam exclusivamente em `make app-research-ml` para pesquisa quantitativa, sem interferencia em runtime.

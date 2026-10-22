@@ -1,40 +1,69 @@
-# Playbook trader senior — binarias M5 (`1HZ75V`; OHLC 300s)
+# Playbook Trader Senior — Contratos Rise/Fall M5 (ETFs / OTC Mundiais)
 
-## Estrategia operacional vigente
+## 1. Postura e Filosofia Operacional
 
-O fluxo principal agora e o setup fixo de tendencia e recuo em M5/M15/H1 descrito em [strategy-pullback.md](strategy-pullback.md). O lado vem apenas do setup; TCN, meta e loss-classifier abaixo sao pesquisa legada e nao invertem nem vetam a ordem. O piloto DEMO testa ate 200 setups cotados sem filtro de EV; REAL exige retorno DEMO auditado, posterior Beta(0,5;0,5) e EV positivo na cotacao final. As notas historicas abaixo nao prevalecem.
+O Aether Quantum Engine opera exclusivamente como um algoritmo de arbitragem estatística e confluência institucional de fluxo de ordens. Não há adivinhação, intuição ou apostas agressivas. A execução é regida pela variante **`senior_institutional`** em velas M5 fechadas (contrato de 300 segundos).
 
-Atualizacao operacional: com `four_market_vetoes=true`, a politica ativa e
-[quatro vetos extremos](engineering-indicator-gates.md), dois por lado.
-O gatilho `market_direction_trigger` pode reconciliar direcao com a probabilidade
-TCN existente somente se o candidato passar EV, haircut e margem sobre
-break-even no payout observado. As regras
-legadas de contra-tendencia descritas abaixo so valem no fallback desligado.
+- **Ativo Promovido Vigente**: **`OTC_SX5E`** (Euro Stoxx 50 / FEZ), selecionado por diagnóstico de EV esperado positivo (+0.0338), assertividade de 61.54% e máximo de apenas 3 perdas consecutivas.
+- **Universo de Monitoramento**: 12 índices sintéticos mundiais de ações OTC integrados a feeds reais do Yahoo Finance v8 (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
+- **Tempo e Cadência**: Ciclo rigoroso de 300 segundos (M5). Abertura de ordens autorizada somente até 30 segundos após a abertura da nova vela.
 
-Postura: TCN **14D** decide CALL/PUT; **FLIP** loss-clf por `p_eff` **apos auto_learn** (exit live **2**, `n_train>=1`). Young pe>=**0.58** / mature pe>=**0.70** (`flip_young_shrink` **0.50**). Sem SCALE adapt / vela / META soft Kelly. Nao ha bloqueio temporal pos-LOSS. Quatro vetos extremos de mercado e a cotacao final com EV positivo e margem de 0,01 sobre break-even protegem a compra. O regime e telemetrico; ruido/tendencia/conformal/compressao nao somam vetos no SSOT.
+---
 
-Universo: **1HZ75V** M5 (contrato **5 m**; label N=1; ciclo **300 s**).
+## 2. Checklist Mental do Trader Sênior (Matriz de 5 Pilares)
 
-Hierarquia: TCN → LOSS_CLF FLIP apenas com edge e margem do lado candidato → anti-trend-lock/Alpha Flip com o mesmo criterio → quatro vetos extremos e gatilho de reconciliacao → Kelly / SIDE_EQ → proposta com quote guard → EXEC.
+Antes de autorizar o envio de qualquer proposta à corretora, o motor valida 5 condições independentes:
 
-Telemetria ciclo: CLUSTER → GATES/LOSS_CLF → KELLY → EXEC → RESOLVED. Em bootstrap: `blocked=bootstrap boot=N/2`; `blocked=flip_min_n` se `n<1`. Edge CLUSTER e estimativa previa; a cotacao final usa payout do broker. Inversao sem edge estimado registra rejeicao e preserva o lado anterior; a proposta sempre usa P(lado) calibrada, sem conviccao fixa de recuperacao.
+```
+[1] HORÁRIO BRT (Killzone Ativa?)
+    └── London Open (03h–08h) OU NY Overlap (10h–13h) OU London Fix (14h–16h)
+        └── SE NÃO ➔ VETO (SEM SINAL: Fora da Killzone)
 
-Algoritmo mental: `lado=TCN(Cal)` → FLIP se pe no piso → Kelly.
+[2] TENDÊNCIA ESTRUTURAL (EMA20 > EMA50?)
+    └── Alinhamento de médias e inclinação positiva
+        └── SE NÃO ➔ VETO (SEM SINAL: Mercado Lateral ou Indeciso)
 
-Catalogo: [`engineering-indicator-gates.md`](engineering-indicator-gates.md).
+[3] RETRAÇÃO DE VOLATILIDADE (Pullback Saudável?)
+    └── Recuo penetra até 0.5 ATR14 da EMA20 sem violar a EMA50
+        └── SE NÃO ➔ VETO (SEM SINAL: Retração Excessiva ou Insuficiente)
 
-## Quando operar
+[4] SESSION VWAP & BANDAS (Preço Institucional Favorável?)
+    └── Fechamento favorável à VWAP diária e contido em +/- 1.5 sigma
+        └── SE NÃO ➔ VETO (SEM SINAL: Exaustão Institucional Contra a VWAP)
 
-| Lado | Condicoes |
-|------|-----------|
-| CALL / PUT | TCN resolve lado; sem FLIP; sem SKIP tecnico |
-| FLIP | auto_learn; `n_train>=1`; `p_eff` no piso → oposto do TCN |
-| SKIP economico | Probabilidade ausente/invalida ou cotacao final sem EV e margem suficientes |
-| SKIP tecnico | `training` / `data` / `deploy` / `predict_error` / stop-win |
+[5] DESEQUILÍBRIO INSTITUCIONAL (Fair Value Gap Mitigado?)
+    └── Imbalance entre t-2 e t testado e fechado pela retração
+        └── SE NÃO ➔ VETO (SEM SINAL: Falta de Mitigação de FVG)
+```
 
-## Catalogo SKIP
+---
 
-| Razao | Significado |
-|-------|-------------|
-| tecnico | treino/dados/deploy/predict/stop-win |
-| `quote_edge_below_min` | EV da cotacao final abaixo do piso |
+## 3. Gestão de Risco e Dimensionamento de Capital
+
+1. **Stake Base**: Rigorosamente **1% da banca disponível** (em DEMO e REAL).
+2. **Sem Martingale**: É terminantemente proibido dobrar lotes após perdas.
+3. **Amortização Linear 1/1**: Em caso de perda, a recuperação calcula a stake necessária baseando-se no payout líquido cotado:
+   $$Stake_{rec} = \min\left(\frac{Perda}{Payout}, 5\% \times Banca\right)$$
+   com teto máximo inviolável de **5% por ordem**.
+4. **Veto Econômico na Cotação Final**:
+   $$EV = p \times (1 + Payout_{líquido}) - 1 > 0$$
+   com margem mínima de 0,01 acima do break-even. Se a Deriv oferecer payout degradado que negative o EV, a ordem é abortada no último milissegundo.
+
+---
+
+## 4. Auditoria de Sessão e Comandos Operacionais
+
+- Treinamento e Diagnóstico de Ativos:
+  ```bash
+  make app-train
+  ```
+- Execução Operacional:
+  ```bash
+  make app-run
+  ```
+- Auditoria de Qualidade e Pré-commit:
+  ```bash
+  make app-pre-commit-run
+  ```
+- Monitoramento Live:
+  Dashboards Grafana em `http://localhost:3000` (Painéis Aether e Sintéticos).

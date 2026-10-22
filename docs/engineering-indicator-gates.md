@@ -1,9 +1,22 @@
-# Catalogo de gates (SSOT minimo)
+# Catalogo de gates e filtros de execucao (SSOT)
 
-## Politica ativa: quatro vetos de mercado
+## 1. Politica Vigente: Matriz Institucional Senior (senior_institutional)
 
-`orchestrator.execution.four_market_vetoes=true` substitui a lista de gates
-de mercado legada abaixo. Sao quatro categorias, nao uma cota de quatro ciclos:
+Quando `pullback_strategy.enabled=true` e `pullback_variant="senior_institutional"`, o fluxo de autorizacao de trades obedece a matriz de confluencia de 5 pilares institucionais:
+
+| Gate Institucional | Regra de Validacao | Acao em Falha |
+|---|---|---|
+| `gate_killzone_brt` | Timestamp M5 deve estar dentro de uma das janelas de liquidez global convertidas para o Horário de Brasília (UTC-3): London Open (03h–08h), New York Overlap (10h–13h) ou London Fix (14h–16h). | Emite `SEM SINAL` com motivo `Fora da killzone institucional de liquidez`. |
+| `gate_session_vwap_trend` | Fechamento da confirmacao deve estar a favor da VWAP da sessao diaria (00:00 UTC): $Close \ge VWAP$ para CALL e $Close \le VWAP$ para PUT. | Emite `SEM SINAL` com motivo `Fechamento contra a Session VWAP institucional`. |
+| `gate_session_vwap_band` | Fechamento contido no canal de dispersao de $\pm 1.5\sigma$: $Close \le VWAP + 1.5\sigma$ para CALL e $Close \ge VWAP - 1.5\sigma$ para PUT. | Emite `SEM SINAL` com motivo `Exaustao alem da banda de dispersao VWAP 1.5 sigma`. |
+| `gate_fvg_mitigation` | Identifica Fair Value Gap entre velas $t-2$ e $t$ e exige que a vela de recuo tenha penetrado a regiao de desequilibrio antes da expansao. | Emite `SEM SINAL` com motivo `Ausencia de mitigacao de Fair Value Gap (FVG)`. |
+| `gate_quote_edge` | A cotacao final retornada pelo broker Deriv deve ter preco e payout liquidos validos, com expectativa matematica positiva: $EV = p \times (1 + payout) - 1 > 0$ e margem minima de 0,01 sobre o break-even. | Bloqueia o envio do contrato por falta de borda economica. |
+
+---
+
+## 2. Politica de Quatro Vetos de Mercado Extremos (Legado / Respaldo)
+
+Para ativos onde nao ha sinal institucional formado, `orchestrator.execution.four_market_vetoes=true` mantem a sentinela contra exaustao extrema de preco:
 
 | Veto | Confluencia na ultima vela fechada |
 |------|------------------------------------|
@@ -12,65 +25,17 @@ de mercado legada abaixo. Sao quatro categorias, nao uma cota de quatro ciclos:
 | `put_bottom_rejection` | RSI <= 0.32 e BB %B <= 0.12 com pavio inferior >= 30%, ou vela de exaustao compradora no extremo |
 | `put_up_continuation` | Corpo comprador >= 70%, DI diff >= 0.12, tendencia e vela anterior CALL |
 
-RSI e DI diff sao normalizados; OHLC usa precos absolutos. Candle ausente ou
-invalido nao cria setup. Protecoes tecnicas de dados/deploy e caps permanecem
-externas. `neg_edge`/`min_edge` sao bloqueios economicos, nao um quinto veto de
-mercado. Os vetos extremos nao recebem waiver por PEND ou FLIP.
+---
 
-`market_direction_trigger=true` reavalia o lado antes do gate economico.
-Um extremo contra o lado atual propoe o oposto, mas so o aceita se a
-probabilidade calibrada existente sustentar o piso de EV e a margem sobre
-break-even com o payout observado, e nao houver extremo contrario ao candidato.
-EV = p(lado) * (1 + payout) - 1. O haircut configurado tambem se aplica.
-Registra `market_trigger_status`, `market_trigger_candidate`, setup e edge.
-Nao estima uma nova probabilidade a partir do desenho do candle.
+## 3. Hot Path Operacional Sênior
 
-A proposta final usa o payout liquido efetivamente cotado: `quote_ev = p(lado) × (1 + payout_rate) − 1`. No fluxo TCN sem indicador, permanecem `min_edge_execute=0` e margem de 0,01 sobre break-even. No fluxo com indicador M5 aprovado, REAL exige amostra DEMO da mesma versao com pelo menos 200 contratos liquidados pelo broker e limite inferior unilateral de 95% para retorno medio acima de zero. O piloto DEMO usa a stake minima aceita pela Deriv, limitada a 1% da banca por ordem, e para apos 200 compras da versao. O piloto pode registrar EV estimado negativo somente em DEMO; REAL exige EV positivo e margem na cotacao final. Preco, payout e probabilidade ausentes ou invalidos bloqueiam ambas as rotas.
-
-O treino preserva a versao M5 ativa com compras DEMO enquanto a amostra do piloto estiver incompleta e tambem preserva versoes promovidas. O novo ajuste fica como candidato separado. Isso evita reiniciar a evidencia a cada `make app-train`; nao transforma uma probabilidade proxima de 50% em vantagem economica. Os modelos aprovados com `ev_candidatas=0` continuam sem candidatos historicos acima do break-even de referencia e dependem de evidencia DEMO confirmada antes de qualquer promocao REAL.
-
-Limitacao deliberada: um TCN CALL com P(CALL)=0.52 nao autoriza PUT; P(PUT)=0.48.
-Se o lado inicial ja e o argmax do TCN, o gatilho nao o inverte contra essa
-distribuicao. Pode reconciliar um lado previamente alterado com o modelo.
-Inversao independente de TCN exige outro estimador validado fora da amostra;
-essa vantagem ainda nao foi demonstrada. Ativacao funcional nao e validacao
-historica de rentabilidade. A lista abaixo descreve o fallback legado quando
-`four_market_vetoes=false`.
-
-Hot path vivo:
-
-1. SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-2. SKIP sinal ativo: quatro vetos extremos de mercado e cotacao final sem EV positivo ou sem margem de 0,01 sobre break-even. `skip_neg_edge`, `skip_tcn_noise_discord`, `skip_trend_discord`, `conformal_uncertainty_gate` e `veto_compression_doji` estao desligados no SSOT. O regime continua como telemetria, sem veto de compressao. Os demais filtros legados permanecem desligados; nao criam lado CALL/PUT.
-3. TCN decide CALL/PUT (Cal ≥ 0.5 → CALL)
-4. Anti-loss loss-clf = FLIP por `p_eff` apos auto_learn e `n_train >= 1` (young 0.58, mature 0.70; saida seed live N=2; ancora TCN). O piso vem da configuracao resolvida do runtime. O FLIP exige EV e margem do candidato com o payout observado. Anti-trend-lock e Alpha Flip pos-loss seguem o mesmo criterio com P(lado) calibrada. Inversao rejeitada preserva o lado anterior; a proposta revalida com o payout cotado.
-5. SCALE adapt **off** (`adapt_retract_enabled` **false**); `skip_doji` / `skip_exec_vs_candle` / `skip_scale_candle_discord` **false**
-6. `invert_exec_side` **false**
-7. Kelly + SIDE_EQ sizing (META **nao** soft Kelly)
-
-**Proibido:** quality gate amplo arbitrario / Soft Kelly do loss-clf ou META / HARD SKIP loss-clf descalibrado / fusao EV / `cal_soft_edge` / SCALE adapt de lado sem trigger. Indicadores fora dos quatro vetos ativos alimentam features e telemetria.
-
-Telemetria ciclo: CLUSTER → `[GATES] || LOSS_CLF` → KELLY → EXEC → RESOLVED.
-
-Protocolo: gate novo so com mandato explicito e SSOT nomeado.
-
-Refs: playbook, `engineering-settings-ssot.md`, rule `aether-execution-gates.mdc`, skill `aether-binary-senior`.
-
-## Inventario de indicadores (feature, nao gate)
-
-`precompute_price_series` calcula series causais. O ganho operacional e **entrar no vetor**, nao virar SKIP. Catalogo de gates permanece fechado.
-
-### TCN 14D (`dl_feature_orthogonal`)
-
-`norm_log_ret_1`, `norm_log_ret_5`, `rsi_centered`, `delta_rsi`, `bb_pct_b_centered`, `bb_log_width`, `norm_atr`, `ema_dist_9_21`, `ema_dist_20_50`, `macd_hist_norm`, `stoch_k_centered`, `adx_scaled`, `realized_vol_ratio`, **`hurst_centered`**. Dimensao travada em 14; bump exige retreino + fail-closed.
-
-### Loss-classifier 24D
-
-Vetor causal in-place: Cal/raw, `cal_raw_discord`, regime SCALE (telemetria), meta `predicted_payoff_edge`, Hurst, ADX, `variance_ratio`, `keltner_deviation`, ATR/tick accel, `bb_width_z`. Schema 24D inalterado.
-
-### Meta 23D
-
-14 TCN + microestrutura. **Nao** decide lado nem comprime stake live.
-
-### Ocioso (calculado, nao no 14D)
-
-`cci`, `williams_r`, `roc`, etc. Substituicoes no vetor 14D exigem estudo separado e retreino; nao se tornam gate live automaticamente.
+1. **SKIP Tecnico**: Falha de conexao WSS, dados insuficientes de historico (< 128 velas fechadas), descontinuidade ou pausa operacional.
+2. **Avaliacao Institucional M5**:
+   - Validacao de Killzone BRT (03h-08h, 10h-13h, 14h-16h).
+   - Validacao de Tendencia e Inclinacao (EMA20 > EMA50).
+   - Validacao de Retracao (recuo ate 0,5 ATR14).
+   - Validacao de Volume e Dispersao (Session VWAP $\pm 1.5\sigma$).
+   - Validacao de Desequilibrio (FVG mitigado).
+3. **Bloqueio Economico Fail-Closed**: Preco, payout cotado pela Deriv e EV liquido verificado. Se EV <= 0 ou payout ausente, veto imediato.
+4. **Dimensionamento de Capital**: Stake base de 1% da banca disponivel. Se houver perda pendente, amortizacao linear 1/1 com teto rigoroso de 5% por ordem.
+5. **Deduplicacao e Quarentena**: `SET NX` no Redis por contrato/vela; quarentena de 900 s em timeout de compra sem ACK.

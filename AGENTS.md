@@ -1,8 +1,17 @@
 # AGENTS.md — Aether Quantum Engine
 
-## Estrategia operacional vigente em 14/10/2026
+## Estrategia operacional vigente em 21/10/2026
 
-`pullback_strategy.enabled=true` substitui a selecao direcional por EV e desliga TCN/meta/loss do caminho principal de decisao. Somente sinais M5 podem abrir contratos Rise/Fall de 5 minutos. O setup fixo por ativo usa EMA20/EMA50, recuo ate 0,5 ATR14 e confirmacao da vela fechada; ver [`docs/strategy-pullback.md`](docs/strategy-pullback.md). O `make app-train` diagnostica o setup por proxy de velas, ranqueia os pares M5 por taxa de acerto de pullback e EV esperado, promovendo o melhor ativo de volatilidade para `settings.json` e `drift_symbols.py` para execucao direta no `make app-run`; M15/H1 nao podem gerar ordens. TCN/meta/loss ficam em `make app-research-ml`, sem autoridade operacional. A DEMO testa ate 200 setups com cotacao valida e stake base de 1% da banca disponivel, sem filtro de EV; apenas liquidacoes `broker` da versao nova contam. REAL exige limite inferior unilateral de 95% positivo, posterior Beta(0,5;0,5), EV positivo e margem de 0,01 na proposta final. A recuperacao usa o payout liquido cotado, com teto de 5% por ordem em DEMO e REAL e reserva por conta. Kelly, D'Alembert e Martingale nao dimensionam esta rota. Sinais e aprovacoes de versoes antigas nao autorizam a estrategia nova. As notas historicas abaixo descrevem o fluxo legado e nao prevalecem sobre esta secao.
+`pullback_strategy.enabled=true` com `pullback_variant="senior_institutional"` substitui a selecao direcional por EV e desliga TCN/meta/loss do caminho principal de decisao. Somente sinais M5 com confluencia institucional podem abrir contratos Rise/Fall de 5 minutos. O setup institucional senior exige 5 pilares:
+1. Tendencia estrutural EMA20/EMA50.
+2. Recuo da vela anterior ate 0,5 ATR14 da EMA20.
+3. Preco favoravel a Session VWAP com fechamento contido nas bandas de dispersao de +/- 1,5 desvio padrao.
+4. Mitigacao de Fair Value Gap (FVG) entre as velas t-2 e t.
+5. Hard Gate de Killzones no Horario de Brasilia (BRT / UTC-3): London Open (03h as 08h), New York Overlap (10h as 13h) e London Fix (14h as 16h); ver [`docs/strategy-pullback.md`](docs/strategy-pullback.md).
+
+O `make app-train` diagnostica o setup integrando cotacoes reais de mercado via API HTTP (Yahoo Finance v8) para o universo completo de 12 indices sinteticos de acoes OTC (replicas dos ETFs mundiais SPY, QQQ, DIA, EWG, FEZ, etc.) e indices de volatilidade, aprende os melhores horarios em Brasilia e ranqueia os pares por taxa de acerto e EV esperado (payout 85%). O par promovido vigente e **OTC_SX5E** (Euro Stoxx 50 / FEZ), configurado soberanamente em `config/settings.json` e `drift_symbols.py` para execucao direta no `make app-run`; M15/H1 nao podem gerar ordens. TCN/meta/loss ficam restritos a `make app-research-ml`, sem autoridade operacional.
+
+A DEMO testa ate 200 setups com cotacao valida e stake base de 1% da banca disponivel, sem filtro de EV; apenas liquidacoes `broker` da versao nova contam. REAL exige limite inferior unilateral de 95% positivo, posterior Beta(0,5;0,5), EV positivo e margem de 0,01 na proposta final. A recuperacao usa o payout liquido cotado, com teto de 5% por ordem em DEMO e REAL e reserva por conta. Kelly, D'Alembert e Martingale nao dimensionam esta rota. Sinais e aprovacoes de versoes antigas nao autorizam a estrategia nova. As notas historicas abaixo descrevem o fluxo legado e nao prevalecem sobre esta secao.
 
 Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
@@ -17,43 +26,20 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 ## Universo operacional
 
-Rise/Fall CALL/PUT e o unico fluxo operacional ativo. `launch-train` treina
-TCN M5 (14D), loss-classifier e meta LightGBM; o motor usa esses artefatos em DEMO
-e REAL com a mesma decisao e abertura. O contrato e de 300 segundos nos
-indices M5 aprovados; R_25 e a ancora atual. Indicadores de tendencia, momentum, volatilidade e regime
-entram no pipeline direcional conforme `settings.json`; ausencia de modelo
-valido ou evidencia de edge nao pode ser mascarada por inversao arbitraria.
+Rise/Fall CALL/PUT e o unico fluxo operacional ativo. O motor utiliza a rota institucional M5 com o ativo promovido soberano (**OTC_SX5E**); ativos candidatos sao avaliados no `make app-train` com historico continuo e cotacoes reais via HTTP. TCN M5 (14D), loss-classifier e meta LightGBM residem exclusivamente em `make app-research-ml` para pesquisa quantitativa, sem interferencia em runtime.
 
-Atualizacao 04/10/2026: prevalecem `settings.json` e
-`docs/engineering-deep-learning.md` sobre os
-valores historicos abaixo. Rise/Fall M5, lookback 32, barreiras de contrato/sharpening/
-Alpha Flip/micro-hedging desativados. Esses parametros se referem ao caminho
-direcional. `kelly.max_stake=0`
-significa sem teto absoluto adicional, e Kelly fracionario segue 0,25.
-O checkpoint local passa apenas por verificacao tecnica e opera com teto inicial de 1% da banca por ordem.
-
-- Politica de mercado vigente: `four_market_vetoes=true` e
-  `market_direction_trigger=true`; contrato em `docs/engineering-indicator-gates.md`.
-  Substitui os gates individuais de mercado legados. Nao altera P(CALL), nao
-  elimina bloqueios tecnicos/economicos nem demonstra vantagem historica de inversao.
-
-- Universo operacional atual: **R_25** (Volatility 25 Index / Deriv); R_10 entra somente apos aprovacao M5 e checkpoint TCN proprio. Os parametros historicos abaixo descrevem o contrato M5.
-- Relogio: micro/MINI **300 s** (M5, `training_history_bars` **25000** no treino; inferencia continua curta); macro **86400 s** (D1, 365 velas diarias); ciclo/cadência **300 s** (`require_signature_boundary` **true**, abertura M5); TCN estima deslocamento em **N=1 vela M5** com lookback **32** alinhado ao contrato ops **fixo 5 m (M5)** (`label_horizon_bars=1`, `risk_management.params.duration=5`, `duration_unit="m"`). Rotulagem: **spot_forward** (direcao da proxima vela fechada, calculada sem dados futuros; retreino obrigatorio apos mudanca de label).
-- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`
-- Na abertura M5, a TCN recebe apenas velas fechadas; a vela corrente em formacao fica fora do tensor para que `spot_forward` N=1 aponte para o contrato atual. O snapshot live permanece para telemetria e mercado. `model_input_forming_excluded` registra a exclusao.
-- A inferencia usa `inference_history_bars=768` velas M5 para preservar o warmup da diferenciacao fracionaria e da normalizacao causal; 384 alterava a feature `norm_frac_diff` em relacao ao treino com historico longo. O fetch inicial carrega esse piso mais warmup.
-- O `[CLUSTER]` sinaliza `input=closed|latest`. Com `aux_regression_weight=0`, a cabeca auxiliar de movimento nao e treinada e `[NEXT_MOVE]` fica ausente. O stream persiste cada M5 fechada em `ohlc_bars`; conferir frescor do banco antes de interpretar `contract_label_audit`.
-- Artefactos/treino com granularity/lookback/horizon ≠ settings sao invalidos (gate fail-closed); apos mudar TF/horizonte, retreinar TCN+meta e `make docker-rebuild`
-- Treino DL em velas M5 (25000 barras; D1 e contexto macro). O label `spot_forward` usa a direcao da proxima vela fechada. Matriz ortogonal TCN 14D limpa sem proxies sinteticos, com diferenciacao fracionaria causal (d=0.45) e pre-flight linear benchmark telemetrico (`min_linear_preflight_acc=0.0` permite treino TCN e meta). BCE simetrica ativa (`asymmetric_payout_loss=false`) preserva a probabilidade CALL; payout real entra no EV da proposta. A selecao interna de epoca prioriza estados sem colapso, mantendo fallback tecnico se todos colapsarem. Meta-Learner otimiza Net EV via Optuna. `launch-train` persiste checkpoint local com verificacao tecnica de pesos, normalizacao e geometria. Nao ha qualificacao estatistica de deploy nem simulacao de liquidacao por closes M5. DEMO e REAL usam o mesmo checkpoint local valido, decisao e abertura, com teto inicial soberano de 1% da banca por ordem, inclusive em `cover_l0`. Ausencia de checkpoint valido segue fail-closed. `infra.timescale.capture_enabled=true` coleta ticks e contratos confirmados quando o motor estiver ligado.
-- Comparacao offline entre perda ponderada e BCE: `app/scripts/operations/compare_dl_losses.py`; usa mesma inicializacao e nao exporta checkpoint. A view `contract_label_audit` compara M5 com resultado `broker` confirmado, sem qualificar modelo. Poucos contratos auditados nao sustentam treino supervisionado por resultado real.
-- Runtime: `online_training` **false** — ambas as contas usam checkpoint TCN do `launch-train` (sem retreino deferido no settle); loss-clf e meta `/learn` a cada trade (rebuild containers ml apos mudar env)
-- Cotacao final: `require_quote_edge=true`; probabilidade ausente ou nao finita bloqueia antes da proposta; calcular EV com payout liquido confirmado. O caminho TCN exige `min_edge_execute=0` e margem sobre break-even de `0.01`. O indicador M5 aprovado tambem exige EV positivo inclusive em recuperacao e usa stake fixa de 1% da banca disponivel; payout ausente ou invalido segue bloqueado.
-- Runtime: payout base mercado real **0.85** (85%). Sizing Kelly: projetado para atingir **4,31% da banca em tacada única M5** (`compounding_rate_daily = 0.0431`, `stop_win_kelly_cycles_target = 1`, `stop_win_kelly_min_fraction = 1.0`, `stop_win_kelly_max_fraction = 1.0`, `max_stake_pct = 0.05`, `stop_win_kelly_min_conviction` **0.58**). Ao bater a meta de 4,31% (equivalente a 3% ao dia em 21 dias úteis compostos), encerra a sessão imediatamente com STOP_WIN. Anti-loss vivo = **FLIP** por `p_eff` do loss-classifier (so apos auto_learn; saida do seed live N=**2**, nao `ready_n` **32**; `flip_min_n_train` **1**; young pe>=**0.58**; mature pe>=**0.70**; shrink N ate 64 com `flip_young_shrink` **0.50**; sem `candle_holds`). Anti-trend lock e Alpha Flip so invertem se P(lado) calibrada sustentar EV e margem no payout observado; caso contrario preservam o lado anterior. Edge CLUSTER = estimativa previa; `skip_neg_edge=false` evita veto duplicado e a proposta final exige EV positivo com margem sobre break-even. Recovery: `cover_enabled` **true**, `cover_multiple` **1.0**, amort **1/1**, stake = `min(max(PEND/payout, 1% banca), cap_L0)`; `cover_l0`; PEND nao force-explore por near-stop; piso Kelly **1%** soberano.
+- Politica de mercado vigente: matriz de confluencia do setup `senior_institutional` com Hard Gate de Killzones BRT, Session VWAP e FVG mitigado; contrato em `docs/engineering-indicator-gates.md`.
+- Universo operacional atual: **OTC_SX5E** (Euro Stoxx 50 / Deriv OTC); o diagnostico contempla os 12 ativos mundiais: OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51.
+- Relogio: micro/MINI **300 s** (M5, contrato de 5 minutos fixo); janela de entrada de ate 30 segundos apos a abertura da vela M5.
+- SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
+- Horarios aprendidos para OTC_SX5E em Brasilia: 03:00, 10:00 e 14:00 (janela ideal: 03:00 as 15:00 BRT).
+- Cotacao final: `require_quote_edge=true`; probabilidade ausente ou nao finita bloqueia antes da proposta; calcular EV com payout liquido confirmado. A rota institucional M5 aprovada exige EV positivo com stake fixa de 1% da banca disponivel; payout ausente ou invalido bloqueia a execucao.
+- Recovery institucional: stake base 1% da banca, amortizacao 1/1 com teto maximo de 5% por ordem, sem multiplicadores geometricos suicidas.
 
 ## O que o LLM e / nao e
 
 - **E:** copiloto de engenharia e auditoria
-- **Nao e:** decisor de CALL/PUT em runtime (TCN + loss-clf FLIP no piso + Kelly)
+- **Nao e:** decisor de CALL/PUT em runtime (governado exclusivamente pelo setup institucional M5 pullback_strategy.enabled=true)
 
 Doutrina: [`docs/llm-trading-doctrine.md`](docs/llm-trading-doctrine.md)  
 Matriz 100% cobertura: [`docs/agent-coverage.md`](docs/agent-coverage.md)  
@@ -134,7 +120,7 @@ Durante um piloto DEMO com compras atribuidas e menos de 200 liquidacoes confirm
 Cada ordem reserva conta/ativo/vela M5 localmente e com `SET NX` no Redis antes do envio. A compra confirmada entra no estado e no risco antes da assinatura de liquidacao. Stream, fila Redis e `profit_table` deduplicam por `contract_id`; a reconciliacao nao deve retirar o contrato antes de chamar o processador comum.
 Timeout ou desconexao durante `buy` torna o resultado desconhecido; manter quarentena do ativo por 900 s no Redis e consultar portfolio/`profit_table` antes de operar novamente.
 
-Configuracao operacional atual: ancora R_25; `deep_learning.train_symbols` inclui R_10 e R_25 para preparar seus checkpoints. R_10 tem apenas aprovacao M15 no artefato atual e nao habilita compra M5. O runtime nao inclui mais 1HZ75V. Se a Deriv rejeitar explicitamente um ID com `Unknown contract proposal`, somente a rota do indicador tenta uma compra por parametros no mesmo WSS, uma vez, com preco maximo igual a stake e revalidacao da vela M5.
+Configuracao operacional atual: ancora OTC_SX5E (Euro Stoxx 50 / FEZ); o treino contempla os 12 ativos mundiais de acoes OTC (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51) integrados com cotacoes reais via API HTTP do Yahoo Finance v8. A rota do indicador opera com a variante `senior_institutional` (Session VWAP, FVG e Hard Gate de Killzones no Horario de Brasilia). Se a Deriv rejeitar explicitamente um ID com `Unknown contract proposal`, somente a rota do indicador tenta uma compra por parametros no mesmo WSS, uma vez, com preco maximo igual a stake e revalidacao da vela M5.
 
 Em `engine_mode=train`, a lista explicita `deep_learning.train_symbols` define o stream e os buffers antes do fetch historico; nao reutilizar a lista menor de ativos operacionais. A descoberta de modelos aprovados e desativada apenas no processo de treino. Cobrir R_10 e R_25 na inicializacao para evitar espera repetida em `0/25000`.
 

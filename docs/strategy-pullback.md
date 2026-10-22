@@ -1,21 +1,61 @@
-# Estrategia fixa de tendencia e recuo
+# Estrategia de tendencia, liquidez e recuo institucional
 
-## Sinal
+## 1. Sinal e Matriz de Confluencia M5
 
-O cliente publico consulta `active_symbols` e `ticks_history` para os indices Volatility ativos. O treino observa M5, M15 e H1 de forma independente. Somente M5 pode gerar compra. O setup operacional aprimorado `pullback-1-9b7e582c3fd7` (variante `improved`, que combina recuo contraria a tendencia, inclinacao da EMA50 e limite de distancia da EMA20 a 0,75 ATR) e a versao base `pullback-1-2047d4129ad0` usam 128 velas fechadas e continuas para aquecer a EMA50. Lacuna, vela em formacao, dado atrasado, OHLC invalido ou historico insuficiente resultam em `SEM SINAL` com motivo persistido.
+O subsistema publico consulta `active_symbols` e `ticks_history` para os 12 indices sinteticos de acoes OTC (replicas dos ETFs mundiais SPY, QQQ, DIA, EWG, FEZ, etc.) e indices de volatilidade da Deriv. O treino observa M5, M15 e H1 de forma independente; somente sinais M5 podem abrir contratos Rise/Fall de 5 minutos. 
 
-CALL exige EMA20 acima da EMA50 e EMA20 crescente nas tres velas anteriores. A vela anterior deve ter minima a no maximo 0,5 ATR14 da EMA20 e fechar acima da EMA50. A confirmacao deve ser bullish, fechar acima da maxima do recuo e ter corpo entre 0,03 e 1,5 ATR14. PUT espelha essas condicoes. A variante `improved` adiciona: recuo contra a tendencia (`pullback.close < pullback.open` no CALL e `close > open` no PUT), inclinacao da EMA50 (`slow[-2] > slow[-5]` no CALL e `<` no PUT) e limite de distancia da confirmacao a EMA20 (`abs(confirmation.close - fast[-1]) <= 0.75 * atr`). Nao ha inversao por TCN, meta ou loss-classifier. A entrada expira 30 segundos apos a abertura da vela seguinte. O contrato Rise/Fall dura sempre 5 minutos.
+A variante ativa configurada no SSOT e a **`senior_institutional`** (setup institucional senior), que avalia 128 velas fechadas e continuas para aquecimento da EMA50 e exige confluencia estrita de 5 pilares:
 
-## Diagnostico e aptidao
+### Pilar 1: Tendencia Estrutural
+- **CALL**: EMA20 acima da EMA50 (`fast[-1] > slow[-1]`) com EMA20 estritamente crescente nas tres velas anteriores (`fast[-1] > fast[-2] > fast[-3] > fast[-4]`) e inclinacao positiva da EMA50 (`slow[-2] > slow[-5]`).
+- **PUT**: Espelhamento exato com EMA20 abaixo da EMA50 e ambas decrescentes.
 
-`make app-train` sobe a stack e coleta pelo menos 5.000 velas continuas por indice e periodo. O relatorio mede frequencia e acerto direcional entre a abertura e o fechamento da vela seguinte como **proxy de velas**, ranqueia os pares M5 por taxa de acerto de pullback e EV esperado (payout 85%), promovendo o melhor par de volatilidade elegivel para a configuracao operacional (`settings.json` e `drift_symbols.py`), passando-o diretamente para o `make app-run`. A compra real ou DEMO pode ocorrer ate 30 segundos depois da abertura; preco de entrada, payout e resultado confirmado pelo broker podem divergir do proxy. A pesquisa TCN/meta/loss permanece em `make app-research-ml` sem participacao da decisao operacional.
+### Pilar 2: Retracao e Volatilidade (Pullback)
+- A vela anterior (recuo) deve penetrar a no maximo 0,5 ATR14 da EMA20 (`pullback.low <= fast[-2] + 0.5 * atr` no CALL) e fechar acima da EMA50.
+- A vela de recuo deve ser contraria a tendencia (`pullback.close < pullback.open` no CALL).
+- A vela de confirmacao fecha acima da maxima do recuo com corpo entre 0,03 e 1,5 ATR14 e distancia da EMA20 restrita a 0,75 ATR14.
 
-Para M5, o relatorio compara a regra fixa com quatro variantes: inclinacao da EMA50 (`ema50_slope`), vela de recuo contraria a tendencia (`countertrend_retrace`), distancia da confirmacao a EMA20 limitada a 0,75 ATR (`entry_distance`) e a combinacao das tres (`improved`). Sao quatro janelas cronologicas disjuntas, com ate 250 decisoes por janela; a ultima fica identificada como teste final. A comparacao nao escolhe automaticamente uma variante, nao altera a versao operacional e nao usa o proxy para promover contratos.
+### Pilar 3: Session VWAP e Bandas de Dispersao (+/- 1.5 sigma)
+- Calculo da VWAP Intraday ancorada no inicio da sessao diaria (00:00 UTC):
+  $$VWAP = \frac{\sum P_{typical} \times Volume}{\sum Volume}$$
+  onde $P_{typical} = \frac{High + Low + Close}{3}$.
+- Desvio padrao da sessao:
+  $$\sigma = \sqrt{\frac{\sum Volume \times (P_{typical} - VWAP)^2}{\sum Volume}}$$
+- **Filtro de Desvio**:
+  - No CALL, o fechamento deve estar acima ou igual a VWAP e contido na banda superior de $+1.5\sigma$ ($Close \le VWAP + 1.5\sigma$). Previne compras no topo de exaustao de volatilidade.
+  - No PUT, o fechamento deve estar abaixo ou igual a VWAP e contido na banda inferior de $-1.5\sigma$ ($Close \ge VWAP - 1.5\sigma$). Previne vendas no fundo de exaustao.
 
-`pullback_registry` guarda versao e estado por indice e periodo. Cada setup M5 com cotacao disponivel pode ser comprado em DEMO com stake base de 1% da banca disponivel, mesmo com EV estimado negativo. O piloto para na amostra de 200 compras unicas. Apenas as primeiras 200 compras atribuidas a `setup_pilot`, liquidadas com `settlement_source='broker'`, entram no teste. Quando todas terminam, limite inferior unilateral de 95% do retorno liquido medio por stake acima de zero promove para `ativo`; caso contrario a versao fica `reprovado`. Nenhum historico de modelos anteriores e reutilizado.
+### Pilar 4: Mitigacao de Fair Value Gap (FVG)
+- Identifica desequilíbrio institucional (*imbalance*) entre as velas $t-2$ e $t$:
+  - Bullish FVG: `low[t] > high[t-2]`
+  - Bearish FVG: `high[t] < low[t-2]`
+- Valida que o recuo testou e mitigou a regiao de desequilibrio antes do rompimento, eliminando entradas em falso rompimento.
 
-O setup nao fornece probabilidade calibrada de vitoria. No piloto DEMO, `p_side=n/a` e as metricas de probabilidade, EV previsto e Brier permanecem ausentes; o retorno confirmado pelo broker e a evidencia valida. O motor seleciona apenas M5 e pode manter contratos em indices distintos ao mesmo tempo. O log `SETUP` lista explicitamente os indices e lados escolhidos, mesmo quando a ancora do stream e outro ativo.
+### Pilar 5: Hard Gate de Killzones (Horario de Brasilia - BRT / UTC-3)
+- O timing de execucao obedece aos maiores picos de liquidez e volume financeiro global:
+  - **London Open**: 03:00 as 08:00 BRT
+  - **New York Open / Overlap**: 10:00 as 13:00 BRT
+  - **London Fix / Close**: 14:00 as 16:00 BRT
+- Sinais gerados fora dessas janelas horarias recebem `SEM SINAL` com motivo `Fora da killzone institucional de liquidez`.
 
-Em REAL, a chance de vitoria e `(wins_demo + 0,5)/(liquidacoes_demo + 1)`. O haircut configurado e aplicado antes de comparar a probabilidade com o break-even e margem de 0,01. A proposta final da Deriv precisa ter preco e payout validos e EV liquido positivo. DEMO e REAL comecam em 1% da banca disponivel. Com perda pendente, a stake necessaria para recuperacao usa o payout liquido cotado e fica limitada a 5% por ordem. O residual permanece apos recuperacao parcial; Kelly, D'Alembert e Martingale nao dimensionam esta rota. Nao ha stop loss nem teto acumulado de perda. As 200 liquidacoes REAL mais recentes com limite inferior nao positivo suspendem novas compras da versao. Sem evidencia ou cotacao favoravel, o motor nao compra.
+---
 
-Cada contrato e identificado por indice, periodo, versao, vela e `contract_id`. A deduplicacao local e Redis, a quarentena de compra sem ACK e a conciliacao por resultado do broker continuam obrigatorias. Os dashboards mostram separadamente setup atual, piloto DEMO, aptidao REAL, cotacoes e resultados confirmados, sem interpolar lacunas.
+## 2. Diagnostico, Aprendizado Horario e Promocao
+
+O comando `make app-train` sobe a infraestrutura de dados e executa o pipeline de diagnostico e aprendizado:
+1. Coleta historico continuo M5, M15 e H1 para os 12 ativos mundiais OTC e indices de volatilidade.
+2. Integra cotacoes reais de mercado via API HTTP do Yahoo Finance v8 (`real_market_feed.py`), unindo a serie sintetica com os precos dos ativos subjacentes.
+3. Avalia o desempenho pelo proxy de velas (abertura ate fechamento da vela seguinte) em janelas cronologicas disjuntas.
+4. **Calculo do Perfil Horario BRT**: Analisa a distribuicao de acertos hora a hora no fuso de Brasilia (UTC-3), identificando as horas com taxa de acerto superior a 50% (`promoted_optimal_hours_brt`) e a janela continua ideal de negociacao (`promoted_best_window_brt`).
+5. **Ranqueamento Soberano por EV**:
+   $$EV = p \times Payout - (1 - p)$$
+   com payout base de 85% ($0.85$). O ativo com maior EV positivo e menor sequencia de perdas e promovido automaticamente para `config/settings.json` e `drift_symbols.py`. O ativo promovido vigente e **OTC_SX5E** (Euro Stoxx 50 / FEZ).
+
+---
+
+## 3. Execucao, Risco e Liquidador
+
+- **Conta DEMO**: Avalia ate 200 compras unicas por versao com stake base de 1% da banca disponivel. Apenas contratos liquidados com `settlement_source='broker'` sao computados.
+- **Conta REAL**: Exige limite inferior unilateral de 95% do retorno medio do piloto DEMO positivo, probabilidade calibrada via posterior Beta(0,5; 0,5), EV positivo e margem de 0,01 acima do break-even na cotacao final do broker.
+- **Recuperacao Institucional**: Amortizacao linear 1/1 baseada no payout liquido cotado, com **teto maximo de 5% por ordem**. Vetados absolutamente Kelly, Martingale ou D'Alembert geometricos.
+- **Protecao e Quarentena**: Cada ordem reserva conta/ativo/vela M5 via `SET NX` no Redis. Reconciliacao automatica deduplica por `contract_id` e quarentena de 900 segundos e ativada em timeouts sem confirmacao de compra.

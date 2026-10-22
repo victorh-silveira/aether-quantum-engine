@@ -23,16 +23,21 @@
 [![Gitleaks](https://img.shields.io/badge/segredos-Gitleaks-555555)](.github/workflows/ci.yml)
 [![Trivy](https://img.shields.io/badge/containers-Trivy-555555)](.github/workflows/ci.yml)
 
-Motor assíncrono de contratos Rise/Fall para índices Volatility da Deriv. O sinal operacional é o [setup fixo de tendência e recuo](docs/strategy-pullback.md) em M5; M15 e H1 são pesquisa. O processo Python 3.13 roda no host; a stack compartilhada reúne Redis, TimescaleDB, indicador público, Prometheus e Grafana. TCN, meta e loss-classifier permanecem disponíveis apenas para pesquisa.
+Motor assíncrono de contratos Rise/Fall para índices sintéticos e réplicas OTC dos maiores ETFs mundiais da Deriv. O sinal operacional é o [setup institucional sênior de tendência, liquidez e recuo](docs/strategy-pullback.md) em M5 (`senior_institutional`), integrando Session VWAP com bandas de dispersão $\pm 1.5\sigma$, mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). O processo Python 3.13 roda no host; a stack compartilhada reúne Redis, TimescaleDB, indicador público, Prometheus e Grafana. TCN, meta e loss-classifier permanecem disponíveis apenas para pesquisa.
 
 ## Fluxo operacional
 
-1. O indicador público consulta velas fechadas e contínuas por índice e período. EMA20/EMA50, recuo até 0,5 ATR14 e confirmação do rompimento determinam CALL ou PUT. Padrão incompleto ou dado atrasado produz `SEM SINAL`.
+1. O indicador público consulta velas fechadas e contínuas por índice e período (com integração de feeds reais via Yahoo Finance v8 para treinamento). O setup institucional sênior M5 exige confluência de 5 pilares:
+   - **Tendência Estrutural**: EMA20 acima de EMA50 (CALL) ou abaixo (PUT).
+   - **Retração Institucional**: Recuo da vela anterior até 0,5 ATR14 da EMA20.
+   - **Session VWAP ($\pm 1.5\sigma$)**: Fechamento favorável à VWAP diária e dentro do canal de desvio padrão institucional.
+   - **Mitigação de Fair Value Gap (FVG)**: Preenchimento de desequilíbrio entre as velas $t-2$ e $t$.
+   - **Hard Gate de Killzones (BRT)**: Execução restrita às janelas de liquidez mundial (*London Open* 03h–08h, *New York Overlap* 10h–13h e *London Fix* 14h–16h BRT). Fora das janelas ou sem padrão completo, emite `SEM SINAL`.
 2. Um setup M5 válido na DEMO pode receber uma cotação e stake base de 1% da banca disponível mesmo com EV estimado negativo. As primeiras 200 compras únicas, liquidadas pelo broker e atribuídas à mesma versão e índice, formam o piloto.
 3. A versão passa a `ativo` apenas se o limite inferior unilateral de 95% do retorno médio líquido dessas 200 compras for positivo. Em REAL, a probabilidade vem da posterior Beta(0,5;0,5) do piloto; a proposta final exige EV positivo e margem de 0,01 acima do break-even após haircut.
 4. A entrada expira 30 segundos após a abertura da vela seguinte. Somente o sinal M5 abre contrato de 5 minutos; M15/H1 são pesquisa. A stake base em DEMO e REAL é 1% da banca disponível, com recuperação pelo payout líquido cotado limitada a 5% por ordem. Reserva Redis, deduplicação e reconciliação de compras sem ACK permanecem obrigatórias.
 
-O `make app-train` coleta velas e apresenta frequência e acerto pela abertura e pelo fechamento da vela seguinte como **proxy de velas**. Esse diagnóstico não qualifica contratos. `make app-research-ml` executa a pesquisa TCN/meta/loss separadamente. A operação mantém stop win por sessão, sem stop loss ou teto acumulado de perda. Nenhum setup garante vantagem: sem evidência DEMO suficiente ou cotação REAL favorável, não há compra REAL.
+O `make app-train` diagnostica o universo de 12 ativos OTC (réplicas de SPY, QQQ, DIA, EWG, FEZ, etc.) e índices de volatilidade, aprende os melhores horários em Brasília e ranqueia por EV esperado. O ativo promovido atual é o **`OTC_SX5E`** (Euro Stoxx 50 / FEZ) com 61.54% de assertividade e EV +0.0338. A pesquisa TCN/meta/loss é executada separadamente via `make app-research-ml`. A operação mantém stop win por sessão, sem stop loss ou teto acumulado de perda. Sem evidência DEMO suficiente ou cotação REAL favorável, não há compra REAL.
 
 Com o motor em execução, Prometheus coleta suas métricas na porta 9100 e as do indicador na porta interna 9101. O Grafana compartilhado consulta Prometheus e TimescaleDB pelos datasources provisionados. A rota entre Docker no WSL e o motor no Windows está descrita em [observabilidade](docs/engineering-observability.md).
 
