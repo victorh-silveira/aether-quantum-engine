@@ -1,3 +1,13 @@
+## [4.11.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.11.0...v4.11.1) (2026-10-22)
+
+### Correcoes de Bug
+
+* **engine:** alinhar prefixo da versao do setup institucional com ssot ([3c17e63](https://github.com/victorh-silveira/aether-quantum-engine/commit/3c17e6350b574b4f826a4677e48d576bb0405a66))
+
+### Documentacao
+
+* **repo:** sincronizar documentacao regras e arquitetura no padrao senior ([8d8d9d5](https://github.com/victorh-silveira/aether-quantum-engine/commit/8d8d9d52771a061f2626ce9eaba11e6f1c5e4623))
+
 ## [4.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.10.0...v4.11.0) (2026-10-22)
 
 ### Funcionalidades
