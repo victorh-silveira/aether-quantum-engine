@@ -72,6 +72,10 @@ async def train() -> None:
                 print(f"   - EV Estimado: {best['ev']:+.4f} (base payout 85%)")
                 print(f"   - Maximo de Losses Consecutivos: {best.get('max_consecutive_losses', 0)}")
                 print(f"   - Total de Setups M5: {best['setups']}")
+                opt_hours = best.get("optimal_hours_brt") or []
+                hours_str = ", ".join(f"{h:02d}:00" for h in opt_hours) if opt_hours else "05:00 as 13:00"
+                print(f"   - Melhores Horarios (Brasilia / BRT): {hours_str}")
+                print(f"   - Janela Ideal de Trading: {best.get('best_window_brt', '05:00 as 13:00 (BRT)')}")
                 print(f"   - Configuracao atualizada: config/settings.json (anchor: {best['symbol']})")
                 print("   - Execute 'make app-run' para iniciar a operacao no ativo promovido.")
                 print("=" * 88 + "\n")

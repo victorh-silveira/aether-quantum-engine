@@ -1,9 +1,9 @@
 {
-  "anchor": "OTC_SSMI",
+  "anchor": "OTC_SX5E",
   "pullback_strategy": {
     "enabled": true,
-    "version": "momentum-1-a1ce3c4b44a6",
-    "variant": "momentum_burst",
+    "version": "senior-1-cb5e2cf98bbb",
+    "variant": "senior_institutional",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 300,
     "period_seconds": 300,
@@ -16,20 +16,26 @@
       "OTC_FTSE",
       "OTC_N225"
     ],
-    "promoted_symbol": "OTC_SSMI",
-    "promoted_ev": 0.0738,
-    "promoted_win_rate": 0.6392,
-    "promoted_setups": 98,
-    "promoted_variant": "momentum_burst",
-    "promoted_at": "2026-10-21T23:21:44.377667+00:00",
-    "promoted_max_losses_consecutivos": 4,
+    "promoted_symbol": "OTC_SX5E",
+    "promoted_ev": 0.0338,
+    "promoted_win_rate": 0.6154,
+    "promoted_setups": 27,
+    "promoted_variant": "senior_institutional",
+    "promoted_at": "2026-10-22T01:40:27.118847+00:00",
+    "promoted_max_losses_consecutivos": 3,
     "single_strike": false,
     "invert_signal": false,
     "organic_direction": true,
     "dynamic_rotation": false,
     "min_payout_rate": 0.68,
     "min_prob_threshold": 0.5,
-    "breakeven_floor": 0.5
+    "breakeven_floor": 0.5,
+    "promoted_optimal_hours_brt": [
+      3,
+      10,
+      14
+    ],
+    "promoted_best_window_brt": "03:00 as 15:00 (BRT)"
   },
   "indicator_consensus": {
     "enabled": true,
@@ -254,6 +260,8 @@
     },
     "train_on_new_candle_only": true,
     "train_symbols": [
+      "OTC_GDAXI",
+      "OTC_FCHI",
       "OTC_SSMI",
       "OTC_SPC",
       "OTC_SX5E",
@@ -807,7 +815,7 @@
     }
   },
   "symbols": [
-    "OTC_SSMI"
+    "OTC_SX5E"
   ],
   "telemetry": {
     "host": "0.0.0.0",

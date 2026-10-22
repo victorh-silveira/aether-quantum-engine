@@ -130,6 +130,8 @@ def test_promote_best_m5_pair(tmp_path: Path):
         "max_consecutive_losses": 3,
         "win_rate": 24.0 / 35.0,
         "ev": (24.0 / 35.0) * 0.85 - (11.0 / 35.0) * 1.0,
+        "optimal_hours_brt": [10, 11, 12],
+        "best_window_brt": "10:00 as 13:00 (BRT)",
     }
     promote_best_m5_pair(best, root, variant="improved")
 
@@ -139,6 +141,8 @@ def test_promote_best_m5_pair(tmp_path: Path):
     assert new_model["status"] == "aprovado"
     assert new_model["symbol"] == "1HZ25V"
     assert new_model["max_losses_consecutivos"] == 3
+    assert new_model["optimal_hours_brt"] == [10, 11, 12]
+    assert new_model["best_window_brt"] == "10:00 as 13:00 (BRT)"
 
     old_content = json.loads(old_model.read_text(encoding="utf-8"))
     assert old_content["status"] == "candidato"
@@ -148,6 +152,8 @@ def test_promote_best_m5_pair(tmp_path: Path):
     assert cfg["symbols"] == ["1HZ25V"]
     assert cfg["pullback_strategy"]["promoted_symbol"] == "1HZ25V"
     assert cfg["pullback_strategy"]["promoted_max_losses_consecutivos"] == 3
+    assert cfg["pullback_strategy"]["promoted_optimal_hours_brt"] == [10, 11, 12]
+    assert cfg["pullback_strategy"]["promoted_best_window_brt"] == "10:00 as 13:00 (BRT)"
     assert "1HZ25V" in cfg["deep_learning"]["train_symbols"]
 
     drift_file = drift_dir / "drift_symbols.py"

@@ -5,7 +5,15 @@ from __future__ import annotations
 from indicator.domain import Candle
 from indicator.pullback import MIN_BARS, evaluate
 
-VARIANTS = ("base", "ema50_slope", "countertrend_retrace", "entry_distance", "improved")
+VARIANTS = (
+    "base",
+    "ema50_slope",
+    "countertrend_retrace",
+    "entry_distance",
+    "improved",
+    "momentum_burst",
+    "senior_institutional",
+)
 
 
 def compare_variants(candles: list[Candle], period: int) -> dict[str, dict]:

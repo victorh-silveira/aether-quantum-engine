@@ -49,13 +49,16 @@ def rank_m5_pairs(
                 "ev": ev,
                 "eligible": is_eligible,
                 "excluded": symbol in excluded,
+                "optimal_hours_brt": data.get("optimal_hours_brt", []),
+                "best_window_brt": data.get("best_window_brt", "05:00 as 13:00 (BRT)"),
+                "hourly_profile_brt": data.get("hourly_profile_brt", {}),
             }
         )
 
-    def _sort_key(item: dict[str, Any]) -> tuple[int, int, float, float, int]:
+    def _sort_key(item: dict[str, Any]) -> tuple[int, float, float, int, int]:
         elig = 1 if item["eligible"] else 0
         max_loss = int(item.get("max_consecutive_losses", 999))
-        return (elig, -max_loss, item["ev"], item["win_rate"], item["setups"])
+        return (elig, item["ev"], item["win_rate"], -max_loss, item["setups"])
 
     ranked.sort(key=_sort_key, reverse=True)
     return ranked
@@ -126,6 +129,8 @@ def promote_best_m5_pair(
         "erros": int(best["losses"]),
         "empates": int(best["ties"]),
         "max_losses_consecutivos": int(best.get("max_consecutive_losses", 0)),
+        "optimal_hours_brt": list(best.get("optimal_hours_brt", [])),
+        "best_window_brt": str(best.get("best_window_brt", "")),
         "variant": variant,
         "version": version,
         "selection_reason": f"melhor_ev_pullback_{period}s",
@@ -148,6 +153,8 @@ def promote_best_m5_pair(
             pullback_cfg["promoted_win_rate"] = round(float(best["win_rate"]), 4)
             pullback_cfg["promoted_setups"] = int(best["setups"])
             pullback_cfg["promoted_max_losses_consecutivos"] = int(best.get("max_consecutive_losses", 0))
+            pullback_cfg["promoted_optimal_hours_brt"] = list(best.get("optimal_hours_brt", []))
+            pullback_cfg["promoted_best_window_brt"] = str(best.get("best_window_brt", ""))
             pullback_cfg["promoted_variant"] = variant
             pullback_cfg["promoted_at"] = model_payload["promoted_at"]
         dl_cfg = cfg.setdefault("deep_learning", {})

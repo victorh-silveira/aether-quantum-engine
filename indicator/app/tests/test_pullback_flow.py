@@ -190,6 +190,8 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
     assert report["R_25:300"]["erros"] == 1
     assert report["R_25:300"]["empates"] == 1
     assert report["R_25:300"]["max_losses_consecutivos"] == 1
+    assert "optimal_hours_brt" in report["R_25:300"]
+    assert "best_window_brt" in report["R_25:300"]
     assert bars[MIN_BARS].close > bars[MIN_BARS - 1].close
     assert bars[MIN_BARS].close < bars[MIN_BARS].open
     assert bars[MIN_BARS + 1].close > bars[MIN_BARS].close
@@ -261,3 +263,20 @@ async def test_service_empty_catalog_and_no_candles():
     await service.tick((MIN_BARS + 1) * 300)
     assert len(sink.signals) >= count
     assert sum(signal.period == 300 for signal in sink.signals) == 1
+
+
+def test_compute_hourly_profile_branches():
+    from indicator.pullback_training import compute_hourly_profile
+
+    by_hour = {10: [5, 1, 0], 11: [4, 2, 0], 12: [1, 4, 0]}
+    optimal, window, profile = compute_hourly_profile(by_hour)
+    assert 10 in optimal
+    assert "10:00 as" in window
+
+    fallback_hour = {14: [1, 0, 0]}
+    fallback_opt, fallback_win, _ = compute_hourly_profile(fallback_hour)
+    assert 14 in fallback_opt
+
+    empty_opt, empty_window, _ = compute_hourly_profile({})
+    assert empty_opt == []
+    assert "05:00 as 13:00" in empty_window
