@@ -162,15 +162,14 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             if pb_cfg.get("invert_signal", False):
                 fb_side = "PUT" if fb_side == "CALL" else "CALL"
                 fb_reason = f"{fb_reason}_invertido"
-            now_ts = time.time()
-            expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds
             v_str = str(orch.config.get("pullback_strategy", {}).get("version") or "pullback-1-fallback")
             ev_key = (sym, period_seconds, v_str)
             fb_ev = evidence_by_version.get(ev_key, BrokerEvEvidence(0, ()))
             fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
             if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
+                c_epoch = int(getattr(candles[-1], "epoch", 0) or 0)
                 fb_metrics = _build_metrics(
-                    expected_ep,
+                    c_epoch,
                     period_seconds,
                     v_str,
                     fb_side,

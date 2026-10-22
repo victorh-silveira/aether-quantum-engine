@@ -36,16 +36,17 @@ def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     """Deriva âncora e símbolos ativos (symbols menos excluded_symbols)."""
     anchor = str(config.get("anchor", "1HZ75V"))
     strategy = config.get("strategy", {})
-    raw = config.get("symbols") or [anchor]
+    pb_cfg = config.get("pullback_strategy", {})
+    raw = list(config.get("symbols") or [anchor])
+    if pb_cfg.get("enabled") and pb_cfg.get("dynamic_rotation"):
+        rotation_syms = ["OTC_SSMI", "OTC_SPC", "OTC_NDX", "OTC_DJI", "OTC_SX5E"]
+        raw.extend([s for s in rotation_syms if s not in raw])
     indicator_cfg = config.get("indicator_consensus", {})
-    if (
-        indicator_cfg.get("enabled")
-        and indicator_cfg.get("auto_symbols")
-        and not config.get("pullback_strategy", {}).get("enabled", False)
-    ):
+    if indicator_cfg.get("enabled") and indicator_cfg.get("auto_symbols") and not pb_cfg.get("enabled", False):
         models_dir = _REPOSITORY_ROOT / "indicator/data/indicator-models"
         raw = [*raw, *approved_indicator_symbols(models_dir)]
     excluded = {str(x) for x in ((strategy or {}).get("excluded_symbols") or [])}
+    excluded |= {str(x) for x in (pb_cfg.get("excluded_symbols") or [])}
     symbols = [s for s in dict.fromkeys(raw) if s not in excluded or s == anchor]
     if anchor not in symbols:
         symbols.insert(0, anchor)

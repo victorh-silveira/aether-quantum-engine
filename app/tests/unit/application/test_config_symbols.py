@@ -59,6 +59,11 @@ def test_explicit_training_symbols_include_approved_runtime_discovery(tmp_path, 
     assert normalize_symbols_and_anchor(config) == ("R_25", ["R_25", "R_50"])
     config["pullback_strategy"] = {"enabled": True}
     assert normalize_symbols_and_anchor(config) == ("R_25", ["R_25"])
+    config["pullback_strategy"] = {"enabled": True, "dynamic_rotation": True}
+    assert normalize_symbols_and_anchor(config) == (
+        "R_25",
+        ["R_25", "OTC_SSMI", "OTC_SPC", "OTC_NDX", "OTC_DJI", "OTC_SX5E"],
+    )
 
 
 def test_approved_indicator_symbols_accepts_bear_and_bull(tmp_path):

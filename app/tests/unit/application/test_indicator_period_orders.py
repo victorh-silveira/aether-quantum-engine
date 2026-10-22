@@ -446,13 +446,19 @@ def test_period_candidates_stream_fallback_rotates_to_secondary_symbol(monkeypat
         "stream_fallback": True,
         "dynamic_rotation": True,
     }
-    dummy_candles = [
-        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": i * 900})()
-        for i in range(60)
+    stale_candles = [
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": 100})()
+        for _ in range(60)
     ]
-    stream = type("Stream", (), {"micro_candles": {"OTC_SSMI": [], "OTC_SX5E": dummy_candles}})()
+    fresh_candles = [
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": 200})()
+        for _ in range(60)
+    ]
+    stream = type("Stream", (), {"micro_candles": {"OTC_SSMI": stale_candles, "OTC_SX5E": fresh_candles}})()
     orch.stream = stream
-    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    monkeypatch.setattr(
+        orders, "signal_epoch_current", lambda config, metrics: metrics.get("indicator_candle_epoch") == 200
+    )
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][0] == "OTC_SX5E"
