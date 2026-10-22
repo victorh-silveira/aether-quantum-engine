@@ -1,3 +1,9 @@
+## [4.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.12.1...v4.13.0) (2026-10-22)
+
+### Funcionalidades
+
+* **config:** ativar organic direction com stream fallback e inversao ([05eb406](https://github.com/victorh-silveira/aether-quantum-engine/commit/05eb406843493c5be6bf2dac0ab385ef4bbb50d3))
+
 ## [4.12.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.12.0...v4.12.1) (2026-10-22)
 
 ### Correcoes de Bug
