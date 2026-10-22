@@ -1,3 +1,9 @@
+## [4.15.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.14.0...v4.15.0) (2026-10-22)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar rotacao dinamica no fallback de stream para ativos alternativos ([5bcb1e7](https://github.com/victorh-silveira/aether-quantum-engine/commit/5bcb1e7d7a8669030b9625df930d27f8c0035874))
+
 ## [4.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.13.0...v4.14.0) (2026-10-22)
 
 ### Funcionalidades
