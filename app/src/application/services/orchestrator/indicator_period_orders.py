@@ -141,6 +141,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         and promoted_only
         and str(promoted_only) not in active_symbols
         and str(promoted_only) not in excluded
+        and bool(pb_cfg.get("stream_fallback", False))
     ):
         stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
         candles = getattr(stream, "micro_candles", {}).get(str(promoted_only)) or []

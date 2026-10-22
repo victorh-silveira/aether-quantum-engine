@@ -334,6 +334,7 @@ def test_period_candidates_stream_fallback_reverts_to_trend_on_flat_market(monke
         "enabled": True,
         "promoted_symbol": "OTC_SPC",
         "period_seconds": 900,
+        "stream_fallback": True,
     }
     dummy_candles = [
         type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": i * 900})()
@@ -346,6 +347,26 @@ def test_period_candidates_stream_fallback_reverts_to_trend_on_flat_market(monke
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][1] in (TradeDirection.CALL, TradeDirection.PUT)
+
+
+def test_period_candidates_no_stream_fallback_by_default(monkeypatch):
+    orch = _orch("demo")
+    orch._indicator_period_signals = {}
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "promoted_symbol": "OTC_SPC",
+        "period_seconds": 900,
+        "stream_fallback": False,
+    }
+    dummy_candles = [
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": i * 900})()
+        for i in range(60)
+    ]
+    stream = type("Stream", (), {"micro_candles": {"OTC_SPC": dummy_candles}})()
+    orch.stream = stream
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    candidates = orders.period_candidates(orch, [])
+    assert len(candidates) == 0
 
 
 def test_period_candidates_organic_direction_and_skip(monkeypatch):
@@ -375,6 +396,7 @@ def test_period_candidates_stream_fallback_inverted(monkeypatch):
         "enabled": True,
         "promoted_symbol": "OTC_SPC",
         "period_seconds": 900,
+        "stream_fallback": True,
         "invert_signal": True,
     }
     dummy_candles = [
