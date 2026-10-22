@@ -1,3 +1,9 @@
+## [4.12.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.12.0...v4.12.1) (2026-10-22)
+
+### Correcoes de Bug
+
+* **orchestrator:** desativar fallback organico e forcar confluencia pura ([363124e](https://github.com/victorh-silveira/aether-quantum-engine/commit/363124eb5516b05d2bb008aff1cba36b7738613a))
+
 ## [4.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.11.1...v4.12.0) (2026-10-22)
 
 ### Funcionalidades
