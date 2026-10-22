@@ -36,7 +36,7 @@ def version_for_variant(variant: str = "base") -> str:
         return "momentum-1-" + sha256(spec.encode()).hexdigest()[:12]
     if variant == "senior_institutional":
         spec = "senior_institutional:vwap_fvg_killzone:v1"
-        return "senior-1-" + sha256(spec.encode()).hexdigest()[:12]
+        return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
     spec = f"{SPEC}:{variant}"
     return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
 

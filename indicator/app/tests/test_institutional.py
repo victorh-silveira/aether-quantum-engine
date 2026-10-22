@@ -85,7 +85,7 @@ def test_evaluate_senior_institutional():
     from test_pullback import call_bars
 
     bars = call_bars(300)
-    assert "senior-1-" in version_for_variant("senior_institutional")
+    assert "pullback-1-" in version_for_variant("senior_institutional")
 
     res_outside = evaluate(
         bars,
