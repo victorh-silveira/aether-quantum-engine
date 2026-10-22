@@ -1,3 +1,9 @@
+## [4.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.11.1...v4.12.0) (2026-10-22)
+
+### Funcionalidades
+
+* **engine:** migrar setup institucional para timeframe m15 e promover otc_ssmi ([ec4b741](https://github.com/victorh-silveira/aether-quantum-engine/commit/ec4b741c6b3ae92c4ff961bf5df9e71dd41432e1))
+
 ## [4.11.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.11.0...v4.11.1) (2026-10-22)
 
 ### Correcoes de Bug
