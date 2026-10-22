@@ -74,7 +74,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
     has_promoted_signal = False
     if pb_enabled and promoted_only and dynamic_rotation:
         p_sig = getattr(orch, "_indicator_period_signals", {}).get((str(promoted_only), period_seconds))
-        if (
+        has_promoted_signal = bool(
             p_sig
             and p_sig.model_version.startswith("pullback-1-")
             and p_sig.side in ("CALL", "PUT")
@@ -82,8 +82,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
                 orch.config,
                 {"indicator_candle_epoch": p_sig.candle_epoch, "indicator_period_seconds": period_seconds},
             )
-        ):
-            has_promoted_signal = True
+        )
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
@@ -135,23 +134,26 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         )
         if signal_epoch_current(orch.config, metrics):
             result.append((symbol, TradeDirection[side], metrics))
-    if (
-        not result
-        and pb_enabled
-        and promoted_only
-        and str(promoted_only) not in active_symbols
-        and str(promoted_only) not in excluded
-        and bool(pb_cfg.get("stream_fallback", False))
-    ):
-        stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-        candles = getattr(stream, "micro_candles", {}).get(str(promoted_only)) or []
-        if len(candles) >= 50:
+    if not result and pb_enabled and bool(pb_cfg.get("stream_fallback", False)):
+        fallback_syms = (
+            [str(promoted_only)]
+            if not dynamic_rotation
+            else [str(s) for s in dict.fromkeys([promoted_only, *getattr(orch, "symbols", [])]) if s]
+        )
+        for sym in fallback_syms:
+            if sym in active_symbols or sym in excluded:
+                continue
+            quarantine = getattr(orch, "_symbol_loss_quarantine", {})
+            if time.time() < quarantine.get(sym, 0):
+                continue
+            stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
+            candles = getattr(stream, "micro_candles", {}).get(sym) or []
+            if len(candles) < 50:
+                continue
             c_closes = [float(c.close) for c in candles]
-            alpha20, alpha50 = 2.0 / 21.0, 2.0 / 51.0
-            e20, e50 = c_closes[0], c_closes[0]
+            a20, a50, e20, e50 = 2.0 / 21.0, 2.0 / 51.0, c_closes[0], c_closes[0]
             for cl in c_closes[1:]:
-                e20 = alpha20 * cl + (1.0 - alpha20) * e20
-                e50 = alpha50 * cl + (1.0 - alpha50) * e50
+                e20, e50 = a20 * cl + (1.0 - a20) * e20, a50 * cl + (1.0 - a50) * e50
             base_side = "CALL" if e20 >= e50 else "PUT"
             fb_side, fb_reason = resolve_organic_direction(candles, base_side)
             if fb_side not in ("CALL", "PUT"):
@@ -163,10 +165,10 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             now_ts = time.time()
             expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds
             v_str = str(orch.config.get("pullback_strategy", {}).get("version") or "pullback-1-fallback")
-            ev_key = (str(promoted_only), period_seconds, v_str)
-            fb_evidence = evidence_by_version.get(ev_key, BrokerEvEvidence(0, ()))
-            fb_pilot = mode == "demo" and (never_skip or (fb_evidence.pilot_available and not fb_evidence.promoted))
-            if (fb_pilot or (mode == "real" and fb_evidence.promoted)) and fb_side in ("CALL", "PUT"):
+            ev_key = (sym, period_seconds, v_str)
+            fb_ev = evidence_by_version.get(ev_key, BrokerEvEvidence(0, ()))
+            fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
+            if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
                 fb_metrics = _build_metrics(
                     expected_ep,
                     period_seconds,
@@ -175,11 +177,12 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
                     fb_side,
                     f"stream_organico:{fb_reason}",
                     pilot=fb_pilot,
-                    ev=fb_evidence,
+                    ev=fb_ev,
                     prob=0.55,
                 )
                 if signal_epoch_current(orch.config, fb_metrics):
-                    result.append((str(promoted_only), TradeDirection[fb_side], fb_metrics))
+                    result.append((sym, TradeDirection[fb_side], fb_metrics))
+                    break
     return result
 
 
@@ -192,17 +195,8 @@ async def _record_quote(orch, symbol, name, metrics, period, quote, rate, prob=N
     }
     if prob is not None:
         payload["_quote_guard_side_probability"] = prob
-    await record_indicator_quote(
-        orch.market_writer,
-        orch.config,
-        symbol,
-        name,
-        payload,
-        str(quote["proposal_id"]),
-        float(quote["price"]),
-        float(quote["payout"]),
-        rate,
-    )
+    p_id, pr, po = str(quote["proposal_id"]), float(quote["price"]), float(quote["payout"])
+    await record_indicator_quote(orch.market_writer, orch.config, symbol, name, payload, p_id, pr, po, rate)
 
 
 async def _prequote(orch, order: tuple, semaphore: asyncio.Semaphore) -> tuple | None:
@@ -214,12 +208,11 @@ async def _prequote(orch, order: tuple, semaphore: asyncio.Semaphore) -> tuple |
     allowed_period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     if period != allowed_period:
         return None
-    duration = period // 60
     stake_min = float(orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
     stake, _ = pullback_stake(float(orch.state.balance), 0.0, 1.0, stake_min)
     if stake <= 0:
         return None
-    params = {"duration": duration, "duration_unit": "m"}
+    params = {"duration": period // 60, "duration_unit": "m"}
     async with semaphore:
         quote = await asyncio.wait_for(
             orch.trade_handler.fetch_proposal_snapshot(symbol, direction, stake, params=params), timeout=4.0
@@ -232,12 +225,16 @@ async def _prequote(orch, order: tuple, semaphore: asyncio.Semaphore) -> tuple |
     if rate < min_rate:
         return None
     payout_break_even = calculate_payout_breakeven_prob(rate)
-    metrics["indicator_quote_rate"] = rate
-    metrics["_prequoted_proposal_id"] = str(quote["proposal_id"])
-    metrics["_prequoted_ask_price"] = float(quote["price"])
-    metrics["_prequoted_payout"] = float(quote["payout"])
-    metrics["_prequoted_rate"] = rate
-    metrics["_prequoted_timestamp"] = time.time()
+    metrics.update(
+        {
+            "indicator_quote_rate": rate,
+            "_prequoted_proposal_id": str(quote["proposal_id"]),
+            "_prequoted_ask_price": float(quote["price"]),
+            "_prequoted_payout": float(quote["payout"]),
+            "_prequoted_rate": rate,
+            "_prequoted_timestamp": time.time(),
+        }
+    )
     pilot = bool(metrics.get("indicator_demo_pilot"))
     if pilot and payout_break_even is not None:
         await _record_quote(orch, symbol, direction.name, metrics, period, quote, rate)
@@ -278,23 +275,17 @@ async def select_period_orders(orch, m5_orders: list[tuple]) -> list[tuple]:
     chosen = {}
     for order in quoted:
         symbol, _, metrics = order
+        l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")
+        rt = float(metrics.get("indicator_quote_rate") or 0.0)
         score = (
-            float(metrics["indicator_broker_lower_95"])
-            if metrics.get("indicator_broker_lower_95") is not None
-            else -math.inf,
+            float(l95) if l95 is not None else -math.inf,
             float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5),
-            float(metrics["indicator_prequote_ev"])
-            if metrics.get("indicator_prequote_ev") is not None
-            else float(metrics.get("indicator_quote_rate") or 0.0),
-            float(metrics.get("indicator_quote_rate") or 0.0),
+            float(ev_val) if ev_val is not None else rt,
+            rt,
         )
         if symbol not in chosen or score > chosen[symbol][0]:
             chosen[symbol] = (score, order)
-    multi_enabled = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))
-    maximum = (
-        int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 1))
-        if multi_enabled
-        else 1
-    )
+    multi = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))
+    lim = int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 1)) if multi else 1
     ranked = [item[1] for item in sorted(chosen.values(), key=lambda item: item[0], reverse=True)]
-    return ranked[: max(1, maximum)]
+    return ranked[: max(1, lim)]

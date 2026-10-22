@@ -433,3 +433,53 @@ async def test_prequote_edge_none_or_break_even_none(monkeypatch):
     monkeypatch.setattr(orders, "unit_ev", lambda prob, rate: None)
     res = await orders._prequote(orch, order, asyncio.Semaphore(1))
     assert res is None
+
+
+def test_period_candidates_stream_fallback_rotates_to_secondary_symbol(monkeypatch):
+    orch = _orch("demo")
+    orch._indicator_period_signals = {}
+    orch.symbols = ["OTC_SSMI", "OTC_SX5E"]
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "promoted_symbol": "OTC_SSMI",
+        "period_seconds": 900,
+        "stream_fallback": True,
+        "dynamic_rotation": True,
+    }
+    dummy_candles = [
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": i * 900})()
+        for i in range(60)
+    ]
+    stream = type("Stream", (), {"micro_candles": {"OTC_SSMI": [], "OTC_SX5E": dummy_candles}})()
+    orch.stream = stream
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    candidates = orders.period_candidates(orch, [])
+    assert len(candidates) == 1
+    assert candidates[0][0] == "OTC_SX5E"
+
+
+def test_period_candidates_stream_fallback_skips_excluded_active_and_quarantine(monkeypatch):
+    orch = _orch("demo")
+    orch._indicator_period_signals = {}
+    orch.symbols = ["OTC_SSMI", "OTC_EXC", "OTC_ACT", "OTC_QUA", "OTC_OK"]
+    orch.state.active_contracts = {99: object()}
+    orch.risk_manager.contract_to_symbol = {99: "OTC_ACT"}
+    orch._symbol_loss_quarantine = {"OTC_QUA": 9999999999.0}
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "promoted_symbol": "OTC_SSMI",
+        "excluded_symbols": ["OTC_EXC"],
+        "period_seconds": 900,
+        "stream_fallback": True,
+        "dynamic_rotation": True,
+    }
+    dummy_candles = [
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": i * 900})()
+        for i in range(60)
+    ]
+    stream = type("Stream", (), {"micro_candles": {"OTC_OK": dummy_candles}})()
+    orch.stream = stream
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    candidates = orders.period_candidates(orch, [])
+    assert len(candidates) == 1
+    assert candidates[0][0] == "OTC_OK"
