@@ -1,3 +1,9 @@
+## [4.14.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.13.0...v4.14.0) (2026-10-22)
+
+### Funcionalidades
+
+* **config:** habilitar dynamic_rotation na estrategia pullback ([64a69a2](https://github.com/victorh-silveira/aether-quantum-engine/commit/64a69a2418505e575576a1673b8748fb9ae7c12a))
+
 ## [4.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.12.1...v4.13.0) (2026-10-22)
 
 ### Funcionalidades
