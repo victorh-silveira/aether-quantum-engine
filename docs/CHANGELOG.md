@@ -1,3 +1,9 @@
+## [4.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.10.0...v4.11.0) (2026-10-22)
+
+### Funcionalidades
+
+* **engine:** implementar setup institucional senior com vwap fvg e killzone ([5b95f41](https://github.com/victorh-silveira/aether-quantum-engine/commit/5b95f418b7acfc7574c879c7c383884a7046d7c1))
+
 ## [4.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.9.0...v4.10.0) (2026-10-21)
 
 ### Funcionalidades
