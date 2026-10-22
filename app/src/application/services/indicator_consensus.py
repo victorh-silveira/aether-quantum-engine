@@ -35,8 +35,7 @@ def consensus_enabled(config: dict) -> bool:
 async def refresh_indicator_consensus(orch) -> None:
     """Busca um snapshot por ciclo sem reutilizar leituras de ciclos anteriores."""
     orch._indicator_signals, orch._indicator_period_signals = {}, {}
-    orch._indicator_broker_evidence, orch._indicator_real_evidence = {}, {}
-    orch._indicator_signal_status = {}
+    orch._indicator_broker_evidence, orch._indicator_real_evidence, orch._indicator_signal_status = {}, {}, {}
     period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     orch._indicator_epoch = int(time.time() // period_seconds) * period_seconds - period_seconds
     if not consensus_enabled(orch.config):
@@ -70,11 +69,8 @@ async def refresh_indicator_consensus(orch) -> None:
             if str(orch.config.get("trading", {}).get("mode", "demo")).lower() == "real":
                 orch._indicator_real_evidence = await read_indicator_real_evidence(dsn, evidence_symbols)
     except Exception as exc:
-        orch._indicator_signals = {}
-        orch._indicator_period_signals = {}
-        orch._indicator_broker_evidence = {}
-        orch._indicator_real_evidence = {}
-        orch._indicator_signal_status = {}
+        orch._indicator_signals, orch._indicator_period_signals = {}, {}
+        orch._indicator_broker_evidence, orch._indicator_real_evidence, orch._indicator_signal_status = {}, {}, {}
         logger.warning("INDICADOR: leitura indisponivel; nenhuma ordem neste ciclo: %s", exc)
 
 
@@ -204,7 +200,8 @@ def signal_epoch_current(config: dict, metrics: dict) -> bool:
         window = int(config.get("pullback_strategy", {}).get("entry_window_seconds", 30))
         epoch_val = int(metrics.get("indicator_candle_epoch") or 0)
         return period in (300, 900, 3600) and epoch_val == expected and now % period <= window
-    expected_epoch = int(time.time() // 300) * 300 - 300
+    p_fb = int((config or {}).get("pullback_strategy", {}).get("period_seconds", 300))
+    expected_epoch = int(time.time() // p_fb) * p_fb - p_fb
     if consensus_enabled(config):
         return int(metrics.get("indicator_candle_epoch") or 0) == expected_epoch
     model_epoch = int(metrics.get("model_input_candle_epoch") or metrics.get("_order_candle_epoch") or 0)
@@ -215,16 +212,19 @@ def claim_indicator_order(orch, symbol: str, metrics: dict) -> bool:
     """Reserva uma compra por ativo e vela, inclusive entre ciclos concorrentes."""
     if metrics.get("indicator_controls_execution") and not metrics.get("indicator_candle_epoch"):
         return False
-    fallback = int(time.time() // 300) * 300 - 300
+    cfg = getattr(orch, "config", None)
+    cfg_d = cfg if isinstance(cfg, dict) else {}
+    period = int(
+        metrics.get("indicator_period_seconds") or cfg_d.get("pullback_strategy", {}).get("period_seconds", 300)
+    )
+    fallback = int(time.time() // period) * period - period
     epoch = int(metrics.get("indicator_candle_epoch") or metrics.get("model_input_candle_epoch") or fallback)
     if epoch <= 0:
         return False
     metrics["_order_candle_epoch"] = epoch
     claims = getattr(orch, "_indicator_order_claims", None)
     if not isinstance(claims, set):
-        claims = set()
-        orch._indicator_order_claims = claims
-    period = int(metrics.get("indicator_period_seconds") or 300)
+        claims = orch._indicator_order_claims = set()
     claims.intersection_update({item for item in claims if item[2] >= epoch})
     key = (str(symbol), period, epoch)
     if key in claims:

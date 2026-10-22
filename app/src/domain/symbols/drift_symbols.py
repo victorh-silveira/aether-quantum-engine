@@ -1,8 +1,8 @@
-"""Simbolos de trading Deriv (universo single-symbol OTC_SX5E)."""
+"""Simbolos de trading Deriv (universo single-symbol OTC_SSMI)."""
 
-TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SX5E",)
+TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SSMI",)
 DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS
-DEFAULT_ANCHOR = "OTC_SX5E"
+DEFAULT_ANCHOR = "OTC_SSMI"
 
 HEDGE_PEER: dict[str, str] = {}
 

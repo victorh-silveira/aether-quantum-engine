@@ -65,10 +65,12 @@ def rank_m5_pairs(
 
 
 def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
-    """Gera tabela visual do ranking dos pares M5 avaliados."""
+    """Gera tabela visual do ranking dos pares M5/M15 avaliados."""
+    target_period = int(ranked[0].get("period", 300)) if ranked else 300
+    tf_name = f"M{target_period // 60}"
     lines = [
         "=" * 100,
-        "RANKING DO SETUP PULLBACK M5 (PROXY DE VELAS)",
+        f"RANKING DO SETUP PULLBACK {tf_name} (PROXY DE VELAS)",
         "=" * 100,
         f"{'POS':<4} | {'ATIVO':<8} | {'SETUPS':<7} | {'WINS':<5} | {'LOSS':<5} | {'EMP':<4} | {'MAX LOSS':<8} | {'ACERTO %':<9} | {'EV (85%)':<9} | {'STATUS':<12}",
         "-" * 100,
@@ -157,6 +159,10 @@ def promote_best_m5_pair(
             pullback_cfg["promoted_best_window_brt"] = str(best.get("best_window_brt", ""))
             pullback_cfg["promoted_variant"] = variant
             pullback_cfg["promoted_at"] = model_payload["promoted_at"]
+            pullback_cfg["period_seconds"] = period
+            pullback_cfg["duration"] = period // 60
+            pullback_cfg["duration_unit"] = "m"
+            pullback_cfg["entry_window_seconds"] = 60 if period >= 900 else 30
         dl_cfg = cfg.setdefault("deep_learning", {})
         if isinstance(dl_cfg, dict):
             train_syms = dl_cfg.get("train_symbols") or []
