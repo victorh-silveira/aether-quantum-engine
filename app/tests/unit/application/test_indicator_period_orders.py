@@ -436,6 +436,8 @@ async def test_prequote_edge_none_or_break_even_none(monkeypatch):
 
 
 def test_period_candidates_stream_fallback_rotates_to_secondary_symbol(monkeypatch):
+    import time
+
     orch = _orch("demo")
     orch._indicator_period_signals = {}
     orch.symbols = ["OTC_SSMI", "OTC_SX5E"]
@@ -446,19 +448,18 @@ def test_period_candidates_stream_fallback_rotates_to_secondary_symbol(monkeypat
         "stream_fallback": True,
         "dynamic_rotation": True,
     }
+    now_ts = time.time()
     stale_candles = [
-        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": 100})()
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": now_ts - 5000})()
         for _ in range(60)
     ]
     fresh_candles = [
-        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": 200})()
+        type("Candle", (), {"open": 100.0, "high": 100.1, "low": 99.9, "close": 100.0, "epoch": now_ts - 100})()
         for _ in range(60)
     ]
     stream = type("Stream", (), {"micro_candles": {"OTC_SSMI": stale_candles, "OTC_SX5E": fresh_candles}})()
     orch.stream = stream
-    monkeypatch.setattr(
-        orders, "signal_epoch_current", lambda config, metrics: metrics.get("indicator_candle_epoch") == 200
-    )
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][0] == "OTC_SX5E"

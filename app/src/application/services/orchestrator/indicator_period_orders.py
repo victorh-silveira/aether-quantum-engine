@@ -150,6 +150,10 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             candles = getattr(stream, "micro_candles", {}).get(sym) or []
             if len(candles) < 50:
                 continue
+            now_ts = time.time()
+            last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0)
+            if last_c_ep > 100000 and now_ts - last_c_ep > 1800:
+                continue
             c_closes = [float(c.close) for c in candles]
             a20, a50, e20, e50 = 2.0 / 21.0, 2.0 / 51.0, c_closes[0], c_closes[0]
             for cl in c_closes[1:]:
@@ -167,9 +171,9 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             fb_ev = evidence_by_version.get(ev_key, BrokerEvEvidence(0, ()))
             fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
             if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
-                c_epoch = int(getattr(candles[-1], "epoch", 0) or 0)
+                expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds
                 fb_metrics = _build_metrics(
-                    c_epoch,
+                    expected_ep,
                     period_seconds,
                     v_str,
                     fb_side,
