@@ -1,3 +1,9 @@
+## [4.16.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.0...v4.16.1) (2026-10-22)
+
+### Correcoes de Bug
+
+* **orchestrator:** alinhar timestamp m15 no fallback e filtrar ativos fechados ([38101f0](https://github.com/victorh-silveira/aether-quantum-engine/commit/38101f072ef21c6d3b0fce11d6356faa96ccb8ae))
+
 ## [4.16.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.15.0...v4.16.0) (2026-10-22)
 
 ### Funcionalidades
