@@ -27,7 +27,7 @@
     "invert_signal": true,
     "organic_direction": true,
     "stream_fallback": true,
-    "dynamic_rotation": false,
+    "dynamic_rotation": true,
     "min_payout_rate": 0.68,
     "min_prob_threshold": 0.5,
     "breakeven_floor": 0.5,
