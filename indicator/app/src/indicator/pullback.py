@@ -247,7 +247,7 @@ def evaluate(
 ) -> SetupResult:
     """Avalia o ultimo recuo e a ultima confirmacao sem usar vela corrente."""
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
-    if period not in (300, 900, 3600):
+    if period not in (300, 900, 3600, 86400):
         return SetupResult("SEM SINAL", "periodo_invalido", version=version)
     if len(candles) < MIN_BARS:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)

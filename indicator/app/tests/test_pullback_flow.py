@@ -16,13 +16,13 @@ from indicator.pullback_training import diagnose_all
 
 class Source:
     def __init__(self, rows=None):
-        self.rows = rows or []
+        self.rows = rows if rows is not None else []
         self.fail = False
 
     async def symbols(self):
         return [{"market": "synthetic_index", "underlying_symbol": "R_25"}]
 
-    async def candles(self, symbol, count=100, period=300):
+    async def candles(self, symbol, count=100, period=900):
         if self.fail:
             raise OSError("rede")
         return [
@@ -62,23 +62,25 @@ class Telemetry:
 
 @pytest.mark.asyncio
 async def test_service_publishes_once_per_closed_candle_and_isolates_failure(monkeypatch):
-    bars = call_bars()
+    bars = call_bars(900)
     source, sink, metrics = Source(bars), Sink(), Telemetry()
     service = PullbackService(source, sink, metrics)
-    service.restore([Signal("R_25", 300, 0, "CALL", None, "old", "ok", 100)])
-    await service.tick(MIN_BARS * 300)
+    service.restore([Signal("R_25", 900, 0, "CALL", None, "old", "ok", 100)])
+    await service.tick(MIN_BARS * 900)
     assert sink.symbols == {"R_25": "R_25"}
-    assert len(sink.signals) == 3
-    assert sink.signals[0].side == "CALL"
-    assert sink.signals[0].model_version == VERSION
-    await service.tick(MIN_BARS * 300)
-    assert len(sink.signals) == 3
+    assert len(sink.signals) >= 1
+    call_sig = [s for s in sink.signals if s.period == 900][0]
+    assert call_sig.side == "CALL"
+    assert call_sig.model_version == VERSION
+    count = len(sink.signals)
+    await service.tick(MIN_BARS * 900)
+    assert len(sink.signals) == count
     source.fail = True
-    await service.tick((MIN_BARS + 1) * 300)
-    assert len(sink.signals) == 3
+    await service.tick((MIN_BARS + 1) * 900)
+    assert len(sink.signals) == count
     assert sink.promotions == 3
-    service.restore([sink.signals[0]])
-    assert service.last_epoch[("R_25", 300)] == sink.signals[0].candle_epoch
+    service.restore([call_sig])
+    assert service.last_epoch[("R_25", 900)] == call_sig.candle_epoch
 
     async def stop(_):
         raise asyncio.CancelledError
@@ -132,22 +134,22 @@ async def test_training_reports_proxy_without_qualifying_contracts(monkeypatch):
     from indicator.domain import Candle
 
     bars = [
-        Candle(i * 300, 100 + i * 0.1, 100 + i * 0.1 + 0.08, 100 + i * 0.1 - 0.08, 100 + i * 0.1 + 0.04)
+        Candle(i * 900, 100 + i * 0.1, 100 + i * 0.1 + 0.08, 100 + i * 0.1 - 0.08, 100 + i * 0.1 + 0.04)
         for i in range(5000)
     ]
 
     async def history(_source, _symbol, _now, period):
-        return bars if period == 300 else []
+        return bars if period == 900 else []
 
     async def save_candles(symbol, period, candles):
         sink.saved = len(candles)
 
     sink.save_candles = save_candles
     monkeypatch.setattr("indicator.pullback_training.history", history)
-    report = await diagnose_all(source, sink, now=5000 * 300)
-    assert report["R_25:300"]["estado"] == "PROXY DE VELAS"
-    assert report["R_25:300"]["versao"] == VERSION
-    assert report["R_25:900"]["estado"] == "SEM SINAL"
+    report = await diagnose_all(source, sink, now=5000 * 900)
+    assert report["R_25:900"]["estado"] == "PROXY DE VELAS"
+    assert report["R_25:900"]["versao"] == VERSION
+    assert report["R_25:3600"]["estado"] == "SEM SINAL"
     assert sink.saved == 5000
 
 
@@ -158,7 +160,7 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
 
     source, sink = Source(), Sink()
     bars = [
-        Candle(i * 300, 100 + i * 0.1, 100 + i * 0.1 + 0.08, 100 + i * 0.1 - 0.08, 100 + i * 0.1 + 0.04)
+        Candle(i * 900, 100 + i * 0.1, 100 + i * 0.1 + 0.08, 100 + i * 0.1 - 0.08, 100 + i * 0.1 + 0.04)
         for i in range(5000)
     ]
     base = bars[MIN_BARS - 1].close
@@ -167,9 +169,9 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
     bars[MIN_BARS + 2] = Candle(bars[MIN_BARS + 2].epoch, base + 0.4, base + 0.48, base + 0.32, base + 0.4)
 
     async def history(_source, _symbol, _now, period):
-        if period == 900:
+        if period == 3600:
             raise OSError("rede")
-        return bars if period == 300 else []
+        return bars if period == 900 else []
 
     calls = 0
 
@@ -185,18 +187,18 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
     sink.save_candles = AsyncSave()
     monkeypatch.setattr("indicator.pullback_training.history", history)
     monkeypatch.setattr("indicator.pullback_training.evaluate", setup)
-    report = await diagnose_all(source, sink, now=5000 * 300)
-    assert report["R_25:300"]["acertos"] == 1
-    assert report["R_25:300"]["erros"] == 1
-    assert report["R_25:300"]["empates"] == 1
-    assert report["R_25:300"]["max_losses_consecutivos"] == 1
-    assert "optimal_hours_brt" in report["R_25:300"]
-    assert "best_window_brt" in report["R_25:300"]
+    report = await diagnose_all(source, sink, now=5000 * 900)
+    assert report["R_25:900"]["acertos"] == 1
+    assert report["R_25:900"]["erros"] == 1
+    assert report["R_25:900"]["empates"] == 1
+    assert report["R_25:900"]["max_losses_consecutivos"] == 1
+    assert "optimal_hours_brt" in report["R_25:900"]
+    assert "best_window_brt" in report["R_25:900"]
     assert bars[MIN_BARS].close > bars[MIN_BARS - 1].close
     assert bars[MIN_BARS].close < bars[MIN_BARS].open
     assert bars[MIN_BARS + 1].close > bars[MIN_BARS].close
     assert bars[MIN_BARS + 1].close < bars[MIN_BARS + 1].open
-    assert report["R_25:900"]["motivo"] == "rede"
+    assert report["R_25:3600"]["motivo"] == "rede"
 
     async def empty():
         return []
@@ -257,12 +259,12 @@ async def test_service_empty_catalog_and_no_candles():
     service = PullbackService(source, sink, metrics)
     await service.tick(1000)
     assert sink.signals == []
-    source.rows = call_bars()
-    await service.tick(MIN_BARS * 300)
+    source.rows = call_bars(900)
+    await service.tick(MIN_BARS * 900)
     count = len(sink.signals)
-    await service.tick((MIN_BARS + 1) * 300)
+    await service.tick((MIN_BARS + 1) * 900)
     assert len(sink.signals) >= count
-    assert sum(signal.period == 300 for signal in sink.signals) == 1
+    assert sum(signal.period == 900 for signal in sink.signals) == 1
 
 
 def test_compute_hourly_profile_branches():

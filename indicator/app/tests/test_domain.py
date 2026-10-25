@@ -45,17 +45,23 @@ def test_closed_candles_rejects_open_invalid_and_duplicates():
         {"epoch": 0, "open": "nan", "high": 3, "low": 1, "close": 2},
         {"epoch": 0, "open": 2},
     ]
-    assert closed_candles(rows, 900) == [Candle(600, 2, 3, 1, 2)]
-    assert closed_candles(rows, 700) == []
+    assert closed_candles(rows, 900, period=300) == [Candle(600, 2, 3, 1, 2)]
+    assert closed_candles(rows, 700, period=300) == []
+    m15_rows = [{"epoch": 900, "open": 10, "high": 12, "low": 9, "close": 11}]
+    assert closed_candles(m15_rows, 1800) == [Candle(900, 10, 12, 9, 11)]
 
 
 def test_aggregate_requires_complete_uninterpolated_group():
+    assert aggregate([], 900) == []
     candles = [Candle(i * 300, i + 1, i + 2, i, i + 1) for i in range(12)]
     assert aggregate(candles, 300) == candles
     assert aggregate(candles, 900)[0] == Candle(0, 1, 4, 0, 3)
     assert len(aggregate(candles, 3600)) == 1
     assert aggregate(candles[1:], 3600) == []
     assert aggregate(candles[:1] + candles[2:3], 900) == []
+    m15_candles = [Candle(i * 900, i + 1, i + 2, i, i + 1) for i in range(96)]
+    assert aggregate(m15_candles, 900) == m15_candles
+    assert len(aggregate(m15_candles, 86400)) == 1
     try:
         aggregate(candles, 60)
     except ValueError:
@@ -72,8 +78,9 @@ def test_latest_contiguous_keeps_recent_segment():
 
 def test_live_price_and_provisional_outcome_are_causal():
     rows = [{"epoch": 600, "close": 100}, {"epoch": 900, "close": 101}]
+    assert current_spot(rows, 960, period=300) == 101
     assert current_spot(rows, 960) == 101
-    assert current_spot(rows, 1200) is None
+    assert current_spot(rows, 1800) is None
     assert current_spot([{"epoch": 900, "close": "nan"}], 960) is None
     assert current_spot([{"epoch": 900}], 960) is None
     signal = Signal("R_75", 300, 600, "PUT", 0.4, "v1", "ok", 100)

@@ -17,11 +17,11 @@
       "OTC_N225"
     ],
     "promoted_symbol": "OTC_SSMI",
-    "promoted_ev": 0.0611,
-    "promoted_win_rate": 0.6316,
-    "promoted_setups": 19,
+    "promoted_ev": 0.092,
+    "promoted_win_rate": 0.65,
+    "promoted_setups": 20,
     "promoted_variant": "senior_institutional",
-    "promoted_at": "2026-10-25T21:08:22.418178+00:00",
+    "promoted_at": "2026-10-25T22:10:32.088351+00:00",
     "promoted_max_losses_consecutivos": 5,
     "single_strike": false,
     "invert_signal": false,
@@ -33,6 +33,7 @@
     "breakeven_floor": 0.5,
     "promoted_optimal_hours_brt": [
       6,
+      10,
       12
     ],
     "promoted_best_window_brt": "06:00 as 13:00 (BRT)"

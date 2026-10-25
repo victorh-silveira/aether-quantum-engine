@@ -147,7 +147,7 @@
       {
         "name": "period",
         "type": "custom",
-        "query": "300,900,3600",
+        "query": "900,3600,86400",
         "current": {
           "text": "900",
           "value": "900"

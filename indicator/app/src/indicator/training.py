@@ -22,7 +22,7 @@ REQUEST_TIMEOUT = 40
 MIN_CONTIGUOUS_BARS = 5000
 
 
-async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, period: int = 300) -> list:
+async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, period: int = 900) -> list:
     """Pagina velas do periodo sem incluir a vela corrente."""
     all_rows = []
     end: str | int = "latest"
@@ -52,9 +52,10 @@ async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, pe
     if symbol.startswith("OTC_"):
         try:
             existing_epochs = {int(row["epoch"]) for row in all_rows}
+            range_str = "1y" if period >= 86400 else "1mo"
             real_data = [
                 c
-                for c in await fetch_real_candles(symbol, period_seconds=period, range_str="1mo")
+                for c in await fetch_real_candles(symbol, period_seconds=period, range_str=range_str)
                 if c.epoch not in existing_epochs
             ]
             for c in real_data:
@@ -80,7 +81,7 @@ async def train_all(
         raise RuntimeError("catalogo sintetico vazio")
     report = {}
     deadline = time.monotonic() + TRAIN_TIMEOUT
-    logger.info("TRAIN iniciado: %d indices Volatility, periodos M5/M15/H1", len(symbols))
+    logger.info("TRAIN iniciado: %d indices Volatility, periodos M15/H1/D1", len(symbols))
     for index, symbol in enumerate(symbols.items(), 1):
         code, name = symbol
         logger.info("TRAIN ativo %d/%d: %s (%s)", index, len(symbols), code, name)
@@ -124,7 +125,7 @@ async def _train_asset(
     base_candles = []
     for period in PERIODS:
         candles = latest_contiguous(await history(source, symbol, timestamp, period=period), period)
-        if period == 300:
+        if period == 900:
             base_candles = candles
         if candle_store is not None and candles:
             await candle_store.save_candles(symbol, period, candles)
@@ -138,7 +139,7 @@ async def _train_asset(
             )
             report[f"{symbol}:{period}"] = f"SEM SINAL: {freshness} ({len(candles)}/{MIN_CONTIGUOUS_BARS})"
             continue
-        if period != 300:
+        if period != 900:
             aggregated = {candle.epoch: candle for candle in aggregate(base_candles, period)}
             mismatches = sum(
                 any(
@@ -149,7 +150,7 @@ async def _train_asset(
                 if candle.epoch in aggregated
             )
             if mismatches:
-                report[f"{symbol}:{period}"] = f"SEM SINAL: divergencia OHLC M5 ({mismatches} velas)"
+                report[f"{symbol}:{period}"] = f"SEM SINAL: divergencia OHLC M15 ({mismatches} velas)"
                 continue
         result = await asyncio.to_thread(assess, symbol, period, candles)
         if result.training_steps:

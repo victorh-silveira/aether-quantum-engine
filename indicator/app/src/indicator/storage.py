@@ -92,7 +92,7 @@ class SignalStore:
 
     async def save_candles(self, symbol: str, period: int, candles: list[Candle]) -> None:
         """Persiste velas diretas com instante canonico e chave unica."""
-        if period not in (300, 900, 3600):
+        if period not in (300, 900, 3600, 86400):
             raise ValueError("periodo nao suportado")
         rows = [
             (

@@ -39,19 +39,15 @@ async def train() -> None:
             or config.get("strategy", {}).get("excluded_symbols")
             or []
         )
-        target_period = int(
-            repo_cfg.get("pullback_strategy", {}).get(
-                "period_seconds", 900 if config.get("catalog_scope") == "stock_indices" else 300
-            )
-        )
+        target_period = int(repo_cfg.get("pullback_strategy", {}).get("period_seconds", 900))
         payout_rate = float(
             repo_cfg.get("pullback_strategy", {}).get(
                 "min_payout_rate", 0.7245 if config.get("catalog_scope") == "stock_indices" else 0.85
             )
         )
         ranked = rank_m5_pairs(result, excluded_symbols=excluded, payout=payout_rate, target_period=target_period)
-        if not any(r["setups"] > 0 for r in ranked) and target_period != 300:
-            ranked = rank_m5_pairs(result, excluded_symbols=excluded, payout=payout_rate, target_period=300)
+        if not any(r["setups"] > 0 for r in ranked) and target_period != 900:
+            ranked = rank_m5_pairs(result, excluded_symbols=excluded, payout=payout_rate, target_period=900)
         promoted_symbol = None
         best = ranked[0] if ranked else None
         if best:

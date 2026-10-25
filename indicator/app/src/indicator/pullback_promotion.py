@@ -14,7 +14,7 @@ def rank_m5_pairs(
     report: dict[str, dict],
     excluded_symbols: set[str] | None = None,
     payout: float = 0.85,
-    target_period: int = 300,
+    target_period: int = 900,
 ) -> list[dict[str, Any]]:
     """Ranqueia pares com base em EV, taxa de acerto e consistencia."""
     excluded = excluded_symbols or set()
@@ -65,9 +65,13 @@ def rank_m5_pairs(
 
 
 def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
-    """Gera tabela visual do ranking dos pares M5/M15 avaliados."""
-    target_period = int(ranked[0].get("period", 300)) if ranked else 300
-    tf_name = f"M{target_period // 60}"
+    """Gera tabela visual do ranking dos pares M15/H1/D1 avaliados."""
+    target_period = int(ranked[0].get("period", 900)) if ranked else 900
+    tf_name = (
+        "D1"
+        if target_period == 86400
+        else (f"H{target_period // 3600}" if target_period >= 3600 else f"M{target_period // 60}")
+    )
     lines = [
         "=" * 100,
         f"RANKING DO SETUP PULLBACK {tf_name} (PROXY DE VELAS)",
@@ -92,9 +96,9 @@ def promote_best_m5_pair(
     best: dict[str, Any],
     root_path: Path,
     variant: str = "improved",
-    target_period: int = 300,
+    target_period: int = 900,
 ) -> None:
-    """Promove o melhor par M5/M15, atualizando modelos e configuracao para app-run."""
+    """Promove o melhor par M15/H1/D1, atualizando modelos e configuracao para app-run."""
     symbol = str(best["symbol"])
     period = int(best.get("period", target_period))
     version = version_for_variant(variant)

@@ -8,7 +8,7 @@ from indicator.pullback_promotion import format_ranking_table, promote_best_m5_p
 
 def test_rank_m5_pairs_orders_by_ev_and_win_rate():
     report = {
-        "R_25:300": {
+        "R_25:900": {
             "estado": "PROXY DE VELAS",
             "setups": 20,
             "acertos": 12,
@@ -16,7 +16,7 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
             "empates": 0,
             "max_losses_consecutivos": 4,
         },
-        "1HZ25V:300": {
+        "1HZ25V:900": {
             "estado": "PROXY DE VELAS",
             "setups": 30,
             "acertos": 21,
@@ -24,18 +24,18 @@ def test_rank_m5_pairs_orders_by_ev_and_win_rate():
             "empates": 0,
             "max_losses_consecutivos": 3,
         },
-        "R_50:300": {
+        "R_50:900": {
             "estado": "SEM SINAL",
             "setups": 0,
         },
-        "R_25:900": {
+        "R_25:3600": {
             "estado": "PROXY DE VELAS",
             "setups": 15,
             "acertos": 10,
             "erros": 5,
             "max_losses_consecutivos": 2,
         },
-        "1HZ10V:300": {
+        "1HZ10V:900": {
             "estado": "PROXY DE VELAS",
             "setups": 0,
             "acertos": 0,
@@ -59,7 +59,7 @@ def test_format_ranking_table():
     ranked = [
         {
             "symbol": "1HZ25V",
-            "period": 300,
+            "period": 900,
             "setups": 20,
             "wins": 14,
             "losses": 6,
@@ -72,7 +72,7 @@ def test_format_ranking_table():
         },
         {
             "symbol": "R_50",
-            "period": 300,
+            "period": 900,
             "setups": 10,
             "wins": 4,
             "losses": 6,
@@ -85,7 +85,7 @@ def test_format_ranking_table():
         },
     ]
     table = format_ranking_table(ranked)
-    assert "RANKING DO SETUP PULLBACK M5" in table
+    assert "RANKING DO SETUP PULLBACK M15" in table
     assert "1HZ25V" in table
     assert "MAX LOSS" in table
     assert "PROMOVIDO" in table
@@ -96,11 +96,11 @@ def test_promote_best_m5_pair(tmp_path: Path):
     root = tmp_path
     models_dir = root / "indicator" / "data" / "indicator-models"
     models_dir.mkdir(parents=True)
-    old_model = models_dir / "R_25_300.json"
-    old_model.write_text(json.dumps({"symbol": "R_25", "period": 300, "status": "aprovado"}))
-    same_model = models_dir / "1HZ25V_300.json"
-    same_model.write_text(json.dumps({"symbol": "1HZ25V", "period": 300, "status": "candidato"}))
-    corrupt_model = models_dir / "CORRUPT_300.json"
+    old_model = models_dir / "R_25_900.json"
+    old_model.write_text(json.dumps({"symbol": "R_25", "period": 900, "status": "aprovado"}))
+    same_model = models_dir / "1HZ25V_900.json"
+    same_model.write_text(json.dumps({"symbol": "1HZ25V", "period": 900, "status": "candidato"}))
+    corrupt_model = models_dir / "CORRUPT_900.json"
     corrupt_model.write_text("invalido")
 
     config_dir = root / "config"
@@ -122,7 +122,7 @@ def test_promote_best_m5_pair(tmp_path: Path):
 
     best = {
         "symbol": "1HZ25V",
-        "period": 300,
+        "period": 900,
         "setups": 35,
         "wins": 24,
         "losses": 11,
@@ -133,9 +133,9 @@ def test_promote_best_m5_pair(tmp_path: Path):
         "optimal_hours_brt": [10, 11, 12],
         "best_window_brt": "10:00 as 13:00 (BRT)",
     }
-    promote_best_m5_pair(best, root, variant="improved")
+    promote_best_m5_pair(best, root, variant="improved", target_period=900)
 
-    new_model_file = models_dir / "1HZ25V_300.json"
+    new_model_file = models_dir / "1HZ25V_900.json"
     assert new_model_file.is_file()
     new_model = json.loads(new_model_file.read_text(encoding="utf-8"))
     assert new_model["status"] == "aprovado"

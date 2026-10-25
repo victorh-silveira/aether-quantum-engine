@@ -6,8 +6,8 @@ import re
 from dataclasses import dataclass
 from math import isfinite
 
-PERIODS = (300, 900, 3600)
-PERIOD_NAMES = {300: "M5", 900: "M15", 3600: "H1"}
+PERIODS = (900, 3600, 86400)
+PERIOD_NAMES = {900: "M15", 3600: "H1", 86400: "D1"}
 VOLATILITY_SYMBOL = re.compile(r"(?:R_[0-9]+|1HZ[0-9]+V|RDBEAR|RDBULL)\Z")
 
 
@@ -71,7 +71,7 @@ def synthetic_symbols(rows: list[dict[str, object]], scope: str = "all") -> dict
     return dict(sorted(found.items()))
 
 
-def closed_candles(rows: list[dict[str, object]], now: int, period: int = 300) -> list[Candle]:
+def closed_candles(rows: list[dict[str, object]], now: int, period: int = 900) -> list[Candle]:
     """Rejeita velas em formacao, duplicadas e valores invalidos."""
     candles = {}
     conflicts = set()
@@ -90,9 +90,9 @@ def closed_candles(rows: list[dict[str, object]], now: int, period: int = 300) -
     return [candles[epoch] for epoch in sorted(candles) if epoch not in conflicts]
 
 
-def current_spot(rows: list[dict[str, object]], now: int) -> float | None:
-    """Lê a última cotação da vela M5 em formação, sem completar lacunas."""
-    expected = now // 300 * 300
+def current_spot(rows: list[dict[str, object]], now: int, period: int = 900) -> float | None:
+    """Lê a última cotação da vela base em formação, sem completar lacunas."""
+    expected = now // period * period
     for row in reversed(rows):
         try:
             if int(row["epoch"]) != expected:
@@ -116,20 +116,28 @@ def live_observation(signal: Signal, spot: float, now: int) -> LiveObservation |
     return LiveObservation(signal.symbol, signal.period, signal.candle_epoch, now, spot, delta, side)
 
 
-def aggregate(candles: list[Candle], period: int) -> list[Candle]:
-    """Agrupa M5 fechadas sem completar lacunas por interpolacao."""
-    if period == 300:
+def aggregate(candles: list[Candle], period: int, base_period: int = 900) -> list[Candle]:
+    """Agrupa velas fechadas sem completar lacunas por interpolacao."""
+    if not candles:
+        return []
+    if any(c.epoch % 900 != 0 for c in candles) or (
+        len(candles) > 1 and min(b.epoch - a.epoch for a, b in zip(candles, candles[1:], strict=False)) == 300
+    ):
+        base = 300
+    else:
+        base = base_period
+    if period == base:
         return list(candles)
-    if period not in PERIODS:
+    if period not in PERIODS and period not in (300, 900, 3600, 86400):
         raise ValueError("periodo nao suportado")
-    count = period // 300
+    count = period // base
     groups: dict[int, list[Candle]] = {}
     for candle in candles:
         groups.setdefault(candle.epoch // period * period, []).append(candle)
     result = []
     for epoch, group in sorted(groups.items()):
         group.sort(key=lambda candle: candle.epoch)
-        if len(group) != count or any(item.epoch != epoch + index * 300 for index, item in enumerate(group)):
+        if len(group) != count or any(item.epoch != epoch + index * base for index, item in enumerate(group)):
             continue
         result.append(
             Candle(

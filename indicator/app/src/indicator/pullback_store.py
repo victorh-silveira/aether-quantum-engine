@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from indicator.domain import Signal
+from indicator.domain import PERIODS, Signal
 from indicator.pullback import VERSION
 from indicator.storage import SignalStore
 
@@ -62,7 +62,7 @@ class PullbackStore(SignalStore):
         """Registra versoes atuais sem sobrescrever decisoes anteriores."""
         async with self.pool.acquire() as connection:
             for symbol in symbols:
-                for period in (300, 900, 3600):
+                for period in PERIODS:
                     await connection.execute(
                         """INSERT INTO pullback_registry(symbol,period_seconds,setup_version)
                         VALUES ($1,$2,$3) ON CONFLICT DO NOTHING""",
@@ -84,7 +84,7 @@ class PullbackStore(SignalStore):
                     AND e.purchased >= 200 AND e.settled >= 200
             """)
 
-    async def promote_symbol_setup(self, symbol: str, period: int = 300, version: str = VERSION) -> None:
+    async def promote_symbol_setup(self, symbol: str, period: int = 900, version: str = VERSION) -> None:
         """Promove o setup do simbolo especifico para o estado ativo no registro."""
         async with self.pool.acquire() as connection:
             await connection.execute(

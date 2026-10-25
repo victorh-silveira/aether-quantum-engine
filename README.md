@@ -61,7 +61,7 @@ make app-train
 make app-run
 ```
 
-`make docker-up` sobe a stack única. `make app-train` garante a stack e prepara o diagnóstico M5/M15/H1. `make app-run` inicia o motor na conta configurada. Para testar a estratégia, mantenha `trading.mode=demo`; a configuração atual está em DEMO. `make app-lint` e `make app-test` validam motor e indicador. Índices diferentes podem manter contratos simultâneos, com no máximo um contrato aberto por índice. O painel não interpola lacunas e não transforma sinais sintéticos em previsões de Forex.
+`make docker-up` sobe a stack única. `make app-train` garante a stack e prepara o diagnóstico M15/H1/D1. `make app-run` inicia o motor na conta configurada. Para testar a estratégia, mantenha `trading.mode=demo`; a configuração atual está em DEMO. `make app-lint` e `make app-test` validam motor e indicador. Índices diferentes podem manter contratos simultâneos, com no máximo um contrato aberto por índice. O painel não interpola lacunas e não transforma sinais sintéticos em previsões de Forex.
 
 ## Documentação
 

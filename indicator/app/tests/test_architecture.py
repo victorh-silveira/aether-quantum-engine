@@ -57,7 +57,7 @@ def test_dashboards_have_real_queries_and_no_interpolation():
             assert "pullback_broker_status" in dashboard["panels"][1]["targets"][0]["rawSql"]
         else:
             assert dashboard["uid"] == "aether-synthetic-catalog"
-            assert "CROSS JOIN (VALUES (300),(900),(3600))" in dashboard["panels"][0]["targets"][0]["rawSql"]
+            assert "CROSS JOIN (VALUES (900),(3600),(86400))" in dashboard["panels"][0]["targets"][0]["rawSql"]
             assert "dados_atrasados" in dashboard["panels"][0]["targets"][0]["rawSql"]
         assert all(
             "reason IN ('ok','experimental')" not in panel["targets"][0]["rawSql"] for panel in dashboard["panels"]

@@ -39,7 +39,7 @@ class Source(Protocol):
     async def symbols(self) -> list[dict[str, object]]: ...
 
     async def candles(
-        self, symbol: str, count: int = 1000, end: str | int = "latest", period: int = 300
+        self, symbol: str, count: int = 1000, end: str | int = "latest", period: int = 900
     ) -> list[dict[str, object]]: ...
 
 
@@ -100,16 +100,17 @@ class IndicatorService:
 
     async def observe(self, symbol: str, now: int) -> list[Signal]:
         """Publica uma leitura por vela fechada e periodo."""
-        rows = await asyncio.wait_for(self.source.candles(symbol, count=64, period=300), REQUEST_TIMEOUT)
-        spot = current_spot(rows, now)
+        base_period = min(PERIODS)
+        rows = await asyncio.wait_for(self.source.candles(symbol, count=64, period=base_period), REQUEST_TIMEOUT)
+        spot = current_spot(rows, now, period=base_period)
         result = []
         for period in PERIODS:
             expected = now // period * period - period
-            if period != 300 and self.last_epoch.get((symbol, period)) == expected:
+            if period != base_period and self.last_epoch.get((symbol, period)) == expected:
                 continue
             period_rows = (
                 rows
-                if period == 300
+                if period == base_period
                 else await asyncio.wait_for(self.source.candles(symbol, count=64, period=period), REQUEST_TIMEOUT)
             )
             candles = latest_contiguous(closed_candles(period_rows, now, period), period)
@@ -213,7 +214,7 @@ class IndicatorService:
         await self.sink.replace_models(versions)
         await self.sink.promote_models()
         self.trade_versions = await self.sink.trade_models()
-        prioritized = sorted(self.symbols, key=lambda symbol: (load(self.models, symbol, 300) is None, symbol))
+        prioritized = sorted(self.symbols, key=lambda symbol: (load(self.models, symbol, min(PERIODS)) is None, symbol))
         for symbol in prioritized:
             try:
                 signals = await asyncio.wait_for(self.observe(symbol, now), ASSET_TIMEOUT)

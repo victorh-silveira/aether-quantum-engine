@@ -76,7 +76,7 @@ async def diagnose_all(
                 candles = raw_candles if is_stock else latest_contiguous(raw_candles, period)
                 if candles:
                     await store.save_candles(symbol, period, candles)
-                min_candles = 200 if is_stock else 5000
+                min_candles = 60 if (is_stock and period >= 86400) else (200 if is_stock else 5000)
                 if len(candles) < min_candles:
                     report[key] = {
                         "estado": "SEM SINAL",
@@ -136,7 +136,7 @@ async def diagnose_all(
                     "optimal_hours_brt": optimal_hours,
                     "best_window_brt": best_window,
                     "hourly_profile_brt": hourly_profile,
-                    "variantes": compare_variants(candles, period) if period == 300 else {},
+                    "variantes": compare_variants(candles, period) if period == 900 else {},
                 }
             except (OSError, RuntimeError, ValueError, KeyError, TimeoutError) as exc:
                 report[key] = {"estado": "SEM SINAL", "motivo": str(exc) or "tempo limite"}

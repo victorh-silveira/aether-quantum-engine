@@ -2,7 +2,7 @@
 
 O serviço lê `active_symbols` e `ticks_history` da Deriv sem credenciais de negociação e integra cotações reais de mercado via API HTTP pública do Yahoo Finance v8 para os 12 ativos de ações mundiais (réplicas dos ETFs SPY, QQQ, DIA, EWG, FEZ, etc.).
 
-Emite `CALL`, `PUT` ou `SEM SINAL` para cada ativo e período M5/M15/H1, utilizando a variante **`senior_institutional`** do [setup institucional de tendência, liquidez e recuo](../docs/strategy-pullback.md). A avaliação utiliza 128 velas fechadas e contíguas com validação estrita de Session VWAP ($\pm 1.5\sigma$), mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). Velas em formação não entram no cálculo de decisão.
+Emite `CALL`, `PUT` ou `SEM SINAL` para cada ativo e período M15/H1/D1, utilizando a variante **`senior_institutional`** do [setup institucional de tendência, liquidez e recuo](../docs/strategy-pullback.md). A avaliação utiliza 128 velas fechadas e contíguas com validação estrita de Session VWAP ($\pm 1.5\sigma$), mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). Velas em formação não entram no cálculo de decisão.
 
 Na raiz do projeto, execute:
 
