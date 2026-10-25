@@ -1,3 +1,9 @@
+## [4.16.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.1...v4.16.2) (2026-10-25)
+
+### Correcoes de Bug
+
+* **orchestrator:** alinhar fluxo operacional M15 e rotacao de indices OTC ([9bbb527](https://github.com/victorh-silveira/aether-quantum-engine/commit/9bbb527b538d031b3876962dcfe5d5218ec69d01))
+
 ## [4.16.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.0...v4.16.1) (2026-10-22)
 
 ### Correcoes de Bug
