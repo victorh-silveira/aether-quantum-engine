@@ -61,17 +61,23 @@ class Orchestrator:
         timeout = int(config["api_config"]["request_timeout_seconds"])
         self.ws = WebSocketManager("", request_timeout=timeout)
         self.anchor, self.symbols = normalize_symbols_and_anchor(config)
+        data_cfg = dict(config.get("data_handler") or {})
+        pb_cfg = config.get("pullback_strategy") if isinstance(config.get("pullback_strategy"), dict) else {}
+        if pb_cfg.get("enabled") and pb_cfg.get("period_seconds"):
+            pb_period = int(pb_cfg["period_seconds"])
+            data_cfg["micro_granularity"] = pb_period
+            data_cfg["mini_granularity"] = pb_period
         self.stream = StreamHandler(
             self.ws,
             self.symbols,
-            config["data_handler"],
+            data_cfg,
             market_writer=self.market_writer,
         )
         self.trade_handler = TradeHandler(self.ws, config, auth=self.auth, market_writer=self.market_writer)
         self.trading_transport = "ws"
         self.deriv_account_id = ""
         self.risk_manager = RiskManager(config["risk_management"])
-        gran = int(config.get("data_handler", {}).get("micro_granularity", 120))
+        gran = int(data_cfg.get("micro_granularity", 120))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state = TradingState()
         self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()
@@ -202,7 +208,9 @@ class Orchestrator:
 
     async def _on_candle(self, candle: Any):
         """Callback de vela do ancora: atualiza estado e tenta ciclo."""
-        if candle.symbol != self.anchor:
+        pb_cfg = self.config.get("pullback_strategy") if isinstance(self.config.get("pullback_strategy"), dict) else {}
+        dyn_rot = bool(pb_cfg.get("enabled") and pb_cfg.get("dynamic_rotation"))
+        if candle.symbol != self.anchor and (not dyn_rot or candle.symbol not in self.symbols):
             return
         if await bar_epoch_already_processed(self, self.anchor, candle.epoch):
             return

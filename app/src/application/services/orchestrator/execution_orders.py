@@ -164,6 +164,9 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         trading_mode=str(executor.orch.config.get("trading", {}).get("mode", "demo")),
     )
     attach_indicator_identity(params, metrics)
+    pb_cfg = executor.orch.config.get("pullback_strategy") if isinstance(executor.orch.config, dict) else {}
+    if isinstance(pb_cfg, dict) and pb_cfg.get("entry_window_seconds") is not None:
+        params["entry_window_seconds"] = int(pb_cfg["entry_window_seconds"])
     setup = isinstance(metrics, dict) and str(metrics.get("indicator_model_version", "")).startswith("pullback-1-")
     if setup:
         params["_pullback_stake_cap"] = float(metrics.get("_pullback_stake_cap") or 0.0)

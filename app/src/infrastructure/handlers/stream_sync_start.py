@@ -84,11 +84,13 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
                 symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
             )
         sync_log(
-            "DATA: %s (%d/%d) | D1:%d M5:%d",
+            "DATA: %s (%d/%d) | %s:%d %s:%d",
             symbol,
             index,
             total,
+            granularity_label(handler.macro_granularity),
             len(handler.macro_candles[symbol]),
+            granularity_label(handler.micro_granularity),
             len(handler.micro_candles[symbol]),
         )
         symbol_delay = float(fetch_cfg["symbol_delay"])

@@ -30,11 +30,12 @@ def _resolve_now(now: float | None, orch: Any = None) -> float:
         if tick_buf is not None and symbols:
             get_epoch = getattr(tick_buf, "latest_tick_epoch", None)
             if callable(get_epoch):
-                tick_epoch = get_epoch(symbols[0])
-                if tick_epoch is not None and tick_epoch > 0:
-                    local_now = time.time()
-                    if abs(local_now - tick_epoch) <= 30.0:
-                        return float(tick_epoch)
+                for sym in symbols:
+                    tick_epoch = get_epoch(sym)
+                    if tick_epoch is not None and tick_epoch > 0:
+                        local_now = time.time()
+                        if abs(local_now - tick_epoch) <= 30.0:
+                            return float(tick_epoch)
         last_epoch = float(getattr(orch, "_last_epoch", 0.0) or 0.0)
         if last_epoch > 0:
             local_now = time.time()

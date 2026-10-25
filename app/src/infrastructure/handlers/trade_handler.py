@@ -187,6 +187,7 @@ class TradeHandler:
             enabled=bool(p_cfg.get("_indicator_direct_buy_fallback")),
             expected_candle_epoch=int(p_cfg.get("_indicator_candle_epoch") or 0),
             period_seconds=int(p_cfg.get("_indicator_period_seconds") or 300),
+            entry_window_seconds=int(p_cfg.get("entry_window_seconds") or 30),
             logger=self.logger,
         )
         if direct_parameters:

@@ -13,24 +13,27 @@
   "pullback_variant": "senior_institutional",
   "pullback_strategy": {
     "excluded_symbols": [
-      "OTC_HSI"
+      "OTC_FTSE",
+      "OTC_N225",
+      "OTC_HSI",
+      "OTC_AS51"
     ],
     "dynamic_rotation": true,
-    "promoted_setups": 120,
-    "promoted_win_rate": 0.620,
-    "promoted_ev": 0.0850,
+    "promoted_setups": 26,
+    "promoted_win_rate": 0.6538,
+    "promoted_ev": 0.2096,
     "breakeven_floor": 0.5800,
     "min_prob_threshold": 0.5800
   },
-  "anchor": "OTC_DJI",
+  "anchor": "OTC_SSMI",
   "symbols": [
-    "OTC_DJI",
-    "OTC_NDX",
+    "OTC_SSMI",
     "OTC_SPC",
+    "OTC_NDX",
+    "OTC_DJI",
+    "OTC_SX5E",
     "OTC_GDAXI",
-    "OTC_FTSE",
-    "OTC_N225",
-    "OTC_AS51",
-    "OTC_SX5E"
+    "OTC_FCHI",
+    "OTC_AEX"
   ]
 }

@@ -51,7 +51,12 @@ async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, pe
         all_rows.extend(rows)
     if symbol.startswith("OTC_"):
         try:
-            real_data = await fetch_real_candles(symbol, period_seconds=period, range_str="1mo")
+            existing_epochs = {int(row["epoch"]) for row in all_rows}
+            real_data = [
+                c
+                for c in await fetch_real_candles(symbol, period_seconds=period, range_str="1mo")
+                if c.epoch not in existing_epochs
+            ]
             for c in real_data:
                 all_rows.append({"epoch": c.epoch, "open": c.open, "high": c.high, "low": c.low, "close": c.close})
             if real_data:

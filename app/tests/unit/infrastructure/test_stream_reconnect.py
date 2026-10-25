@@ -199,11 +199,14 @@ async def test_execute_stream_reconnect_failure():
 
 def test_continuous_stream_active_requires_running():
     orch = MagicMock()
+    orch.config = {}
     orch._stream_ready_mono = 10.0
     orch.running = False
     assert _continuous_stream_active(orch) is False
     orch.running = True
     assert _continuous_stream_active(orch) is True
+    orch.config = {"pullback_strategy": {"enabled": True}}
+    assert _continuous_stream_active(orch) is False
 
 
 def test_needs_profit_table_audit_active_contracts():

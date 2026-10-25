@@ -24,7 +24,7 @@ def _attach_quote_guard_params(
     if metrics.get("indicator_demo_pilot") and trading_mode.lower() == "demo":
         setup = str(metrics.get("indicator_model_version", "")).startswith("pullback-1-")
         params["_indicator_demo_pilot"] = True
-        params["_indicator_direct_buy_fallback"] = not setup
+        params["_indicator_direct_buy_fallback"] = True
         params["_indicator_candle_epoch"] = int(metrics.get("indicator_candle_epoch") or 0)
         params["min_payout_rate"] = 0.0
         if setup:

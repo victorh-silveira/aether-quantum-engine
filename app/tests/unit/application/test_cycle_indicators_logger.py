@@ -198,3 +198,26 @@ def test_log_cycle_indicators_veto_ansi_highlighting():
     msg = orch.logger.info.call_args[0][0]
     assert "\033[92m" in msg or "\033[0m" in msg
     assert "LIBERADO SEM VETOS (ORGANICO)" in msg
+
+
+def test_log_cycle_indicators_skips_stale_symbol_when_multiple():
+    import time
+
+    now_ts = time.time()
+    stale = [
+        Candle("OTC_SSMI", 100.0, 101.0, 99.0, 100.0, datetime.fromtimestamp(1000), int(now_ts - 5000))
+        for _ in range(60)
+    ]
+    fresh = [
+        Candle("OTC_SPC", 100.0, 101.0, 99.0, 100.0, datetime.fromtimestamp(1000), int(now_ts - 60)) for _ in range(60)
+    ]
+    orch = SimpleNamespace(
+        config={"pullback_strategy": {"enabled": True}, "anchor": "OTC_SSMI"},
+        logger=MagicMock(),
+        _active_cycle_id="0004",
+        symbols=["OTC_SSMI", "OTC_SPC"],
+        stream=SimpleNamespace(micro_candles={"OTC_SSMI": stale, "OTC_SPC": fresh}),
+    )
+    log_cycle_indicators(orch)
+    assert orch.logger.info.call_count == 1
+    assert "OTC_SPC" in orch.logger.info.call_args[0][0]

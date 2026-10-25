@@ -75,7 +75,8 @@ def bind_recovery_contract(orch, token: str, contract_id: int) -> None:
     """Mantem a reserva ate o contrato comprado ser liquidado."""
     claim = _claims(orch).pop(token, None)
     if claim is not None:
-        _claims(orch)[int(contract_id)] = claim
+        tok, amt, exp = claim
+        _claims(orch)[int(contract_id)] = (tok, amt, exp + 900)
 
 
 async def release_recovery(orch, identity: int | str) -> None:

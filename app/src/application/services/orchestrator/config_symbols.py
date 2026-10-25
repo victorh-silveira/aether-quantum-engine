@@ -39,7 +39,16 @@ def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     pb_cfg = config.get("pullback_strategy", {})
     raw = list(config.get("symbols") or [anchor])
     if pb_cfg.get("enabled") and pb_cfg.get("dynamic_rotation"):
-        rotation_syms = ["OTC_SSMI", "OTC_SPC", "OTC_NDX", "OTC_DJI", "OTC_SX5E"]
+        rotation_syms = [
+            "OTC_SSMI",
+            "OTC_SPC",
+            "OTC_NDX",
+            "OTC_DJI",
+            "OTC_SX5E",
+            "OTC_GDAXI",
+            "OTC_FCHI",
+            "OTC_AEX",
+        ]
         raw.extend([s for s in rotation_syms if s not in raw])
     indicator_cfg = config.get("indicator_consensus", {})
     if indicator_cfg.get("enabled") and indicator_cfg.get("auto_symbols") and not pb_cfg.get("enabled", False):

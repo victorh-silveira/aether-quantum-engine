@@ -205,7 +205,11 @@ async def test_place_order_catches_quote_guard_rejection_safely():
 async def test_pullback_order_enforces_five_minute_stake_cap():
     executor = MagicMock()
     executor.orch._active_cycle_id = 1
-    executor.orch.config = {"trading": {"mode": "demo"}, "risk_management": {"params": {"stake_min": 1}}}
+    executor.orch.config = {
+        "trading": {"mode": "demo"},
+        "risk_management": {"params": {"stake_min": 1}},
+        "pullback_strategy": {"entry_window_seconds": 60},
+    }
     metrics = {
         "indicator_controls_execution": True,
         "indicator_model_version": "pullback-1-v2",
@@ -230,7 +234,11 @@ async def test_pullback_order_enforces_five_minute_stake_cap():
 async def test_pullback_order_attaches_prequoted_proposal():
     executor = MagicMock()
     executor.orch._active_cycle_id = 1
-    executor.orch.config = {"trading": {"mode": "demo"}, "risk_management": {"params": {"stake_min": 1}}}
+    executor.orch.config = {
+        "trading": {"mode": "demo"},
+        "risk_management": {"params": {"stake_min": 1}},
+        "pullback_strategy": {"entry_window_seconds": 60},
+    }
     metrics = {
         "indicator_controls_execution": True,
         "indicator_model_version": "pullback-1-v2",

@@ -120,7 +120,7 @@ class PullbackStore(SignalStore):
                 """
                 SELECT DISTINCT ON (symbol, period_seconds) symbol, period_seconds,
                     candle_epoch, side, reason, setup_version, close
-                FROM pullback_signals WHERE setup_version=$1
+                FROM pullback_signals WHERE setup_version=$1 OR setup_version LIKE 'pullback-1-%'
                 ORDER BY symbol, period_seconds, candle_epoch DESC
             """,
                 VERSION,

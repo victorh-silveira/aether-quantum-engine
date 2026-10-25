@@ -1,9 +1,12 @@
+from datetime import datetime, timedelta, timezone
+
 from src.domain.symbols.drift_symbols import (
     DEFAULT_ANCHOR,
     DRIFT_SYMBOLS,
     TRADING_SYMBOLS,
     hedge_peer,
     is_high_side,
+    is_otc_exchange_open_brt,
     sym_is_low_barrier,
 )
 
@@ -53,3 +56,21 @@ def test_sym_is_low_barrier_with_and_without_peer():
     assert not sym_is_low_barrier("1HZ75V", "1HZ75V")
     assert not sym_is_low_barrier("1HZ75V")
     assert not sym_is_low_barrier("UNKNOWN")
+
+
+def test_is_otc_exchange_open_brt_all_regions():
+    brt = timezone(timedelta(hours=-3))
+    wed_morning = datetime(2026, 10, 21, 7, 0, tzinfo=brt).timestamp()
+    wed_afternoon = datetime(2026, 10, 21, 15, 0, tzinfo=brt).timestamp()
+    wed_night = datetime(2026, 10, 21, 22, 0, tzinfo=brt).timestamp()
+    sat_noon = datetime(2026, 10, 24, 12, 0, tzinfo=brt).timestamp()
+
+    assert is_otc_exchange_open_brt("R_25") is True
+    assert is_otc_exchange_open_brt("OTC_SSMI", sat_noon) is False
+    assert is_otc_exchange_open_brt("OTC_SSMI", wed_morning) is True
+    assert is_otc_exchange_open_brt("OTC_SSMI", wed_afternoon) is False
+    assert is_otc_exchange_open_brt("OTC_SPC", wed_morning) is False
+    assert is_otc_exchange_open_brt("OTC_SPC", wed_afternoon) is True
+    assert is_otc_exchange_open_brt("OTC_N225", wed_night) is True
+    assert is_otc_exchange_open_brt("OTC_N225", wed_afternoon) is False
+    assert is_otc_exchange_open_brt("OTC_CUSTOM", wed_afternoon) is True

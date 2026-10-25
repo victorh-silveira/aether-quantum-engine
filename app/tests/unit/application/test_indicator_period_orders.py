@@ -490,3 +490,10 @@ def test_period_candidates_stream_fallback_skips_excluded_active_and_quarantine(
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][0] == "OTC_OK"
+
+
+def test_closed_candles_slice_drops_forming_bar():
+    bars = [type("Candle", (), {"epoch": 1700000000 + i * 900})() for i in range(55)]
+    cur_open = int(bars[-1].epoch)
+    sliced = orders._closed_candles_slice(bars, 900, float(cur_open + 5))
+    assert len(sliced) == 54

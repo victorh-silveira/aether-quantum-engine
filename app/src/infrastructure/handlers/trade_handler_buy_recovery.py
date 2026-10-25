@@ -15,6 +15,7 @@ async def recover_unknown_contract_proposal(
     enabled: bool,
     expected_candle_epoch: int,
     period_seconds: int = 300,
+    entry_window_seconds: int = 30,
     logger: logging.Logger,
 ) -> tuple[dict, bool]:
     """Usa buy com parametros uma unica vez apos rejeicao explicita do ID."""
@@ -26,7 +27,7 @@ async def recover_unknown_contract_proposal(
     if (
         period_seconds not in (300, 900, 3600)
         or expected_candle_epoch != int(now // period_seconds) * period_seconds - period_seconds
-        or now % period_seconds > 30
+        or now % period_seconds > entry_window_seconds
     ):
         raise RuntimeError("Erro na compra direta: sinal expirou antes da nova tentativa")
     logger.warning("DERIV: proposal ID rejeitado; tentando compra por parametros no mesmo WSS")

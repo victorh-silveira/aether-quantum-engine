@@ -25,6 +25,9 @@ logger = logging.getLogger("AETH")
 
 def _continuous_stream_active(orch: Any) -> bool:
     """Indica sessao continua com stream OHLC ja sincronizado."""
+    cfg = getattr(orch, "config", None)
+    if isinstance(cfg, dict) and bool(cfg.get("pullback_strategy", {}).get("enabled", False)):
+        return False
     ready_mono = float(getattr(orch, "_stream_ready_mono", 0.0))
     return ready_mono > 0.0 and bool(getattr(orch, "running", False))
 

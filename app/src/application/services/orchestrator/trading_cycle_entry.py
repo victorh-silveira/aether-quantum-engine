@@ -14,7 +14,10 @@ from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.indicator_consensus import refresh_indicator_consensus
 from src.application.services.orchestrator.cycle_indicators_logger import log_cycle_indicators
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
-from src.application.services.orchestrator.orchestrator_data_signature import seconds_until_next_signature_boundary
+from src.application.services.orchestrator.orchestrator_data_signature import (
+    resolve_signature_boundary_seconds,
+    seconds_until_next_signature_boundary,
+)
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
@@ -180,7 +183,8 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                             empty_cap = 15.0
                         setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
                         if setup_active:
-                            orch._last_m5_cycle_boundary = int(time.time() // 300) * 300
+                            boundary = resolve_signature_boundary_seconds(orch)
+                            orch._last_m5_cycle_boundary = int(time.time() // boundary) * boundary
                             orch._last_processed_epoch = orch._last_epoch
                             delay = max(5.0, boundary_wait)
                         else:

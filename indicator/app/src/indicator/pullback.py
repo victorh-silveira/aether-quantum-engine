@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from math import isfinite
+from math import isfinite, log
 
 from indicator.domain import Candle
 from indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_vwap
@@ -234,7 +234,7 @@ def _hurst_exponent(closes: list[float], window: int = 14) -> float:
     s = variance**0.5
     if s <= 1e-10 or r <= 1e-10:
         return 0.5
-    h = (r / s) ** (1.0 / (window**0.5)) if window > 1 else 0.5
+    h = (log(r / s) / log(window)) if window > 1 else 0.5
     return min(1.0, max(0.0, float(h)))
 
 

@@ -21,7 +21,11 @@ def emit_decision_engine_banner(
     """Emite uma linha CFG informando o modo de decisao ativo no ciclo."""
     dl_cfg = config.get("deep_learning") or {}
     if decision_mode == "pullback":
-        logger.info("CFG | SETUP pullback M5 | EMA20/50 ATR14 | Janela: 30s")
+        pb_cfg = config.get("pullback_strategy") if isinstance(config.get("pullback_strategy"), dict) else {}
+        period_sec = int(pb_cfg.get("period_seconds") or 300)
+        tf_label = f"M{period_sec // 60}" if period_sec % 60 == 0 else f"{period_sec}s"
+        win_sec = int(pb_cfg.get("entry_window_seconds") or 30)
+        logger.info(f"CFG | SETUP pullback {tf_label} | EMA20/50 ATR14 | Janela: {win_sec}s")
     elif decision_mode == "deep_learning":
         risk_params = (config.get("risk_management") or {}).get("params") or {}
         data_cfg = config.get("data_handler") if isinstance(config.get("data_handler"), dict) else {}

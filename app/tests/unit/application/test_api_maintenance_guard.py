@@ -125,6 +125,8 @@ async def test_schedule_api_maintenance_hibernation_sets_deadline(orch_ready):
 def test_handle_broker_maintenance_error_returns_false_for_other_errors(orch_ready):
     orch = orch_ready
     assert handle_broker_maintenance_error(orch, RuntimeError("network timeout")) is False
+    orch.config["pullback_strategy"] = {"enabled": True, "dynamic_rotation": True}
+    assert handle_broker_maintenance_error(orch, RuntimeError("This market is presently closed.")) is False
 
 
 def test_log_api_maintenance_hibernation_deduplicates(orch_ready, caplog):

@@ -62,7 +62,17 @@ def test_explicit_training_symbols_include_approved_runtime_discovery(tmp_path, 
     config["pullback_strategy"] = {"enabled": True, "dynamic_rotation": True}
     assert normalize_symbols_and_anchor(config) == (
         "R_25",
-        ["R_25", "OTC_SSMI", "OTC_SPC", "OTC_NDX", "OTC_DJI", "OTC_SX5E"],
+        [
+            "R_25",
+            "OTC_SSMI",
+            "OTC_SPC",
+            "OTC_NDX",
+            "OTC_DJI",
+            "OTC_SX5E",
+            "OTC_GDAXI",
+            "OTC_FCHI",
+            "OTC_AEX",
+        ],
     )
 
 

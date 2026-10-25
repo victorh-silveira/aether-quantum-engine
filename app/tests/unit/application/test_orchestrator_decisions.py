@@ -87,6 +87,11 @@ async def test_orchestrator_on_candle_extra_coverage(orch_config):
         orch.executor.execute_cluster.side_effect = Exception("FAIL")
         await orch._on_candle(MagicMock(symbol=orch.anchor, epoch=1001))
 
+        orch_pb_cfg = dict(orch_config)
+        orch_pb_cfg["pullback_strategy"] = {"enabled": True, "period_seconds": 900, "dynamic_rotation": True}
+        orch_pb = Orchestrator(orch_pb_cfg, "token")
+        assert orch_pb.stream.micro_granularity == 900
+
 
 @pytest.mark.asyncio
 async def test_on_candle_returns_when_is_trading(orch_config):

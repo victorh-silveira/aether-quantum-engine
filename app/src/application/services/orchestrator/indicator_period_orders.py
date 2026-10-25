@@ -8,16 +8,24 @@ import time
 from typing import Any
 
 from src.application.services.indicator_consensus import signal_epoch_current
-from src.application.services.rise_fall_quote_guard import (
-    calculate_payout_breakeven_prob,
-    unit_ev,
-)
+from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, unit_ev
 from src.domain.analytics.organic_direction import resolve_organic_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
 from src.domain.risk.pullback_stake import pullback_stake
+from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
 from src.infrastructure.handlers.trade_handler_quote_observation import record_indicator_quote
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
+
+
+def _closed_candles_slice(candles: list[Any], period: int, now_ts: float) -> list[Any]:
+    """Descarta a ultima vela caso pertença ao bloco atual ainda em formacao."""
+    ep = int(getattr(candles[-1], "epoch", 0) or 0) if candles else 0
+    return (
+        candles[:-1]
+        if len(candles) > 50 and period > 0 and now_ts > 100000 and ep >= int(now_ts // period) * period
+        else candles
+    )
 
 
 def _build_metrics(
@@ -67,10 +75,11 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
     pb_cfg = orch.config.get("pullback_strategy", {})
     excluded = set(pb_cfg.get("excluded_symbols") or orch.config.get("strategy", {}).get("excluded_symbols") or [])
     promoted_only = pb_cfg.get("promoted_symbol") or orch.config.get("anchor")
-    pb_enabled = bool(pb_cfg.get("enabled", False))
-    never_skip = bool(pb_cfg.get("never_skip", False))
-    dynamic_rotation = bool(pb_cfg.get("dynamic_rotation", False))
-    period_seconds = int(pb_cfg.get("period_seconds", 300))
+    pb_enabled, never_skip = bool(pb_cfg.get("enabled", False)), bool(pb_cfg.get("never_skip", False))
+    dynamic_rotation, period_seconds = (
+        bool(pb_cfg.get("dynamic_rotation", False)),
+        int(pb_cfg.get("period_seconds", 300)),
+    )
     has_promoted_signal = False
     if pb_enabled and promoted_only and dynamic_rotation:
         p_sig = getattr(orch, "_indicator_period_signals", {}).get((str(promoted_only), period_seconds))
@@ -83,6 +92,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
                 {"indicator_candle_epoch": p_sig.candle_epoch, "indicator_period_seconds": period_seconds},
             )
         )
+    quarantine = getattr(orch, "_symbol_loss_quarantine", {})
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
@@ -91,12 +101,13 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             and (not dynamic_rotation or has_promoted_signal)
         ):
             continue
-        if period != period_seconds or symbol in active_symbols or symbol in excluded:
-            continue
-        quarantine = getattr(orch, "_symbol_loss_quarantine", {})
-        if time.time() < quarantine.get(symbol, 0):
-            continue
-        if not signal.model_version.startswith("pullback-1-"):
+        if (
+            period != period_seconds
+            or symbol in active_symbols
+            or symbol in excluded
+            or time.time() < quarantine.get(symbol, 0)
+            or not signal.model_version.startswith("pullback-1-")
+        ):
             continue
         evidence = evidence_by_version.get((symbol, period, signal.model_version), BrokerEvEvidence(0, ()))
         pilot = mode == "demo" and (never_skip or (evidence.pilot_available and not evidence.promoted))
@@ -114,7 +125,8 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         decision_reason = "sinal_base"
         if bool(pb_cfg.get("organic_direction", False)):
             stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-            candles = getattr(stream, "micro_candles", {}).get(symbol) or []
+            raw_c = getattr(stream, "micro_candles", {}).get(symbol) or []
+            candles = _closed_candles_slice(raw_c, period_seconds, time.time())
             side, decision_reason = resolve_organic_direction(candles, signal.side)
         if side not in ("CALL", "PUT"):
             continue
@@ -135,24 +147,20 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         if signal_epoch_current(orch.config, metrics):
             result.append((symbol, TradeDirection[side], metrics))
     if not result and pb_enabled and bool(pb_cfg.get("stream_fallback", False)):
+        now_ts = time.time()
+        raw_syms = [str(s) for s in dict.fromkeys([promoted_only, *getattr(orch, "symbols", [])]) if s]
         fallback_syms = (
             [str(promoted_only)]
             if not dynamic_rotation
-            else [str(s) for s in dict.fromkeys([promoted_only, *getattr(orch, "symbols", [])]) if s]
+            else sorted(raw_syms, key=lambda s: not is_otc_exchange_open_brt(s, now_ts))
         )
         for sym in fallback_syms:
-            if sym in active_symbols or sym in excluded:
-                continue
-            quarantine = getattr(orch, "_symbol_loss_quarantine", {})
-            if time.time() < quarantine.get(sym, 0):
+            if sym in active_symbols or sym in excluded or now_ts < quarantine.get(sym, 0):
                 continue
             stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-            candles = getattr(stream, "micro_candles", {}).get(sym) or []
-            if len(candles) < 50:
-                continue
-            now_ts = time.time()
-            last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0)
-            if last_c_ep > 100000 and now_ts - last_c_ep > 1800:
+            candles = _closed_candles_slice(getattr(stream, "micro_candles", {}).get(sym) or [], period_seconds, now_ts)
+            last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0) if candles else 0.0
+            if len(candles) < 50 or (last_c_ep > 100000 and now_ts - last_c_ep > 1800):
                 continue
             c_closes = [float(c.close) for c in candles]
             a20, a50, e20, e50 = 2.0 / 21.0, 2.0 / 51.0, c_closes[0], c_closes[0]
@@ -161,14 +169,12 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             base_side = "CALL" if e20 >= e50 else "PUT"
             fb_side, fb_reason = resolve_organic_direction(candles, base_side)
             if fb_side not in ("CALL", "PUT"):
-                fb_side = base_side
-                fb_reason = "fluxo_tendencia_medias"
+                fb_side, fb_reason = base_side, "fluxo_tendencia_medias"
             if pb_cfg.get("invert_signal", False):
                 fb_side = "PUT" if fb_side == "CALL" else "CALL"
                 fb_reason = f"{fb_reason}_invertido"
             v_str = str(orch.config.get("pullback_strategy", {}).get("version") or "pullback-1-fallback")
-            ev_key = (sym, period_seconds, v_str)
-            fb_ev = evidence_by_version.get(ev_key, BrokerEvEvidence(0, ()))
+            fb_ev = evidence_by_version.get((sym, period_seconds, v_str), BrokerEvEvidence(0, ()))
             fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
             if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
                 expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds

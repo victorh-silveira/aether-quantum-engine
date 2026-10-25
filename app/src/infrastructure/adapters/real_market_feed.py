@@ -18,6 +18,11 @@ REAL_MARKET_SYMBOL_MAP: dict[str, str] = {
     "OTC_FTSE": "^FTSE",
     "OTC_N225": "^N225",
     "OTC_SX5E": "^STOXX50E",
+    "OTC_SSMI": "^SSMI",
+    "OTC_FCHI": "^FCHI",
+    "OTC_AEX": "^AEX",
+    "OTC_HSI": "^HSI",
+    "OTC_AS51": "^AXJO",
 }
 
 INTERVAL_MAP: dict[int, str] = {

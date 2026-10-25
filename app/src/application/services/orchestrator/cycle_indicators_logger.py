@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from typing import Any
 
 
@@ -121,9 +122,13 @@ def log_cycle_indicators(orch: Any) -> None:
     if stream is None:
         return
     symbols = list(getattr(orch, "symbols", [])) or [str(orch.config.get("anchor") or "R_25")]
+    now_ts = time.time()
     for symbol in symbols:
         candles = getattr(stream, "micro_candles", {}).get(symbol) or []
         if len(candles) < 55:
+            continue
+        last_ep = float(getattr(candles[-1], "epoch", 0) or 0)
+        if len(symbols) > 1 and last_ep > 100000 and now_ts - last_ep > 1800:
             continue
         bars = candles[-128:] if len(candles) >= 128 else candles
         closes = [b.close for b in bars]
