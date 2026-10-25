@@ -1,3 +1,19 @@
+## [4.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.2...v4.17.0) (2026-10-25)
+
+### Funcionalidades
+
+* **app:** migrar pipeline de treino de m5/m15/h1 para m15/h1/d1 ([12f51f9](https://github.com/victorh-silveira/aether-quantum-engine/commit/12f51f9b2ebbd5a747b5cdc94507f4dcdeaba1da))
+
+### Correcoes de Bug
+
+* **deps:** restaurar optuna e joblib para otimizador walk-forward ([dd56585](https://github.com/victorh-silveira/aether-quantum-engine/commit/dd56585f9b9f9f6e9a29206d21916be172dc2bd3))
+* **deps:** restaurar scikit-learn nos requirements para preflight benchmark ([b1052cf](https://github.com/victorh-silveira/aether-quantum-engine/commit/b1052cff57adb7757bdebeecffc3a115a162fc4c))
+
+### Refatoracoes Tecnicas
+
+* **infra:** remover containers e modulos de meta e loss classifier ([f677992](https://github.com/victorh-silveira/aether-quantum-engine/commit/f67799223b89732d62e4b4a3d84d5b9ab97a0f55))
+* **orchestrator:** consolidar auditoria m15 institucional e mcps ([c5b1c91](https://github.com/victorh-silveira/aether-quantum-engine/commit/c5b1c91ee2264aeced82e268c18c2b4ed3a350bf))
+
 ## [4.16.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.1...v4.16.2) (2026-10-25)
 
 ### Correcoes de Bug
