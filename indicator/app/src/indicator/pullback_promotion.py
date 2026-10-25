@@ -173,14 +173,39 @@ def promote_best_m5_pair(
 
     drift_path = repo_root / "app" / "src" / "domain" / "symbols" / "drift_symbols.py"
     if drift_path.parent.is_dir():
-        template = f'"""Simbolos de trading Deriv (universo single-symbol {symbol})."""\n\n'
+        template = f'"""Simbolos de trading Deriv (universo single-symbol {symbol} e rotacao OTC)."""\n\n'
+        template += "import time\n"
+        template += "from datetime import datetime, timedelta, timezone\n\n\n"
         template += f'TRADING_SYMBOLS: tuple[str, ...] = ("{symbol}",)\n'
         template += "DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS\n"
         template += f'DEFAULT_ANCHOR = "{symbol}"\n\n'
+        template += "EUROPEAN_OTC_SYMBOLS: frozenset[str] = frozenset(\n"
+        template += '    {"OTC_SSMI", "OTC_SX5E", "OTC_GDAXI", "OTC_FCHI", "OTC_AEX", "OTC_FTSE"}\n'
+        template += ")\n"
+        template += 'US_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_SPC", "OTC_NDX", "OTC_DJI"})\n'
+        template += 'ASIAN_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_N225", "OTC_HSI", "OTC_AS51"})\n'
+        template += "_BRT_TZ = timezone(timedelta(hours=-3))\n\n"
         template += "HEDGE_PEER: dict[str, str] = {}\n\n"
         template += "HIGH_SIDE: frozenset[str] = frozenset()\n"
         template += "LOW_SIDE: frozenset[str] = frozenset()\n\n"
         template += "_SYMBOL_ORDER = {symbol: index for index, symbol in enumerate(TRADING_SYMBOLS)}\n\n\n"
+        template += "def is_otc_exchange_open_brt(symbol: str, epoch_ts: float | None = None) -> bool:\n"
+        template += '    """Retorna True se o pregao base do indice OTC estiver aberto no horario de Brasilia."""\n'
+        template += "    sym = str(symbol).upper()\n"
+        template += '    if not sym.startswith("OTC_"):\n'
+        template += "        return True\n"
+        template += "    ts = float(epoch_ts) if epoch_ts is not None else time.time()\n"
+        template += "    dt = datetime.fromtimestamp(ts, tz=_BRT_TZ)\n"
+        template += "    if dt.weekday() >= 5:\n"
+        template += "        return False\n"
+        template += "    minutes = dt.hour * 60 + dt.minute\n"
+        template += "    if sym in EUROPEAN_OTC_SYMBOLS:\n"
+        template += "        return 180 <= minutes <= 810\n"
+        template += "    if sym in US_OTC_SYMBOLS:\n"
+        template += "        return 600 <= minutes <= 1080\n"
+        template += "    if sym in ASIAN_OTC_SYMBOLS:\n"
+        template += "        return minutes >= 1200 or minutes <= 300\n"
+        template += "    return True\n\n\n"
         template += "def hedge_peer(symbol: str) -> str | None:\n"
         template += '    """Retorna o simbolo par de hedge ou None quando nao ha par configurado."""\n'
         template += "    return HEDGE_PEER.get(str(symbol))\n\n\n"
