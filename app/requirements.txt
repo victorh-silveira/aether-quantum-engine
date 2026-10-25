@@ -20,4 +20,6 @@ minio>=7.2                     # SDK para integração com armazenamento de obje
 # ---- DEEP LEARNING & INFERENCIA ----
 torch==2.10.0                  # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
 scikit-learn==1.6.1            # Metricas e baselines lineares de pre-flight (sklearn.dummy, LogisticRegression)
+optuna==4.2.1                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
+joblib==1.4.2                  # Serializacao explicita e execucao paralela
 
