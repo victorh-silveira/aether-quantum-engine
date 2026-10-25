@@ -28,10 +28,6 @@ async def test_setup_execute_falls_back_to_public_and_rest(orch_config):
             AsyncMock(),
         ),
         patch(
-            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
-            return_value=False,
-        ),
-        patch(
             "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
             AsyncMock(),
         ),
@@ -90,10 +86,6 @@ async def test_otp_fallback_closes_stale_ws_before_public(orch_config):
         patch(
             "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
             AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
-            return_value=False,
         ),
         patch(
             "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",

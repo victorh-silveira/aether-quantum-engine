@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
-from src.application.services.meta_classifier_cross_symbol import ANCHOR_BEAR, ANCHOR_BULL
 from src.domain.math.probability_entropy import binary_entropy
 from src.domain.models.trade import TradeDirection
+
+
+ANCHOR_BULL = "1HZ75V"
+ANCHOR_BEAR = "1HZ75V"
 
 
 def _direction_prob(entry: dict) -> float | None:

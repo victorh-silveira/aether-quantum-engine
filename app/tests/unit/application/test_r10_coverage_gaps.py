@@ -6,10 +6,6 @@ import pytest
 from src.application.services.deep_learning.decision_bridge import _maybe_schedule_training
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
 from src.application.services.execution_mandatory_pick import _symbol_order
-from src.application.services.meta_classifier_cross_symbol import (
-    attach_cross_symbol_features_to_decisions,
-    compute_cross_symbol_triplet,
-)
 from src.application.services.orchestrator.trading_cycle_entry import _execute_inference_cluster_cycle
 from src.domain.models.trade import TradeDirection
 
@@ -118,28 +114,6 @@ def test_entropy_fallback_uses_anchor_direction_when_dl_missing(_mock_infer):
     bear = pick_entropy_fallback_candidate(["PEER_BEAR"], {"PEER_BEAR": entry})
     assert bull is not None and bull[1] == TradeDirection.CALL
     assert bear is not None and bear[1] == TradeDirection.PUT
-
-
-def test_compute_cross_symbol_triplet_zeros_when_metrics_empty():
-    metrics = _metrics(prob=0.62, rsi=58.0, vol_ratio=1.05)
-    triplet = compute_cross_symbol_triplet(metrics, metrics)
-    assert all(value == 0.0 for value in triplet.values())
-
-
-def test_attach_cross_symbol_features_uses_own_microstructure():
-    decisions = {
-        "R_10": {
-            "metrics": {
-                **_metrics(prob=0.66, rsi=60.0, vol_ratio=1.1),
-                "flow_features": {"price_velocity": 0.3, "tick_count": 60.0},
-                "indicators": {"implied_vol_ratio": 1.1},
-            }
-        },
-        "PEER_B": {"metrics": _metrics(prob=0.41, rsi=44.0, vol_ratio=0.92)},
-    }
-    attach_cross_symbol_features_to_decisions(decisions)
-    vel = decisions["R_10"]["metrics"]["cross_symbol_features"]["micro_price_velocity"]
-    assert vel == pytest.approx(0.3)
 
 
 @pytest.mark.asyncio

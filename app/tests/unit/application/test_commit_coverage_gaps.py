@@ -13,8 +13,6 @@ from src.application.services.deep_learning.dl_params import resolve_inference_h
 from src.application.services.deep_learning.dl_symbol_runtime import candle_epoch
 from src.application.services.execution_direction_resolver import _finalize_execution_metrics
 from src.application.services.execution_gate_verdict import metrics_block_execution
-from src.application.services.loss_classifier_vectors import store_loss_feature_vector
-from src.application.services.orchestrator.settlement_outcome import _feed_loss_classifier_learn
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import finalize_stake_with_min
 
@@ -71,7 +69,7 @@ def test_finalize_execution_metrics_pending_total_errors():
             TradeDirection.CALL,
             0.62,
             0.1,
-            meta_applied=False,
+            meta_applied=True,
             score=0.62,
             symbol="R_10",
             orch=orch,
@@ -101,7 +99,7 @@ def test_finalize_execution_metrics_pending_total_errors():
             TradeDirection.CALL,
             0.62,
             0.1,
-            meta_applied=False,
+            meta_applied=True,
             score=0.62,
             symbol="R_10",
             orch=orch2,
@@ -118,31 +116,3 @@ def test_metrics_block_execution_non_dict():
     assert metrics_block_execution("x") is False
     assert metrics_block_execution({"execution_candidate_ready": False}) is True
     assert metrics_block_execution({"signal_status": "SKIP:LOSS_CLF"}) is True
-
-
-def test_store_loss_feature_vector_rejects_empty():
-    orch = SimpleNamespace()
-    store_loss_feature_vector(orch, "", [1.0])
-    store_loss_feature_vector(orch, "R_10", [])
-    assert getattr(orch, "_loss_clf_vectors", {}) == {}
-
-
-def test_feed_loss_classifier_learn_skip_paths(caplog):
-    orch = MagicMock()
-    orch._loss_clf_vectors = {"R_10": [0.1] * 24, "cid:7": [0.2] * 24}
-    orch.config = {"infra": {"loss_classifier": {"enabled": True}}}
-    with patch(
-        "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
-        return_value=None,
-    ):
-        _feed_loss_classifier_learn(orch, "R_10", won=True, contract_id=7)
-    orch._loss_clf_vectors = {"R_10": [0.1] * 24, "cid:8": [0.2] * 24}
-    with (
-        patch(
-            "src.application.services.orchestrator.settlement_outcome.learn_loss_via_config_sync",
-            return_value={"skipped": True, "error": "buffer"},
-        ),
-        caplog.at_level(logging.WARNING),
-    ):
-        _feed_loss_classifier_learn(orch, "R_10", won=False, contract_id=8)
-    assert "LEARN falhou" in caplog.text

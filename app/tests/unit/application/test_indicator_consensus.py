@@ -563,9 +563,6 @@ async def test_approved_indicator_put_overrides_tcn_call_and_uses_one_percent_st
         risk_manager=risk,
         _active_cycle_id=1,
         _contract_cycle={},
-        _loss_clf_vectors={"R_25": [1.0]},
-        _loss_clf_flip_ctx={"R_25": {"flip": True}},
-        _meta_clf_vectors={"R_25": [2.0]},
         business_metrics=None,
         market_writer=None,
     )
@@ -590,9 +587,6 @@ async def test_approved_indicator_put_overrides_tcn_call_and_uses_one_percent_st
     executor._place_order.assert_awaited_once()
     assert executor._place_order.await_args.args[:3] == ("R_25", TradeDirection.PUT, 59.86)
     risk.calculate_stake.assert_not_called()
-    assert orch._loss_clf_vectors == {}
-    assert orch._loss_clf_flip_ctx == {}
-    assert orch._meta_clf_vectors == {}
 
 
 @pytest.mark.asyncio

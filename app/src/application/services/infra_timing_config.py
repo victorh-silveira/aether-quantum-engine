@@ -8,11 +8,9 @@ from typing import Any
 from aether_paths import repo_path
 from src.domain.config_knobs import (
     merge_settings_block,
-    require_bool,
     require_float,
     require_int,
     require_keys,
-    require_mapping,
 )
 
 
@@ -44,16 +42,6 @@ _HISTORY_FETCH_KEYS = (
     "rate_limit_retries",
     "rate_limit_backoff",
     "rate_limit_max_delay",
-)
-_META_SHADOW_KEYS = ("window", "min_pairs", "ready_n", "hard_corr_floor", "soft_only_corr_ceiling")
-_META_CLIENT_KEYS = (
-    "timeout_seconds",
-    "max_connections",
-    "max_keepalive_connections",
-    "online_learn",
-    "retrain_min_n",
-    "max_buffer",
-    "shadow",
 )
 
 _CACHE: dict[str, Any] = {}
@@ -135,27 +123,4 @@ def resolve_history_fetch_config(api_config: dict[str, Any] | None = None) -> di
         "rate_limit_retries": require_int(block, "rate_limit_retries"),
         "rate_limit_backoff": require_float(block, "rate_limit_backoff"),
         "rate_limit_max_delay": require_float(block, "rate_limit_max_delay"),
-    }
-
-
-def resolve_meta_classifier_infra_config(infra: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve meta classifier infra config."""
-    cfg = infra if isinstance(infra, dict) else _load_settings().get("infra")
-    parent = cfg if isinstance(cfg, dict) else {}
-    raw = require_mapping(parent, "meta_classifier", _META_CLIENT_KEYS, "infra")
-    shadow = require_keys(raw.get("shadow"), _META_SHADOW_KEYS, "infra.meta_classifier.shadow")
-    return {
-        "timeout_seconds": require_float(raw, "timeout_seconds"),
-        "max_connections": require_int(raw, "max_connections"),
-        "max_keepalive_connections": require_int(raw, "max_keepalive_connections"),
-        "online_learn": require_bool(raw, "online_learn"),
-        "retrain_min_n": require_int(raw, "retrain_min_n"),
-        "max_buffer": require_int(raw, "max_buffer"),
-        "shadow": {
-            "window": require_int(shadow, "window"),
-            "min_pairs": require_int(shadow, "min_pairs"),
-            "ready_n": require_int(shadow, "ready_n"),
-            "hard_corr_floor": require_float(shadow, "hard_corr_floor"),
-            "soft_only_corr_ceiling": require_float(shadow, "soft_only_corr_ceiling"),
-        },
     }

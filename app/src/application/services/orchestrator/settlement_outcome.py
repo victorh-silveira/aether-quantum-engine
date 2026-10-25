@@ -9,8 +9,6 @@ from src.application.services.deep_learning.dl_outcomes import record_symbol_out
 from src.application.services.direction_error_reversal import record_error_reversal_on_settlement
 from src.application.services.direction_loss_tracker import record_direction_outcome
 from src.application.services.live_signal_metrics import record_live_signal_outcome
-from src.application.services.loss_classifier_vectors import pop_loss_feature_vector, pop_loss_flip_ctx
-from src.application.services.meta_classifier_vectors import pop_meta_feature_vector
 from src.application.services.side_equilibrium_store import record_side_equilibrium_outcome
 from src.domain.risk.executed_stake_reconciliation import (
     bind_executed_stake_for_contract,
@@ -18,107 +16,9 @@ from src.domain.risk.executed_stake_reconciliation import (
     resolve_executed_buy_stake,
 )
 from src.domain.risk.stop_win_target import is_stop_win_reached, resolve_stop_win_target
-from src.infrastructure.inference.loss_classifier_pool import learn_loss_via_config_sync
-from src.infrastructure.inference.meta_classifier_pool import learn_meta_via_config_sync
 
 
 logger = logging.getLogger("AETH")
-
-
-def _feed_loss_classifier_learn(orch: Any, symbol: str, *, won: bool, contract_id: int) -> None:
-    """Envia sample WIN/LOSS ao loss-classifier (fail-open)."""
-    vector = pop_loss_feature_vector(orch, str(symbol), int(contract_id))
-    if not isinstance(vector, list) or not vector:
-        return
-    config = getattr(orch, "config", None)
-    if not isinstance(config, dict):
-        return
-    label = "WIN" if won else "LOSS"
-    result = learn_loss_via_config_sync(
-        config,
-        feature_vector=vector,
-        label=label,
-        contract_id=str(contract_id),
-        symbol=str(symbol),
-    )
-    if not isinstance(result, dict):
-        return
-    if result.get("skipped") or result.get("error"):
-        logger.warning(
-            "LOSS_CLF || LEARN falhou label=%s cid=%s detail=%s",
-            label,
-            contract_id,
-            result.get("error") or "skipped",
-        )
-        return
-    detail = (
-        f"label={label} buffer_n={result.get('buffer_n', '-')} "
-        f"retrained={1 if result.get('retrained') else 0} "
-        f"n_train={result.get('n_train', '-')} "
-        f"reason={result.get('retrain_skipped_reason') or result.get('retrain_detail') or '-'} "
-        f"detail={result.get('retrain_detail') or '-'} "
-        f"schema={str(result.get('schema_hash') or '-')[:12]} "
-        f"degenerate={1 if result.get('degenerate') else 0} "
-        f"source={result.get('source') or '-'}"
-    )
-    orch._last_loss_clf_learn = detail
-    logger.info("LOSS_CLF || LEARN %s", detail)
-    ctx = pop_loss_flip_ctx(orch, str(symbol), int(contract_id))
-    if isinstance(ctx, dict) and bool(ctx.get("flip")):
-        hit = 1 if won else 0
-        young = 1 if ctx.get("young") else 0
-        logger.info(
-            "LOSS_CLF || QUALITY flip=1 young=%d hit=%d p=%.5f pe=%.5f n=%s",
-            young,
-            hit,
-            float(ctx.get("p_loss") or 0.0),
-            float(ctx.get("p_eff") or 0.0),
-            ctx.get("n_train", "-"),
-        )
-
-
-def _feed_meta_classifier_learn(
-    orch: Any,
-    symbol: str,
-    *,
-    profit: float,
-    stake: float,
-    contract_id: int,
-) -> None:
-    """Envia sample de payoff realizado ao meta-regressor (fail-open)."""
-    vector = pop_meta_feature_vector(orch, str(symbol), int(contract_id))
-    if not isinstance(vector, list) or not vector:
-        return
-    config = getattr(orch, "config", None)
-    if not isinstance(config, dict):
-        return
-    denom = max(float(stake), 1e-9)
-    target = float(profit) / denom
-    result = learn_meta_via_config_sync(
-        config,
-        feature_vector=vector,
-        target=target,
-        contract_id=str(contract_id),
-        symbol=str(symbol),
-    )
-    if not isinstance(result, dict):
-        return
-    if result.get("skipped") or result.get("error"):
-        logger.warning(
-            "META || LEARN falhou cid=%s detail=%s",
-            contract_id,
-            result.get("error") or "skipped",
-        )
-        return
-    detail = (
-        f"target={target:+.4f} buffer_n={result.get('buffer_n', '-')} "
-        f"retrained={1 if result.get('retrained') else 0} "
-        f"detail={result.get('retrain_detail') or '-'} "
-        f"schema={str(result.get('schema_hash') or '-')[:12]} "
-        f"source={result.get('source') or '-'}"
-    )
-    orch._last_meta_clf_learn = detail
-    logger.debug("META || LEARN %s", detail)
 
 
 def process_contract_outcome(
@@ -190,6 +90,7 @@ def process_contract_outcome(
 
 def _record_directional_learning(orch, sym, c_id, profit, executed_buy, dir_name, audit_direction, audit_raw_prob):
     """Alimenta learners direcionais com settlement confirmado."""
+    _ = (c_id, executed_buy)
     record_live_signal_outcome(
         orch,
         str(sym),
@@ -205,14 +106,6 @@ def _record_directional_learning(orch, sym, c_id, profit, executed_buy, dir_name
         won=profit >= 0.0,
         raw_prob=audit_raw_prob,
         direction=dir_name or audit_direction,
-    )
-    _feed_loss_classifier_learn(orch, str(sym), won=profit >= 0.0, contract_id=int(c_id))
-    _feed_meta_classifier_learn(
-        orch,
-        str(sym),
-        profit=float(profit),
-        stake=float(executed_buy),
-        contract_id=int(c_id),
     )
     if dir_name and abs(float(profit)) > 1e-12:
         record_side_equilibrium_outcome(

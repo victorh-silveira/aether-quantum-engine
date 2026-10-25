@@ -3,10 +3,6 @@ from src.application.services.deep_learning.dl_params import (
     resolve_dl_granularity,
     resolve_train_timeframe,
 )
-from src.application.services.meta_payoff_shadow import (
-    record_meta_payoff_shadow_pair,
-    reset_meta_payoff_shadow,
-)
 
 
 def test_resolve_train_timeframe_micro_aliases():
@@ -34,25 +30,3 @@ def test_parse_dl_params_micro_uses_micro_history_bars():
     assert params["label_horizon_bars"] == 1
     assert params["label_mode"] == "spot_forward"
     assert params["contract_duration"] == 30
-
-
-def test_meta_payoff_shadow_correlation_builds_over_pairs():
-    reset_meta_payoff_shadow()
-    orch = type("O", (), {})()
-    corr = None
-    for i in range(16):
-        corr = record_meta_payoff_shadow_pair(z_score=float(i), profit=float(i) * 0.5, orch=orch)
-    assert corr is not None
-    assert corr > 0.9
-    assert orch._meta_payoff_shadow_n == 16
-    reset_meta_payoff_shadow()
-
-
-def test_meta_payoff_shadow_returns_none_on_zero_variance():
-    reset_meta_payoff_shadow()
-    orch = type("O", (), {})()
-    corr = None
-    for _ in range(16):
-        corr = record_meta_payoff_shadow_pair(z_score=1.0, profit=0.0, orch=orch)
-    assert corr is None
-    reset_meta_payoff_shadow()

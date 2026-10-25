@@ -25,10 +25,7 @@ from src.application.services.deep_learning.dl_gating import (
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.application.services.deep_learning.dl_params_blocks import parse_dynamic_threshold_config
 from src.application.services.deep_learning.dl_predict_metrics import attach_dynamic_metrics, indicators_from_series
-from src.application.services.deep_learning.dl_predict_telemetry import (
-    prepare_meta_classifier_cross_symbol_bundle,
-    stamp_micro_frame_telemetry,
-)
+from src.application.services.deep_learning.dl_predict_telemetry import stamp_micro_frame_telemetry
 from src.application.services.deep_learning.dl_symbol_runtime import guard_symbol_model
 from src.application.services.deep_learning.dl_trend import calculate_trend_direction
 from src.application.services.deep_learning.model import predict_next_direction
@@ -295,6 +292,5 @@ __all__ = (
     "eager_local_predict",
     "guard_symbol_model",
     "predict_next_direction",
-    "prepare_meta_classifier_cross_symbol_bundle",
     "stamp_micro_frame_telemetry",
 )

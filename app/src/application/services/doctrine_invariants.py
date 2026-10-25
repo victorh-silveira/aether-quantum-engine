@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.domain.config_knobs import load_settings_json, require_bool, require_float, require_int, require_keys
+from src.domain.config_knobs import load_settings_json, require_bool, require_float, require_keys
 
 
 _PRODUCTION_MIN_ACC = 0.50
@@ -48,48 +48,6 @@ def _safe_stake(risk: dict[str, Any]) -> tuple[float, float]:
         raise ValueError("risk_management.soft_recovery obrigatorio")
     require_keys(soft, ("max_safe_stake_cap", "max_safe_stake_pct"), "risk_management.soft_recovery")
     return require_float(soft, "max_safe_stake_cap"), require_float(soft, "max_safe_stake_pct")
-
-
-def _loss_hard(settings: dict[str, Any]) -> dict[str, Any]:
-    """Le knobs do loss_classifier (FLIP por p_eff no piso hard_p_loss_floor)."""
-    infra = settings.get("infra")
-    if not isinstance(infra, dict):
-        raise ValueError("infra obrigatorio")
-    block = infra.get("loss_classifier")
-    if not isinstance(block, dict):
-        raise ValueError("infra.loss_classifier obrigatorio")
-    require_keys(
-        block,
-        (
-            "veto_mode",
-            "hard_p_loss_floor",
-            "enabled",
-            "flip_trust_n",
-            "flip_young_shrink",
-            "flip_young_p_eff_floor",
-            "flip_min_n_train",
-            "bootstrap_exit_n",
-            "ready_n",
-            "retrain_min_n",
-            "retrain_on_loss_min_n",
-            "min_win_for_loss_retrain",
-        ),
-        "infra.loss_classifier",
-    )
-    return {
-        "loss_clf_enabled": require_bool(block, "enabled"),
-        "loss_clf_veto_mode": str(block["veto_mode"]).strip().lower(),
-        "loss_clf_hard_p_loss_floor": require_float(block, "hard_p_loss_floor"),
-        "loss_clf_flip_trust_n": require_int(block, "flip_trust_n"),
-        "loss_clf_flip_young_shrink": require_float(block, "flip_young_shrink"),
-        "loss_clf_flip_young_p_eff_floor": require_float(block, "flip_young_p_eff_floor"),
-        "loss_clf_flip_min_n_train": require_int(block, "flip_min_n_train"),
-        "loss_clf_bootstrap_exit_n": require_int(block, "bootstrap_exit_n"),
-        "loss_clf_ready_n": require_int(block, "ready_n"),
-        "loss_clf_retrain_min_n": require_int(block, "retrain_min_n"),
-        "loss_clf_retrain_on_loss_min_n": require_int(block, "retrain_on_loss_min_n"),
-        "loss_clf_min_win_for_loss_retrain": require_int(block, "min_win_for_loss_retrain"),
-    }
 
 
 def _recovery_timing(settings: dict[str, Any], risk: dict[str, Any]) -> dict[str, Any]:
@@ -170,6 +128,9 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
     dl = full.get("deep_learning")
     if not isinstance(dl, dict) or "online_training" not in dl:
         raise ValueError("deep_learning.online_training obrigatorio")
+    infra = full.get("infra")
+    if not isinstance(infra, dict):
+        raise ValueError("infra obrigatorio")
     cap, pct = _safe_stake(risk)
     resolved: dict[str, Any] = {
         "force_trade_every_cycle": require_bool(execution, "force_trade_every_cycle"),
@@ -186,7 +147,6 @@ def load_doctrine_invariants(settings: dict[str, Any] | None = None) -> dict[str
         "explore_stake_scale_floor": _explore_floor(execution),
         "max_safe_stake_cap": float(cap),
         "max_safe_stake_pct": float(pct),
-        **_loss_hard(full),
         **_recovery_timing(full, risk),
     }
     if use_cache:
@@ -235,8 +195,6 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         raise ValueError("scale_vision.adapt_explos_max_tcn_edge deve ser 0.05")
     if "adapt_soft_margin" in scale:
         raise ValueError("scale_vision.adapt_soft_margin removido (retract adapta sem freio de margem)")
-    _eq_int(inv, "loss_clf_bootstrap_exit_n", 2, "loss_classifier.bootstrap_exit_n deve ser 2")
-    _eq_int(inv, "loss_clf_flip_min_n_train", 1, "loss_classifier.flip_min_n_train deve ser 1")
     for key, msg in (
         ("force_trade_every_cycle", "force_trade_every_cycle deve ser false na doutrina de producao"),
         ("mandatory_trade_each_cycle", "mandatory_trade_each_cycle deve ser false na doutrina de producao"),
@@ -249,21 +207,7 @@ def assert_production_doctrine(settings: dict[str, Any] | None = None) -> dict[s
         ("skip_neg_edge", "skip_neg_edge deve ser false na doutrina de producao"),
     ):
         _eq_bool(inv, key, expected=False, msg=msg)
-    for key, msg in (
-        ("loss_clf_enabled", "loss_classifier.enabled deve ser true"),
-        ("cover_enabled", "cover_enabled deve ser true (cover soft capped)"),
-    ):
-        _eq_bool(inv, key, expected=True, msg=msg)
-    if inv["loss_clf_veto_mode"] != "hard":
-        raise ValueError("loss_classifier.veto_mode deve ser hard")
-    _eq_float(inv, "loss_clf_hard_p_loss_floor", 0.70, "loss_classifier.hard_p_loss_floor deve ser 0.70")
-    _eq_int(inv, "loss_clf_flip_trust_n", 64, "loss_classifier.flip_trust_n deve ser 64")
-    _eq_float(inv, "loss_clf_flip_young_shrink", 0.50, "loss_classifier.flip_young_shrink deve ser 0.50")
-    _eq_float(inv, "loss_clf_flip_young_p_eff_floor", 0.58, "loss_classifier.flip_young_p_eff_floor deve ser 0.58")
-    _eq_int(inv, "loss_clf_ready_n", 32, "loss_classifier.ready_n deve ser 32")
-    _eq_int(inv, "loss_clf_retrain_min_n", 12, "loss_classifier.retrain_min_n deve ser 12")
-    _eq_int(inv, "loss_clf_retrain_on_loss_min_n", 12, "loss_classifier.retrain_on_loss_min_n deve ser 12")
-    _eq_int(inv, "loss_clf_min_win_for_loss_retrain", 4, "loss_classifier.min_win_for_loss_retrain deve ser 4")
+    _eq_bool(inv, "cover_enabled", expected=True, msg="cover_enabled deve ser true (cover soft capped)")
     _eq_int(inv, "watchdog_stale_tick_seconds", 300, "watchdog_stale_tick_seconds deve ser 300")
     _eq_int(inv, "settlement_tolerance_window_seconds", 600, "settlement_tolerance_window_seconds deve ser 600")
     _eq_int(inv, "post_settlement_is_trading_wait_seconds", 90, "post_settlement_is_trading_wait_seconds deve ser 90")

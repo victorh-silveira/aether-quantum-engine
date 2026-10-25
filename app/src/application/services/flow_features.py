@@ -1,4 +1,4 @@
-"""Features de velocidade de fluxo micro para o meta-classificador tabular."""
+"""Features de velocidade de fluxo micro a partir de OHLC e ticks."""
 
 from __future__ import annotations
 
@@ -53,14 +53,9 @@ def flow_features_from_micro_series(
     )
     keltner_pct = float(series["keltner_pct_b"][-1]) if len(series.get("keltner_pct_b", [])) > 0 else 0.5
     keltner_deviation_ratio = keltner_pct - 0.5
-    tail = closes[-6:] if len(closes) >= 6 else closes
+    tail = closes[-6:]
     deltas = np.diff(tail.astype(np.float64))
-    if len(deltas) >= 2:
-        v1 = deltas[:-1]
-        v2 = deltas[1:]
-        micro_tick_acceleration = float(np.mean(v2 - v1))
-    else:
-        micro_tick_acceleration = 0.0
+    micro_tick_acceleration = float(np.mean(deltas[1:] - deltas[:-1]))
     return {
         "micro_tick_acceleration": micro_tick_acceleration,
         "keltner_deviation_ratio": keltner_deviation_ratio,

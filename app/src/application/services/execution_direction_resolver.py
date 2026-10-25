@@ -26,20 +26,34 @@ from src.application.services.execution_side_eq_sizing import apply_side_eq_kell
 from src.application.services.execution_signal_skips import should_skip_acc_floor, should_skip_neg_edge
 from src.application.services.force_trade_mode import force_trade_every_cycle
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft, attach_live_signal_metrics
-from src.application.services.loss_classifier_gate import apply_loss_classifier_gate
-from src.application.services.loss_classifier_gate_support import stamp_loss_clf_flip_ctx
-from src.application.services.meta_classifier_stacking import resolve_meta_payoff_edge
-from src.application.services.meta_payoff_regression import apply_meta_regression_edge
 from src.application.services.payoff_edge_zscore import attach_payoff_edge_zscore_metrics
 from src.application.services.rise_fall_quote_guard import flip_candidate_has_edge
 from src.domain.models.trade import TradeDirection
 
 
 __all__ = (
+    "apply_loss_classifier_gate",
+    "apply_meta_regression_edge",
     "infer_dl_direction",
     "is_technically_blocked",
     "resolve_execution_direction",
+    "stamp_loss_clf_flip_ctx",
 )
+
+
+def apply_loss_classifier_gate(*_args: Any, **_kwargs: Any) -> bool:
+    """Compatibilidade no-op apos remocao do loss-classifier."""
+    return False
+
+
+def stamp_loss_clf_flip_ctx(*_args: Any, **_kwargs: Any) -> None:
+    """Compatibilidade no-op apos remocao do loss-classifier."""
+
+
+def apply_meta_regression_edge(direction: TradeDirection, *args: Any, **kwargs: Any) -> tuple[TradeDirection, float]:
+    """Compatibilidade no-op apos remocao do meta-classifier."""
+    _ = (args, kwargs)
+    return direction, float(kwargs.get("base_score") or 0.5)
 
 
 def _finalize_execution_metrics(
@@ -67,6 +81,9 @@ def _finalize_execution_metrics(
         metrics.pop("signal_status", None)
         metrics["force_trade_every_cycle"] = True
     metrics["meta_veto_mode"] = "none"
+    metrics["meta_applied"] = bool(meta_applied)
+    if meta_applied:
+        metrics["predicted_payoff_edge"] = float(predicted_edge)
     metrics["tcn_direction"] = dl_dir.name
     metrics.update(
         {
@@ -228,7 +245,7 @@ def resolve_execution_direction(
     orch: Any | None = None,
 ) -> tuple[TradeDirection, dict] | None:
     """Resolve direcao: TCN + FLIP loss-clf; telemetria meta sem soft Kelly."""
-    _ = (calibration_cfg, corr_matrix, recovery_active, peer_entry, risk_manager, skipped_cycles_counter)
+    _ = (calibration_cfg, corr_matrix, recovery_active, peer_entry, risk_manager, skipped_cycles_counter, infra_cfg)
     exec_cfg_dict = exec_cfg if isinstance(exec_cfg, dict) else {}
     force = force_trade_every_cycle(exec_cfg_dict)
     active_cycle = int(cycle_id or 0)
@@ -254,14 +271,7 @@ def resolve_execution_direction(
         stamp_direction_resolved_cycle(entry, active_cycle)
         return None
     score = seed_direction_metrics(metrics, dl_dir=dl_dir, prob=prob)
-    predicted_edge, meta_applied = resolve_meta_payoff_edge(
-        symbol=symbol,
-        metrics=metrics,
-        direction=dl_dir,
-        tcn_probability=prob,
-        _base_score=score,
-        config={"infra": infra_cfg} if infra_cfg else None,
-    )
+    predicted_edge, meta_applied = 0.0, False
     if metrics.get("meta_payoff_edge_zscore") is None and metrics.get("edge_zscore") is None:
         attach_payoff_edge_zscore_metrics(
             metrics, float(metrics.get("predicted_payoff_edge", predicted_edge)), symbol=symbol

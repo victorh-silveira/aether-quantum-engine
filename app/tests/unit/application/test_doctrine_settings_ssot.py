@@ -24,19 +24,8 @@ def test_production_settings_pass_doctrine_invariants():
     assert inv["explore_stake_scale_floor"] == pytest.approx(0.40)
     assert inv["max_safe_stake_cap"] > 0.0
     assert inv["max_safe_stake_pct"] > 0.0
-    assert inv["loss_clf_veto_mode"] == "hard"
-    assert float(inv["loss_clf_hard_p_loss_floor"]) == pytest.approx(0.70)
-    assert int(inv["loss_clf_flip_trust_n"]) == 64
-    assert float(inv["loss_clf_flip_young_shrink"]) == pytest.approx(0.50)
-    assert float(inv["loss_clf_flip_young_p_eff_floor"]) == pytest.approx(0.58)
-    assert int(inv["loss_clf_flip_min_n_train"]) == 1
-    assert int(inv["loss_clf_bootstrap_exit_n"]) == 2
     assert inv["cover_enabled"] is True
     assert float(inv["cover_multiple"]) == pytest.approx(1.0)
-    assert int(inv["loss_clf_ready_n"]) == 32
-    assert int(inv["loss_clf_retrain_min_n"]) == 12
-    assert int(inv["loss_clf_retrain_on_loss_min_n"]) == 12
-    assert int(inv["loss_clf_min_win_for_loss_retrain"]) == 4
 
 
 def test_production_checkpoint_policy():
@@ -127,33 +116,10 @@ def test_production_logging_ssot():
     assert cfg["level"] == 20
 
 
-def test_production_loss_classifier_flip_floor_ssot():
+def test_production_runtime_execution_ssot():
     from src.domain.config_knobs import load_settings_json
-    from src.infrastructure.inference.loss_classifier_client import resolve_loss_classifier_config
 
     settings = load_settings_json()
-    block = settings["infra"]["loss_classifier"]
-    assert str(block["veto_mode"]).strip().lower() == "hard"
-    assert float(block["hard_p_loss_floor"]) == pytest.approx(0.70)
-    assert int(block["flip_trust_n"]) == 64
-    assert float(block["flip_young_shrink"]) == pytest.approx(0.50)
-    assert float(block["flip_young_p_eff_floor"]) == pytest.approx(0.58)
-    assert int(block["flip_min_n_train"]) == 1
-    assert int(block["bootstrap_exit_n"]) == 2
-    assert "flip_require_auto_learn" not in block
-    assert "soft_kelly_mult" not in block
-    assert "veto_p_loss_floor" not in block
-    resolved = resolve_loss_classifier_config(None)
-    assert resolved["veto_mode"] == "hard"
-    assert resolved["hard_p_loss_floor"] == pytest.approx(0.70)
-    assert resolved["flip_trust_n"] == 64
-    assert resolved["flip_young_shrink"] == pytest.approx(0.50)
-    assert resolved["flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert int(resolved["flip_min_n_train"]) == 1
-    assert int(resolved["bootstrap_exit_n"]) == 2
-    assert int(block["ready_n"]) == 32
-    assert int(block["retrain_min_n"]) == 12
-    assert int(block["min_win_for_loss_retrain"]) == 4
     assert bool(settings["orchestrator"]["execution"]["allow_undeployed"]) is False
     soft_rec = settings["risk_management"]["soft_recovery"]
     assert bool(soft_rec["cover_enabled"]) is True

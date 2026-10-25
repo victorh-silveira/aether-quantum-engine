@@ -19,14 +19,11 @@ def test_production_single_strike_and_loss_clf_hard_ssot():
     settings = load_settings_json()
     params = settings["risk_management"]["params"]
     kelly = settings["risk_management"]["kelly"]
-    loss_clf = settings["infra"]["loss_classifier"]
     assert float(kelly["stop_win_kelly_min_fraction"]) == pytest.approx(1.0)
     assert float(kelly["stop_win_kelly_max_fraction"]) == pytest.approx(1.0)
     assert float(kelly["stop_win_kelly_min_conviction"]) == pytest.approx(0.58)
     assert int(kelly["stop_win_kelly_live_n_min"]) == 12
     assert float(params["compounding_rate_daily"]) == pytest.approx(0.015)
-    assert float(loss_clf["hard_p_loss_floor"]) == pytest.approx(0.70)
-    assert str(loss_clf["veto_mode"]).lower() == "hard"
     single_strike = float(params["compounding_rate_daily"]) / float(params["payout_estimate"])
     assert single_strike == pytest.approx(0.015 / 0.85)
     assert single_strike == pytest.approx(0.0176470588)

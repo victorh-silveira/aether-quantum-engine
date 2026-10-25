@@ -13,7 +13,6 @@ from src.application.services.market_audit_log import (
     resolve_settlement_tag,
     resolve_stake_audit_context,
 )
-from src.application.services.meta_payoff_shadow import record_meta_payoff_shadow_pair
 from src.application.services.orchestrator.graceful_shutdown import graceful_shutdown
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
 from src.application.services.orchestrator.result_utils import api_settlement_label
@@ -198,7 +197,6 @@ async def _process_late_settlement_once(orch: Any, poc: dict, c_id: int) -> None
     contract_cycle = int(orch._contract_cycle.get(c_id, 0) or getattr(orch, "_last_result_cycle_id", 0) or 0)
     sym = orch.risk_manager.contract_to_symbol.get(c_id, poc.get("underlying", "UNK"))
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
-    record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     async with orchestrator_atomic_state_context(orch):
         _process_contract_outcome(orch, poc, None, c_id, profit, audit_direction=direction, audit_raw_prob=raw_prob)
@@ -233,7 +231,6 @@ async def _process_confirmed_settlement(orch: Any, data: dict, contract: Any) ->
     )
     _, direction, edge, z_score, raw_prob = pop_contract_audit(orch, c_id)
     await record_settlement_audit(orch, c, contract, str(sym), signal_prob=raw_prob)
-    record_meta_payoff_shadow_pair(z_score=z_score, profit=profit, orch=orch)
     linear_before = int(getattr(orch.risk_manager, "consecutive_losses_linear", 0) or 0)
     async with orchestrator_atomic_state_context(orch):
         await _complete_contract_settlement(

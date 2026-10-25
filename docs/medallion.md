@@ -64,9 +64,9 @@ Operação: contratos **RISE_FALL** de **5 m** (CALL = alta no período do contr
 
 ### 2.2 Telemetria de Volatilidade, Exaustão e Fluxo Micro
 
-Indicadores micro de **300 s** (M5) (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) alimentam o container `aether-meta-classifier` (porta **8005**) via vetor **23D**, indexados na resolução amostral micro do TimescaleDB. O `LGBMRegressor` (huber) estima `predicted_payoff_edge` contínuo; o resolver preserva score orgânico da TCN quando o edge é positivo e aciona downgrade D-SQUEEZE quando o edge colapsa em microestrutura. Nos settings atuais, meta é **opcional** para execução.
+Indicadores micro de **300 s** (M5) (RSI, `vol_ratio`, Keltner, `bb_width`, aceleração de ticks, shadow de volatilidade e momentum de spread) são calculados localmente e indexados na resolução amostral micro do TimescaleDB.
 
-**Spread de convicção de microestrutura** (triplet anexado em `prepare_meta_classifier_cross_symbol_bundle`; universo `1HZ75V`, sem peer):
+**Spread de convicção de microestrutura**:
 
 | Feature | Descrição |
 |---------|-----------|
@@ -137,10 +137,8 @@ Ordem lógica de uma entrada:
 2. **Dados** — histórico suficiente (`gate_reason=data`).
 3. **Treinamento** — modelo do símbolo treinado na sessão (`gate_reason=training`).
 4. **Predição DL** — inferência eager/CUDA local; `raw_prob`/`calibrated_prob` e indicadores calculados.
-5. **Bundle cross-symbol** — `prepare_meta_classifier_cross_symbol_bundle` coleta telemetria micro em paralelo e anexa spreads cross-symbol.
-6. **Stacking tabular** — `MetaClassifierClient` envia probabilidade TCN + vetor **23D** ao `aether-meta-classifier`; retorna `predicted_payoff_edge` (opcional para execução).
-7. **Calibração** — `dl_calibration_tolerance`: zona neutra ON (`neutral_half_width: 0.04`); override TCN macro em raw extremos.
-8. **Resolução direcional** — `execution_direction_resolver` + `execution_direction_checks` + `meta_payoff_regression`: edge positivo preserva TCN; edge `< -0.15` em squeeze rebaixa `trade_score=0.52` (`[D-SQUEEZE]`); `ensure_direction_margin` expõe margem corrigida.
+5. **Calibração** — `dl_calibration_tolerance`: zona neutra ON (`neutral_half_width: 0.04`); override TCN macro em raw extremos.
+6. **Resolução direcional** — `execution_direction_resolver` + `execution_direction_checks`: preserva confluência institucional e margem mínima.
 9. **Gate de qualidade** — dual soft TCN+meta + HARD microestrutura; starvation a partir de **6** skips; stubs sniper não vetam.
 10. **Z-Score meta** — `attach_payoff_edge_zscore_metrics` anexa `meta_payoff_edge_zscore` / `edge_zscore` para ranking e gate.
 11. **Checkpoint** — pesos, normalização e geometria são validados; um checkpoint local compatível opera com teto inicial de 1% da banca por ordem, inclusive em recuperação.

@@ -1,14 +1,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import patch
 
 import pytest
 
-from src.application.services.execution_direction_resolver import _finalize_execution_metrics
 from src.application.services.execution_symbols import symbols_eligible_for_execution
-from src.application.services.meta_payoff_regression import apply_meta_regression_edge
-from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
 from src.domain.risk.dlambert_sizing import resolve_dlambert_stake
 from src.domain.risk.executed_stake_reconciliation import apply_fractional_payoff_residual_to_pending
@@ -158,76 +154,6 @@ def test_resolve_dlambert_stake_near_target_keeps_cover_with_pend():
     assert stake == pytest.approx(12.0 / 0.95, rel=1e-2)
     assert metrics.get("recovery_force_explore") is not True
     assert metrics.get("recovery_cap_mode") == "cover_l0"
-
-
-def test_meta_negative_edge_keeps_weak_call_side():
-    metrics = {"calibrated_prob": 0.51, "indicators": {"bb_width": 0.12}}
-    direction, score = apply_meta_regression_edge(
-        TradeDirection.CALL,
-        metrics,
-        -0.12,
-        meta_applied=True,
-        base_score=0.51,
-        symbol="R_10",
-    )
-    assert direction == TradeDirection.CALL
-    assert score == pytest.approx(0.51)
-    assert metrics.get("meta_negative_edge") is True
-
-
-def test_meta_negative_edge_keeps_direction_without_flip():
-    metrics = {"calibrated_prob": 0.51}
-    direction, score = apply_meta_regression_edge(
-        TradeDirection.CALL,
-        metrics,
-        -0.08,
-        meta_applied=True,
-        base_score=0.51,
-    )
-    assert direction == TradeDirection.CALL
-    assert score == pytest.approx(0.51)
-    assert metrics.get("meta_negative_edge") is True
-
-
-def test_resolve_execution_direction_allows_meta_negative_edge_without_force():
-    entry = {
-        "direction": TradeDirection.CALL,
-        "metrics": {
-            "execute": True,
-            "deploy_ok": True,
-            "raw_prob": 0.65,
-            "calibrated_prob": 0.65,
-            "val_accuracy": 0.55,
-            "predicted_payoff_edge": -0.10,
-            "meta_classifier_applied": True,
-            "trade_score": 0.51,
-        },
-    }
-    metrics = entry["metrics"]
-
-    def _keep_edge(dl_dir, metrics_arg, predicted_edge, **kwargs):
-        metrics_arg["meta_negative_edge"] = True
-        return dl_dir, float(kwargs.get("base_score", 0.51))
-
-    with patch(
-        "src.application.services.execution_direction_resolver.apply_meta_regression_edge",
-        side_effect=_keep_edge,
-    ):
-        result = _finalize_execution_metrics(
-            entry,
-            metrics,
-            TradeDirection.CALL,
-            0.65,
-            -0.10,
-            meta_applied=True,
-            score=0.51,
-            symbol="R_10",
-            force=False,
-        )
-        assert result is not None
-        assert result[0] == TradeDirection.CALL
-    assert metrics.get("execution_candidate_ready") is True
-    assert metrics.get("gate_reason") != "neg_edge"
 
 
 def test_include_anchor_trades_true_keeps_anchor_eligible():

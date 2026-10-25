@@ -265,8 +265,6 @@ class BusinessMetricsInstrumentor:
                 f'aether_inference_prob{{symbol="{sym}"}} {round(d["prob"], 4)}',
                 f'aether_inference_directional_margin{{symbol="{sym}"}} {round(d["margin"], 4)}',
                 f'aether_inference_conviction{{symbol="{sym}"}} {round(d["conviction"], 4)}',
-                f'aether_loss_classifier_p_loss{{symbol="{sym}"}} {round(d["p_loss"], 4)}',
-                f'aether_loss_classifier_flip_active{{symbol="{sym}"}} {int(d["is_flip"])}',
                 f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(d["anti_trend_lock"])}',
                 f'aether_trading_direction{{symbol="{sym}"}} {round(d["direction_num"], 1)}',
                 f'aether_trading_stake_usd{{symbol="{sym}"}} {round(d["stake_usd"], 2)}',
@@ -275,8 +273,6 @@ class BusinessMetricsInstrumentor:
                 lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(d["cal"], 4)}')
             if d["edge"] is not None:
                 lines.append(f'aether_inference_payoff_edge{{symbol="{sym}"}} {round(d["edge"], 4)}')
-            if d["p_eff"] is not None:
-                lines.append(f'aether_loss_classifier_p_eff{{symbol="{sym}"}} {round(d["p_eff"], 4)}')
 
         for contract_id, (sym, direction, probability, epoch) in self._indicator_contracts.items():
             lbl = f'symbol="{sym}",contract_id="{contract_id}"'

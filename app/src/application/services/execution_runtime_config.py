@@ -51,16 +51,6 @@ _EDGE_ZSCORE_KEYS = (
     "std_eps",
     "turbo_threshold",
 )
-_META_VETO_KEYS = (
-    "negative_zscore_threshold",
-    "neutral_edge_floor",
-    "soft_veto_score_factor",
-    "soft_veto_min_score",
-    "soft_veto_strong_edge",
-    "soft_veto_strong_factor",
-    "soft_veto_sat_cal_edge_max",
-    "squeeze_trade_score",
-)
 _REGIME_KEYS = ("chop_congestion_z_edge", "tick_accel_neutral_eps")
 _VOL_BOOST_KEYS = ("mandatory_score", "min_edge")
 _FORCE_KEYS = ("min_trade_score", "stake_min_floor", "stake_min_default", "direction_split")
@@ -197,12 +187,6 @@ def resolve_edge_zscore_runtime(exec_cfg: dict[str, Any] | None = None) -> dict[
         "std_eps": require_float(raw, "std_eps"),
         "turbo_threshold": require_float(raw, "turbo_threshold"),
     }
-
-
-def resolve_meta_payoff_veto_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve ou aplica resolve meta payoff veto config."""
-    raw = require_mapping(_execution_block(exec_cfg), "meta_payoff_veto", _META_VETO_KEYS, "orchestrator.execution")
-    return {k: require_float(raw, k) for k in _META_VETO_KEYS}
 
 
 def resolve_regime_micro_freeze_config(exec_cfg: dict[str, Any] | None = None) -> dict[str, Any]:

@@ -187,9 +187,6 @@ def test_business_metrics_instrumentor_inference_radar():
     assert 'aether_inference_directional_margin{symbol="1HZ75V"} 0.08' in payload
     assert 'aether_inference_payoff_edge{symbol="1HZ75V"} 0.045' in payload
     assert 'aether_inference_conviction{symbol="1HZ75V"} 0.7' in payload
-    assert 'aether_loss_classifier_p_loss{symbol="1HZ75V"} 0.35' in payload
-    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"} 0.65' in payload
-    assert 'aether_loss_classifier_flip_active{symbol="1HZ75V"} 1' in payload
     assert 'aether_anti_trend_lock_active{symbol="1HZ75V"} 0' in payload
 
 
@@ -206,19 +203,17 @@ def test_business_metrics_instrumentor_radar_put_and_empty_metrics():
     assert 'aether_trading_stake_usd{symbol="1HZ75V"} 2.0' in payload
     assert 'aether_inference_calibrated{symbol="1HZ75V"}' not in payload
     assert 'aether_inference_payoff_edge{symbol="1HZ75V"}' not in payload
-    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"}' not in payload
 
 
 def test_business_metrics_instrumentor_uses_execution_metric_names():
     instrumentor = BusinessMetricsInstrumentor()
     instrumentor.record_inference_radar(
         symbol="1HZ75V",
-        metrics={"calibrated_prob": 0.61, "predicted_payoff_edge": -0.02, "loss_clf_p_eff": 0.72},
+        metrics={"calibrated_prob": 0.61, "predicted_payoff_edge": -0.02},
     )
     payload = instrumentor.format_prometheus_metrics()
     assert 'aether_inference_calibrated{symbol="1HZ75V"} 0.61' in payload
     assert 'aether_inference_payoff_edge{symbol="1HZ75V"} -0.02' in payload
-    assert 'aether_loss_classifier_p_eff{symbol="1HZ75V"} 0.72' in payload
 
 
 def test_confirmed_contract_uses_its_side_probability_and_direction():
@@ -256,7 +251,6 @@ def test_radar_uses_raw_probability_and_quoted_edge():
     assert 'aether_inference_prob{symbol="1HZ75V"} 0.64' in payload
     assert 'aether_inference_directional_margin{symbol="1HZ75V"} 0.13' in payload
     assert 'aether_inference_payoff_edge{symbol="1HZ75V"} 0.12' in payload
-    assert 'aether_loss_classifier_p_loss{symbol="1HZ75V"} 0.42' in payload
 
 
 def test_business_metrics_instrumentor_flat_and_trade_variants():

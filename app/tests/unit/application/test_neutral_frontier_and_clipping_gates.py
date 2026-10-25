@@ -7,12 +7,6 @@ import pytest
 
 from src.application.services.deep_learning.dl_feature_oscillators import rolling_zscore_1024_fast
 from src.application.services.execution_direction_resolver import resolve_execution_direction
-from src.application.services.meta_classifier_cross_symbol import META_FEATURE_DIM
-from src.application.services.meta_classifier_features import (
-    clip_feature_zscore,
-    extract_meta_feature_vector,
-)
-from src.application.services.meta_payoff_regression import CALIBRATION_NEUTRAL_DRIFT
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.consensus_stake_penalty import max_safe_stake_cap
 from src.domain.risk.risk_recovery_state import (
@@ -22,12 +16,6 @@ from src.domain.risk.risk_recovery_state import (
 )
 
 
-def test_clip_feature_zscore_saturates_at_three() -> None:
-    assert clip_feature_zscore(4.16) == 3.0
-    assert clip_feature_zscore(-5.0) == -3.0
-    assert clip_feature_zscore(1.25) == pytest.approx(1.25)
-
-
 def test_rolling_zscore_1024_fast_clips_ood_spikes() -> None:
     series = np.ones(1024, dtype=np.float64)
     series[-1] = 50.0
@@ -35,38 +23,6 @@ def test_rolling_zscore_1024_fast_clips_ood_spikes() -> None:
     assert float(np.max(z)) <= 3.0
     assert float(np.min(z)) >= -3.0
     assert z[-1] == pytest.approx(3.0)
-
-
-def test_extract_meta_feature_vector_rigid_dim_and_micro_zscore_clip() -> None:
-    metrics = {
-        "feature_vector": [0.0] * 14,
-        "flow_features": {
-            "micro_bid_ask_spread_momentum": 0.12,
-            "micro_bid_ask_spread_momentum_zscore": 4.8,
-            "volatility_shadow_ratio": 0.31,
-            "volatility_shadow_ratio_zscore": -3.7,
-        },
-        "cross_symbol_features": {
-            "micro_price_velocity": 0.1,
-            "micro_tick_count_norm": 0.0,
-            "implied_vol_centered": -0.2,
-        },
-    }
-    vector = extract_meta_feature_vector(metrics)
-    assert len(vector) == META_FEATURE_DIM == 23
-    assert vector[15] == 3.0
-    assert vector[17] == -3.0
-    assert metrics["meta_feature_vector"] is vector
-
-
-def test_extract_meta_feature_vector_reclips_cached_payload() -> None:
-    cached = [0.0] * META_FEATURE_DIM
-    cached[15] = 9.0
-    cached[17] = -9.0
-    metrics = {"meta_feature_vector": cached}
-    vector = extract_meta_feature_vector(metrics)
-    assert vector[15] == 3.0
-    assert vector[17] == -3.0
 
 
 @pytest.mark.parametrize(
@@ -93,7 +49,7 @@ def test_resolve_execution_direction_calibration_neutral_drift_veto(
     result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
     assert entry["metrics"].get("resolved_direction") is not None
-    assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
+    assert entry["metrics"].get("gate_reason") != "calibration_neutral_drift"
 
 
 def test_resolve_execution_direction_allows_same_side_calibration() -> None:
@@ -111,7 +67,7 @@ def test_resolve_execution_direction_allows_same_side_calibration() -> None:
     }
     result = resolve_execution_direction(entry, symbol="R_10")
     assert result is not None
-    assert entry["metrics"].get("gate_reason") != CALIBRATION_NEUTRAL_DRIFT
+    assert entry["metrics"].get("gate_reason") != "calibration_neutral_drift"
 
 
 def test_cointegration_redirect_armed_at_fifteen_percent_of_live_capital() -> None:

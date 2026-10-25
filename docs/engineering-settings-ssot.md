@@ -15,7 +15,6 @@
 | `orchestrator.execution` | Ciclo M5, quatro vetos extremos, sem vetos redundantes de ruído/tendência/conformal/compressão, `force_trade_every_cycle=false`, `require_quote_edge=true`, `min_payout_rate=0` |
 | `risk_management.kelly` | Kelly fracionário; payout de referência 0,85; stop win 4,31% |
 | `risk_management.soft_recovery` | `cover_enabled=true`, `cover_multiple=1.0`, amortização 1/1, cap `cover_l0` 3,5% antes do teto do checkpoint |
-| `infra.loss_classifier` | FLIP após auto aprendizado, `flip_min_n_train=1`, jovem `p_eff>=0.58`, maduro `p_eff>=0.70` |
 
 O checkpoint passa por verificação técnica de pesos, normalização e geometria. Não existe qualificação estatística de deploy. Um checkpoint inválido impede a operação. Com checkpoint válido, o teto de 1% é aplicado também a `cover_l0`, na preparação do cluster e imediatamente antes da proposta. Limites menores ainda podem reduzir a stake.
 

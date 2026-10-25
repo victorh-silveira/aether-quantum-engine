@@ -497,3 +497,16 @@ def test_closed_candles_slice_drops_forming_bar():
     cur_open = int(bars[-1].epoch)
     sliced = orders._closed_candles_slice(bars, 900, float(cur_open + 5))
     assert len(sliced) == 54
+
+
+def test_set_indicator_duration_allowed_period_pass():
+    params = {}
+    metrics = {
+        "indicator_controls_execution": True,
+        "indicator_model_version": "pullback-1-v15",
+        "indicator_period_seconds": 900,
+        "allowed_period_seconds": 900,
+    }
+    set_indicator_duration(params, metrics)
+    assert params["duration"] == 15
+    assert params["duration_unit"] == "m"

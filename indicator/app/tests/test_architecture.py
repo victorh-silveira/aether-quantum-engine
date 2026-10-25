@@ -88,7 +88,8 @@ def test_root_make_starts_unified_stack_and_trains_in_order():
     assert "docker-up" in training and "indicator-train" in training
     assert "train_loss_classifier" not in training
     research = makefile.split("\napp-research-ml:\n", 1)[1].split("\nindicator-up:", 1)[0]
-    assert "train_loss_classifier" in research and "train_meta_classifier.py" in research
+    assert "train.py" in research and "check_dl_checkpoint.py" in research
+    assert "train_loss_classifier" not in research and "train_meta_classifier" not in research
     assert "app-train-all: app-train" in makefile
     assert "lint: app-lint" in makefile
     assert "test: app-test" in makefile
@@ -119,9 +120,11 @@ def test_root_make_starts_unified_stack_and_trains_in_order():
     assert "id: python-security" in hooks
     assert "id: python-test" in hooks
     assert "id: workflows-lint" in hooks
-    assert "resolve_dl_train_symbols" in (root / "app/scripts/operations/train_meta_classifier.py").read_text()
+    assert (
+        "resolve_dl_train_symbols" in (root / "app/src/application/services/orchestrator/config_symbols.py").read_text()
+    )
     assert "$(MAKE) -C .. app-train" in (root / "indicator/Makefile").read_text()
-    assert "DOCKER_PROFILES ?= core,ml,telemetry,indicator" in makefile
+    assert "DOCKER_PROFILES ?= core,telemetry,indicator" in makefile
     assert "127.0.0.1:5432/aether" in (root / "indicator/config/settings.json").read_text()
 
 

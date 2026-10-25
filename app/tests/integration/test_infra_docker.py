@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import socket
 import urllib.error
 import urllib.request
@@ -24,29 +23,21 @@ def test_compose_base_has_hardening_and_localhost_binds():
     assert "127.0.0.1:6379:6379" in text
     assert "127.0.0.1:5432:5432" in text
     assert "127.0.0.1:9000:9000" in text
-    assert "127.0.0.1:8005:8000" in text
-    assert "127.0.0.1:8006:8000" in text
+    assert "127.0.0.1:9102:9101" in text
+    assert "127.0.0.1:8005:8000" not in text
+    assert "127.0.0.1:8006:8000" not in text
     assert "mem_limit: 256m" in text
     assert "mem_swappiness: 0" in text
     assert "no-new-privileges:true" in text
     assert "cap_drop:" in text
     assert "- ALL" in text
-    assert "read_only: true" in text
-    assert "tmpfs:" in text
     assert "nofile:" in text
     assert "gpus:" not in text
     assert "aether-triton" not in text
     assert "profiles: [core]" in text
-    assert "profiles: [ml]" in text
     assert "condition: service_healthy" in text
-    assert "condition: service_completed_successfully" in text
-    assert "minio-init:" in text
-    assert 'aether.oneshot: "true"' in text
-    assert 'OMP_NUM_THREADS: "2"' in text
-    assert 'MKL_NUM_THREADS: "2"' in text
     assert '["server", "/data", "--console-address", ":9001"]' in text
     assert "pgsty/minio:RELEASE.2026-08-04T00-00-00Z" in text
-    assert "pgsty/mc:RELEASE.2026-08-04T00-00-00Z" in text
     assert "minio/minio:" not in text
     assert "minio/mc:" not in text
 
@@ -111,13 +102,6 @@ def test_contract_audit_m5_migration_matches_active_horizon():
     assert "observed_duration_seconds" in sql
 
 
-def test_minio_init_script_bucket_ilm():
-    script = _resolve_infra_file("sh", "minio-init.sh").read_text(encoding="utf-8")
-    assert "dl-models" in script
-    assert "optuna/" in script
-    assert "mc ilm import" in script
-
-
 def test_docker_hydrate_uses_configured_anchor_m5_d1():
     script = _resolve_infra_file("sh", "docker-hydrate.sh").read_text(encoding="utf-8")
     assert "config/settings.json" in script
@@ -154,55 +138,15 @@ def test_makefile_docker_logs_defaults_running_services():
     assert "minio-init" not in text.split("DOCKER_LOGS_SERVICES")[1].split("\n")[0]
 
 
-def test_meta_dockerfile_non_root_and_healthcheck():
-    text = repo_path("infra", "docker", "meta-classifier", "Dockerfile").read_text(encoding="utf-8")
-    assert text.count("FROM python:3.13-slim") >= 2
-    assert "/opt/venv" in text
-    assert "USER aether" in text
-    assert "HEALTHCHECK" in text
-    assert "tini" in text
-    assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in text
-    assert "MKL_NUM_THREADS=2" in text
-    assert "COPY --from=ml_common" in text
-    assert "/opt/ml_common" in text
-    assert repo_path("infra", "docker", "meta-classifier", ".dockerignore").is_file()
-    compose = repo_path("infra", "docker", "docker-compose.yml").read_text(encoding="utf-8")
-    assert "ml_common: ./ml_common" in compose
-    assert (repo_path("infra", "docker", "ml_common") / "schema.py").is_file()
-
-
-def test_loss_dockerfile_multi_stage():
-    text = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
-    assert text.count("FROM python:3.13-slim") >= 2
-    assert "/opt/venv" in text
-    assert "LOSS_BOOTSTRAP_EXIT_N=2" in text
-
-
-def test_compose_lib_and_env_example_document_ml_knobs():
+def test_compose_lib_and_env_example_document_profiles():
     lib = _resolve_infra_file("sh", "compose-lib.sh").read_text(encoding="utf-8")
     env = repo_path(".env.example").read_text(encoding="utf-8")
     assert "DOCKER_PROFILES" in lib
     assert "docker-compose.gpu.yml" not in lib
     assert "AETHER_TRITON_HTTP" not in env
-    assert "AETHER_META_CLASSIFIER_HTTP" in env
-    assert "AETHER_LOSS_CLASSIFIER_HTTP" in env
-    assert "DOCKER_PROFILES=core,ml,telemetry" in env
-
-
-def test_compose_loss_classifier_env_ssot():
-    text = _compose_text()
-    assert 'LOSS_READY_N: "32"' in text
-    assert 'LOSS_BOOTSTRAP_EXIT_N: "2"' in text
-    assert 'LOSS_MIN_WIN_FOR_LOSS_RETRAIN: "4"' in text
-    assert 'LOSS_VETO_P_LOSS_FLOOR: "0.70"' in text
-    dockerfile = repo_path("infra", "docker", "loss-classifier", "Dockerfile").read_text(encoding="utf-8")
-    assert "LOSS_READY_N=32" in dockerfile
-    assert "LOSS_BOOTSTRAP_EXIT_N=2" in dockerfile
-    assert "LOSS_MIN_WIN_FOR_LOSS_RETRAIN=4" in dockerfile
-    assert "LOSS_VETO_P_LOSS_FLOOR=0.70" in dockerfile
-    assert "calib.py" in dockerfile
-    assert "COPY --from=ml_common" in dockerfile
-    assert "/opt/ml_common" in dockerfile
+    assert "AETHER_META_CLASSIFIER_HTTP" not in env
+    assert "AETHER_LOSS_CLASSIFIER_HTTP" not in env
+    assert "DOCKER_PROFILES=core,telemetry,indicator" in env
 
 
 def _tcp_open(host: str, port: int, timeout: float = 0.4) -> bool:
@@ -231,22 +175,6 @@ def test_live_core_stack_localhost():
         pytest.skip("MinIO localhost:9000 indisponivel")
 
 
-@pytest.mark.docker
-def test_live_meta_when_up():
-    meta_up = False
-    meta_ready = False
-    try:
-        with urllib.request.urlopen("http://127.0.0.1:8005/health", timeout=1.0) as response:
-            payload = json.loads(response.read().decode())
-            meta_up = int(response.getcode()) == 200
-            meta_ready = bool(payload.get("ready")) or "model_loaded" in payload
-    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError):
-        pass
-    if not meta_up:
-        pytest.skip("Meta classifier nao esta no ar")
-    assert meta_ready is True
-
-
 def test_infra_docker_files_organized_by_extension_family():
     sql_files = [
         "002_aether-io-tune.sql",
@@ -268,8 +196,6 @@ def test_infra_docker_files_organized_by_extension_family():
         "docker-ui.sh",
         "docker-wait-healthy.sh",
         "host-prereq.sh",
-        "loss-clf-reset.sh",
-        "minio-init.sh",
         "timescale-lifecycle.sh",
     ]
     for name in sh_files:

@@ -7,7 +7,6 @@
 [![Cobertura do indicador: 100% exigidos](https://img.shields.io/badge/cobertura%20indicador-100%25%20exigidos-2E7D32)](indicator/app/pyproject.toml)
 
 [![TCN](https://img.shields.io/badge/modelo-TCN-EE4C2C?logo=pytorch&logoColor=white)](docs/engineering-deep-learning.md)
-[![LightGBM](https://img.shields.io/badge/meta-LightGBM-16856B)](app/requirements.txt)
 [![Polars](https://img.shields.io/badge/dados-Polars-CD792C)](app/requirements.txt)
 [![Docker Compose](https://img.shields.io/badge/infra-Docker%20Compose-2496ED?logo=docker&logoColor=white)](infra/docker/docker-compose.yml)
 [![Redis](https://img.shields.io/badge/cache-Redis-DC382D?logo=redis&logoColor=white)](infra/docker/docker-compose.yml)
@@ -23,7 +22,7 @@
 [![Gitleaks](https://img.shields.io/badge/segredos-Gitleaks-555555)](.github/workflows/ci.yml)
 [![Trivy](https://img.shields.io/badge/containers-Trivy-555555)](.github/workflows/ci.yml)
 
-Motor assíncrono de contratos Rise/Fall para índices sintéticos e réplicas OTC dos maiores ETFs mundiais da Deriv. O sinal operacional é o [setup institucional sênior de tendência, liquidez e recuo](docs/strategy-pullback.md) em M5 (`senior_institutional`), integrando Session VWAP com bandas de dispersão $\pm 1.5\sigma$, mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). O processo Python 3.13 roda no host; a stack compartilhada reúne Redis, TimescaleDB, indicador público, Prometheus e Grafana. TCN, meta e loss-classifier permanecem disponíveis apenas para pesquisa.
+Motor assíncrono de contratos Rise/Fall para índices sintéticos e réplicas OTC dos maiores ETFs mundiais da Deriv. O sinal operacional é o [setup institucional sênior de tendência, liquidez e recuo](docs/strategy-pullback.md) em M5 (`senior_institutional`), integrando Session VWAP com bandas de dispersão $\pm 1.5\sigma$, mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). O processo Python 3.13 roda no host; a stack compartilhada reúne Redis, TimescaleDB, indicador público, Prometheus e Grafana. Componentes legados de meta e loss-classifier foram purgados e descontinuados.
 
 ## Fluxo operacional
 
@@ -37,7 +36,7 @@ Motor assíncrono de contratos Rise/Fall para índices sintéticos e réplicas O
 3. A versão passa a `ativo` apenas se o limite inferior unilateral de 95% do retorno médio líquido dessas 200 compras for positivo. Em REAL, a probabilidade vem da posterior Beta(0,5;0,5) do piloto; a proposta final exige EV positivo e margem de 0,01 acima do break-even após haircut.
 4. A entrada expira 30 segundos após a abertura da vela seguinte. Somente o sinal M5 abre contrato de 5 minutos; M15/H1 são pesquisa. A stake base em DEMO e REAL é 1% da banca disponível, com recuperação pelo payout líquido cotado limitada a 5% por ordem. Reserva Redis, deduplicação e reconciliação de compras sem ACK permanecem obrigatórias.
 
-O `make app-train` diagnostica o universo de 12 ativos OTC (réplicas de SPY, QQQ, DIA, EWG, FEZ, etc.) e índices de volatilidade, aprende os melhores horários em Brasília e ranqueia por EV esperado. O ativo promovido atual é o **`OTC_SX5E`** (Euro Stoxx 50 / FEZ) com 61.54% de assertividade e EV +0.0338. A pesquisa TCN/meta/loss é executada separadamente via `make app-research-ml`. A operação mantém stop win por sessão, sem stop loss ou teto acumulado de perda. Sem evidência DEMO suficiente ou cotação REAL favorável, não há compra REAL.
+O `make app-train` diagnostica o universo de 12 ativos OTC (réplicas de SPY, QQQ, DIA, EWG, FEZ, etc.) e índices de volatilidade, aprende os melhores horários em Brasília e ranqueia por EV esperado. O ativo promovido atual é o **`OTC_SX5E`** (Euro Stoxx 50 / FEZ) com 61.54% de assertividade e EV +0.0338. A operação mantém stop win por sessão, sem stop loss ou teto acumulado de perda. Sem evidência DEMO suficiente ou cotação REAL favorável, não há compra REAL.
 
 Com o motor em execução, Prometheus coleta suas métricas na porta 9100 e as do indicador na porta interna 9101. O Grafana compartilhado consulta Prometheus e TimescaleDB pelos datasources provisionados. A rota entre Docker no WSL e o motor no Windows está descrita em [observabilidade](docs/engineering-observability.md).
 

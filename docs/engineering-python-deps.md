@@ -40,10 +40,10 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 
 ### httpx 0.28.1
 
-- Pools HTTP/1.1 via httpcore; **singleton** por loop (`meta_classifier_pool` / `loss_classifier_pool` + `build_persistent_http_client` com `Limits`).
+- Pools HTTP/1.1 via httpcore; **singleton** por loop (`build_persistent_http_client` com `Limits`).
 - **Proibido:** `AsyncClient()` por request / por sinal (renegocia TLS e esgota FDs).
-- Timeouts padrao httpx sao estritos (~5s); sidecars ML calibram timeout no client.
-- Bridge sync (`predict_*_via_config_sync`) sob event loop vivo recria client — anti-padrao residual; preferir caminho async.
+- Timeouts padrao httpx sao estritos (~5s).
+- Preferir caminhos assincronos unificados.
 
 ### python-dotenv 1.2.2
 

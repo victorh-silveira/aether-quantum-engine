@@ -15,11 +15,6 @@ from src.application.services.infra_timing_config import (
     resolve_stream_reconnect_config,
 )
 from src.application.services.live_signal_metrics import apply_live_calib_drift_soft
-from src.application.services.meta_payoff_shadow import (
-    meta_inverted_shadow_active,
-    record_meta_payoff_shadow_pair,
-    reset_meta_payoff_shadow,
-)
 from src.application.services.orchestrator.orchestrator_run_loop import (
     align_exec_empty_recovery_signature_cooldown,
 )
@@ -156,16 +151,6 @@ def test_infra_timing_flat_api_overrides():
         },
     )
     assert hist["chunk"] == 450
-
-
-def test_meta_inverted_shadow_false_when_corr_positive():
-    reset_meta_payoff_shadow()
-    for i in range(16):
-        record_meta_payoff_shadow_pair(z_score=float(i), profit=float(i), orch=None)
-    assert meta_inverted_shadow_active(None) is False
-    reset_meta_payoff_shadow()
-    record_meta_payoff_shadow_pair(z_score=1.0, profit=-1.0, orch=None)
-    assert meta_inverted_shadow_active(None) is False
 
 
 def test_align_exec_empty_skips_when_cluster_executed():

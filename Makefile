@@ -6,20 +6,18 @@ SHELL := /bin/bash
 APP_DIR=app
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
-DOCKER_PROFILES ?= core,ml,telemetry,indicator
+DOCKER_PROFILES ?= core,telemetry,indicator
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
 export AETHER_METRICS_HOST_IP ?= $(shell ip -4 route show default 2>/dev/null | awk 'NR==1 {print $$3}')
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= 200
-DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio aether-ml-meta-classifier aether-ml-loss-classifier aether-market-signal-indicator aether-observe-metrics-prometheus aether-observe-dashboards-grafana
+DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio aether-market-signal-indicator aether-observe-metrics-prometheus aether-observe-dashboards-grafana
 
 define docker_service_name
 $(strip $(or \
 	$(if $(filter redis aether-core-cache-redis,$(1)),aether-core-cache-redis),\
 	$(if $(filter ts timescale timescaledb aether-core-data-timescaledb,$(1)),aether-core-data-timescaledb),\
 	$(if $(filter minio aether-core-storage-minio,$(1)),aether-core-storage-minio),\
-	$(if $(filter meta meta-classifier aether-ml-meta-classifier,$(1)),aether-ml-meta-classifier),\
-	$(if $(filter loss loss-classifier aether-ml-loss-classifier,$(1)),aether-ml-loss-classifier),\
 	$(if $(filter indicator aether-market-signal-indicator,$(1)),aether-market-signal-indicator),\
 	$(if $(filter prom prometheus aether-observe-metrics-prometheus,$(1)),aether-observe-metrics-prometheus),\
 	$(if $(filter grafana aether-observe-dashboards-grafana,$(1)),aether-observe-dashboards-grafana),\
@@ -59,7 +57,7 @@ help:
 	@echo -e "$(YELLOW)App:$(RESET)"
 	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor em execucao real/demo (run.py)"
 	@echo -e "  $(GREEN)app-train$(RESET)          - Sobe a stack e diagnostica setup M5/M15/H1"
-	@echo -e "  $(GREEN)app-research-ml$(RESET)    - Pesquisa legada TCN, meta e loss separada da execucao"
+	@echo -e "  $(GREEN)app-research-ml$(RESET)    - Pesquisa quantitativa TCN/ML separada da execucao"
 	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint Python/JSON/YAML/Docker/Shell/Rust/Workflows + indicador"
 	@echo -e "  $(GREEN)app-validate$(RESET)       - Valida codigo, configs, Compose, Shell e Rust"
 	@echo -e "  $(GREEN)app-security$(RESET)       - Seguranca Python/Docker/Rust + indicador"
@@ -71,14 +69,14 @@ help:
 	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa a matriz completa de hooks em todos os arquivos"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe motor/ML + indicador + telemetria em um Compose"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuilda meta/loss/indicador e recarrega modelos locais"
-	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + loss-models + volumes, bootstrap e sobe stack"
+	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe stack com Timescale, Redis, MinIO e indicador"
+	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuilda servico do indicador"
+	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + volumes, bootstrap e sobe stack"
 	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): para e remove containers, redes e volumes da stack"
 	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers da stack (preserva dados e volumes)"
 	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (preserva dados)"
 	@echo -e "  $(GREEN)docker-ps$(RESET)          - Exibe o status atual dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs dos servicos running (tail=200; DOCKER_SERVICE=minio-init|... F=1)"
+	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs dos servicos running (tail=200; DOCKER_SERVICE=... F=1)"
 	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Executa smoke checks e verificacao de saude da stack"
 	@echo -e "$(BLUE)========================================================================$(RESET)"
 
@@ -157,14 +155,9 @@ app-train:
 	@$(MAKE) --no-print-directory indicator-train
 
 app-research-ml:
-	@cd $(APP_DIR) && $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(PYTHON) $(APP_DIR)/train.py
 	$(PYTHON) $(APP_DIR)/scripts/operations/check_dl_checkpoint.py
-	@$(PYTHON) $(APP_DIR)/scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel; meta tentara API Deriv.'
-	$(PYTHON) $(APP_DIR)/scripts/operations/train_meta_classifier.py --trials 60 --bars 5000 --source auto --candidate-on-low-quality --export-min-zscore -0.05 --export-min-ir -0.50
-	$(DOCKER_COMPOSE) up -d --no-deps --force-recreate aether-ml-meta-classifier aether-ml-loss-classifier
-	@bash infra/docker/sh/docker-wait-healthy.sh
-	@bash infra/docker/sh/docker-smoke.sh
+	@$(PYTHON) $(APP_DIR)/scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel.'
 
 indicator-up: docker-up
 
@@ -229,13 +222,10 @@ docker-up:
 	@bash infra/docker/sh/docker-smoke.sh
 
 docker-rebuild:
-	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild meta/loss/indicador (preserva modelos locais)"'
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild indicador"'
 	@test -f .env || cp .env.example .env
-	@if [ ! -f $(DOCKER_DIR)/loss-models/loss_bootstrap_live64.pkl ]; then \
-		cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier; \
-	fi
-	$(DOCKER_COMPOSE) build --pull aether-ml-meta-classifier aether-ml-loss-classifier aether-market-signal-indicator
-	$(DOCKER_COMPOSE) up -d --force-recreate aether-ml-meta-classifier aether-ml-loss-classifier aether-market-signal-indicator
+	$(DOCKER_COMPOSE) build --pull aether-market-signal-indicator
+	$(DOCKER_COMPOSE) up -d --force-recreate aether-market-signal-indicator
 	$(DOCKER_COMPOSE) up -d
 	@bash infra/docker/sh/docker-wait-healthy.sh
 	@bash infra/docker/sh/timescale-lifecycle.sh
@@ -258,12 +248,10 @@ docker-restart:
 
 docker-reset:
 	@test -f .env || cp .env.example .env
-	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + loss-models + volumes"'
-	@echo -e "$(RED)  Limpando checkpoints/artefactos + loss-models + volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
+	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-reset · ATENCAO: sanitiza run + volumes"'
+	@echo -e "$(RED)  Limpando checkpoints/artefactos + volumes Redis/Timescale/MinIO; recria a stack$(RESET)"
 	@echo ""
 	@$(MAKE) --no-print-directory docker-sanitize-run-keep-meta
-	@bash infra/docker/sh/loss-clf-reset.sh clear
-	@cd $(APP_DIR) && LOKY_MAX_CPU_COUNT=$${LOKY_MAX_CPU_COUNT:-4} $(PYTHON) -m scripts.operations.train_loss_classifier
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@$(MAKE) --no-print-directory docker-up
 
@@ -272,7 +260,6 @@ docker-clean:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-clean · ATENCAO: volumes serao apagados"'
 	@echo -e "$(RED)  Removendo containers, redes e volumes (TimescaleDB/MinIO/Redis)$(RESET)"
 	@echo ""
-	@bash infra/docker/sh/loss-clf-reset.sh clear
 	$(DOCKER_COMPOSE) down --volumes --remove-orphans
 	@echo ""
 	@$(DOCKER_COMPOSE) ps

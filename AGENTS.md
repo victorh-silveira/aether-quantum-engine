@@ -19,14 +19,14 @@ Ponto de entrada para agentes Cursor/LLM neste repositorio.
 
 - Respostas e commits em **PT-BR**
 - Terminal/scripts: **WSL Linux** (nunca CMD/PowerShell nativo)
-- Runtime: motor **Python 3.13.12** + **asyncio** no **host** (Conda `deriv-api`); Compose unico com perfis `core,ml,telemetry,indicator`; SSOT runtime [`docs/engineering-python-313-runtime.md`](docs/engineering-python-313-runtime.md)
+- Runtime: motor **Python 3.13.12** + **asyncio** no **host** (Conda `deriv-api`); Compose unico com perfis `core,telemetry,indicator`; SSOT runtime [`docs/engineering-python-313-runtime.md`](docs/engineering-python-313-runtime.md)
 - Arquitetura: **DDD / hexagonal** — [`docs/engineering-architecture-senior.md`](docs/engineering-architecture-senior.md) + skill `aether-architecture-senior`
 - Sem emojis em codigo, logs ou docs tecnicos
 - Sem comentarios no codigo (docstrings OK)
 
 ## Universo operacional
 
-Rise/Fall CALL/PUT e o unico fluxo operacional ativo. O motor utiliza a rota institucional M15 com o ativo promovido soberano (**OTC_SSMI**); ativos candidatos sao avaliados no `make app-train` com historico continuo e cotacoes reais via HTTP. TCN M5 (14D), loss-classifier e meta LightGBM residem exclusivamente em `make app-research-ml` para pesquisa quantitativa, sem interferencia em runtime.
+Rise/Fall CALL/PUT e o unico fluxo operacional ativo. O motor utiliza a rota institucional M15 com o ativo promovido soberano (**OTC_SSMI**); ativos candidatos sao avaliados no `make app-train` com historico continuo e cotacoes reais via HTTP. Componentes legados de ML (meta e loss classifiers) foram integralmente descontinuados e removidos da stack.
 
 - Politica de mercado vigente: matriz de confluencia do setup `senior_institutional` com Hard Gate de Killzones BRT, Session VWAP e FVG mitigado; contrato em `docs/engineering-indicator-gates.md`.
 - Universo operacional atual: **OTC_SSMI** (Swiss Market Index 20 / Deriv OTC); o diagnostico contempla os 12 ativos mundiais: OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51.
@@ -84,7 +84,6 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | DevOps / CloudOps (Compose/Redis/TS/MinIO) | `docs/engineering-devops-cloudops-senior.md` + skill `aether-devops-cloudops` |
 | CALL/PUT/SKIP senior | `docs/binary-senior-playbook.md` + skill `aether-binary-senior` |
 | Gates por indicadores (catalogo / backlog) | `docs/engineering-indicator-gates.md` + rule `aether-execution-gates.mdc` + skills `aether-binary-senior` / `aether-session-review` |
-| Loss-classifier / Docker ml | `docs/infra-docker.md` + skill `aether-infra-stack` |
 | Risco / logs de sessao | doutrina + skill `aether-session-review` |
 | Knob em settings | `docs/engineering-settings-ssot.md` + skill `aether-settings-change` |
 | Ciclo / warmup | `docs/engineering-orchestrator.md` + skill `aether-cycle-debug` |

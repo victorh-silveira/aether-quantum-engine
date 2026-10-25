@@ -90,10 +90,6 @@ async def test_setup_trading_session_train_uses_public_ws(orch_config_train):
             AsyncMock(),
         ),
         patch(
-            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
-            return_value=False,
-        ),
-        patch(
             "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",
             AsyncMock(),
         ),
@@ -129,10 +125,6 @@ async def test_setup_trading_session_broker_handshake_timeout(orch_config):
         patch(
             "src.application.services.orchestrator.ws_bootstrap.validate_infra_services",
             AsyncMock(),
-        ),
-        patch(
-            "src.application.services.orchestrator.ws_bootstrap.meta_classifier_enabled",
-            return_value=False,
         ),
         patch(
             "src.application.services.orchestrator.ws_bootstrap.bootstrap_and_validate_models",

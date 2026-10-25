@@ -10,7 +10,7 @@ compose_args() {
 }
 
 compose_profiles_csv() {
-  echo "${COMPOSE_PROFILES:-${DOCKER_PROFILES:-core,ml,telemetry}}" | tr -d ' '
+  echo "${COMPOSE_PROFILES:-${DOCKER_PROFILES:-core,telemetry,indicator}}" | tr -d ' '
 }
 
 profile_active() {

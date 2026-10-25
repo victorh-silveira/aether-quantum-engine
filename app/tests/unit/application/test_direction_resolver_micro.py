@@ -104,23 +104,6 @@ def test_resolve_cross_prob_delta_mean_from_metrics():
     assert result is not None
 
 
-def test_resolve_without_prefetch_keeps_organic_score_when_meta_enabled_with_strong_edge():
-    entry = _entry(direction=TradeDirection.CALL, calibrated_prob=0.70)
-    entry["metrics"]["predicted_payoff_edge"] = 0.08
-    entry["metrics"]["meta_classifier_applied"] = False
-    result = resolve_execution_direction(
-        entry,
-        infra_cfg={"meta_classifier": {"enabled": True}},
-        symbol="R_10",
-    )
-    assert result is not None
-    direction, metrics = result
-    assert direction == TradeDirection.CALL
-    assert metrics["trade_score"] == pytest.approx(0.70)
-    assert "predicted_payoff_edge" not in metrics
-    assert metrics["meta_classifier_applied"] is False
-
-
 def test_resolve_direction_keeps_tcn_when_confluence_disagrees():
     entry = _entry(direction=TradeDirection.CALL, raw_prob=0.52, calibrated_prob=0.52)
     entry["metrics"]["cal_side_edge"] = 0.01

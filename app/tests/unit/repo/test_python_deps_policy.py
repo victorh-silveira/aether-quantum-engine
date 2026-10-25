@@ -48,8 +48,6 @@ def _requirement_files() -> list[Path]:
     return [
         repo_path("app", "requirements.txt"),
         repo_path("app", "requirements-dev.txt"),
-        repo_path("infra", "docker", "meta-classifier", "requirements.txt"),
-        repo_path("infra", "docker", "loss-classifier", "requirements.txt"),
     ]
 
 
@@ -94,11 +92,3 @@ def test_first_party_has_no_pandas_import():
 def test_minio_model_store_offloads_sync_sdk():
     text = repo_path("app", "src", "infrastructure", "storage", "minio_model_store.py").read_text(encoding="utf-8")
     assert "asyncio.to_thread" in text
-
-
-def test_meta_http_client_is_persistent_builder():
-    text = repo_path("app", "src", "infrastructure", "inference", "meta_classifier_client.py").read_text(
-        encoding="utf-8"
-    )
-    assert "def build_persistent_http_client" in text
-    assert "httpx.Limits" in text

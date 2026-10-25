@@ -90,7 +90,6 @@ async def test_execute_cluster_orders_force_and_reversal_stake():
             1000.0,
         )
     assert count == 1
-    assert "cid:901" in getattr(executor.orch, "_meta_clf_vectors", {})
 
 
 @pytest.mark.asyncio

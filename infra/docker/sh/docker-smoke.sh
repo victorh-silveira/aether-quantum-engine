@@ -77,34 +77,6 @@ if profile_active core; then
   fi
 fi
 
-if profile_active ml; then
-  require_service aether-ml-meta-classifier Meta-classifier || true
-  if service_running aether-ml-meta-classifier; then
-    checked=$((checked + 1))
-    meta_payload="$(curl -sf "http://127.0.0.1:8005/health" 2>/dev/null || true)"
-    if [ -z "$meta_payload" ]; then
-      smoke_fail "Meta-classifier" "/health"
-    elif ! printf '%s' "$meta_payload" | grep -q '"ready"[[:space:]]*:[[:space:]]*true'; then
-      docker_ui_warn "Meta-classifier ready=false (rode launch-train → meta-models/meta_lgbm.pkl)"
-      docker_ui_ok "Meta-classifier (processo up; modelo ausente ate train)"
-    else
-      docker_ui_ok "Meta-classifier"
-    fi
-  fi
-  require_service aether-ml-loss-classifier Loss-classifier || true
-  if service_running aether-ml-loss-classifier; then
-    checked=$((checked + 1))
-    loss_payload="$(curl -sf "http://127.0.0.1:8006/health" 2>/dev/null || true)"
-    if [ -z "$loss_payload" ]; then
-      smoke_fail "Loss-classifier" "/health"
-    elif ! printf '%s' "$loss_payload" | grep -q '"ready"[[:space:]]*:[[:space:]]*true'; then
-      smoke_fail "Loss-classifier" "ready=false"
-    else
-      docker_ui_ok "Loss-classifier"
-    fi
-  fi
-fi
-
 if profile_active indicator; then
   require_service aether-market-signal-indicator Indicador || true
   if service_running aether-market-signal-indicator; then

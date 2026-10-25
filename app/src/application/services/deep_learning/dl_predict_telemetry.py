@@ -6,8 +6,7 @@ from typing import Any
 
 from src.application.services.deep_learning.dl_feature_build import precompute_price_series
 from src.application.services.deep_learning.dl_live_bar_patch import get_patched_ohlc_snapshot
-from src.application.services.meta_classifier_cross_symbol import attach_cross_symbol_features_to_decisions
-from src.application.services.meta_classifier_flow_features import flow_features_from_micro_series
+from src.application.services.flow_features import flow_features_from_micro_series
 
 
 def _series_last(series: dict, key: str, default: float = 0.0) -> float:
@@ -91,19 +90,3 @@ def stamp_micro_frame_telemetry(
         flow["micro_tick_acceleration"] = float(tick_buffer.live_tick_acceleration(str(symbol)))
     metrics["flow_features"] = flow
     stamp_macro_frame_telemetry(orch, symbol, metrics, params)
-
-
-def prepare_meta_classifier_cross_symbol_bundle(
-    orch: Any,
-    decisions: dict[str, dict],
-    params: dict[str, Any],
-) -> None:
-    """Centraliza telemetria micro paralela e spreads cross-symbol antes do prefetch meta."""
-    for symbol, entry in decisions.items():
-        if not isinstance(entry, dict):
-            continue
-        metrics = entry.get("metrics")
-        if not isinstance(metrics, dict):
-            continue
-        stamp_micro_frame_telemetry(orch, str(symbol), metrics, params)
-    attach_cross_symbol_features_to_decisions(decisions)

@@ -15,7 +15,6 @@ from src.domain.risk.consensus_stake_penalty import apply_soft_recovery_stake
 from src.domain.risk.risk_stake_calc_helpers import apply_named_soft_stake_cap
 from src.domain.risk.soft_recovery_config import load_soft_recovery_from_settings, require_soft_recovery
 from src.domain.risk.stake_sizing import finalize_stake_with_min
-from src.infrastructure.inference.loss_classifier_client import resolve_loss_classifier_config
 
 
 def test_soft_recovery_and_stake_helpers_branches():
@@ -77,13 +76,6 @@ def test_soft_recovery_and_stake_helpers_branches():
         payout=0.72,
         soft_recovery=soft_cfg,
     )
-
-
-def test_loss_classifier_config_hard_mode_bounds():
-    with pytest.raises(ValueError, match="veto_mode deve ser hard"):
-        resolve_loss_classifier_config({"veto_mode": "soft"})
-    with pytest.raises(ValueError, match="hard_p_loss_floor"):
-        resolve_loss_classifier_config({"hard_p_loss_floor": 0.0})
 
 
 @pytest.mark.asyncio

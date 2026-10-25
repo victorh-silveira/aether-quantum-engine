@@ -14,7 +14,6 @@ from src.application.services.orchestrator.session_target_bootstrap import clear
 from src.application.services.orchestrator.settlement_queue_ops import cancel_settlement_queue_fast
 from src.application.services.orchestrator.watchdog_service import stop_ingestion_watchdog
 from src.infrastructure.factories.infra_factory import close_infra_services
-from src.infrastructure.inference.meta_classifier_pool import close_meta_classifier_client
 
 
 _INFRA_TASK_PREFIXES = ("httpx",)
@@ -144,7 +143,6 @@ async def close_infrastructure_connections(orch: Any) -> None:
     await stop_ingestion_watchdog(orch)
     await cancel_background_tasks(orch)
     await clear_current_session_redis_keys(orch)
-    await close_meta_classifier_client()
     infra = getattr(orch, "infra", None)
     if infra is not None:
         await close_infra_services(infra)

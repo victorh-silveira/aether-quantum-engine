@@ -15,8 +15,8 @@ alwaysApply: true
 - BCE simetrica e a perda ativa. A ponderacao assimetrica por payout desloca a probabilidade CALL em labels equilibrados; payout entra no EV da proposta. Selecionar epoca sem colapso quando existir, com fallback tecnico se todas colapsarem.
 - O verificador pos-treino exige pesos, normalizacao, feature_dim, lookback, granularidade, label e horizonte compativeis. Ausencia ou incompatibilidade bloqueia a execucao.
 - Com checkpoint valido, `checkpoint_max_stake_pct=0.01` limita a stake a 1% da banca por ordem em DEMO e REAL, inclusive em `cover_l0` e na proposta final.
-- O fluxo TCN no host usa CUDA quando disponivel e deve preservar o event loop. Meta e loss-classifier rodam em sidecars HTTP.
-- TCN escolhe CALL se Cal >=0.5, senao PUT. FLIP do loss-classifier depende de aprendizado real; filtros tecnicos e economicos podem impedir a compra.
+- O fluxo TCN no host usa CUDA quando disponivel e deve preservar o event loop. Classificadores legados de meta e loss foram purgados.
+- TCN escolhe CALL se Cal >=0.5, senao PUT; filtros tecnicos e economicos podem impedir a compra.
 - Resolver o lado pela Cal final apos clamp; `raw_extreme` e direcao passada antes do clamp nao substituem o sinal de Cal.
 - Mudanca de label, horizonte, features, lookback ou granularidade exige retreino.
 - Comparar perdas offline com `app/scripts/operations/compare_dl_losses.py`; a comparacao nao exporta checkpoint. A auditoria `contract_label_audit` usa M5 e lucro broker, sem qualificar deploy.

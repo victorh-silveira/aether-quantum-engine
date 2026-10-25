@@ -12,12 +12,6 @@ from src.application.services.execution_direction_checks import initial_directio
 from src.application.services.execution_market_rank import mandatory_pool_eligible, market_decision_score
 from src.application.services.log_dedupe import LogDeduper, clear_log_channel
 from src.application.services.market_audit_log_helpers import cluster_symbol_token
-from src.application.services.meta_payoff_shadow import (
-    meta_hard_veto_allowed,
-    meta_inverted_shadow_active,
-    record_meta_payoff_shadow_pair,
-    reset_meta_payoff_shadow,
-)
 from src.application.services.orchestrator.execution_blockers import log_execution_blockers
 from src.application.services.orchestrator.orchestrator_data_signature import (
     get_data_state_signature,
@@ -119,28 +113,6 @@ def test_log_deduper_and_market_audit_helpers():
     assert cluster_symbol_token("", None) == "N/A"
     assert cluster_symbol_token("1hz75v", None) == "1HZ75V"
     assert cluster_symbol_token("R_10", None) == "R_10"
-
-
-def test_meta_payoff_shadow_inverted_and_hard():
-    reset_meta_payoff_shadow()
-    orch = SimpleNamespace(_meta_payoff_shadow_corr=-0.5, _meta_payoff_shadow_n=20)
-    for i in range(20):
-        record_meta_payoff_shadow_pair(z_score=float(i), profit=-float(i), orch=orch)
-    with patch(
-        "src.application.services.meta_payoff_shadow._shadow",
-        return_value={
-            "min_pairs": 8,
-            "ready_n": 8,
-            "window": 64,
-            "hard_corr_floor": 0.5,
-            "soft_only_corr_ceiling": 0.2,
-        },
-    ):
-        assert meta_inverted_shadow_active(orch) is True
-        reset_meta_payoff_shadow()
-        for i in range(12):
-            record_meta_payoff_shadow_pair(z_score=float(i), profit=float(i), orch=None)
-        assert meta_hard_veto_allowed(None) is True
 
 
 def test_orchestrator_data_signature_bad_config():

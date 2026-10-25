@@ -300,43 +300,6 @@
   "infra": {
     "enabled": false,
     "fail_fast": true,
-    "meta_classifier": {
-      "enabled": true,
-      "http_url": "http://localhost:8005",
-      "max_connections": 10,
-      "max_keepalive_connections": 5,
-      "online_learn": true,
-      "retrain_min_n": 32,
-      "max_buffer": 2000,
-      "shadow": {
-        "hard_corr_floor": 0.01,
-        "min_pairs": 12,
-        "ready_n": 64,
-        "soft_only_corr_ceiling": 0.05,
-        "window": 64
-      },
-      "timeout_seconds": 8.0
-    },
-    "loss_classifier": {
-      "enabled": true,
-      "http_url": "http://localhost:8006",
-      "timeout_seconds": 8.0,
-      "max_connections": 8,
-      "max_keepalive_connections": 4,
-      "feature_dim": 24,
-      "veto_mode": "hard",
-      "hard_p_loss_floor": 0.7,
-      "flip_trust_n": 64,
-      "flip_young_shrink": 0.5,
-      "flip_young_p_eff_floor": 0.58,
-      "flip_min_n_train": 1,
-      "bootstrap_exit_n": 2,
-      "ready_n": 32,
-      "retrain_min_n": 12,
-      "retrain_on_loss_min_n": 12,
-      "min_win_for_loss_retrain": 4,
-      "max_buffer": 2000
-    },
     "minio": {
       "bucket": "dl-models",
       "endpoint": "localhost:9000",

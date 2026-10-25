@@ -133,12 +133,7 @@ presentation  →  application  →  domain
 | `log_dedupe.py` | `LogDeduper` — deduplicação por canal/minuto; `log_info_if_changed` / `log_warning_if_changed` |
 | `market_audit_log.py` | Auditoria unificada de mercado |
 | `market_audit_log_helpers.py` | Helpers do market audit log |
-| `meta_classifier_cross_symbol.py` | Features cross-symbol de arbitragem |
-| `meta_classifier_features.py` | Vetores tabulares para stacking |
-| `meta_classifier_flow_features.py` | Features de velocidade micro |
-| `meta_classifier_stacking.py` | Stacking tabular com edge contínuo |
-| `meta_payoff_shadow.py` | Shadow de calibracao (telemetria) |
-| `meta_payoff_regression.py` | Edge LightGBM + soft score (sem flip de lado; sem hard veto de sinal) |
+| `flow_features.py` | Features de velocidade micro |
 | `payoff_edge_zscore.py` | Z-Score adaptativo (janela 15–45) sobre `predicted_payoff_edge` |
 | `regime_micro_freeze.py` | Freeze micro de regime |
 | `side_equilibrium_gate.py` | Gate SIDE_EQ na execucao |
@@ -376,12 +371,6 @@ presentation  →  application  →  domain
 
 ### Inference (`infrastructure/inference/`)
 
-| Módulo | Responsabilidade |
-|--------|------------------|
-| `meta_classifier_client.py` | Cliente HTTP meta-classificador |
-| `meta_classifier_pool.py` | Pool singleton do cliente meta |
-| `meta_classifier_types.py` | Tipos de payload meta |
-
 Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de inferência no compose.
 
 ### Storage (`infrastructure/storage/`)
@@ -434,10 +423,6 @@ Inferência TCN: eager/CUDA local no host (`dl_predict*`); sem servidor de infer
 | `operations/sanitize_fresh_run.py` | Limpa checkpoints/artefactos da run anterior |
 | `operations/deriv_pat_connect.py` | Conexão/teste PAT Deriv |
 | `operations/reset_demo_balance.py` | CLI reset de saldo demo |
-| `operations/train_meta_classifier.py` | Treino do meta-classificador |
-| `operations/train_meta_data.py` | Preparação de dados meta |
-| `operations/train_meta_optuna.py` | Otimização Optuna meta (max IR) |
-| `operations/train_meta_vector.py` | Treino de vetores meta |
 | `wsl/setup.sh` | Setup do ambiente WSL |
 
 ---
@@ -471,15 +456,13 @@ Convenção: espelha as camadas DDD. Cobertura obrigatória **100%** em `app/src
 flowchart TD
   BR[decision_bridge] --> BUNDLE[dl_predict_build 14D TCN]
   BUNDLE --> PRED[dl_predict eager/CUDA]
-  PRED --> META[meta_classifier_client 23D]
-  META --> RES[execution_direction_resolver]
+  PRED --> RES[execution_direction_resolver]
   RES --> CHK[execution_direction_checks]
-  CHK --> LOSS[loss_classifier_gate FLIP se p_eff no piso]
-  LOSS --> COL[execution_collect]
+  CHK --> COL[execution_collect]
   COL --> RANK[execution_market_rank]
   RANK --> SYM[execution_symbols]
   SYM --> EM[ExecutionManager fractional lots]
-  EM --> TH[TradeHandler RISE_FALL 5m]
+  EM --> TH[TradeHandler RISE_FALL 15m]
   TH --> ENQ[enqueue_contract_settlement]
   ENQ --> WQ[asyncio.Queue worker]
   WQ --> ST[settlement_logic]

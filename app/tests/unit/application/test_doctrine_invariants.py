@@ -26,18 +26,6 @@ def test_load_doctrine_invariants_from_ssot():
     assert inv["force_trade_every_cycle"] is False
     assert inv["mandatory_trade_each_cycle"] is False
     assert inv["online_training"] is False
-    assert inv["loss_clf_veto_mode"] == "hard"
-    assert inv["loss_clf_hard_p_loss_floor"] == pytest.approx(0.70)
-    assert inv["loss_clf_flip_trust_n"] == 64
-    assert inv["loss_clf_flip_young_shrink"] == pytest.approx(0.50)
-    assert inv["loss_clf_flip_young_p_eff_floor"] == pytest.approx(0.58)
-    assert inv["loss_clf_flip_min_n_train"] == 1
-    assert inv["loss_clf_bootstrap_exit_n"] == 2
-    assert inv["loss_clf_ready_n"] == 32
-    assert inv["loss_clf_retrain_min_n"] == 12
-    assert inv["loss_clf_retrain_on_loss_min_n"] == 12
-    assert inv["loss_clf_min_win_for_loss_retrain"] == 4
-    assert inv["loss_clf_enabled"] is True
     assert inv["watchdog_stale_tick_seconds"] == 300
     assert inv["settlement_tolerance_window_seconds"] == 600
     assert inv["post_settlement_is_trading_wait_seconds"] == 90
@@ -125,13 +113,6 @@ def test_assert_production_doctrine_rejects_online_training():
         assert_production_doctrine(settings)
 
 
-def test_assert_production_doctrine_rejects_soft_veto_mode():
-    settings = copy.deepcopy(load_settings_json())
-    settings["infra"]["loss_classifier"]["veto_mode"] = "soft"
-    with pytest.raises(ValueError, match="veto_mode"):
-        assert_production_doctrine(settings)
-
-
 def test_load_doctrine_invariants_missing_execution():
     with pytest.raises(ValueError, match="orchestrator"):
         load_doctrine_invariants({})
@@ -165,13 +146,6 @@ def test_assert_production_doctrine_rejects_adapt_explos_max_tcn_edge():
         assert_production_doctrine(settings)
 
 
-def test_assert_production_doctrine_rejects_flip_min_n_train():
-    settings = copy.deepcopy(load_settings_json())
-    settings["infra"]["loss_classifier"]["flip_min_n_train"] = 2
-    with pytest.raises(ValueError, match="flip_min_n_train"):
-        assert_production_doctrine(settings)
-
-
 def test_assert_production_doctrine_rejects_cal_soft_knobs():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["cal_soft_edge_skip_enabled"] = True
@@ -190,13 +164,6 @@ def test_assert_production_doctrine_rejects_adapt_soft_margin_knob():
     settings = copy.deepcopy(load_settings_json())
     settings["orchestrator"]["execution"]["scale_vision"]["adapt_soft_margin"] = 0.05
     with pytest.raises(ValueError, match="adapt_soft_margin"):
-        assert_production_doctrine(settings)
-
-
-def test_assert_production_doctrine_rejects_bootstrap_exit_n():
-    settings = copy.deepcopy(load_settings_json())
-    settings["infra"]["loss_classifier"]["bootstrap_exit_n"] = 12
-    with pytest.raises(ValueError, match="bootstrap_exit_n"):
         assert_production_doctrine(settings)
 
 
@@ -226,19 +193,3 @@ def test_load_doctrine_invariants_requires_counter_trend_floor():
     del settings["orchestrator"]["execution"]["counter_trend_min_edge"]
     with pytest.raises(ValueError, match="counter_trend_min_edge"):
         load_doctrine_invariants(settings)
-
-
-@pytest.mark.parametrize(
-    ("key", "value", "match"),
-    [
-        ("ready_n", 8, "ready_n"),
-        ("retrain_min_n", 1, "retrain_min_n"),
-        ("retrain_on_loss_min_n", 1, "retrain_on_loss_min_n"),
-        ("min_win_for_loss_retrain", 1, "min_win_for_loss_retrain"),
-    ],
-)
-def test_assert_production_doctrine_rejects_loss_sample_floors(key, value, match):
-    settings = copy.deepcopy(load_settings_json())
-    settings["infra"]["loss_classifier"][key] = value
-    with pytest.raises(ValueError, match=match):
-        assert_production_doctrine(settings)
