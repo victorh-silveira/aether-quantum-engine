@@ -70,6 +70,19 @@ def test_pullback_duration_rejects_m15_even_if_called_directly():
         )
 
 
+def test_indicator_duration_rejects_mismatched_allowed_period():
+    with pytest.raises(RuntimeError, match="divergente do permitido"):
+        set_indicator_duration(
+            {},
+            {
+                "indicator_controls_execution": True,
+                "indicator_model_version": "pullback-1-v2",
+                "indicator_period_seconds": 900,
+                "allowed_period_seconds": 300,
+            },
+        )
+
+
 def test_period_candidates_requires_promotion_for_real(monkeypatch):
     orch = _orch("real")
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)

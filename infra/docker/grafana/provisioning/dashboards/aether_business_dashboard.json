@@ -676,60 +676,6 @@
       }
     },
     {
-      "id": 11,
-      "title": "P(eficaz) loss-clf",
-      "description": "Última probabilidade efetiva registrada pelo loss-classifier.",
-      "type": "stat",
-      "gridPos": {
-        "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 8
-      },
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "aether_loss_classifier_p_eff{symbol=~\"${symbol:regex}\"}",
-          "instant": true,
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "decimals": 2,
-          "noValue": "—",
-          "color": {
-            "mode": "fixed",
-            "fixedColor": "#C8D0D9"
-          }
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": ""
-        },
-        "orientation": "auto",
-        "textMode": "value",
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto"
-      }
-    },
-    {
       "id": 12,
       "title": "Stake da última decisão",
       "description": "Stake do último snapshot de decisão; não representa exposição atual.",

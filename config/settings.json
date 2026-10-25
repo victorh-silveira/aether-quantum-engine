@@ -24,7 +24,7 @@
     "promoted_at": "2026-10-22T13:09:31.880545+00:00",
     "promoted_max_losses_consecutivos": 1,
     "single_strike": false,
-    "invert_signal": true,
+    "invert_signal": false,
     "organic_direction": true,
     "stream_fallback": true,
     "dynamic_rotation": true,
@@ -528,7 +528,7 @@
           "thin_margin_penalty": -0.08,
           "weight_edge": 0.3,
           "weight_margin": 0.08,
-          "weight_meta_z": 0.22,
+          "weight_meta_z": 0.0,
           "weight_trade_score": 0.4
         }
       },

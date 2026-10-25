@@ -8,6 +8,11 @@ import time
 from typing import Any
 
 from src.application.services.indicator_consensus import signal_epoch_current
+from src.application.services.orchestrator.indicator_period_filters import (
+    build_indicator_metrics,
+    closed_candles_slice,
+    is_promoted_signal_viable,
+)
 from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, unit_ev
 from src.domain.analytics.organic_direction import resolve_organic_direction
 from src.domain.models.trade import TradeDirection
@@ -19,46 +24,12 @@ from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 
 
 def _closed_candles_slice(candles: list[Any], period: int, now_ts: float) -> list[Any]:
-    """Descarta a ultima vela caso pertença ao bloco atual ainda em formacao."""
-    ep = int(getattr(candles[-1], "epoch", 0) or 0) if candles else 0
-    return (
-        candles[:-1]
-        if len(candles) > 50 and period > 0 and now_ts > 100000 and ep >= int(now_ts // period) * period
-        else candles
-    )
+    """Compatibilidade interna para fatiamento de velas fechadas."""
+    return closed_candles_slice(candles, period, now_ts)
 
 
-def _build_metrics(
-    epoch: int, period: int, version: str, side: str, sig_side: str, reason: str, *, pilot: bool, ev: Any, prob: float
-) -> dict[str, Any]:
-    """Cria payload padronizado de metricas para o contrato."""
-    return {
-        "indicator_controls_execution": True,
-        "indicator_candle_epoch": epoch,
-        "indicator_period_seconds": period,
-        "allowed_period_seconds": period,
-        "indicator_model_version": version,
-        "indicator_call_probability": None,
-        "indicator_execution_side": side,
-        "indicator_signal_side": sig_side,
-        "organic_decision_reason": reason,
-        "indicator_demo_pilot": pilot,
-        "indicator_broker_settled": getattr(ev, "settled", 0),
-        "indicator_broker_lower_95": getattr(ev, "lower_95", None),
-        "indicator_exploratory_purchased": getattr(ev, "exploratory_purchased", 0),
-        "calibrated_prob": prob if side == "CALL" else 1.0 - prob,
-        "raw_prob": None,
-        "trade_score": prob,
-        "conviction": prob,
-        "senior_trader_conviction": prob,
-        "direction_origin": "PULLBACK_SETUP",
-        "indicator_tcn_discord": True,
-        "duration": period // 60,
-    }
-
-
-def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
-    """Seleciona apenas setups M5 e exclui ativos com contrato aberto."""
+def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
+    """Seleciona apenas setups do indicador e exclui ativos com contrato aberto."""
     active_ids = set(getattr(orch.state, "active_contracts", {}))
     active_symbols = {
         symbol
@@ -80,18 +51,12 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         bool(pb_cfg.get("dynamic_rotation", False)),
         int(pb_cfg.get("period_seconds", 300)),
     )
-    has_promoted_signal = False
-    if pb_enabled and promoted_only and dynamic_rotation:
-        p_sig = getattr(orch, "_indicator_period_signals", {}).get((str(promoted_only), period_seconds))
-        has_promoted_signal = bool(
-            p_sig
-            and p_sig.model_version.startswith("pullback-1-")
-            and p_sig.side in ("CALL", "PUT")
-            and signal_epoch_current(
-                orch.config,
-                {"indicator_candle_epoch": p_sig.candle_epoch, "indicator_period_seconds": period_seconds},
-            )
-        )
+    now_ts = time.time()
+    has_promoted_signal = (
+        is_promoted_signal_viable(orch, promoted_only, period_seconds, now_ts, signal_epoch_fn=signal_epoch_current)
+        if (pb_enabled and dynamic_rotation)
+        else False
+    )
     quarantine = getattr(orch, "_symbol_loss_quarantine", {})
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
@@ -105,7 +70,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             period != period_seconds
             or symbol in active_symbols
             or symbol in excluded
-            or time.time() < quarantine.get(symbol, 0)
+            or now_ts < quarantine.get(symbol, 0)
             or not signal.model_version.startswith("pullback-1-")
         ):
             continue
@@ -126,14 +91,14 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         if bool(pb_cfg.get("organic_direction", False)):
             stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
             raw_c = getattr(stream, "micro_candles", {}).get(symbol) or []
-            candles = _closed_candles_slice(raw_c, period_seconds, time.time())
+            candles = closed_candles_slice(raw_c, period_seconds, time.time())
             side, decision_reason = resolve_organic_direction(candles, signal.side)
         if side not in ("CALL", "PUT"):
             continue
         if pb_cfg.get("invert_signal", False):
             side = "PUT" if side == "CALL" else "CALL"
             decision_reason = "inversao_estatica" if decision_reason == "sinal_base" else f"{decision_reason}_invertido"
-        metrics = _build_metrics(
+        metrics = build_indicator_metrics(
             signal.candle_epoch,
             period,
             signal.model_version,
@@ -147,7 +112,6 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
         if signal_epoch_current(orch.config, metrics):
             result.append((symbol, TradeDirection[side], metrics))
     if not result and pb_enabled and bool(pb_cfg.get("stream_fallback", False)):
-        now_ts = time.time()
         raw_syms = [str(s) for s in dict.fromkeys([promoted_only, *getattr(orch, "symbols", [])]) if s]
         fallback_syms = (
             [str(promoted_only)]
@@ -158,7 +122,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             if sym in active_symbols or sym in excluded or now_ts < quarantine.get(sym, 0):
                 continue
             stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-            candles = _closed_candles_slice(getattr(stream, "micro_candles", {}).get(sym) or [], period_seconds, now_ts)
+            candles = closed_candles_slice(getattr(stream, "micro_candles", {}).get(sym) or [], period_seconds, now_ts)
             last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0) if candles else 0.0
             if len(candles) < 50 or (last_c_ep > 100000 and now_ts - last_c_ep > 1800):
                 continue
@@ -178,7 +142,10 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
             fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
             if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
                 expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds
-                fb_metrics = _build_metrics(
+                fb_wins = sum(v > 0 for v in fb_ev.returns)
+                fb_prob = (fb_wins + 0.5) / (fb_ev.settled + 1.0) if fb_ev.settled > 0 else 0.5
+                fb_probability = fb_ev.posterior_win_probability or fb_prob if mode == "real" else fb_prob
+                fb_metrics = build_indicator_metrics(
                     expected_ep,
                     period_seconds,
                     v_str,
@@ -187,7 +154,7 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
                     f"stream_organico:{fb_reason}",
                     pilot=fb_pilot,
                     ev=fb_ev,
-                    prob=0.55,
+                    prob=fb_probability,
                 )
                 if signal_epoch_current(orch.config, fb_metrics):
                     result.append((sym, TradeDirection[fb_side], fb_metrics))
@@ -195,7 +162,9 @@ def period_candidates(orch, m5_orders: list[tuple]) -> list[tuple]:
     return result
 
 
-async def _record_quote(orch, symbol, name, metrics, period, quote, rate, prob=None):
+async def _record_quote(
+    orch: Any, symbol: str, name: str, metrics: dict, period: int, quote: dict, rate: float, prob: float | None = None
+) -> None:
     """Grava observacao de cotacao no Timescale."""
     payload = {
         "_indicator_model_version": metrics.get("indicator_model_version", ""),
@@ -208,7 +177,7 @@ async def _record_quote(orch, symbol, name, metrics, period, quote, rate, prob=N
     await record_indicator_quote(orch.market_writer, orch.config, symbol, name, payload, p_id, pr, po, rate)
 
 
-async def _prequote(orch, order: tuple, semaphore: asyncio.Semaphore) -> tuple | None:
+async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tuple | None:
     """Mede EV cotado e registra a observacao antes da escolha."""
     symbol, direction, metrics = order
     if not signal_epoch_current(orch.config, metrics):
@@ -266,7 +235,7 @@ async def _prequote(orch, order: tuple, semaphore: asyncio.Semaphore) -> tuple |
     return order
 
 
-async def select_period_orders(orch, m5_orders: list[tuple]) -> list[tuple]:
+async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     """Escolhe um periodo por ativo pelo limite DEMO e depois EV cotado."""
     candidates = period_candidates(orch, m5_orders)
     if not candidates:
@@ -281,7 +250,7 @@ async def select_period_orders(orch, m5_orders: list[tuple]) -> list[tuple]:
         task.cancel()
     await asyncio.gather(*pending, return_exceptions=True)
     quoted = [task.result() for task in done if not task.cancelled() and task.exception() is None and task.result()]
-    chosen = {}
+    chosen: dict[str, tuple[tuple, tuple]] = {}
     for order in quoted:
         symbol, _, metrics = order
         l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")

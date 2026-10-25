@@ -155,3 +155,28 @@ async def test_pullback_single_strike_sizing_when_enabled():
     ):
         await execute_cluster_orders(executor, [_order("R_25")], 0, 1000)
     assert executor._place_order.await_args.args[2] == 18.75
+
+
+@pytest.mark.asyncio
+async def test_execution_manager_quarantines_symbol_on_closed_session():
+    executor = _executor(0)
+    executor.orch.config["pullback_strategy"] = {"enabled": True, "dynamic_rotation": True}
+    executor.orch._symbol_loss_quarantine = {}
+    executor._place_order.side_effect = RuntimeError("market is closed")
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.signal_epoch_current", return_value=True
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.claim_indicator_order_once",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.release_unbought_order_claim",
+            new_callable=AsyncMock,
+        ),
+        patch("src.application.services.orchestrator.execution_manager_execute.consensus_enabled", return_value=True),
+    ):
+        await execute_cluster_orders(executor, [_order("R_25")], 0, 1000)
+    assert "R_25" in executor.orch._symbol_loss_quarantine

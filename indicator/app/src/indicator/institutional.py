@@ -8,14 +8,15 @@ from math import isfinite, sqrt
 from indicator.domain import Candle
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))
+DEFAULT_KILLZONES_BRT = [3, 4, 5, 6, 7, 10, 11, 12, 14, 15]
 
 
 def session_vwap(bars: list[Candle]) -> tuple[float, float, float]:
     """Calcula VWAP causal da sessao diaria e bandas de 1.5 desvios padrao."""
     if not bars:
         return 0.0, 0.0, 0.0
-    last_day = bars[-1].epoch // 86400
-    session_bars = [b for b in bars if b.epoch // 86400 == last_day]
+    last_day = (bars[-1].epoch - 3 * 3600) // 86400
+    session_bars = [b for b in bars if (b.epoch - 3 * 3600) // 86400 == last_day]
     if len(session_bars) < 2:
         session_bars = bars[-min(len(bars), 72) :]
 
@@ -86,7 +87,7 @@ def detect_fvg_mitigation(bars: list[Candle], atr: float = 1.0) -> tuple[bool, b
 
 def is_within_killzone(epoch: int, optimal_hours: list[int] | None = None) -> bool:
     """Verifica se o timestamp da vela fechada pertence a Killzone em Horario de Brasilia."""
-    if not optimal_hours:
+    if optimal_hours is None or not optimal_hours:
         return True
     hour_brt = datetime.fromtimestamp(epoch, tz=BRT_TIMEZONE).hour
     return hour_brt in optimal_hours

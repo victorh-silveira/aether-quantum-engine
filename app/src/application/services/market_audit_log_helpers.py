@@ -8,7 +8,6 @@ from src.domain.risk.kelly_p_align import kelly_breakeven_p
 from src.domain.risk.kelly_runtime_config import load_kelly_runtime_from_settings
 
 
-# Cache em memória para os contratos de auditoria
 _CONTRACT_AUDIT_STORE: dict[str, Any] = {}
 
 

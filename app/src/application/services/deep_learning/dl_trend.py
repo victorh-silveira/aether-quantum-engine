@@ -29,7 +29,6 @@ def consensus_trend_direction(
     keltner_above = float(trend_consensus.get("keltner_call_above", 0.50))
     di_above = float(trend_consensus.get("di_call_above", 0.0))
 
-    # 1. DI Diff (Zona Neutra: [-0.02, +0.02])
     v = _safe_last(series, "di_diff")
     if v is not None:
         if v > (di_above + 0.02):
@@ -37,7 +36,6 @@ def consensus_trend_direction(
         elif v < (di_above - 0.02):
             put_votes += 1
 
-    # 2. MACD Diff (Zona Neutra: [-0.00005, +0.00005])
     m_val = _safe_last(series, "macd")
     m_sig = _safe_last(series, "macd_signal")
     if m_val is not None and m_sig is not None:
@@ -47,7 +45,6 @@ def consensus_trend_direction(
         elif diff < -0.00005:
             put_votes += 1
 
-    # 3. RSI (Zona Neutra: [0.48, 0.52])
     rv = _safe_last(series, "rsi")
     if rv is not None:
         if rv > max(rsi_above, 0.52):
@@ -55,7 +52,6 @@ def consensus_trend_direction(
         elif rv < min(rsi_above, 0.48):
             put_votes += 1
 
-    # 4. CMO (Zona Neutra: [-0.05, +0.05])
     cv = _safe_last(series, "cmo")
     if cv is not None:
         if cv > 0.05:
@@ -63,7 +59,6 @@ def consensus_trend_direction(
         elif cv < -0.05:
             put_votes += 1
 
-    # 5. Keltner %B (Zona Neutra: [0.48, 0.52])
     kv = _safe_last(series, "keltner_pct_b")
     if kv is not None:
         if kv > (keltner_above + 0.02):

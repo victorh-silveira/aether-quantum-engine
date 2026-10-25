@@ -114,6 +114,7 @@ async def test_process_contract_settlement_lost(orch_ready):
     orch._contract_cycle = {456: 2}
     orch._buffer_result_logs = True
     orch._pending_result_logs = []
+    orch.state_store.redis = AsyncMock()
     contract = Contract(
         contract_id=456,
         proposal_id="p2",
@@ -163,6 +164,7 @@ async def test_process_contract_settlement_lost(orch_ready):
     assert "SPOT: 101.00->100.00 (-1.00) | REAL: PUT | FASE_M5: 1s" in orch._pending_result_logs[0]
     assert 456 not in orch.risk_manager.active_contract_ids
     orch.executor.execute_cluster.assert_awaited_once()
+    orch.state_store.redis.set.assert_awaited_once_with("quarantine:loss:demo:R_10", "1", ex=900)
 
 
 def test_log_cluster_summary(orch_ready):
@@ -289,3 +291,50 @@ def test_check_session_limits_via_balance_sync_when_pnl_below_target(orch_ready)
         return_value=50.0,
     ):
         assert check_session_limits_before_post_settlement(orch) is True
+
+
+@pytest.mark.asyncio
+async def test_process_contract_settlement_lost_quarantine_redis_error(orch_ready):
+    orch = orch_ready
+    orch._contract_cycle = {457: 2}
+    orch._buffer_result_logs = True
+    orch._pending_result_logs = []
+    mock_redis = AsyncMock()
+    mock_redis.set.side_effect = RuntimeError("redis down")
+    orch.state_store.redis = mock_redis
+    contract = Contract(
+        contract_id=457,
+        proposal_id="p2b",
+        status=TradeStatus.OPEN,
+        buy_price=5.0,
+        payout=9.0,
+        symbol="R_10",
+        direction=TradeDirection.CALL,
+        stake=5.0,
+        expiry_time=0,
+    )
+    await orch.state.add_contract(contract)
+    orch.risk_manager.active_contract_ids = [457]
+    orch.risk_manager.contract_to_symbol[457] = "R_10"
+    orch.risk_manager.begin_cluster(1)
+    data = {
+        "proposal_open_contract": {
+            "status": "lost",
+            "is_settled": 1,
+            "contract_id": 457,
+            "profit": -5.0,
+            "balance_after": 995.0,
+            "entry_spot": 101.0,
+            "exit_spot": 100.0,
+            "entry_spot_time": 301,
+        }
+    }
+    with (
+        patch(TRADING_CYCLE_COLLECT, new_callable=AsyncMock, return_value={}),
+        patch_instant_post_settlement_poll(),
+    ):
+        orch.executor.execute_cluster = AsyncMock()
+        await process_contract_settlement(orch, data)
+        if orch._post_settlement_task is not None:
+            await orch._post_settlement_task
+    mock_redis.set.assert_awaited_once()

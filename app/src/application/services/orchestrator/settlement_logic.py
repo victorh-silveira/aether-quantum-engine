@@ -119,15 +119,11 @@ async def _complete_contract_settlement(
             float(resolved_meta.get("edge") or 0.0),
             int(resolved_meta.get("linear_before", 0) or 0),
         )
-        orch._last_loss_clf_learn = None
     if result_line is not None:
-        learn = str(getattr(orch, "_last_loss_clf_learn", "") or "").strip()
-        line = f"{result_line} | LEARN: {learn}" if learn and "LEARN:" not in result_line else result_line
         price_audit = broker_price_audit(
             c, audit_direction or getattr(getattr(contract, "direction", None), "name", None)
         )
-        if price_audit:
-            line = f"{line} | {price_audit}"
+        line = f"{result_line} | {price_audit}" if price_audit else result_line
         _emit_contract_settlement_log(
             orch,
             line,
@@ -135,10 +131,17 @@ async def _complete_contract_settlement(
             sym=resolved_meta.get("symbol") if isinstance(resolved_meta, dict) else None,
             cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
-        orch._last_loss_clf_learn = None
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
     if profit < 0.0 and isinstance(resolved_meta, dict) and resolved_meta.get("symbol"):
-        orch.__dict__.setdefault("_symbol_loss_quarantine", {})[str(resolved_meta["symbol"])] = time.time() + 900.0
+        sym = str(resolved_meta["symbol"])
+        orch.__dict__.setdefault("_symbol_loss_quarantine", {})[sym] = time.time() + 900.0
+        r_store = getattr(orch, "state_store", None)
+        if r_store is not None and hasattr(r_store, "redis") and r_store.redis is not None:
+            try:
+                mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
+                await r_store.redis.set(f"quarantine:loss:{mode}:{sym}", "1", ex=900)
+            except Exception as exc:
+                orch.logger.debug("Falha ao registrar quarentena no Redis para %s: %s", sym, exc)
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
 

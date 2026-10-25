@@ -21,6 +21,10 @@ def test_session_vwap_calculations():
     assert vwap > 0.0
     assert upper >= vwap >= lower
 
+    short_session = [Candle(0, 100.0, 101.0, 99.0, 100.0), Candle(100000, 101.0, 102.0, 100.0, 101.0)]
+    v_s, u_s, l_s = session_vwap(short_session)
+    assert v_s > 0.0
+
 
 def test_detect_fvg_mitigation():
     assert detect_fvg_mitigation([]) == (True, True)

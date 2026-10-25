@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from typing import Any
 
 from src.application.services.force_trade_mode import force_trade_from_orch, resolve_force_min_stake
@@ -78,14 +79,13 @@ async def execute_cluster_orders(
                 pnl = float(getattr(executor.orch.risk_manager, "total_session_profit", 0.0) or 0.0)
                 sst = max(0.0, sw - pnl) if sw > 0.0 else 0.0
             minimum = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
-            lin_n = int(getattr(executor.orch.risk_manager, "consecutive_losses_linear", 0) or 0)
             stake, covered = pullback_stake(
                 available,
                 unreserved_loss(executor.orch),
                 float(metrics.get("indicator_quote_rate") or 0.0),
                 minimum,
                 single_strike_target=sst,
-                amort_steps=(2 if lin_n >= 2 else 1),
+                amort_steps=1,
             )
             metrics["_pullback_recovery_amount"] = covered
             metrics["_pullback_stake_cap"] = math.floor(available * 0.05 * 100) / 100
@@ -256,6 +256,9 @@ async def execute_cluster_orders(
             err_msg = str(e).lower()
             if "closed" in err_msg or "trading is not available" in err_msg:
                 executor.logger.warning("SKIP: Sessão fechada para %s: %s", symbol, e)
+                quar = getattr(executor.orch, "_symbol_loss_quarantine", None)
+                if isinstance(quar, dict):
+                    quar[symbol] = time.time() + 900.0
             else:
                 executor.logger.warning("EXEC_FAIL: falha na ordem para %s (%s): %s", symbol, direction.name, e)
                 if is_proposal_runtime_error(e):

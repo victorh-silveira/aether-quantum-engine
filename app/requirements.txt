@@ -20,8 +20,3 @@ minio>=7.2                     # SDK para integração com armazenamento de obje
 # ---- DEEP LEARNING & INFERENCIA ----
 torch==2.10.0                  # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
 
-# ---- TREINAMENTO OFFLINE (meta-classificador tabular) ----
-lightgbm==4.6.0                # Framework de Gradient Boosting baseado em árvores de decisão para alta performance em dados tabulares
-optuna==4.2.1                  # Framework de otimização de hiperparâmetros automatizada (Hyperparameter Tuning)
-scikit-learn==1.6.1            # Biblioteca clássica de Machine Learning para pré-processamento, métricas e modelos básicos
-joblib==1.4.2                  # Serializacao explicita meta/loss (import direto; nao depender so do transitivo sklearn)

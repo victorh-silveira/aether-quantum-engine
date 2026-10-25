@@ -4,13 +4,6 @@ x-logging: &aether-logging
     max-size: "10m"
     max-file: "3"
 
-x-omp-threads: &aether-omp
-  OMP_NUM_THREADS: "2"
-  OPENBLAS_NUM_THREADS: "2"
-  MKL_NUM_THREADS: "2"
-  VECLIB_MAXIMUM_THREADS: "2"
-  NUMEXPR_NUM_THREADS: "2"
-
 services:
   aether-core-cache-redis:
     image: aether-core-cache-redis:7.4.2
@@ -78,6 +71,7 @@ services:
       POSTGRES_DB: ${AETHER_PG_DB:-aether}
     ports:
       - "127.0.0.1:5432:5432"
+    shm_size: 256m
     volumes:
       - aether_ts_data:/var/lib/postgresql/data
       - ./sql/002_aether-io-tune.sql:/docker-entrypoint-initdb.d/002_aether-io-tune.sql:ro
@@ -175,6 +169,11 @@ services:
       - ../../indicator/app/src:/opt/aether/app/src:ro
     ports:
       - "127.0.0.1:9102:9101"
+    mem_limit: 512m
+    mem_swappiness: 0
+    cpus: 0.50
+    security_opt:
+      - no-new-privileges:true
     logging: *aether-logging
     healthcheck:
       test:
@@ -201,6 +200,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:9090:9090"
+    mem_limit: 512m
+    mem_swappiness: 0
+    cpus: 0.50
+    security_opt:
+      - no-new-privileges:true
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - aether_prom_data:/prometheus
@@ -228,6 +232,11 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
+    mem_limit: 256m
+    mem_swappiness: 0
+    cpus: 0.50
+    security_opt:
+      - no-new-privileges:true
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=aether
       - GF_USERS_ALLOW_SIGN_UP=false
@@ -239,7 +248,8 @@ services:
       - ../../indicator/infra/docker/grafana/provisioning/dashboards:/etc/grafana/indicator-dashboards:ro
       - aether_grafana_data:/var/lib/grafana
     depends_on:
-      - aether-observe-metrics-prometheus
+      aether-observe-metrics-prometheus:
+        condition: service_healthy
     logging: *aether-logging
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]

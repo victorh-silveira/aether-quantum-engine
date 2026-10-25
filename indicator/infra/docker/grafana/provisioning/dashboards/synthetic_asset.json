@@ -32,7 +32,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.* FROM pullback_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.setup_version LIKE 'pullback-1-%' ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT s.*,r.state FROM latest s JOIN pullback_registry r ON r.symbol=s.symbol AND r.period_seconds=s.period_seconds AND r.setup_version=s.setup_version WHERE r.state IN ('piloto','ativo') AND s.reason='setup_confirmado' AND s.side IN ('CALL','PUT') AND s.candle_epoch=(extract(epoch from now())::bigint/s.period_seconds)*s.period_seconds-s.period_seconds) SELECT symbol AS ativo,period_seconds AS periodo,side AS sinal,upper(state) AS estado,setup_version AS versao,to_timestamp(candle_epoch+period_seconds) AS vela_fechada FROM valid WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'R_25') AND period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 300) ORDER BY candle_epoch DESC",
+          "rawSql": "WITH latest AS (SELECT DISTINCT ON (s.symbol,s.period_seconds) s.* FROM pullback_signals s JOIN indicator_symbols a ON a.symbol=s.symbol AND a.active WHERE s.setup_version LIKE 'pullback-1-%' ORDER BY s.symbol,s.period_seconds,s.candle_epoch DESC), valid AS (SELECT s.*,r.state FROM latest s JOIN pullback_registry r ON r.symbol=s.symbol AND r.period_seconds=s.period_seconds AND r.setup_version=s.setup_version WHERE r.state IN ('piloto','ativo') AND s.reason='setup_confirmado' AND s.side IN ('CALL','PUT') AND s.candle_epoch=(extract(epoch from now())::bigint/s.period_seconds)*s.period_seconds-s.period_seconds) SELECT symbol AS ativo,period_seconds AS periodo,side AS sinal,upper(state) AS estado,setup_version AS versao,to_timestamp(candle_epoch+period_seconds) AS vela_fechada FROM valid WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 900) ORDER BY candle_epoch DESC",
           "format": "table",
           "refId": "A"
         }
@@ -69,7 +69,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT to_timestamp(candle_epoch+period_seconds) AS horario,side AS sinal,reason AS motivo,setup_version AS versao FROM pullback_signals WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'R_25') AND period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 300) AND $__unixEpochFilter(candle_epoch) ORDER BY candle_epoch DESC LIMIT 300",
+          "rawSql": "SELECT to_timestamp(candle_epoch+period_seconds) AS horario,side AS sinal,reason AS motivo,setup_version AS versao FROM pullback_signals WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 900) AND $__unixEpochFilter(candle_epoch) ORDER BY candle_epoch DESC LIMIT 300",
           "format": "table",
           "refId": "A"
         }
@@ -106,7 +106,7 @@
             "type": "grafana-postgresql-datasource",
             "uid": "timescale"
           },
-          "rawSql": "SELECT to_timestamp(date_start) AS horario,account_mode AS conta,direction AS lado,contract_id,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'R_25') AND indicator_period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 300) AND indicator_model_version LIKE 'pullback-1-%' AND settlement_source IN ('broker', 'profit_table') AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
+          "rawSql": "SELECT to_timestamp(date_start) AS horario,account_mode AS conta,direction AS lado,contract_id,round(profit::numeric,2) AS resultado,settlement_source AS fonte FROM contract_executions WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND indicator_period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 900) AND indicator_model_version LIKE 'pullback-1-%' AND settlement_source IN ('broker', 'profit_table') AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
           "format": "table",
           "refId": "A"
         }
@@ -137,8 +137,8 @@
         "definition": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
         "current": {
           "selected": true,
-          "text": "Volatility 25 Index",
-          "value": "R_25"
+          "text": "Swiss Market Index 20",
+          "value": "OTC_SSMI"
         },
         "refresh": 1,
         "includeAll": false,
@@ -149,8 +149,8 @@
         "type": "custom",
         "query": "300,900,3600",
         "current": {
-          "text": "300",
-          "value": "300"
+          "text": "900",
+          "value": "900"
         },
         "includeAll": false,
         "multi": false

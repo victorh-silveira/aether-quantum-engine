@@ -833,3 +833,17 @@ async def test_settlement_reconciles_both_active_index_contracts():
     ):
         assert await execution_settlement.reconcile_contracts(executor)
     assert [call.args[1] for call in reconcile.await_args_list] == [1, 2]
+
+
+def test_filter_indicator_candidates_handles_none_probability():
+    orch = SimpleNamespace(
+        config={"indicator_consensus": {"enabled": True}},
+        state=SimpleNamespace(active_contracts={}),
+        risk_manager=SimpleNamespace(contract_to_symbol={}),
+        _indicator_signals={"R_10": ApprovedSignal("R_10", "CALL", 300, None, "v1")},
+        _indicator_epoch=300,
+    )
+    metrics = {"model_input_candle_epoch": 300}
+    orders = consensus.filter_indicator_candidates(orch, [("R_10", TradeDirection.CALL, metrics)])
+    assert len(orders) == 1
+    assert orders[0][2]["trade_score"] == 0.5

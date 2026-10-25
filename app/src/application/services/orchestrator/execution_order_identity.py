@@ -20,9 +20,9 @@ def set_indicator_duration(params: dict, metrics: dict | None) -> None:
     period = int(metrics.get("indicator_period_seconds") or 300)
     allowed = metrics.get("allowed_period_seconds")
     if str(metrics.get("indicator_model_version", "")).startswith("pullback-1-"):
-        if allowed is not None and period == allowed:
-            pass
-        elif period != 300:
+        if allowed is not None and period != allowed:
+            raise RuntimeError("Periodo do pullback divergente do permitido")
+        if allowed is None and period != 300:
             raise RuntimeError("Setup pullback opera somente em M5")
     if period not in (300, 900, 3600):
         raise RuntimeError("Periodo do indicador invalido para contrato")
