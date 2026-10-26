@@ -126,7 +126,7 @@ def resolve_organic_direction(
     candles: list[Any],
     signal_side: str,
 ) -> tuple[str, str]:
-    """Decide organicamente a direcao real do contrato (tendencia vs exaustao/recuo/fade)."""
+    """Decide organicamente a direcao real do contrato alinhada a tendencia de pullback institucional."""
     if not candles or len(candles) < 30:
         return signal_side, "fallback_poucas_velas"
 
@@ -157,39 +157,35 @@ def resolve_organic_direction(
     is_doji = body < 0.08 * atr
 
     if signal_side == "CALL":
-        has_top_rejection = (upper_wick > 0.65 * body and upper_wick > 0.25 * atr) or (
-            upper_wick > 1.2 * lower_wick and is_doji and pct_b > 0.5
-        )
-        is_overbought_exhaustion = rsi >= 68.0 and pct_b >= 0.88 and stoch_k < stoch_d
-        is_extreme_extension = pct_b >= 0.94 and rsi >= 72.0
-        is_bearish_momentum = m_hist < 0.0 and (stoch_k < stoch_d or cci < 0.0 or is_candle_bearish)
-
-        if has_top_rejection:
-            return "PUT", "fade_rejeicao_topo"
-        if is_overbought_exhaustion:
-            return "PUT", "fade_exaustao_sobrecompra"
-        if is_extreme_extension:
-            return "PUT", "fade_extensao_extrema"
-        if is_bearish_momentum:
-            return "PUT", "momentum_bearish_recuo"
+        is_extreme_overbought = pct_b >= 0.92 or rsi >= 70.0
+        has_heavy_top_rejection = not is_doji and upper_wick > 0.80 * body and upper_wick > 0.35 * atr
+        if is_extreme_overbought:
+            return "SKIP", "veto_exaustao_sobrecompra"
+        if has_heavy_top_rejection:
+            return "SKIP", "veto_rejeicao_topo"
+        if is_doji and lower_wick <= upper_wick:
+            return "SKIP", "veto_indecisao_doji"
+        if m_hist < 0.0 and cci < -100.0 and pct_b < 0.25:
+            return "SKIP", "veto_pressao_vendedora_excessiva"
+        has_bottom_support = lower_wick > 0.60 * body or lower_wick > 0.30 * atr
+        if has_bottom_support or (stoch_k >= stoch_d and not is_candle_bearish):
+            return "CALL", "pullback_suporte_retomada"
         return "CALL", "fluxo_tendencia_saudavel"
 
     if signal_side == "PUT":
-        has_bottom_rejection = (lower_wick > 0.65 * body and lower_wick > 0.25 * atr) or (
-            lower_wick > 1.2 * upper_wick and is_doji and pct_b < 0.5
-        )
-        is_oversold_exhaustion = rsi <= 32.0 and pct_b <= 0.12 and stoch_k > stoch_d
-        is_extreme_extension = pct_b <= 0.06 and rsi <= 28.0
-        is_bullish_momentum = m_hist > 0.0 and (stoch_k > stoch_d or cci > 0.0 or is_candle_bullish)
-
-        if has_bottom_rejection:
-            return "CALL", "bounce_rejeicao_fundo"
-        if is_oversold_exhaustion:
-            return "CALL", "bounce_exaustao_sobrevenda"
-        if is_extreme_extension:
-            return "CALL", "bounce_extensao_extrema"
-        if is_bullish_momentum:
-            return "CALL", "momentum_bullish_repique"
+        is_extreme_oversold = pct_b <= 0.08 or rsi <= 30.0
+        has_heavy_bottom_rejection = not is_doji and lower_wick > 0.80 * body and lower_wick > 0.35 * atr
+        if is_extreme_oversold:
+            return "SKIP", "veto_exaustao_sobrevenda"
+        if has_heavy_bottom_rejection:
+            return "SKIP", "veto_rejeicao_fundo"
+        if is_doji and upper_wick <= lower_wick:
+            return "SKIP", "veto_indecisao_doji"
+        if m_hist > 0.0 and cci > 100.0 and pct_b > 0.75:
+            return "SKIP", "veto_pressao_compradora_excessiva"
+        has_top_resistance = upper_wick > 0.60 * body or upper_wick > 0.30 * atr
+        if has_top_resistance or (stoch_k <= stoch_d and not is_candle_bullish):
+            return "PUT", "pullback_resistencia_retomada"
         return "PUT", "fluxo_queda_saudavel"
 
     return signal_side, "direcao_preservada"
