@@ -1,3 +1,9 @@
+## [4.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.17.0...v4.18.0) (2026-10-26)
+
+### Funcionalidades
+
+* **orchestrator:** liberar operacao em mercados abertos e fechados com fallback total ([1392a45](https://github.com/victorh-silveira/aether-quantum-engine/commit/1392a45567c759e48d351197321d01df8bf18160))
+
 ## [4.17.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.16.2...v4.17.0) (2026-10-25)
 
 ### Funcionalidades
