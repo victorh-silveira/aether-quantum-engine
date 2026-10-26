@@ -1,3 +1,9 @@
+## [4.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.19.0...v4.20.0) (2026-10-26)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar fallback contínuo sem janela temporal estrita ([f724631](https://github.com/victorh-silveira/aether-quantum-engine/commit/f7246316bc17cc02eaf6f2a782bced68a5270db2))
+
 ## [4.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.18.0...v4.19.0) (2026-10-26)
 
 ### Funcionalidades
