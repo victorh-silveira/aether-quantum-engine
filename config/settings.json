@@ -9,19 +9,17 @@
     "period_seconds": 900,
     "duration": 15,
     "duration_unit": "m",
-    "never_skip": false,
-    "excluded_symbols": [
-      "OTC_HSI",
-      "OTC_AS51",
-      "OTC_FTSE",
-      "OTC_N225"
-    ],
+    "never_skip": true,
+    "allow_closed_markets": true,
+    "operate_all_signals": true,
+    "max_fallback_candidates": 4,
+    "excluded_symbols": [],
     "promoted_symbol": "OTC_SSMI",
-    "promoted_ev": 0.092,
-    "promoted_win_rate": 0.65,
-    "promoted_setups": 20,
+    "promoted_ev": 0.0611,
+    "promoted_win_rate": 0.6316,
+    "promoted_setups": 19,
     "promoted_variant": "senior_institutional",
-    "promoted_at": "2026-10-25T22:10:32.088351+00:00",
+    "promoted_at": "2026-10-25T23:17:55.882705+00:00",
     "promoted_max_losses_consecutivos": 5,
     "single_strike": false,
     "invert_signal": false,
@@ -31,11 +29,7 @@
     "min_payout_rate": 0.68,
     "min_prob_threshold": 0.5,
     "breakeven_floor": 0.5,
-    "promoted_optimal_hours_brt": [
-      6,
-      10,
-      12
-    ],
+    "promoted_optimal_hours_brt": [],
     "promoted_best_window_brt": "06:00 as 13:00 (BRT)"
   },
   "indicator_consensus": {

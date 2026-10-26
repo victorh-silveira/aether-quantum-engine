@@ -58,10 +58,12 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         else False
     )
     quarantine = getattr(orch, "_symbol_loss_quarantine", {})
+    operate_all = bool(pb_cfg.get("operate_all_signals", False))
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
             and promoted_only
+            and not operate_all
             and symbol != str(promoted_only)
             and (not dynamic_rotation or has_promoted_signal)
         ):
@@ -118,13 +120,15 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
             if not dynamic_rotation
             else sorted(raw_syms, key=lambda s: not is_otc_exchange_open_brt(s, now_ts))
         )
+        allow_closed = bool(pb_cfg.get("allow_closed_markets", False))
+        max_fb = int(pb_cfg.get("max_fallback_candidates", 1))
         for sym in fallback_syms:
             if sym in active_symbols or sym in excluded or now_ts < quarantine.get(sym, 0):
                 continue
             stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
             candles = closed_candles_slice(getattr(stream, "micro_candles", {}).get(sym) or [], period_seconds, now_ts)
             last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0) if candles else 0.0
-            if len(candles) < 50 or (last_c_ep > 100000 and now_ts - last_c_ep > 1800):
+            if len(candles) < 50 or (not allow_closed and last_c_ep > 100000 and now_ts - last_c_ep > 1800):
                 continue
             c_closes = [float(c.close) for c in candles]
             a20, a50, e20, e50 = 2.0 / 21.0, 2.0 / 51.0, c_closes[0], c_closes[0]
@@ -158,7 +162,8 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
                 )
                 if signal_epoch_current(orch.config, fb_metrics):
                     result.append((sym, TradeDirection[fb_side], fb_metrics))
-                    break
+                    if len(result) >= max_fb:
+                        break
     return result
 
 
