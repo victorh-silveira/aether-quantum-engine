@@ -1,3 +1,9 @@
+## [4.19.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.18.0...v4.19.0) (2026-10-26)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar operacao nos 12 pares e desimpedir fallback ([c43284e](https://github.com/victorh-silveira/aether-quantum-engine/commit/c43284e529db16b990d05b4c6fb2b629aadf3d17))
+
 ## [4.18.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.17.0...v4.18.0) (2026-10-26)
 
 ### Funcionalidades
