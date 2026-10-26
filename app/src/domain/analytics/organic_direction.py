@@ -122,6 +122,88 @@ def _calc_adx(candles: list[Any], period: int = 14) -> float:
     return (abs(pdi - mdi) / denom * 100.0) if denom > 0 else 0.0
 
 
+def _calc_session_vwap_bands(candles: list[Any]) -> tuple[float, float, float]:
+    """Calcula Session VWAP e bandas de dispersao de +/- 1.5 desvio padrao."""
+    if not candles:
+        return 0.0, 0.0, 0.0
+    bars = candles[-min(len(candles), 72) :]
+    cum_pv = 0.0
+    cum_vol = 0.0
+    tps: list[float] = []
+    weights: list[float] = []
+    for b in bars:
+        tp = (float(b.high) + float(b.low) + float(b.close)) / 3.0
+        w = max(float(b.high) - float(b.low), 1e-5)
+        tps.append(tp)
+        weights.append(w)
+        cum_pv += tp * w
+        cum_vol += w
+    vwap = cum_pv / cum_vol
+    var = sum(w * ((tp - vwap) ** 2) for tp, w in zip(tps, weights, strict=True)) / cum_vol
+    std = math.sqrt(var) if var > 0.0 else 0.0
+    return vwap, vwap + 1.5 * std, vwap - 1.5 * std
+
+
+def _evaluate_uptrend_pullback(
+    cf_close: float,
+    body: float,
+    atr: float,
+    upper_wick: float,
+    lower_wick: float,
+    metrics: dict[str, Any],
+) -> tuple[str, str]:
+    """Valida o recuo de alta institucional com vetos preventivos."""
+    pct_b = float(metrics["pct_b"])
+    rsi = float(metrics["rsi"])
+    vwap_upper = float(metrics["vwap_upper"])
+    is_doji = bool(metrics["is_doji"])
+    if pct_b >= 0.92 or rsi >= 70.0 or (vwap_upper > 0.0 and cf_close > vwap_upper):
+        return "SKIP", "veto_exaustao_sobrecompra"
+    if not is_doji and upper_wick > 0.80 * body and upper_wick > 0.35 * atr:
+        return "SKIP", "veto_rejeicao_topo"
+    if is_doji and lower_wick <= upper_wick:
+        return "SKIP", "veto_indecisao_doji"
+    if float(metrics["m_hist"]) < 0.0 and float(metrics["cci"]) < -100.0 and pct_b < 0.25:
+        return "SKIP", "veto_pressao_vendedora_excessiva"
+    if float(metrics["ema20_slope"]) < -0.10 * atr:
+        return "SKIP", "veto_inclinacao_desfavoravel"
+    has_bottom_support = lower_wick > 0.60 * body or lower_wick > 0.30 * atr
+    stoch_k, stoch_d = float(metrics["stoch_k"]), float(metrics["stoch_d"])
+    if has_bottom_support or (stoch_k >= stoch_d and not bool(metrics["is_candle_bearish"])):
+        return "CALL", "pullback_suporte_retomada"
+    return "CALL", "fluxo_tendencia_saudavel"
+
+
+def _evaluate_downtrend_pullback(
+    cf_close: float,
+    body: float,
+    atr: float,
+    upper_wick: float,
+    lower_wick: float,
+    metrics: dict[str, Any],
+) -> tuple[str, str]:
+    """Valida o recuo de baixa institucional com vetos preventivos."""
+    pct_b = float(metrics["pct_b"])
+    rsi = float(metrics["rsi"])
+    vwap_lower = float(metrics["vwap_lower"])
+    is_doji = bool(metrics["is_doji"])
+    if pct_b <= 0.08 or rsi <= 30.0 or (vwap_lower > 0.0 and cf_close < vwap_lower):
+        return "SKIP", "veto_exaustao_sobrevenda"
+    if not is_doji and lower_wick > 0.80 * body and lower_wick > 0.35 * atr:
+        return "SKIP", "veto_rejeicao_fundo"
+    if is_doji and upper_wick <= lower_wick:
+        return "SKIP", "veto_indecisao_doji"
+    if float(metrics["m_hist"]) > 0.0 and float(metrics["cci"]) > 100.0 and pct_b > 0.75:
+        return "SKIP", "veto_pressao_compradora_excessiva"
+    if float(metrics["ema20_slope"]) > 0.10 * atr:
+        return "SKIP", "veto_inclinacao_desfavoravel"
+    has_top_resistance = upper_wick > 0.60 * body or upper_wick > 0.30 * atr
+    stoch_k, stoch_d = float(metrics["stoch_k"]), float(metrics["stoch_d"])
+    if has_top_resistance or (stoch_k <= stoch_d and not bool(metrics["is_candle_bullish"])):
+        return "PUT", "pullback_resistencia_retomada"
+    return "PUT", "fluxo_queda_saudavel"
+
+
 def resolve_organic_direction(
     candles: list[Any],
     signal_side: str,
@@ -147,6 +229,10 @@ def resolve_organic_direction(
     _, _, m_hist = _calc_macd(closes, 7, 14, 5)
     cci = _calc_cci(candles, 14)
     adx = _calc_adx(candles, 14)
+    _, vwap_upper, vwap_lower = _calc_session_vwap_bands(candles)
+
+    ema20_vals = _calc_ema(closes, 20)
+    ema20_slope = (ema20_vals[-1] - ema20_vals[-3]) if len(ema20_vals) >= 3 else 0.0
 
     is_flat_market = adx < 12.0 and abs(cf_close - float(prev_c.close)) < 0.10 * atr and body < 0.10 * atr
     if is_flat_market:
@@ -156,36 +242,25 @@ def resolve_organic_direction(
     is_candle_bullish = cf_close > cf_open or cf_close > float(prev_c.close)
     is_doji = body < 0.08 * atr
 
+    metrics = {
+        "rsi": rsi,
+        "pct_b": pct_b,
+        "stoch_k": stoch_k,
+        "stoch_d": stoch_d,
+        "m_hist": m_hist,
+        "cci": cci,
+        "vwap_upper": vwap_upper,
+        "vwap_lower": vwap_lower,
+        "ema20_slope": ema20_slope,
+        "is_doji": is_doji,
+        "is_candle_bearish": is_candle_bearish,
+        "is_candle_bullish": is_candle_bullish,
+    }
+
     if signal_side == "CALL":
-        is_extreme_overbought = pct_b >= 0.92 or rsi >= 70.0
-        has_heavy_top_rejection = not is_doji and upper_wick > 0.80 * body and upper_wick > 0.35 * atr
-        if is_extreme_overbought:
-            return "SKIP", "veto_exaustao_sobrecompra"
-        if has_heavy_top_rejection:
-            return "SKIP", "veto_rejeicao_topo"
-        if is_doji and lower_wick <= upper_wick:
-            return "SKIP", "veto_indecisao_doji"
-        if m_hist < 0.0 and cci < -100.0 and pct_b < 0.25:
-            return "SKIP", "veto_pressao_vendedora_excessiva"
-        has_bottom_support = lower_wick > 0.60 * body or lower_wick > 0.30 * atr
-        if has_bottom_support or (stoch_k >= stoch_d and not is_candle_bearish):
-            return "CALL", "pullback_suporte_retomada"
-        return "CALL", "fluxo_tendencia_saudavel"
+        return _evaluate_uptrend_pullback(cf_close, body, atr, upper_wick, lower_wick, metrics)
 
     if signal_side == "PUT":
-        is_extreme_oversold = pct_b <= 0.08 or rsi <= 30.0
-        has_heavy_bottom_rejection = not is_doji and lower_wick > 0.80 * body and lower_wick > 0.35 * atr
-        if is_extreme_oversold:
-            return "SKIP", "veto_exaustao_sobrevenda"
-        if has_heavy_bottom_rejection:
-            return "SKIP", "veto_rejeicao_fundo"
-        if is_doji and upper_wick <= lower_wick:
-            return "SKIP", "veto_indecisao_doji"
-        if m_hist > 0.0 and cci > 100.0 and pct_b > 0.75:
-            return "SKIP", "veto_pressao_compradora_excessiva"
-        has_top_resistance = upper_wick > 0.60 * body or upper_wick > 0.30 * atr
-        if has_top_resistance or (stoch_k <= stoch_d and not is_candle_bullish):
-            return "PUT", "pullback_resistencia_retomada"
-        return "PUT", "fluxo_queda_saudavel"
+        return _evaluate_downtrend_pullback(cf_close, body, atr, upper_wick, lower_wick, metrics)
 
     return signal_side, "direcao_preservada"

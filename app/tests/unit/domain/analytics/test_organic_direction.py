@@ -10,6 +10,7 @@ from src.domain.analytics.organic_direction import (
     _calc_cci,
     _calc_macd,
     _calc_rsi,
+    _calc_session_vwap_bands,
     _calc_stochastic,
     resolve_organic_direction,
 )
@@ -44,6 +45,7 @@ def test_internal_indicator_helpers():
     assert _calc_adx([]) == 20.0
     flat_c = [SimpleNamespace(open=10.0, high=10.0, low=10.0, close=10.0) for _ in range(20)]
     assert _calc_adx(flat_c) == 0.0
+    assert _calc_session_vwap_bands([]) == (0.0, 0.0, 0.0)
 
 
 def test_organic_direction_flat_market_skip():
@@ -70,6 +72,7 @@ def test_organic_direction_call_top_rejection_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "CALL")
@@ -83,6 +86,7 @@ def test_organic_direction_call_doji_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "CALL")
@@ -96,6 +100,7 @@ def test_organic_direction_call_heavy_selling_pressure_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=45.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.15),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_macd", return_value=(0.0, 0.5, -0.5)),
         patch("src.domain.analytics.organic_direction._calc_cci", return_value=-150.0),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
@@ -111,6 +116,7 @@ def test_organic_direction_call_pullback_support():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "CALL")
@@ -124,12 +130,27 @@ def test_organic_direction_call_healthy_flow():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_stochastic", return_value=(40.0, 50.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "CALL")
         assert side == "CALL"
         assert reason == "fluxo_tendencia_saudavel"
+
+
+def test_organic_direction_call_adverse_slope_veto():
+    candles = _base_candles(50)
+    with (
+        patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
+        patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
+        patch("src.domain.analytics.organic_direction._calc_ema", return_value=[100.0, 100.0, 95.0]),
+        patch("src.domain.analytics.organic_direction._calc_atr", return_value=1.0),
+    ):
+        side, reason = resolve_organic_direction(candles, "CALL")
+        assert side == "SKIP"
+        assert reason == "veto_inclinacao_desfavoravel"
 
 
 def test_organic_direction_put_exhaustion_veto():
@@ -149,6 +170,7 @@ def test_organic_direction_put_bottom_rejection_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "PUT")
@@ -162,6 +184,7 @@ def test_organic_direction_put_doji_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "PUT")
@@ -175,6 +198,7 @@ def test_organic_direction_put_heavy_buying_pressure_veto():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=55.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.85),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_macd", return_value=(0.0, -0.5, 0.5)),
         patch("src.domain.analytics.organic_direction._calc_cci", return_value=150.0),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
@@ -190,6 +214,7 @@ def test_organic_direction_put_pullback_resistance():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "PUT")
@@ -203,12 +228,27 @@ def test_organic_direction_put_healthy_flow():
     with (
         patch("src.domain.analytics.organic_direction._calc_rsi", return_value=45.0),
         patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.40),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
         patch("src.domain.analytics.organic_direction._calc_stochastic", return_value=(60.0, 50.0)),
         patch("src.domain.analytics.organic_direction._calc_atr", return_value=4.0),
     ):
         side, reason = resolve_organic_direction(candles, "PUT")
         assert side == "PUT"
         assert reason == "fluxo_queda_saudavel"
+
+
+def test_organic_direction_put_adverse_slope_veto():
+    candles = _base_candles(50)
+    with (
+        patch("src.domain.analytics.organic_direction._calc_rsi", return_value=50.0),
+        patch("src.domain.analytics.organic_direction._calc_bollinger_pct_b", return_value=0.50),
+        patch("src.domain.analytics.organic_direction._calc_session_vwap_bands", return_value=(100.0, 110.0, 90.0)),
+        patch("src.domain.analytics.organic_direction._calc_ema", return_value=[100.0, 100.0, 105.0]),
+        patch("src.domain.analytics.organic_direction._calc_atr", return_value=1.0),
+    ):
+        side, reason = resolve_organic_direction(candles, "PUT")
+        assert side == "SKIP"
+        assert reason == "veto_inclinacao_desfavoravel"
 
 
 def test_organic_direction_unknown_side():
