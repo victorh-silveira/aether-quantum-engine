@@ -293,8 +293,8 @@
     }
   },
   "infra": {
-    "enabled": false,
-    "fail_fast": true,
+    "enabled": true,
+    "fail_fast": false,
     "minio": {
       "bucket": "dl-models",
       "endpoint": "localhost:9000",

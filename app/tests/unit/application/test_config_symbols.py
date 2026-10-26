@@ -72,6 +72,10 @@ def test_explicit_training_symbols_include_approved_runtime_discovery(tmp_path, 
             "OTC_GDAXI",
             "OTC_FCHI",
             "OTC_AEX",
+            "OTC_HSI",
+            "OTC_AS51",
+            "OTC_FTSE",
+            "OTC_N225",
         ],
     )
 

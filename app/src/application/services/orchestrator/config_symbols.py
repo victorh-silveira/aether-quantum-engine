@@ -48,6 +48,10 @@ def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
             "OTC_GDAXI",
             "OTC_FCHI",
             "OTC_AEX",
+            "OTC_HSI",
+            "OTC_AS51",
+            "OTC_FTSE",
+            "OTC_N225",
         ]
         raw.extend([s for s in rotation_syms if s not in raw])
     indicator_cfg = config.get("indicator_consensus", {})

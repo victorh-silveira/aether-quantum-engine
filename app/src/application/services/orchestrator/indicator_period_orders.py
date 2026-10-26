@@ -41,7 +41,7 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     evidence_by_version = getattr(orch, "_indicator_broker_evidence", {})
     real_by_version = getattr(orch, "_indicator_real_evidence", {})
     writer = getattr(orch, "market_writer", None)
-    if not isinstance(writer, TimescaleMarketWriter) or writer._last_error is not None:
+    if isinstance(writer, TimescaleMarketWriter) and writer._last_error is not None:
         return []
     pb_cfg = orch.config.get("pullback_strategy", {})
     excluded = set(pb_cfg.get("excluded_symbols") or orch.config.get("strategy", {}).get("excluded_symbols") or [])
