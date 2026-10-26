@@ -847,3 +847,10 @@ def test_filter_indicator_candidates_handles_none_probability():
     orders = consensus.filter_indicator_candidates(orch, [("R_10", TradeDirection.CALL, metrics)])
     assert len(orders) == 1
     assert orders[0][2]["trade_score"] == 0.5
+
+
+def test_signal_epoch_current_never_skip_and_closed_markets():
+    cfg_never_skip = {"pullback_strategy": {"never_skip": True}}
+    cfg_closed = {"pullback_strategy": {"allow_closed_markets": True}}
+    assert consensus.signal_epoch_current(cfg_never_skip, {}) is True
+    assert consensus.signal_epoch_current(cfg_closed, {}) is True

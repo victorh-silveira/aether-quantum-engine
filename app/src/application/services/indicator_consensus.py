@@ -204,14 +204,17 @@ def available_cluster_bankroll(bankroll: float, reserved: float, live_balance: f
 
 def signal_epoch_current(config: dict, metrics: dict) -> bool:
     """Impede comprar apos a vela M5 de referencia deixar de ser a ultima fechada."""
+    pb_cfg = (config or {}).get("pullback_strategy", {})
+    if pb_cfg.get("never_skip") or pb_cfg.get("allow_closed_markets"):
+        return True
     if consensus_enabled(config) and metrics.get("indicator_controls_execution"):
         period = int(metrics.get("indicator_period_seconds") or 300)
         now = time.time()
         expected = int(now // period) * period - period
-        window = int(config.get("pullback_strategy", {}).get("entry_window_seconds", 30))
+        window = int(pb_cfg.get("entry_window_seconds", 30))
         epoch_val = int(metrics.get("indicator_candle_epoch") or 0)
         return period in (300, 900, 3600) and epoch_val == expected and now % period <= window
-    p_fb = int((config or {}).get("pullback_strategy", {}).get("period_seconds", 300))
+    p_fb = int(pb_cfg.get("period_seconds", 300))
     expected_epoch = int(time.time() // p_fb) * p_fb - p_fb
     if consensus_enabled(config):
         return int(metrics.get("indicator_candle_epoch") or 0) == expected_epoch
