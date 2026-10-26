@@ -1,3 +1,9 @@
+## [4.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.2...v4.23.0) (2026-10-26)
+
+### Funcionalidades
+
+* **domain:** aprimorar confluencia e vetos direcionais ([90eb2c9](https://github.com/victorh-silveira/aether-quantum-engine/commit/90eb2c91a054520a3609e399c5de8ad87fd77ab7))
+
 ## [4.22.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.1...v4.22.2) (2026-10-26)
 
 ### Correcoes de Bug
