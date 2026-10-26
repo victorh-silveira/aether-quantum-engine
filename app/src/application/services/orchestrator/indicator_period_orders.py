@@ -14,11 +14,9 @@ from src.application.services.orchestrator.indicator_period_filters import (
     is_promoted_signal_viable,
 )
 from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, unit_ev
-from src.domain.analytics.organic_direction import resolve_organic_direction
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
 from src.domain.risk.pullback_stake import pullback_stake
-from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
 from src.infrastructure.handlers.trade_handler_quote_observation import record_indicator_quote
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 
@@ -36,17 +34,17 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         for contract_id, symbol in getattr(orch.risk_manager, "contract_to_symbol", {}).items()
         if contract_id in active_ids
     }
-    result = [item for item in m5_orders if item[0] not in active_symbols]
+    pb_cfg = orch.config.get("pullback_strategy", {})
+    pb_enabled = bool(pb_cfg.get("enabled", False))
+    result = [] if pb_enabled else [item for item in m5_orders if item[0] not in active_symbols]
     mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
     evidence_by_version = getattr(orch, "_indicator_broker_evidence", {})
     real_by_version = getattr(orch, "_indicator_real_evidence", {})
     writer = getattr(orch, "market_writer", None)
     if isinstance(writer, TimescaleMarketWriter) and writer._last_error is not None:
         return []
-    pb_cfg = orch.config.get("pullback_strategy", {})
     excluded = set(pb_cfg.get("excluded_symbols") or orch.config.get("strategy", {}).get("excluded_symbols") or [])
     promoted_only = pb_cfg.get("promoted_symbol") or orch.config.get("anchor")
-    pb_enabled, never_skip = bool(pb_cfg.get("enabled", False)), bool(pb_cfg.get("never_skip", False))
     dynamic_rotation, period_seconds = (
         bool(pb_cfg.get("dynamic_rotation", False)),
         int(pb_cfg.get("period_seconds", 300)),
@@ -73,11 +71,15 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
             or symbol in active_symbols
             or symbol in excluded
             or now_ts < quarantine.get(symbol, 0)
-            or not signal.model_version.startswith("pullback-1-")
+            or (
+                signal.model_version != pb_cfg.get("version")
+                if pb_enabled
+                else not signal.model_version.startswith("pullback-1-")
+            )
         ):
             continue
         evidence = evidence_by_version.get((symbol, period, signal.model_version), BrokerEvEvidence(0, ()))
-        pilot = mode == "demo" and (never_skip or (evidence.pilot_available and not evidence.promoted))
+        pilot = mode == "demo" and evidence.pilot_available and not evidence.promoted
         if not pilot and (mode != "real" or not evidence.promoted):
             continue
         if (
@@ -90,16 +92,8 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         probability = evidence.posterior_win_probability or prob_estimate if mode == "real" else prob_estimate
         side = signal.side
         decision_reason = "sinal_base"
-        if bool(pb_cfg.get("organic_direction", False)):
-            stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-            raw_c = getattr(stream, "micro_candles", {}).get(symbol) or []
-            candles = closed_candles_slice(raw_c, period_seconds, time.time())
-            side, decision_reason = resolve_organic_direction(candles, signal.side)
         if side not in ("CALL", "PUT"):
             continue
-        if pb_cfg.get("invert_signal", False):
-            side = "PUT" if side == "CALL" else "CALL"
-            decision_reason = "inversao_estatica" if decision_reason == "sinal_base" else f"{decision_reason}_invertido"
         metrics = build_indicator_metrics(
             signal.candle_epoch,
             period,
@@ -113,58 +107,6 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         )
         if signal_epoch_current(orch.config, metrics):
             result.append((symbol, TradeDirection[side], metrics))
-    if not result and pb_enabled and bool(pb_cfg.get("stream_fallback", False)):
-        raw_syms = [str(s) for s in dict.fromkeys([promoted_only, *getattr(orch, "symbols", [])]) if s]
-        fallback_syms = (
-            [str(promoted_only)]
-            if not dynamic_rotation
-            else sorted(raw_syms, key=lambda s: not is_otc_exchange_open_brt(s, now_ts))
-        )
-        allow_closed = bool(pb_cfg.get("allow_closed_markets", False))
-        max_fb = int(pb_cfg.get("max_fallback_candidates", 1))
-        for sym in fallback_syms:
-            if sym in active_symbols or sym in excluded or now_ts < quarantine.get(sym, 0):
-                continue
-            stream = getattr(orch, "stream", None) or getattr(orch, "stream_handler", None)
-            candles = closed_candles_slice(getattr(stream, "micro_candles", {}).get(sym) or [], period_seconds, now_ts)
-            last_c_ep = float(getattr(candles[-1], "epoch", 0) or 0) if candles else 0.0
-            if len(candles) < 50 or (not allow_closed and last_c_ep > 100000 and now_ts - last_c_ep > 1800):
-                continue
-            c_closes = [float(c.close) for c in candles]
-            a20, a50, e20, e50 = 2.0 / 21.0, 2.0 / 51.0, c_closes[0], c_closes[0]
-            for cl in c_closes[1:]:
-                e20, e50 = a20 * cl + (1.0 - a20) * e20, a50 * cl + (1.0 - a50) * e50
-            base_side = "CALL" if e20 >= e50 else "PUT"
-            fb_side, fb_reason = resolve_organic_direction(candles, base_side)
-            if fb_side not in ("CALL", "PUT"):
-                fb_side, fb_reason = base_side, "fluxo_tendencia_medias"
-            if pb_cfg.get("invert_signal", False):
-                fb_side = "PUT" if fb_side == "CALL" else "CALL"
-                fb_reason = f"{fb_reason}_invertido"
-            v_str = str(orch.config.get("pullback_strategy", {}).get("version") or "pullback-1-fallback")
-            fb_ev = evidence_by_version.get((sym, period_seconds, v_str), BrokerEvEvidence(0, ()))
-            fb_pilot = mode == "demo" and (never_skip or (fb_ev.pilot_available and not fb_ev.promoted))
-            if (fb_pilot or (mode == "real" and fb_ev.promoted)) and fb_side in ("CALL", "PUT"):
-                expected_ep = int(now_ts // period_seconds) * period_seconds - period_seconds
-                fb_wins = sum(v > 0 for v in fb_ev.returns)
-                fb_prob = (fb_wins + 0.5) / (fb_ev.settled + 1.0) if fb_ev.settled > 0 else 0.5
-                fb_probability = fb_ev.posterior_win_probability or fb_prob if mode == "real" else fb_prob
-                fb_metrics = build_indicator_metrics(
-                    expected_ep,
-                    period_seconds,
-                    v_str,
-                    fb_side,
-                    fb_side,
-                    f"stream_organico:{fb_reason}",
-                    pilot=fb_pilot,
-                    ev=fb_ev,
-                    prob=fb_probability,
-                )
-                fb_metrics["trend_strength"] = abs(e20 - e50) / (e50 + 1e-9)
-                if signal_epoch_current(orch.config, fb_metrics):
-                    result.append((sym, TradeDirection[fb_side], fb_metrics))
-                    if len(result) >= max_fb:
-                        break
     return result
 
 
@@ -232,8 +174,7 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
     confirmatory = edge > 0 and probability >= payout_break_even + 0.01
     await _record_quote(orch, symbol, direction.name, metrics, period, quote, rate, prob=probability)
     mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
-    never_skip = bool(orch.config.get("pullback_strategy", {}).get("never_skip", False))
-    if mode == "demo" and not pilot and not never_skip:
+    if mode == "demo" and not pilot:
         return None
     if mode == "real" and not confirmatory:
         return None

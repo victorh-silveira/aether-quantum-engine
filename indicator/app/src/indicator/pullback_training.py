@@ -97,6 +97,7 @@ async def diagnose_all(
                         period,
                         candles[index].epoch + period,
                         variant,
+                        allow_session_gaps=is_stock,
                     )
                     if result.side not in by_side:
                         continue

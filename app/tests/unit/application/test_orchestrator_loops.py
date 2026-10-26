@@ -55,7 +55,10 @@ async def test_settlement_loss_reconciles_planned_vs_executed_stake(orch_ready):
             "balance_after": 10667.72,
         }
     }
-    with patch_instant_post_settlement_poll():
+    with (
+        patch_instant_post_settlement_poll(),
+        patch(f"{TRADING_CYCLE_MODULE}.process_redis_settlement_queue", new_callable=AsyncMock),
+    ):
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, data)
         if orch._post_settlement_task is not None:
@@ -263,6 +266,7 @@ async def test_linear_reset_settlement_then_immediate_inference_runs_cleanly(orc
             new_callable=AsyncMock,
             return_value=strong_cycle_decisions(),
         ) as collect_mock,
+        patch(f"{TRADING_CYCLE_MODULE}.process_redis_settlement_queue", new_callable=AsyncMock),
     ):
         orch.executor.execute_cluster = AsyncMock()
         await process_contract_settlement(orch, win_data)

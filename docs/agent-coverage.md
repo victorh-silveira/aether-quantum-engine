@@ -22,10 +22,10 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
 | Execution gates (inversao condicionada a edge e proposta cotada) | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) + [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-session-review` + `aether-binary-senior` |
 | Gates por indicadores (catalogo / backlog) | [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-session-review` |
-| Compra por sinal M5 aprovado do indicador | [arquitetura.md](arquitetura.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` + `aether-settings-change` |
-| Setup M5 operacional e pesquisa M5/M15/H1 | [strategy-pullback.md](strategy-pullback.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` |
+| Compra por setup M15 do indicador | [arquitetura.md](arquitetura.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` + `aether-settings-change` |
+| Setup M15 operacional e pesquisa H1/D1 | [strategy-pullback.md](strategy-pullback.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` |
 | Fusao EV multi-escala | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-cycle-debug` |
-| Loss-classifier (Docker) | [infra-docker.md](infra-docker.md) | `aether-execution-gates.mdc` + `aether-infra.mdc` | `aether-infra-stack` |
+| Loss-classifier (pesquisa legada) | [infra-docker.md](infra-docker.md) | `aether-execution-gates.mdc` + `aether-infra.mdc` | `aether-infra-stack` |
 | Sample size / SIDE_EQ | [sample-size-lln.md](sample-size-lln.md) | `aether-sample-size.mdc` | `aether-session-review` |
 | Orchestrator / ciclo | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
 | Scale vision MACRO/MICRO/MINI/MILI | [engineering-orchestrator.md](engineering-orchestrator.md) + [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-cycle-debug` + `aether-binary-senior` |
@@ -45,7 +45,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`1HZ75V`) | `aether-domain-pure.mdc` | — |
 | Volatility 75 (1s) Index | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-v75-market.mdc` | `aether-v75-market-analyst` |
 | Kelly Single-Strike 4.31% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
-| Verificador de Sinais M5 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
+| Verificador de Sinais M15 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 
 ## Pastas DDD ↔ matriz
 

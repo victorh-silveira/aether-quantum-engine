@@ -12,18 +12,10 @@
   "metrics_port": 9101,
   "pullback_variant": "senior_institutional",
   "pullback_strategy": {
-    "excluded_symbols": [
-      "OTC_FTSE",
-      "OTC_N225",
-      "OTC_HSI",
-      "OTC_AS51"
-    ],
+    "excluded_symbols": [],
     "dynamic_rotation": true,
-    "promoted_setups": 26,
-    "promoted_win_rate": 0.6538,
-    "promoted_ev": 0.2096,
-    "breakeven_floor": 0.5800,
-    "min_prob_threshold": 0.5800
+    "breakeven_floor": 0.58,
+    "min_prob_threshold": 0.58
   },
   "anchor": "OTC_SSMI",
   "symbols": [

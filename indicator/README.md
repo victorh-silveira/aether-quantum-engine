@@ -1,10 +1,10 @@
-# Indicador público de índices de ações mundiais (OTC) e Volatility
+# Indicador público de índices OTC e Volatility
 
-O serviço lê `active_symbols` e `ticks_history` da Deriv sem credenciais de negociação e integra cotações reais de mercado via API HTTP pública do Yahoo Finance v8 para os 12 ativos de ações mundiais (réplicas dos ETFs SPY, QQQ, DIA, EWG, FEZ, etc.).
+O serviço consulta `active_symbols` e `ticks_history` da Deriv sem credenciais de negociação. Usa apenas velas OHLC fechadas da Deriv para calcular o setup `senior_institutional` em M15, H1 e D1. Velas externas não completam nem substituem a série do contrato.
 
-Emite `CALL`, `PUT` ou `SEM SINAL` para cada ativo e período M15/H1/D1, utilizando a variante **`senior_institutional`** do [setup institucional de tendência, liquidez e recuo](../docs/strategy-pullback.md). A avaliação utiliza 128 velas fechadas e contíguas com validação estrita de Session VWAP ($\pm 1.5\sigma$), mitigação de Fair Value Gap (FVG) e Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3). Velas em formação não entram no cálculo de decisão.
+O [setup institucional M15](../docs/strategy-pullback.md) exige tendência EMA20/EMA50, recuo contrário, referência OHLC da sessão UTC, FVG efetivo e killzone BRT. A referência da sessão usa preços típicos por vela, sem volume; não é VWAP. Somente M15 da versão operacional configurada pode chegar ao motor de contratos. O cliente público nunca compra.
 
-Na raiz do projeto, execute:
+Na raiz:
 
 ```bash
 make docker-up
@@ -12,8 +12,6 @@ make app-train
 make app-run
 ```
 
-- `make app-train`: Coleta séries contínuas por ativo/período, diagnostica frequência e acerto pelo proxy de velas, calcula o perfil de assertividade por hora no fuso BRT e ranqueia os pares por expectativa matemática (EV esperado no payout 85%). O par promovido para execução direta é o **`OTC_SX5E`** (Euro Stoxx 50 / FEZ).
-- `make app-research-ml`: Mantém os experimentos de TCN, Meta-Learner e Loss-Classifier como pesquisa analítica isolada.
-- O Grafana em `http://localhost:3000` exibe setups em tempo real, estado dos pilotos e cotações confirmadas.
+`make app-train` apresenta frequência, acerto direcional por proxy de velas, perfil horário e ranking diagnóstico. Não troca a âncora `OTC_SSMI`, não marca uma versão como ativa e não prova vantagem econômica. A promoção para REAL depende de 200 liquidações DEMO confirmadas pelo broker na mesma versão, ativo e período, além do limite inferior de retorno positivo. H1 e D1 são pesquisa.
 
-Execute `make app-lint` e `make app-test` para certificar 100% de cobertura de testes unitários.
+O Grafana em `http://localhost:3000` separa observações, pilotos e contratos confirmados. Use `make app-lint` e `make app-test` para validar o código e a cobertura.

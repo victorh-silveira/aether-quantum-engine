@@ -64,15 +64,19 @@ def is_promoted_signal_viable(
     signal_epoch_fn: Any = signal_epoch_current,
 ) -> bool:
     """Valida se o ativo promovido tem sinal valido e mercado aberto em Brasilia."""
-    allow_closed = bool(orch.config.get("pullback_strategy", {}).get("allow_closed_markets", False))
-    if not promoted_only or (not allow_closed and not is_otc_exchange_open_brt(str(promoted_only), now_ts)):
+    pb_cfg = orch.config.get("pullback_strategy", {})
+    if not promoted_only or not is_otc_exchange_open_brt(str(promoted_only), now_ts):
         return False
     p_sig = getattr(orch, "_indicator_period_signals", {}).get((str(promoted_only), period_seconds))
-    if not p_sig or not p_sig.model_version.startswith("pullback-1-") or p_sig.side not in ("CALL", "PUT"):
+    if not p_sig or p_sig.model_version != pb_cfg.get("version") or p_sig.side not in ("CALL", "PUT"):
         return False
     return bool(
         signal_epoch_fn(
             orch.config,
-            {"indicator_candle_epoch": p_sig.candle_epoch, "indicator_period_seconds": period_seconds},
+            {
+                "indicator_controls_execution": True,
+                "indicator_candle_epoch": p_sig.candle_epoch,
+                "indicator_period_seconds": period_seconds,
+            },
         )
     )

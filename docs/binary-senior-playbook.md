@@ -1,12 +1,12 @@
-# Playbook Trader Senior — Contratos Rise/Fall M5 (ETFs / OTC Mundiais)
+# Playbook Trader Senior — Contratos Rise/Fall M15 (indices OTC)
 
 ## 1. Postura e Filosofia Operacional
 
-O Aether Quantum Engine opera exclusivamente como um algoritmo de arbitragem estatística e confluência institucional de fluxo de ordens. Não há adivinhação, intuição ou apostas agressivas. A execução é regida pela variante **`senior_institutional`** em velas M5 fechadas (contrato de 300 segundos).
+O Aether Quantum Engine observa um setup técnico versionado; sua vantagem econômica depende de contratos DEMO liquidados pelo broker e da cotação REAL. A execução é regida pela variante **`senior_institutional`** em velas M15 fechadas (contrato de 900 segundos). O proxy de velas não comprova lucro.
 
-- **Ativo Promovido Vigente**: **`OTC_SX5E`** (Euro Stoxx 50 / FEZ), selecionado por diagnóstico de EV esperado positivo (+0.0338), assertividade de 61.54% e máximo de apenas 3 perdas consecutivas.
-- **Universo de Monitoramento**: 12 índices sintéticos mundiais de ações OTC integrados a feeds reais do Yahoo Finance v8 (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
-- **Tempo e Cadência**: Ciclo rigoroso de 300 segundos (M5). Abertura de ordens autorizada somente até 30 segundos após a abertura da nova vela.
+- **Ativo Promovido Vigente**: **`OTC_SSMI`** (ancora configurada; aptidao REAL depende exclusivamente do broker).
+- **Universo de Monitoramento**: 12 índices sintéticos mundiais de ações OTC avaliados com OHLC da Deriv (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
+- **Tempo e Cadência**: Ciclo rigoroso de 900 segundos (M15). Abertura de ordens autorizada somente até 60 segundos após a abertura da nova vela.
 
 ---
 
@@ -27,9 +27,9 @@ Antes de autorizar o envio de qualquer proposta à corretora, o motor valida 5 c
     └── Recuo penetra até 0.5 ATR14 da EMA20 sem violar a EMA50
         └── SE NÃO ➔ VETO (SEM SINAL: Retração Excessiva ou Insuficiente)
 
-[4] SESSION VWAP & BANDAS (Preço Institucional Favorável?)
-    └── Fechamento favorável à VWAP diária e contido em +/- 1.5 sigma
-        └── SE NÃO ➔ VETO (SEM SINAL: Exaustão Institucional Contra a VWAP)
+[4] REFERENCIA OHLC DA SESSAO & BANDAS (Preco favoravel?)
+    └── Fechamento favorável à referencia da sessao UTC e contido em +/- 1.5 sigma
+        └── SE NÃO ➔ VETO (SEM SINAL: Exaustão Institucional Contra a referencia da sessao)
 
 [5] DESEQUILÍBRIO INSTITUCIONAL (Fair Value Gap Mitigado?)
     └── Imbalance entre t-2 e t testado e fechado pela retração

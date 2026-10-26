@@ -70,7 +70,7 @@ class PullbackService:
             key = (symbol, period)
             if self.last_epoch.get(key) == latest.epoch:
                 return
-            result = evaluate(candles, period, now, variant=self.variant)
+            result = evaluate(candles, period, now, variant=self.variant, allow_session_gaps=symbol.startswith("OTC_"))
             signal = Signal(
                 symbol, period, latest.epoch, result.side, None, result.version, result.reason, latest.close
             )

@@ -47,7 +47,7 @@ def test_period_candidates_isolate_open_symbol_and_mode(monkeypatch):
     candidate = ("R_25", TradeDirection.CALL, {})
     assert len(orders.period_candidates(orch, [candidate])) == 2
     orch.config["pullback_strategy"] = {"enabled": True, "promoted_symbol": "R_100"}
-    assert orders.period_candidates(orch, [candidate]) == [candidate]
+    assert orders.period_candidates(orch, [candidate]) == []
     orch.config["pullback_strategy"] = {"excluded_symbols": ["R_10"]}
     assert orders.period_candidates(orch, [candidate]) == [candidate]
     orch.config.pop("pullback_strategy")
@@ -99,6 +99,16 @@ def test_period_candidates_ignore_legacy_version(monkeypatch):
     orch._indicator_period_signals = {("R_25", 900): ApprovedSignal("R_25", "PUT", 900, 0.7, "old", 900)}
     assert orders.period_candidates(orch, []) == []
     orch._indicator_period_signals = {("R_25", 300): ApprovedSignal("R_25", "PUT", 900, None, "old", 300)}
+    assert orders.period_candidates(orch, []) == []
+
+
+def test_period_candidates_rejects_non_directional_setup(monkeypatch):
+    orch = _orch()
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    orch.config["pullback_strategy"] = {"enabled": True, "period_seconds": 900, "version": "pullback-1-v15"}
+    orch._indicator_period_signals = {
+        ("R_10", 900): ApprovedSignal("R_10", "SEM SINAL", 900, None, "pullback-1-v15", 900)
+    }
     assert orders.period_candidates(orch, []) == []
 
 
@@ -310,7 +320,7 @@ def test_period_candidates_uses_bayesian_probability_in_demo(monkeypatch):
     orch._indicator_broker_evidence[("R_10", 300, "pullback-1-v5")] = BrokerEvEvidence(10, (1.0, 1.0, 1.0, -1.0))
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
-    assert candidates[0][1] == TradeDirection.CALL
+    assert candidates[0][1] == TradeDirection.PUT
     assert candidates[0][2]["indicator_signal_side"] == "PUT"
 
 
@@ -321,12 +331,14 @@ def test_period_candidates_dynamic_rotation(monkeypatch):
         "enabled": True,
         "promoted_symbol": "R_100",
         "dynamic_rotation": True,
+        "version": "pullback-1-v5",
+        "period_seconds": 300,
     }
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][0] == "R_10"
 
-    orch._indicator_period_signals[("R_100", 300)] = ApprovedSignal("R_100", "CALL", 900, None, "pullback-1-v100", 300)
+    orch._indicator_period_signals[("R_100", 300)] = ApprovedSignal("R_100", "CALL", 900, None, "pullback-1-v5", 300)
     candidates_with_anchor = orders.period_candidates(orch, [])
     assert len(candidates_with_anchor) == 1
     assert candidates_with_anchor[0][0] == "R_100"
@@ -356,10 +368,8 @@ def test_period_candidates_stream_fallback_reverts_to_trend_on_flat_market(monke
     stream = type("Stream", (), {"micro_candles": {"OTC_SPC": dummy_candles}})()
     orch.stream = stream
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
-    monkeypatch.setattr(orders, "resolve_organic_direction", lambda candles, base: ("SKIP", "flat"))
     candidates = orders.period_candidates(orch, [])
-    assert len(candidates) == 1
-    assert candidates[0][1] in (TradeDirection.CALL, TradeDirection.PUT)
+    assert candidates == []
 
 
 def test_period_candidates_no_stream_fallback_by_default(monkeypatch):
@@ -388,18 +398,19 @@ def test_period_candidates_organic_direction_and_skip(monkeypatch):
     orch.config["pullback_strategy"] = {
         "enabled": True,
         "organic_direction": True,
+        "version": "pullback-1-v5",
+        "period_seconds": 300,
     }
     dummy_c = [type("Candle", (), {"open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5})() for _ in range(50)]
     orch.stream = type("Stream", (), {"micro_candles": {"R_10": dummy_c}})()
 
-    monkeypatch.setattr(orders, "resolve_organic_direction", lambda candles, side: ("PUT", "fade"))
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
     assert candidates[0][1] == TradeDirection.PUT
 
-    monkeypatch.setattr(orders, "resolve_organic_direction", lambda candles, side: ("SKIP", "skip"))
     candidates_skipped = orders.period_candidates(orch, [])
-    assert len(candidates_skipped) == 0
+    assert len(candidates_skipped) == 1
+    assert candidates_skipped[0][1] == TradeDirection.PUT
 
 
 def test_period_candidates_stream_fallback_inverted(monkeypatch):
@@ -419,10 +430,8 @@ def test_period_candidates_stream_fallback_inverted(monkeypatch):
     stream = type("Stream", (), {"micro_candles": {"OTC_SPC": dummy_candles}})()
     orch.stream = stream
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
-    monkeypatch.setattr(orders, "resolve_organic_direction", lambda candles, base: ("CALL", "tendencia"))
     candidates = orders.period_candidates(orch, [])
-    assert len(candidates) == 1
-    assert candidates[0][1] == TradeDirection.PUT
+    assert candidates == []
 
 
 @pytest.mark.asyncio
@@ -474,8 +483,7 @@ def test_period_candidates_stream_fallback_rotates_to_secondary_symbol(monkeypat
     orch.stream = stream
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     candidates = orders.period_candidates(orch, [])
-    assert len(candidates) == 1
-    assert candidates[0][0] == "OTC_SX5E"
+    assert candidates == []
 
 
 def test_period_candidates_stream_fallback_skips_excluded_active_and_quarantine(monkeypatch):
@@ -501,8 +509,7 @@ def test_period_candidates_stream_fallback_skips_excluded_active_and_quarantine(
     orch.stream = stream
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     candidates = orders.period_candidates(orch, [])
-    assert len(candidates) == 1
-    assert candidates[0][0] == "OTC_OK"
+    assert candidates == []
 
 
 def test_closed_candles_slice_drops_forming_bar():

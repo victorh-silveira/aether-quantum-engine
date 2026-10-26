@@ -1,9 +1,6 @@
 """Testes unitarios para ranqueamento e promocao do setup pullback M5."""
 
-import json
-from pathlib import Path
-
-from indicator.pullback_promotion import format_ranking_table, promote_best_m5_pair, rank_m5_pairs
+from indicator.pullback_promotion import format_ranking_table, rank_m5_pairs
 
 
 def test_rank_m5_pairs_orders_by_ev_and_win_rate():
@@ -88,76 +85,5 @@ def test_format_ranking_table():
     assert "RANKING DO SETUP PULLBACK M15" in table
     assert "1HZ25V" in table
     assert "MAX LOSS" in table
-    assert "PROMOVIDO" in table
+    assert "LIDER PROXY" in table
     assert "EXCLUIDO" in table
-
-
-def test_promote_best_m5_pair(tmp_path: Path):
-    root = tmp_path
-    models_dir = root / "indicator" / "data" / "indicator-models"
-    models_dir.mkdir(parents=True)
-    old_model = models_dir / "R_25_900.json"
-    old_model.write_text(json.dumps({"symbol": "R_25", "period": 900, "status": "aprovado"}))
-    same_model = models_dir / "1HZ25V_900.json"
-    same_model.write_text(json.dumps({"symbol": "1HZ25V", "period": 900, "status": "candidato"}))
-    corrupt_model = models_dir / "CORRUPT_900.json"
-    corrupt_model.write_text("invalido")
-
-    config_dir = root / "config"
-    config_dir.mkdir(parents=True)
-    settings_file = config_dir / "settings.json"
-    settings_file.write_text(
-        json.dumps(
-            {
-                "anchor": "R_25",
-                "symbols": ["R_25"],
-                "pullback_strategy": {"enabled": True},
-                "deep_learning": {"train_symbols": ["R_25"]},
-            }
-        )
-    )
-
-    drift_dir = root / "app" / "src" / "domain" / "symbols"
-    drift_dir.mkdir(parents=True)
-
-    best = {
-        "symbol": "1HZ25V",
-        "period": 900,
-        "setups": 35,
-        "wins": 24,
-        "losses": 11,
-        "ties": 0,
-        "max_consecutive_losses": 3,
-        "win_rate": 24.0 / 35.0,
-        "ev": (24.0 / 35.0) * 0.85 - (11.0 / 35.0) * 1.0,
-        "optimal_hours_brt": [10, 11, 12],
-        "best_window_brt": "10:00 as 13:00 (BRT)",
-    }
-    promote_best_m5_pair(best, root, variant="improved", target_period=900)
-
-    new_model_file = models_dir / "1HZ25V_900.json"
-    assert new_model_file.is_file()
-    new_model = json.loads(new_model_file.read_text(encoding="utf-8"))
-    assert new_model["status"] == "aprovado"
-    assert new_model["symbol"] == "1HZ25V"
-    assert new_model["max_losses_consecutivos"] == 3
-    assert new_model["optimal_hours_brt"] == [10, 11, 12]
-    assert new_model["best_window_brt"] == "10:00 as 13:00 (BRT)"
-
-    old_content = json.loads(old_model.read_text(encoding="utf-8"))
-    assert old_content["status"] == "candidato"
-
-    cfg = json.loads(settings_file.read_text(encoding="utf-8"))
-    assert cfg["anchor"] == "1HZ25V"
-    assert cfg["symbols"] == ["1HZ25V"]
-    assert cfg["pullback_strategy"]["promoted_symbol"] == "1HZ25V"
-    assert cfg["pullback_strategy"]["promoted_max_losses_consecutivos"] == 3
-    assert cfg["pullback_strategy"]["promoted_optimal_hours_brt"] == [10, 11, 12]
-    assert cfg["pullback_strategy"]["promoted_best_window_brt"] == "10:00 as 13:00 (BRT)"
-    assert "1HZ25V" in cfg["deep_learning"]["train_symbols"]
-
-    drift_file = drift_dir / "drift_symbols.py"
-    assert drift_file.is_file()
-    drift_code = drift_file.read_text(encoding="utf-8")
-    assert 'DEFAULT_ANCHOR = "1HZ25V"' in drift_code
-    assert 'TRADING_SYMBOLS: tuple[str, ...] = ("1HZ25V",)' in drift_code

@@ -203,17 +203,22 @@ def available_cluster_bankroll(bankroll: float, reserved: float, live_balance: f
 
 
 def signal_epoch_current(config: dict, metrics: dict) -> bool:
-    """Impede comprar apos a vela M5 de referencia deixar de ser a ultima fechada."""
+    """Exige vela fechada vigente e entrada dentro da janela operacional."""
     pb_cfg = (config or {}).get("pullback_strategy", {})
-    if pb_cfg.get("never_skip") or pb_cfg.get("allow_closed_markets"):
-        return True
+    if pb_cfg.get("enabled") and (not consensus_enabled(config) or not metrics.get("indicator_controls_execution")):
+        return False
     if consensus_enabled(config) and metrics.get("indicator_controls_execution"):
-        period = int(metrics.get("indicator_period_seconds") or 300)
+        period = int(metrics.get("indicator_period_seconds") or (0 if pb_cfg.get("enabled") else 300))
+        if period <= 0:
+            return False
         now = time.time()
         expected = int(now // period) * period - period
         window = int(pb_cfg.get("entry_window_seconds", 30))
         epoch_val = int(metrics.get("indicator_candle_epoch") or 0)
-        return period in (300, 900, 3600) and epoch_val == expected and now % period <= window
+        allowed = (
+            period == int(pb_cfg.get("period_seconds", 300)) if pb_cfg.get("enabled") else period in (300, 900, 3600)
+        )
+        return allowed and epoch_val == expected and now % period <= window
     p_fb = int(pb_cfg.get("period_seconds", 300))
     expected_epoch = int(time.time() // p_fb) * p_fb - p_fb
     if consensus_enabled(config):

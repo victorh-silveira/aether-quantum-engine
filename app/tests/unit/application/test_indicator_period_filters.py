@@ -64,7 +64,7 @@ def test_is_promoted_signal_viable_none_or_closed(monkeypatch):
 
 def test_is_promoted_signal_viable_allow_closed_markets(monkeypatch):
     orch = SimpleNamespace(
-        config={"pullback_strategy": {"allow_closed_markets": True}},
+        config={"pullback_strategy": {"allow_closed_markets": True, "version": "pullback-1-test"}},
         _indicator_period_signals={},
     )
     monkeypatch.setattr(
@@ -73,6 +73,10 @@ def test_is_promoted_signal_viable_allow_closed_markets(monkeypatch):
     )
     assert is_promoted_signal_viable(orch, "OTC_SSMI", 900, 1700000000.0) is False
 
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.indicator_period_filters.is_otc_exchange_open_brt",
+        lambda sym, ts: True,
+    )
     sig = SimpleNamespace(model_version="pullback-1-test", side="CALL", candle_epoch=1700000000)
     orch._indicator_period_signals = {("OTC_SSMI", 900): sig}
     fn = MagicMock(return_value=True)

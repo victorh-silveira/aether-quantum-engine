@@ -7,11 +7,11 @@ from hashlib import sha256
 from math import isfinite, log
 
 from indicator.domain import Candle
-from indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_vwap
+from indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_price_reference
 
 SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"
 VERSION = "pullback-1-" + sha256(SPEC.encode()).hexdigest()[:12]
-MIN_BARS = 64
+MIN_BARS = 128
 VARIANTS = (
     "base",
     "ema50_slope",
@@ -35,7 +35,7 @@ def version_for_variant(variant: str = "base") -> str:
         spec = "momentum_burst:score4_conviction:hurst0.45:adx18:v1"
         return "momentum-1-" + sha256(spec.encode()).hexdigest()[:12]
     if variant == "senior_institutional":
-        spec = "senior_institutional:vwap_fvg_killzone:v1"
+        spec = "senior_institutional:m15:strict_ema_retrace:session_proxy:fvg:killzone:v2"
         return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
     spec = f"{SPEC}:{variant}"
     return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
@@ -244,6 +244,7 @@ def evaluate(
     now: int,
     variant: str = "base",
     optimal_hours_brt: list[int] | None = None,
+    allow_session_gaps: bool = False,
 ) -> SetupResult:
     """Avalia o ultimo recuo e a ultima confirmacao sem usar vela corrente."""
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
@@ -262,7 +263,15 @@ def evaluate(
         return SetupResult("SEM SINAL", "vela_invalida", version=version)
     if bars[-1].epoch - bars[-2].epoch != period:
         return SetupResult("SEM SINAL", "lacuna", version=version)
-    if any(period < right.epoch - left.epoch <= 4 * period for left, right in zip(bars, bars[1:], strict=False)):
+    if any(
+        right.epoch - left.epoch != period
+        and not (
+            allow_session_gaps
+            and period < right.epoch - left.epoch <= 72 * 3600
+            and left.epoch // 86400 != right.epoch // 86400
+        )
+        for left, right in zip(bars, bars[1:], strict=False)
+    ):
         return SetupResult("SEM SINAL", "lacuna", version=version)
     if bars[-1].epoch + period > now:
         return SetupResult("SEM SINAL", "vela_em_formacao", version=version)
@@ -275,6 +284,46 @@ def evaluate(
     atr = _atr(bars[:-1])
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
+    if variant == "senior_institutional":
+        if not is_within_killzone(confirmation.epoch, optimal_hours_brt):
+            return SetupResult("SEM SINAL", "fora_da_killzone_brt", version=version)
+        reference, upper, lower = session_price_reference(bars)
+        bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
+        body = abs(confirmation.close - confirmation.open)
+        bounded = 0.03 * atr <= body <= 1.5 * atr
+        call = (
+            fast[-2] > slow[-2]
+            and fast[-1] > fast[-2] > fast[-3] > fast[-4]
+            and slow[-2] > slow[-5]
+            and abs(pullback.low - fast[-2]) <= 0.5 * atr
+            and pullback.close > slow[-2]
+            and pullback.close < pullback.open
+            and confirmation.close > pullback.high
+            and confirmation.close > confirmation.open
+            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
+            and bounded
+            and reference > 0
+            and reference <= confirmation.close <= upper
+            and bull_fvg
+        )
+        put = (
+            fast[-2] < slow[-2]
+            and fast[-1] < fast[-2] < fast[-3] < fast[-4]
+            and slow[-2] < slow[-5]
+            and abs(pullback.high - fast[-2]) <= 0.5 * atr
+            and pullback.close < slow[-2]
+            and pullback.close > pullback.open
+            and confirmation.close < pullback.low
+            and confirmation.close < confirmation.open
+            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
+            and bounded
+            and reference > 0
+            and lower <= confirmation.close <= reference
+            and bear_fvg
+        )
+        side = "CALL" if call else "PUT" if put else "SEM SINAL"
+        reason = "setup_confirmado" if side != "SEM SINAL" else "padrao_incompleto"
+        return SetupResult(side, reason, version=version)
     body = abs(confirmation.close - confirmation.open)
     max_body = 2.5 * atr
     if variant == "base" and not (0.02 * atr <= body <= max_body):
@@ -306,9 +355,7 @@ def evaluate(
     elif variant == "entry_distance":
         call = call and abs(confirmation.close - fast[-1]) <= 1.40 * atr
         put = put and abs(confirmation.close - fast[-1]) <= 1.40 * atr
-    elif variant in ("improved", "pool_rsi_bb", "momentum_burst", "senior_institutional"):
-        if variant == "senior_institutional" and not is_within_killzone(confirmation.epoch, optimal_hours_brt):
-            return SetupResult("SEM SINAL", "fora_da_killzone_brt", version=version)
+    elif variant in ("improved", "pool_rsi_bb", "momentum_burst"):
         rsi = _rsi(closes, 14)
         rsi_prev = _rsi(closes[:-1], 14)
         pct_b = _bollinger_pct_b(closes, 14)
@@ -396,28 +443,6 @@ def evaluate(
                 score_call >= min_momentum_score and score_call >= score_put + 2 and not call_rejection and not is_doji
             )
             put = score_put >= min_momentum_score and score_put >= score_call + 2 and not put_rejection and not is_doji
-        elif variant == "senior_institutional":
-            min_momentum_score = 4
-            vwap, vwap_upper, vwap_lower = session_vwap(bars)
-            bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
-            call = (
-                score_call >= min_momentum_score
-                and score_call >= score_put + 2
-                and not call_rejection
-                and not is_doji
-                and confirmation.close >= vwap
-                and confirmation.close <= vwap_upper
-                and bull_fvg
-            )
-            put = (
-                score_put >= min_momentum_score
-                and score_put >= score_call + 2
-                and not put_rejection
-                and not is_doji
-                and confirmation.close <= vwap
-                and confirmation.close >= vwap_lower
-                and bear_fvg
-            )
         elif score_call > score_put:
             call, put = True, False
         elif score_put > score_call:

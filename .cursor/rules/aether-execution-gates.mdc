@@ -1,5 +1,5 @@
 ---
-description: Execution gates — setup institucional senior M5 (senior_institutional), Killzones BRT, VWAP, FVG e quote guard
+description: Execution gates — setup institucional senior M15 (senior_institutional), Killzones BRT, referencia OHLC da sessao, FVG e quote guard
 globs: app/src/application/services/execution*.py,app/src/application/services/orchestrator/execution*.py,indicator/app/src/indicator/**
 alwaysApply: true
 ---
@@ -7,11 +7,11 @@ alwaysApply: true
 # Execution gates
 
 - SKIP tecnico: `training` / `data` / `deploy` / `predict_error` / stop-win `EXEC_PAUSE`
-- Rota operacional soberana: `pullback_strategy.enabled=true` com `pullback_variant="senior_institutional"`. Somente sinais M5 abrem contratos Rise/Fall de 5 minutos.
+- Rota operacional soberana: `pullback_strategy.enabled=true` com `pullback_strategy.variant="senior_institutional"`. Somente sinais M15 da versao configurada abrem contratos Rise/Fall de 15 minutos; fallback M5 e inversao por stream nao podem gerar ordens.
 - Hard Gate de Killzones no Horario de Brasilia (BRT / UTC-3): Londres (03h-08h), Nova York (10h-13h) e London Fix (14h-16h). Fora dessas janelas, emite SEM SINAL.
-- Session VWAP e Bandas de Dispersao (+/- 1.5 sigma): fechamento favoravel a VWAP diaria e contido no canal de 1.5 desvio padrao institucional. Compras no topo de exaustao e vendas no fundo sao sumariamente vetadas.
+- referencia OHLC da sessao UTC e Bandas de Dispersao (+/- 1.5 sigma): fechamento favoravel a referencia OHLC da sessao diaria e contido no canal de 1.5 desvio padrao institucional. Compras no topo de exaustao e vendas no fundo sao sumariamente vetadas.
 - Mitigacao de Fair Value Gap (FVG): exige teste e preenchimento de desequilibrio institucional entre t-2 e t antes da expansao.
 - Cotacao final: `require_quote_edge=true`. Exige payout liquido cotado pela Deriv com expectativa matematica estritamente positiva ($EV = p \times (1 + payout) - 1 > 0$) e margem minima de 0,01 sobre o break-even. Payout ausente ou invalido bloqueia a execucao.
 - Dimensionamento institucional: stake base soberana de 1% da banca disponivel. Amortizacao linear 1/1 em perdas com teto maximo estrito de 5% por ordem. Kelly, D'Alembert e Martingale geometricos sao estritamente proibidos.
-- Quarentena e Deduplicacao: reserva Redis com `SET NX` por conta/ativo/vela M5; quarentena de 900 s apos timeout sem confirmacao de compra.
+- Quarentena e Deduplicacao: reserva Redis com `SET NX` por conta/ativo/vela M15; quarentena de 900 s apos timeout sem confirmacao de compra.
 - TCN, Meta-Learner e Loss-Classifier operam exclusivamente em `make app-research-ml` para pesquisa quantitativa, sem interferencia em runtime.

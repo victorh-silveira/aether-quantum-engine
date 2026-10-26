@@ -95,18 +95,14 @@ async def test_fetch_real_candles_edges_and_errors(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_training_history_with_real_candles(monkeypatch):
+async def test_training_history_keeps_deriv_ohlc_isolated(monkeypatch):
     source = MagicMock()
-    source.candles = AsyncMock(return_value=[{"epoch": 1700000000, "open": 100, "high": 101, "low": 99, "close": 100}])
-    dummy_c = Candle(epoch=1700000900, open=100.0, high=101.0, low=99.0, close=100.5)
-
-    with patch("indicator.training.fetch_real_candles", AsyncMock(return_value=[dummy_c])):
-        candles = await history(source, "OTC_SPC", now=1700002000, pages=1, period=900)
-        assert len(candles) >= 0
-
-    with patch("indicator.training.fetch_real_candles", AsyncMock(side_effect=RuntimeError("fail"))):
-        candles2 = await history(source, "OTC_SPC", now=1700002000, pages=1, period=900)
-        assert len(candles2) >= 0
+    epoch = 900 * 2000
+    source.candles = AsyncMock(return_value=[{"epoch": epoch, "open": 100, "high": 101, "low": 99, "close": 100}])
+    candles = await history(source, "OTC_SPC", now=epoch + 1800, pages=1, period=900)
+    assert len(candles) == 1
+    assert candles[0].close == 100
+    source.candles.assert_awaited_once()
 
 
 def test_domain_scopes():

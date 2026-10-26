@@ -13,7 +13,6 @@ from pathlib import Path
 from indicator.deriv import PublicDeriv
 from indicator.domain import PERIODS, aggregate, closed_candles, latest_contiguous, synthetic_symbols
 from indicator.model import assess, load, save
-from indicator.real_market_feed import fetch_real_candles
 
 logger = logging.getLogger(__name__)
 ASSET_TIMEOUT = 150
@@ -49,21 +48,6 @@ async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, pe
         )
         logger.info("TRAIN %s %ds reparo %d..%d: %d velas", symbol, period, left, right, len(rows))
         all_rows.extend(rows)
-    if symbol.startswith("OTC_"):
-        try:
-            existing_epochs = {int(row["epoch"]) for row in all_rows}
-            range_str = "1y" if period >= 86400 else "1mo"
-            real_data = [
-                c
-                for c in await fetch_real_candles(symbol, period_seconds=period, range_str=range_str)
-                if c.epoch not in existing_epochs
-            ]
-            for c in real_data:
-                all_rows.append({"epoch": c.epoch, "open": c.open, "high": c.high, "low": c.low, "close": c.close})
-            if real_data:
-                logger.info("TRAIN %s %ds integrado com %d velas reais do mercado", symbol, period, len(real_data))
-        except Exception as exc:
-            logger.warning("Falha ao integrar velas reais para %s: %s", symbol, exc)
     return closed_candles(all_rows, now, period)
 
 

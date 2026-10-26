@@ -199,6 +199,10 @@ async def test_process_contract_settlement_linear_reset_runs_persistence_barrier
             new_callable=AsyncMock,
             return_value={},
         ),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.process_redis_settlement_queue",
+            new_callable=AsyncMock,
+        ),
         patch_instant_post_settlement_poll(),
         patch(
             "src.application.services.orchestrator.settlement_logic.run_linear_reset_persistence_barrier",

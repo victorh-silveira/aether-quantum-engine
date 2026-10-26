@@ -1,13 +1,8 @@
-"""Ranqueamento e promocao do melhor par M5 de pullback por EV e acerto."""
+"""Ranqueamento diagnostico do proxy de velas, sem promocao operacional."""
 
 from __future__ import annotations
 
-import json
-from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any
-
-from indicator.pullback import version_for_variant
 
 
 def rank_m5_pairs(
@@ -80,7 +75,7 @@ def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
         "-" * 100,
     ]
     for idx, row in enumerate(ranked, 1):
-        status = "EXCLUIDO" if row["excluded"] else ("PROMOVIDO" if idx == 1 and row["eligible"] else "CANDIDATO")
+        status = "EXCLUIDO" if row["excluded"] else ("LIDER PROXY" if idx == 1 and row["eligible"] else "CANDIDATO")
         wr_pct = f"{row['win_rate'] * 100:.1f}%"
         ev_str = f"{row['ev']:+.4f}"
         max_l = str(row.get("max_consecutive_losses", 0))
@@ -90,136 +85,3 @@ def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
         )
     lines.append("=" * 100)
     return "\n".join(lines)
-
-
-def promote_best_m5_pair(
-    best: dict[str, Any],
-    root_path: Path,
-    variant: str = "improved",
-    target_period: int = 900,
-) -> None:
-    """Promove o melhor par M15/H1/D1, atualizando modelos e configuracao para app-run."""
-    symbol = str(best["symbol"])
-    period = int(best.get("period", target_period))
-    version = version_for_variant(variant)
-    repo_root = root_path.parent if root_path.name == "indicator" else root_path
-    models_dir = (
-        root_path / "data" / "indicator-models"
-        if root_path.name == "indicator"
-        else repo_root / "indicator" / "data" / "indicator-models"
-    )
-    models_dir.mkdir(parents=True, exist_ok=True)
-
-    for old_path in models_dir.glob(f"*_{period}.json"):
-        if old_path.name == f"{symbol}_{period}.json":
-            continue
-        try:
-            content = json.loads(old_path.read_text(encoding="utf-8"))
-            if content.get("status") == "aprovado":
-                content["status"] = "candidato"
-                old_path.write_text(json.dumps(content, indent=2, sort_keys=True), encoding="utf-8")
-        except (OSError, ValueError):
-            pass
-
-    model_payload = {
-        "symbol": symbol,
-        "period": period,
-        "status": "aprovado",
-        "validation_accuracy": round(float(best["win_rate"]), 4),
-        "baseline_accuracy": 0.5405,
-        "validation_brier": 0.23,
-        "baseline_brier": 0.25,
-        "ev": round(float(best["ev"]), 4),
-        "setups": int(best["setups"]),
-        "acertos": int(best["wins"]),
-        "erros": int(best["losses"]),
-        "empates": int(best["ties"]),
-        "max_losses_consecutivos": int(best.get("max_consecutive_losses", 0)),
-        "optimal_hours_brt": list(best.get("optimal_hours_brt", [])),
-        "best_window_brt": str(best.get("best_window_brt", "")),
-        "variant": variant,
-        "version": version,
-        "selection_reason": f"melhor_ev_pullback_{period}s",
-        "promoted_at": datetime.now(UTC).isoformat(),
-    }
-    model_file = models_dir / f"{symbol}_{period}.json"
-    model_file.write_text(json.dumps(model_payload, indent=2, sort_keys=True), encoding="utf-8")
-
-    settings_path = repo_root / "config" / "settings.json"
-    if settings_path.is_file():
-        cfg = json.loads(settings_path.read_text(encoding="utf-8"))
-        cfg["anchor"] = symbol
-        cfg["symbols"] = [symbol]
-        pullback_cfg = cfg.setdefault("pullback_strategy", {})
-        if isinstance(pullback_cfg, dict):
-            pullback_cfg["version"] = version
-            pullback_cfg["variant"] = variant
-            pullback_cfg["promoted_symbol"] = symbol
-            pullback_cfg["promoted_ev"] = round(float(best["ev"]), 4)
-            pullback_cfg["promoted_win_rate"] = round(float(best["win_rate"]), 4)
-            pullback_cfg["promoted_setups"] = int(best["setups"])
-            pullback_cfg["promoted_max_losses_consecutivos"] = int(best.get("max_consecutive_losses", 0))
-            pullback_cfg["promoted_optimal_hours_brt"] = list(best.get("optimal_hours_brt", []))
-            pullback_cfg["promoted_best_window_brt"] = str(best.get("best_window_brt", ""))
-            pullback_cfg["promoted_variant"] = variant
-            pullback_cfg["promoted_at"] = model_payload["promoted_at"]
-            pullback_cfg["period_seconds"] = period
-            pullback_cfg["duration"] = period // 60
-            pullback_cfg["duration_unit"] = "m"
-            pullback_cfg["entry_window_seconds"] = 60 if period >= 900 else 30
-        dl_cfg = cfg.setdefault("deep_learning", {})
-        if isinstance(dl_cfg, dict):
-            train_syms = dl_cfg.get("train_symbols") or []
-            if symbol not in train_syms:
-                train_syms.insert(0, symbol)
-            dl_cfg["train_symbols"] = train_syms
-        settings_path.write_text(json.dumps(cfg, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-    drift_path = repo_root / "app" / "src" / "domain" / "symbols" / "drift_symbols.py"
-    if drift_path.parent.is_dir():
-        template = f'"""Simbolos de trading Deriv (universo single-symbol {symbol} e rotacao OTC)."""\n\n'
-        template += "import time\n"
-        template += "from datetime import datetime, timedelta, timezone\n\n\n"
-        template += f'TRADING_SYMBOLS: tuple[str, ...] = ("{symbol}",)\n'
-        template += "DRIFT_SYMBOLS: tuple[str, ...] = TRADING_SYMBOLS\n"
-        template += f'DEFAULT_ANCHOR = "{symbol}"\n\n'
-        template += "EUROPEAN_OTC_SYMBOLS: frozenset[str] = frozenset(\n"
-        template += '    {"OTC_SSMI", "OTC_SX5E", "OTC_GDAXI", "OTC_FCHI", "OTC_AEX", "OTC_FTSE"}\n'
-        template += ")\n"
-        template += 'US_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_SPC", "OTC_NDX", "OTC_DJI"})\n'
-        template += 'ASIAN_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_N225", "OTC_HSI", "OTC_AS51"})\n'
-        template += "_BRT_TZ = timezone(timedelta(hours=-3))\n\n"
-        template += "HEDGE_PEER: dict[str, str] = {}\n\n"
-        template += "HIGH_SIDE: frozenset[str] = frozenset()\n"
-        template += "LOW_SIDE: frozenset[str] = frozenset()\n\n"
-        template += "_SYMBOL_ORDER = {symbol: index for index, symbol in enumerate(TRADING_SYMBOLS)}\n\n\n"
-        template += "def is_otc_exchange_open_brt(symbol: str, epoch_ts: float | None = None) -> bool:\n"
-        template += '    """Retorna True se o pregao base do indice OTC estiver aberto no horario de Brasilia."""\n'
-        template += "    sym = str(symbol).upper()\n"
-        template += '    if not sym.startswith("OTC_"):\n'
-        template += "        return True\n"
-        template += "    ts = float(epoch_ts) if epoch_ts is not None else time.time()\n"
-        template += "    dt = datetime.fromtimestamp(ts, tz=_BRT_TZ)\n"
-        template += "    if dt.weekday() >= 5:\n"
-        template += "        return False\n"
-        template += "    minutes = dt.hour * 60 + dt.minute\n"
-        template += "    if sym in EUROPEAN_OTC_SYMBOLS:\n"
-        template += "        return 180 <= minutes <= 810\n"
-        template += "    if sym in US_OTC_SYMBOLS:\n"
-        template += "        return 600 <= minutes <= 1080\n"
-        template += "    if sym in ASIAN_OTC_SYMBOLS:\n"
-        template += "        return minutes >= 1200 or minutes <= 300\n"
-        template += "    return True\n\n\n"
-        template += "def hedge_peer(symbol: str) -> str | None:\n"
-        template += '    """Retorna o simbolo par de hedge ou None quando nao ha par configurado."""\n'
-        template += "    return HEDGE_PEER.get(str(symbol))\n\n\n"
-        template += "def is_high_side(symbol: str) -> bool:\n"
-        template += '    """True quando o simbolo esta no lado high do universo (vazio em single-symbol)."""\n'
-        template += "    return str(symbol) in HIGH_SIDE\n\n\n"
-        template += "def sym_is_low_barrier(symbol: str, peer: str | None = None) -> bool:\n"
-        template += '    """True quando o simbolo e low-barrier relativo ao peer (sempre False sem peer)."""\n'
-        template += "    peer_key = peer if peer is not None else hedge_peer(symbol)\n"
-        template += "    if peer_key is None:\n"
-        template += "        return False\n"
-        template += "    return _SYMBOL_ORDER.get(str(symbol), 0) < _SYMBOL_ORDER.get(str(peer_key), 0)\n"
-        drift_path.write_text(template, encoding="utf-8")

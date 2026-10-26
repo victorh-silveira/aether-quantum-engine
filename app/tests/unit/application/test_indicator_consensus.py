@@ -854,3 +854,29 @@ def test_signal_epoch_current_never_skip_and_closed_markets():
     cfg_closed = {"pullback_strategy": {"allow_closed_markets": True}}
     assert consensus.signal_epoch_current(cfg_never_skip, {}) is True
     assert consensus.signal_epoch_current(cfg_closed, {}) is True
+
+
+def test_pullback_flags_cannot_bypass_current_m15_candle(monkeypatch):
+    monkeypatch.setattr(consensus.time, "time", lambda: 3 * 900 + 10)
+    config = {
+        "indicator_consensus": {"enabled": True},
+        "pullback_strategy": {
+            "enabled": True,
+            "period_seconds": 900,
+            "entry_window_seconds": 60,
+            "never_skip": True,
+            "allow_closed_markets": True,
+        },
+    }
+    metrics = {
+        "indicator_controls_execution": True,
+        "indicator_period_seconds": 900,
+        "indicator_candle_epoch": 2 * 900,
+    }
+    assert consensus.signal_epoch_current(config, metrics)
+    assert not consensus.signal_epoch_current(config, {**metrics, "indicator_candle_epoch": 900})
+    assert not consensus.signal_epoch_current(config, {**metrics, "indicator_period_seconds": 300})
+    assert not consensus.signal_epoch_current(config, {**metrics, "indicator_period_seconds": 0})
+    assert not consensus.signal_epoch_current(config, {})
+    monkeypatch.setattr(consensus.time, "time", lambda: 3 * 900 + 61)
+    assert not consensus.signal_epoch_current(config, metrics)

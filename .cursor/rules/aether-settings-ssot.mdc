@@ -1,5 +1,5 @@
 ---
-description: Settings SSOT Aether — Setup Institucional Senior M5, OTC_SX5E e Horarios BRT
+description: Settings SSOT Aether — Setup Institucional Senior M15, OTC_SSMI e Horarios BRT
 globs: config/settings.json,indicator/config/settings.json
 alwaysApply: true
 ---
@@ -9,11 +9,11 @@ alwaysApply: true
 - Knob novo = settings + resolve_* + teste + doc se mudar semantica
 - Nao hardcodar o mesmo default em tres lugares
 - Nao afrouxar: force_trade, teto inicial do checkpoint, max_safe_stake_*, sample_size_policy
-- Rota operacional: `pullback_strategy.enabled=true`, com `pullback_variant="senior_institutional"`.
-- Ativo operacional soberano: `symbols.anchor="OTC_SX5E"`.
+- Rota operacional: `pullback_strategy.enabled=true`, com `pullback_strategy.variant="senior_institutional"`.
+- Ativo operacional configurado: `anchor="OTC_SSMI"`.
 - Parametros institucionais:
-  - `promoted_optimal_hours_brt`: Lista de horas ótimas aprendidas no fuso de Brasília (ex: `[3, 10, 14]`).
-  - `promoted_best_window_brt`: Janela ideal contínua de trading em Brasília (ex: `"03:00 as 15:00 (BRT)"`).
+  - Killzones fixas BRT: 03h-08h, 10h-13h e 14h-16h; perfil historico nao altera a rota.
+  - O treino nao grava aprovacao operacional nem altera a ancora.
   - `pullback_registry`: Versão ativa promovida por evidência do broker Deriv.
 - Gestao de capital: stake base soberana de 1% da banca disponível (`stake_pct=0.01`). Recuperação linear 1/1 com teto de 5% por ordem (`max_stake_pct=0.05`).
 - Proposta final: `require_quote_edge=true`, exigindo EV positivo e margem mínima sobre o break-even com payout líquido cotado.
