@@ -1,3 +1,9 @@
+## [4.22.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.1...v4.22.2) (2026-10-26)
+
+### Correcoes de Bug
+
+* **domain:** alinhar decisao organica a tendencia de pullback institucional ([0faf239](https://github.com/victorh-silveira/aether-quantum-engine/commit/0faf239884876deafe13e84943a90c24048bdbc0))
+
 ## [4.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.0...v4.22.1) (2026-10-26)
 
 ### Correcoes de Bug
