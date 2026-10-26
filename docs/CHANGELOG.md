@@ -1,3 +1,9 @@
+## [4.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.21.0...v4.22.0) (2026-10-26)
+
+### Funcionalidades
+
+* **orchestrator:** implementar desempate tecnico e fallback resiliente ([9e7ad70](https://github.com/victorh-silveira/aether-quantum-engine/commit/9e7ad702dbe36ee35f94ee4f7fc5086a96d8a80b))
+
 ## [4.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.20.0...v4.21.0) (2026-10-26)
 
 ### Funcionalidades
