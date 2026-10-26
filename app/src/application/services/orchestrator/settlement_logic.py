@@ -132,8 +132,13 @@ async def _complete_contract_settlement(
             cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
-    if profit < 0.0 and isinstance(resolved_meta, dict) and resolved_meta.get("symbol"):
-        sym = str(resolved_meta["symbol"])
+    loss_sym = (
+        (resolved_meta or {}).get("symbol")
+        if isinstance(resolved_meta, dict)
+        else getattr(contract, "symbol", None) or orch.risk_manager.contract_to_symbol.get(c_id)
+    )
+    if profit < 0.0 and loss_sym:
+        sym = str(loss_sym)
         orch.__dict__.setdefault("_symbol_loss_quarantine", {})[sym] = time.time() + 900.0
         r_store = getattr(orch, "state_store", None)
         if r_store is not None and hasattr(r_store, "redis") and r_store.redis is not None:
