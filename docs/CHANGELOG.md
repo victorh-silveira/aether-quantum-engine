@@ -1,3 +1,9 @@
+## [4.22.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.0...v4.22.1) (2026-10-26)
+
+### Correcoes de Bug
+
+* **orchestrator:** desativar inversao forcada e garantir quarentena pos-loss ([324180d](https://github.com/victorh-silveira/aether-quantum-engine/commit/324180d8f2f7fd6cb65358120616c9bd3a2fb03e))
+
 ## [4.22.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.21.0...v4.22.0) (2026-10-26)
 
 ### Funcionalidades
