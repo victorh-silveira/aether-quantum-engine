@@ -160,6 +160,7 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
                     ev=fb_ev,
                     prob=fb_probability,
                 )
+                fb_metrics["trend_strength"] = abs(e20 - e50) / (e50 + 1e-9)
                 if signal_epoch_current(orch.config, fb_metrics):
                     result.append((sym, TradeDirection[fb_side], fb_metrics))
                     if len(result) >= max_fb:
@@ -260,10 +261,13 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
         symbol, _, metrics = order
         l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")
         rt = float(metrics.get("indicator_quote_rate") or 0.0)
+        t_str = float(metrics.get("trend_strength") or 0.0)
+        pen = -0.05 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
         score = (
             float(l95) if l95 is not None else -math.inf,
-            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5),
+            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5) + pen,
             float(ev_val) if ev_val is not None else rt,
+            t_str,
             rt,
         )
         if symbol not in chosen or score > chosen[symbol][0]:
@@ -271,4 +275,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
     multi = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))
     lim = int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 1)) if multi else 1
     ranked = [item[1] for item in sorted(chosen.values(), key=lambda item: item[0], reverse=True)]
+    if not multi and orch.config.get("pullback_strategy", {}).get("enabled"):
+        fb_depth = int(orch.config.get("pullback_strategy", {}).get("max_fallback_candidates", 1))
+        return ranked[: max(1, fb_depth)]
     return ranked[: max(1, lim)]

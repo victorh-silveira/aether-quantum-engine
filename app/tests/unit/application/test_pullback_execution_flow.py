@@ -180,3 +180,37 @@ async def test_execution_manager_quarantines_symbol_on_closed_session():
     ):
         await execute_cluster_orders(executor, [_order("R_25")], 0, 1000)
     assert "R_25" in executor.orch._symbol_loss_quarantine
+
+
+@pytest.mark.asyncio
+async def test_pullback_single_order_break_when_not_multi_symbol():
+    executor = _executor(0)
+    executor.orch.config["orchestrator"]["execution"]["multi_symbol_orders"] = False
+    orders = [_order("OTC_SPC"), _order("OTC_NDX")]
+    res = MagicMock(contract_id=123, buy_price=10.0)
+    executor._place_order.return_value = res
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.signal_epoch_current", return_value=True
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.claim_indicator_order_once",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.register_confirmed_contract",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.record_model_attribution",
+            new_callable=AsyncMock,
+        ),
+        patch("src.application.services.orchestrator.execution_manager_execute.store_contract_audit"),
+        patch("src.application.services.orchestrator.execution_manager_execute.consensus_enabled", return_value=True),
+    ):
+        count = await execute_cluster_orders(executor, orders, 0, 1000)
+    assert count == 1
+    assert executor._place_order.await_count == 1
+    assert executor.orch._last_traded_symbol == "OTC_SPC"

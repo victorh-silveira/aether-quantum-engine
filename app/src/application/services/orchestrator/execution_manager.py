@@ -16,7 +16,12 @@ from src.application.services.recovery_hurst_store import (
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
-from src.presentation.terminal.log_context import clear_log_context, get_log_context, restore_log_context
+from src.presentation.terminal.log_context import (
+    bind_log_context,
+    clear_log_context,
+    get_log_context,
+    restore_log_context,
+)
 
 from .execution_blockers import log_execution_blockers
 from .execution_collect import collect_cluster_orders
@@ -164,6 +169,7 @@ class ExecutionManager:
                 orders = await select_period_orders(self.orch, orders)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:
+                bind_log_context(cycle_id=self.orch._active_cycle_id, symbol=orders[0][0])
                 selected = " ".join(
                     f"{symbol}:{int(m.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
                     + (

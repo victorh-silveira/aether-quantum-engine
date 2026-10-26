@@ -523,3 +523,33 @@ def test_set_indicator_duration_allowed_period_pass():
     set_indicator_duration(params, metrics)
     assert params["duration"] == 15
     assert params["duration_unit"] == "m"
+
+
+@pytest.mark.asyncio
+async def test_select_period_orders_fair_rotation_and_technical_ranking(monkeypatch):
+    orch = _orch("demo")
+    orch.config["pullback_strategy"] = {"enabled": True, "max_fallback_candidates": 3}
+    orch.config["orchestrator"]["execution"]["multi_symbol_orders"] = False
+    orch._last_traded_symbol = "OTC_SPC"
+    monkeypatch.setattr(
+        orders,
+        "period_candidates",
+        lambda orch, base: [
+            ("OTC_SPC", TradeDirection.CALL, {"trend_strength": 0.05, "trade_score": 0.5}),
+            ("OTC_NDX", TradeDirection.CALL, {"trend_strength": 0.08, "trade_score": 0.5}),
+            ("OTC_SX5E", TradeDirection.CALL, {"trend_strength": 0.02, "trade_score": 0.5}),
+        ],
+    )
+
+    async def quote(orch, order, semaphore):
+        order[2]["indicator_prequote_ev"] = 0.1
+        order[2]["indicator_quote_rate"] = 0.75
+        return order
+
+    monkeypatch.setattr(orders, "_prequote", quote)
+    monkeypatch.setattr(orders.time, "time", lambda: 900)
+    selected = await orders.select_period_orders(orch, [])
+    assert len(selected) == 3
+    assert selected[0][0] == "OTC_NDX"
+    assert selected[1][0] == "OTC_SX5E"
+    assert selected[2][0] == "OTC_SPC"

@@ -245,6 +245,9 @@ async def execute_cluster_orders(
                             )
                     except Exception as exc:
                         executor.logger.warning("METRICS: sem telemetria cid=%s: %s", res.contract_id, exc)
+                executor.orch._last_traded_symbol = str(symbol)
+                if setup and not multi_symbol and executed_count >= 1:
+                    break
         except PurchaseOutcomeUnknownError as e:
             unknown_purchase = True
             await quarantine_unknown_purchase(executor.orch, symbol)
