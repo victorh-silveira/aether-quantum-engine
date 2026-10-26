@@ -22,7 +22,7 @@
     "promoted_at": "2026-10-25T23:17:55.882705+00:00",
     "promoted_max_losses_consecutivos": 5,
     "single_strike": false,
-    "invert_signal": false,
+    "invert_signal": true,
     "organic_direction": true,
     "stream_fallback": true,
     "dynamic_rotation": true,
