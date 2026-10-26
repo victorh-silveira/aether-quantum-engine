@@ -1,3 +1,9 @@
+## [4.23.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.23.0...v4.23.1) (2026-10-26)
+
+### Correcoes de Bug
+
+* **engine:** alinhar pullback institucional ao fluxo M15 ([9acfd5f](https://github.com/victorh-silveira/aether-quantum-engine/commit/9acfd5fea0f29a7389696ed9e3e1e8208a8bcc54))
+
 ## [4.23.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.22.2...v4.23.0) (2026-10-26)
 
 ### Funcionalidades
