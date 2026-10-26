@@ -1,3 +1,9 @@
+## [4.21.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.20.0...v4.21.0) (2026-10-26)
+
+### Funcionalidades
+
+* **orchestrator:** habilitar inversao de sinal na estrategia de pullback ([f39e67b](https://github.com/victorh-silveira/aether-quantum-engine/commit/f39e67b0df44b2f155f19370577f3a43ef08c0fb))
+
 ## [4.20.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.19.0...v4.20.0) (2026-10-26)
 
 ### Funcionalidades
