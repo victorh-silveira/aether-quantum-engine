@@ -38,7 +38,7 @@ def normalize_symbols_and_anchor(config: dict) -> tuple[str, list[str]]:
     strategy = config.get("strategy", {})
     pb_cfg = config.get("pullback_strategy", {})
     raw = list(config.get("symbols") or [anchor])
-    if pb_cfg.get("enabled") and pb_cfg.get("dynamic_rotation"):
+    if pb_cfg.get("enabled") and (pb_cfg.get("dynamic_rotation") or pb_cfg.get("operate_all_signals")):
         rotation_syms = [
             "OTC_SSMI",
             "OTC_SPC",

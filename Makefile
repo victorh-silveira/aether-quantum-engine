@@ -26,7 +26,7 @@ endef
 
 RESOLVE_PY := $(shell bash linters/git-hooks/bin/resolve_conda_python.sh 2>/dev/null || echo python)
 PYTHON := $(RESOLVE_PY)
-INDICATOR_PYTHON ?= $(if $(wildcard indicator/.venv/bin/python),$(abspath indicator/.venv/bin/python),$(if $(wildcard .venv/bin/python),$(abspath .venv/bin/python),$(PYTHON)))
+INDICATOR_PYTHON ?= $(PYTHON)
 INDICATOR_TRAIN_MEMORY_MB ?= 3072
 QA_PYTHON ?= $(INDICATOR_PYTHON)
 
