@@ -1,3 +1,9 @@
+## [4.25.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.0...v4.25.1) (2026-10-27)
+
+### Correcoes de Bug
+
+* **engine:** otimizar killzones e confluencia institucional no M15 ([00604c9](https://github.com/victorh-silveira/aether-quantum-engine/commit/00604c9e6f1f040e2b78b13e56756633179000f9))
+
 ## [4.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.24.1...v4.25.0) (2026-10-27)
 
 ### Funcionalidades
