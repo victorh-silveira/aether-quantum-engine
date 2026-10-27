@@ -1,3 +1,9 @@
+## [4.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.23.1...v4.24.0) (2026-10-27)
+
+### Funcionalidades
+
+* **all:** aprimorar diagnostico m15 e gestao de loss no setup pullback ([84ce300](https://github.com/victorh-silveira/aether-quantum-engine/commit/84ce300764baab1ea549f27e748cc5de5e504853))
+
 ## [4.23.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.23.0...v4.23.1) (2026-10-26)
 
 ### Correcoes de Bug
