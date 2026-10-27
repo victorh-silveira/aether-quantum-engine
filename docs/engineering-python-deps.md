@@ -2,6 +2,8 @@
 
 Pins: [`app/requirements.txt`](../app/requirements.txt), [`app/requirements-dev.txt`](../app/requirements-dev.txt), Docker `infra/docker/*/requirements.txt`. Runtime: [`engineering-python-313-runtime.md`](engineering-python-313-runtime.md). CloudOps: [`engineering-devops-cloudops-senior.md`](engineering-devops-cloudops-senior.md).
 
+O ambiente do indicador declara `httpx==0.28.1` em `indicator/app/requirements.txt` para o modulo residual `real_market_feed` e seus testes; o treino institucional usa apenas OHLC publico da Deriv.
+
 Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps` (+ `aether-polars-arrow`, `aether-torch-cuda-infer`, `aether-redis-hiredis`, `aether-asyncpg-timescale`, `aether-deriv-connect`).
 
 ## Stack host (pins)

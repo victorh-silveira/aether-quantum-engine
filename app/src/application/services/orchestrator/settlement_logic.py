@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from typing import Any
 
 from src.application.services.log_dedupe import log_warning_if_changed
@@ -24,6 +23,7 @@ from src.application.services.orchestrator.settlement_audit import record_settle
 from src.application.services.orchestrator.settlement_cluster_log import log_cluster_summary
 from src.application.services.orchestrator.settlement_dedupe import settlement_lock, settlement_seen
 from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_loss_quarantine import handle_settlement_loss_quarantine
 from src.application.services.orchestrator.settlement_outcome import (
     check_session_limits_before_post_settlement,
     sync_state_manager_session,
@@ -132,21 +132,7 @@ async def _complete_contract_settlement(
             cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
-    loss_sym = (
-        (resolved_meta or {}).get("symbol")
-        if isinstance(resolved_meta, dict)
-        else getattr(contract, "symbol", None) or orch.risk_manager.contract_to_symbol.get(c_id)
-    )
-    if profit < 0.0 and loss_sym:
-        sym = str(loss_sym)
-        orch.__dict__.setdefault("_symbol_loss_quarantine", {})[sym] = time.time() + 900.0
-        r_store = getattr(orch, "state_store", None)
-        if r_store is not None and hasattr(r_store, "redis") and r_store.redis is not None:
-            try:
-                mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
-                await r_store.redis.set(f"quarantine:loss:{mode}:{sym}", "1", ex=900)
-            except Exception as exc:
-                orch.logger.debug("Falha ao registrar quarentena no Redis para %s: %s", sym, exc)
+    await handle_settlement_loss_quarantine(orch, resolved_meta, contract, c_id, profit)
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
 

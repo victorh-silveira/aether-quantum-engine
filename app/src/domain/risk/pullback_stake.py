@@ -5,6 +5,16 @@ from __future__ import annotations
 import math
 
 
+def resolve_pullback_amort_steps(loss_amount: float, quote_rate: float, cap_stake: float) -> int:
+    """Calcula etapas para recovery suave sem exceder o teto por ordem."""
+    if not all(math.isfinite(value) for value in (loss_amount, quote_rate, cap_stake)):
+        return 1
+    if loss_amount <= 0.0 or quote_rate <= 0.0 or cap_stake <= 0.0:
+        return 1
+    needed = loss_amount / quote_rate
+    return max(1, math.ceil(needed / cap_stake)) if needed > cap_stake else 1
+
+
 def pullback_stake(
     available: float,
     pending: float,

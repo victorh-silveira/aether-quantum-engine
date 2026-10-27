@@ -89,6 +89,7 @@ async def diagnose_all(
                 max_consecutive_losses = 0
                 by_side = {"CALL": [0, 0], "PUT": [0, 0]}
                 by_hour_brt: dict[int, list[int]] = {}
+                by_day_brt: dict[str, list[int]] = {}
                 for index in range(MIN_BARS - 1, len(candles) - 1):
                     if is_stock and candles[index + 1].epoch - candles[index].epoch > period:
                         continue
@@ -102,6 +103,8 @@ async def diagnose_all(
                     if result.side not in by_side:
                         continue
                     next_candle = candles[index + 1]
+                    entry_day_brt = datetime.fromtimestamp(next_candle.epoch, tz=BRT_TIMEZONE).date().isoformat()
+                    daily = by_day_brt.setdefault(entry_day_brt, [0, 0, 0])
                     hour_brt = datetime.fromtimestamp(candles[index].epoch, tz=BRT_TIMEZONE).hour
                     if hour_brt not in by_hour_brt:
                         by_hour_brt[hour_brt] = [0, 0, 0]
@@ -109,15 +112,18 @@ async def diagnose_all(
                     won = delta > 0 if result.side == "CALL" else delta < 0
                     if delta == 0:
                         ties += 1
+                        daily[2] += 1
                         by_hour_brt[hour_brt][2] += 1
                         current_consecutive_losses = 0
                     elif won:
                         wins += 1
+                        daily[0] += 1
                         by_side[result.side][0] += 1
                         by_hour_brt[hour_brt][0] += 1
                         current_consecutive_losses = 0
                     else:
                         losses += 1
+                        daily[1] += 1
                         by_side[result.side][1] += 1
                         by_hour_brt[hour_brt][1] += 1
                         current_consecutive_losses += 1
@@ -134,13 +140,19 @@ async def diagnose_all(
                     "empates": ties,
                     "max_losses_consecutivos": max_consecutive_losses,
                     "por_lado": by_side,
+                    "primeira_vela_brt": datetime.fromtimestamp(candles[0].epoch, tz=BRT_TIMEZONE).date().isoformat(),
+                    "ultima_vela_brt": datetime.fromtimestamp(candles[-1].epoch, tz=BRT_TIMEZONE).date().isoformat(),
+                    "por_dia_brt": {
+                        day: {"setups": sum(counts), "acertos": counts[0], "erros": counts[1], "empates": counts[2]}
+                        for day, counts in sorted(by_day_brt.items())
+                    },
                     "optimal_hours_brt": optimal_hours,
                     "best_window_brt": best_window,
                     "hourly_profile_brt": hourly_profile,
                     "variantes": compare_variants(candles, period) if period == 900 else {},
                 }
             except (OSError, RuntimeError, ValueError, KeyError, TimeoutError) as exc:
-                report[key] = {"estado": "SEM SINAL", "motivo": str(exc) or "tempo limite"}
+                report[key] = {"estado": "COLETA INDISPONIVEL", "motivo": str(exc) or "tempo limite"}
             result = report[key]
             logger.info(
                 "TREINO SETUP %s %ds estado=%s velas=%d setups=%d acertos_proxy=%d erros_proxy=%d max_losses=%d motivo=%s",

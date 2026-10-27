@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from src.domain.risk.pullback_stake import pullback_stake
+from src.domain.risk.pullback_stake import pullback_stake, resolve_pullback_amort_steps
 
 
 def test_base_recovery_and_residual():
@@ -38,3 +38,13 @@ def test_single_strike_target_behavior():
 def test_amort_steps_smooth_recovery():
     assert pullback_stake(1000, 40, 0.8, 1, amort_steps=1) == (50.0, 40.0)
     assert pullback_stake(1000, 40, 0.8, 1, amort_steps=2) == (25.0, 20.0)
+
+
+def test_resolve_pullback_amort_steps():
+    assert resolve_pullback_amort_steps(0, 0.8, 50) == 1
+    assert resolve_pullback_amort_steps(40, 0.8, 50) == 1
+    assert resolve_pullback_amort_steps(80, 0.8, 50) == 2
+    assert resolve_pullback_amort_steps(120, 0.8, 50) == 3
+    assert resolve_pullback_amort_steps(math.nan, 0.8, 50) == 1
+    assert resolve_pullback_amort_steps(40, 0, 50) == 1
+    assert resolve_pullback_amort_steps(40, 0.8, 0) == 1

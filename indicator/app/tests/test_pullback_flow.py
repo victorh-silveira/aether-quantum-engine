@@ -191,6 +191,8 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
     assert report["R_25:900"]["erros"] == 1
     assert report["R_25:900"]["empates"] == 1
     assert report["R_25:900"]["max_losses_consecutivos"] == 1
+    assert sum(day["setups"] for day in report["R_25:900"]["por_dia_brt"].values()) == 3
+    assert report["R_25:900"]["ultima_vela_brt"]
     assert "optimal_hours_brt" in report["R_25:900"]
     assert "best_window_brt" in report["R_25:900"]
     assert bars[MIN_BARS].close > bars[MIN_BARS - 1].close

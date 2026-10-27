@@ -5,10 +5,12 @@ import json
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from indicator.deriv import PublicDeriv
+from indicator.pullback_backtest import format_daily_backtest
 from indicator.pullback_promotion import format_ranking_table, rank_m5_pairs
 from indicator.pullback_store import PullbackStore
 from indicator.pullback_training import diagnose_all
@@ -29,7 +31,8 @@ async def train() -> None:
     try:
         await store.start()
         scope = config.get("catalog_scope", "stock_indices")
-        result = await diagnose_all(source, store, variant=variant, scope=scope)
+        timestamp = int(time.time())
+        result = await diagnose_all(source, store, now=timestamp, variant=variant, scope=scope)
         excluded = set(
             repo_cfg.get("pullback_strategy", {}).get("excluded_symbols")
             or repo_cfg.get("strategy", {}).get("excluded_symbols")
@@ -50,8 +53,12 @@ async def train() -> None:
         if best:
             print("\n" + format_ranking_table(ranked) + "\n")
             print("Diagnostico historico apenas: nenhuma versao foi promovida para REAL pelo treino.\n")
+        print("\n" + format_daily_backtest(result, timestamp, payout_rate) + "\n")
         max_losses_global = max((int(row.get("max_losses_consecutivos", 0)) for row in result.values()), default=0)
         summary = {
+            "m15_acertos_proxy": sum(row.get("acertos", 0) for key, row in result.items() if key.endswith(":900")),
+            "m15_erros_proxy": sum(row.get("erros", 0) for key, row in result.items() if key.endswith(":900")),
+            "m15_setups": sum(row.get("setups", 0) for key, row in result.items() if key.endswith(":900")),
             "acertos_proxy": sum(row.get("acertos", 0) for row in result.values()),
             "empates_proxy": sum(row.get("empates", 0) for row in result.values()),
             "erros_proxy": sum(row.get("erros", 0) for row in result.values()),
@@ -61,6 +68,7 @@ async def train() -> None:
             "pares": len(result),
             "pares_com_proxy": sum(row["estado"] == "PROXY DE VELAS" for row in result.values()),
             "pares_sem_sinal": sum(row["estado"] == "SEM SINAL" for row in result.values()),
+            "pares_coleta_indisponivel": sum(row["estado"] == "COLETA INDISPONIVEL" for row in result.values()),
             "promovido": None,
             "qualificacao_broker": "nao realizada",
             "setups": sum(row.get("setups", 0) for row in result.values()),

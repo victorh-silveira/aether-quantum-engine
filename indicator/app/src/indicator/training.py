@@ -19,6 +19,20 @@ ASSET_TIMEOUT = 150
 TRAIN_TIMEOUT = 3600
 REQUEST_TIMEOUT = 40
 MIN_CONTIGUOUS_BARS = 5000
+RATE_LIMIT_DELAYS = (2, 5, 10)
+
+
+async def _fetch_candles(source: PublicDeriv, symbol: str, count: int, end: str | int, period: int) -> list:
+    """Repete limites transitorios da API com espera limitada."""
+    for attempt in range(len(RATE_LIMIT_DELAYS) + 1):
+        try:
+            return await asyncio.wait_for(source.candles(symbol, count=count, end=end, period=period), REQUEST_TIMEOUT)
+        except RuntimeError as exc:
+            if "rate limit" not in str(exc).lower() or attempt == len(RATE_LIMIT_DELAYS):
+                raise
+            delay = RATE_LIMIT_DELAYS[attempt]
+            logger.warning("TRAIN %s %ds limite da API; nova tentativa em %ds", symbol, period, delay)
+            await asyncio.sleep(delay)
 
 
 async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, period: int = 900) -> list:
@@ -26,7 +40,7 @@ async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, pe
     all_rows = []
     end: str | int = "latest"
     for page in range(1, pages + 1):
-        rows = await asyncio.wait_for(source.candles(symbol, count=1000, end=end, period=period), REQUEST_TIMEOUT)
+        rows = await _fetch_candles(source, symbol, 1000, end, period)
         logger.info("TRAIN %s %ds historico pagina %d/%d: %d velas", symbol, period, page, pages, len(rows))
         if not rows:
             break
@@ -39,15 +53,19 @@ async def history(source: PublicDeriv, symbol: str, now: int, pages: int = 6, pe
         for left, right in zip(candles, candles[1:], strict=False)
         if right.epoch - left.epoch > period
     ]
-    for left, right in gaps[:3]:
+    repaired = 0
+    for left, right in gaps:
+        if symbol.startswith("OTC_") and left // 86400 != right // 86400:
+            continue
         missing = (right - left) // period - 1
         if missing > 1000:
             continue
-        rows = await asyncio.wait_for(
-            source.candles(symbol, count=missing + 2, end=right - 1, period=period), REQUEST_TIMEOUT
-        )
+        rows = await _fetch_candles(source, symbol, missing + 2, right - 1, period)
         logger.info("TRAIN %s %ds reparo %d..%d: %d velas", symbol, period, left, right, len(rows))
         all_rows.extend(rows)
+        repaired += 1
+        if repaired == 3:
+            break
     return closed_candles(all_rows, now, period)
 
 

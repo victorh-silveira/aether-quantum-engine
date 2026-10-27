@@ -42,6 +42,7 @@ def rank_m5_pairs(
                 "decisions": decisions,
                 "win_rate": win_rate,
                 "ev": ev,
+                "payout_proxy": payout,
                 "eligible": is_eligible,
                 "excluded": symbol in excluded,
                 "optimal_hours_brt": data.get("optimal_hours_brt", []),
@@ -71,17 +72,27 @@ def format_ranking_table(ranked: list[dict[str, Any]]) -> str:
         "=" * 100,
         f"RANKING DO SETUP PULLBACK {tf_name} (PROXY DE VELAS)",
         "=" * 100,
-        f"{'POS':<4} | {'ATIVO':<8} | {'SETUPS':<7} | {'WINS':<5} | {'LOSS':<5} | {'EMP':<4} | {'MAX LOSS':<8} | {'ACERTO %':<9} | {'EV (85%)':<9} | {'STATUS':<12}",
+        f"{'POS':<4} | {'ATIVO':<8} | {'SETUPS':<7} | {'WINS':<5} | {'LOSS':<5} | {'EMP':<4} | {'MAX LOSS':<8} | {'ACERTO %':<9} | {'EV PROXY':<9} | {'STATUS':<12}",
         "-" * 100,
     ]
     for idx, row in enumerate(ranked, 1):
-        status = "EXCLUIDO" if row["excluded"] else ("LIDER PROXY" if idx == 1 and row["eligible"] else "CANDIDATO")
+        status = (
+            "EXCLUIDO"
+            if row["excluded"]
+            else ("SEM AMOSTRA" if row["setups"] == 0 else ("LIDER PROXY" if idx == 1 else "CANDIDATO"))
+        )
         wr_pct = f"{row['win_rate'] * 100:.1f}%"
-        ev_str = f"{row['ev']:+.4f}"
+        if row["wins"] + row["losses"] == 0:
+            wr_pct = "n/a"
+            ev_str = "n/a"
+        else:
+            ev_str = f"{row['ev']:+.4f}"
         max_l = str(row.get("max_consecutive_losses", 0))
         lines.append(
             f"{idx:<4} | {row['symbol']:<8} | {row['setups']:<7} | {row['wins']:<5} | "
             f"{row['losses']:<5} | {row['ties']:<4} | {max_l:<8} | {wr_pct:<9} | {ev_str:<9} | {status:<12}"
         )
     lines.append("=" * 100)
+    if ranked:
+        lines.append(f"Payout hipotetico do proxy: {ranked[0].get('payout_proxy', 0.85):.2%}; nao e payout cotado.")
     return "\n".join(lines)

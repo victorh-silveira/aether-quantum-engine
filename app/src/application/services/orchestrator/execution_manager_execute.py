@@ -34,7 +34,7 @@ from src.application.services.pullback_recovery_claim import (
 from src.application.services.rise_fall_quote_guard import resolve_effective_side_probability
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
-from src.domain.risk.pullback_stake import pullback_stake
+from src.domain.risk.pullback_stake import pullback_stake, resolve_pullback_amort_steps
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
@@ -79,16 +79,24 @@ async def execute_cluster_orders(
                 pnl = float(getattr(executor.orch.risk_manager, "total_session_profit", 0.0) or 0.0)
                 sst = max(0.0, sw - pnl) if sw > 0.0 else 0.0
             minimum = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
+            unres_loss = unreserved_loss(executor.orch)
+            rate = float(metrics.get("indicator_quote_rate") or 0.0)
+            cap_limit = math.floor(available * 0.05 * 100) / 100
+            steps = (
+                resolve_pullback_amort_steps(unres_loss, rate, cap_limit)
+                if pb_cfg.get("smooth_recovery", False)
+                else int(pb_cfg.get("amort_steps", 1))
+            )
             stake, covered = pullback_stake(
                 available,
-                unreserved_loss(executor.orch),
-                float(metrics.get("indicator_quote_rate") or 0.0),
+                unres_loss,
+                rate,
                 minimum,
                 single_strike_target=sst,
-                amort_steps=1,
+                amort_steps=steps,
             )
             metrics["_pullback_recovery_amount"] = covered
-            metrics["_pullback_stake_cap"] = math.floor(available * 0.05 * 100) / 100
+            metrics["_pullback_stake_cap"] = cap_limit
             metrics["indicator_stake_mode"] = "PULLBACK_RECOVERY" if covered > 0 else "PULLBACK_BASE"
         elif metrics.get("indicator_controls_execution"):
             if metrics.get("indicator_demo_pilot"):

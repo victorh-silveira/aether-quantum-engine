@@ -8,6 +8,8 @@ A regra operacional exige tendência EMA20/EMA50, recuo contrário até 0,5 ATR1
 
 `make app-train` mede apenas o proxy direcional de velas e publica ranking diagnóstico. Não concatena cotações Yahoo com as velas da Deriv, não altera settings, não muda a âncora e não promove contratos. Versões novas entram como `piloto`. O registro muda para `ativo` apenas após 200 compras DEMO únicas e liquidadas pelo broker na mesma versão, ativo e período, com limite inferior unilateral de 95% do retorno líquido médio positivo. REAL ainda depende do EV da proposta final no motor.
 
+O treino imprime entradas M15 por ativo no dia BRT, na ultima data com velas e em cada data historica com setup. O backtest usa a direcao da vela seguinte e payout hipotetico com stake fixa de uma unidade; nao representa compras nem liquidacoes do broker. `s/d` em HOJE indica que nao ha vela fechada do ativo na data atual.
+
 ## Engenharia
 
 - Responder, documentar e nomear commits em PT-BR; trabalhar no WSL com Python 3.13.
