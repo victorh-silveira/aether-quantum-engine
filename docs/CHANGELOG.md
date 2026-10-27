@@ -1,3 +1,9 @@
+## [4.25.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.1...v4.25.2) (2026-10-27)
+
+### Correcoes de Bug
+
+* **engine:** permitir continuacao institucional M15 sem exec skip ([a26b474](https://github.com/victorh-silveira/aether-quantum-engine/commit/a26b4741df012472a171c3281f7dc5250e76b424))
+
 ## [4.25.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.0...v4.25.1) (2026-10-27)
 
 ### Correcoes de Bug
