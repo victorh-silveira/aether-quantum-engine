@@ -1,3 +1,9 @@
+## [4.25.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.24.1...v4.25.0) (2026-10-27)
+
+### Funcionalidades
+
+* **engine:** suportar continuacao institucional e expandir historico ([b7814ba](https://github.com/victorh-silveira/aether-quantum-engine/commit/b7814baf53db2b495b4b8d19033ae819e730a57b))
+
 ## [4.24.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.24.0...v4.24.1) (2026-10-27)
 
 ### Correcoes de Bug
