@@ -1,3 +1,9 @@
+## [4.25.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.2...v4.25.3) (2026-10-27)
+
+### Correcoes de Bug
+
+* **engine:** exigir confirmacao direcional da vela e ordem unica ([33f51d4](https://github.com/victorh-silveira/aether-quantum-engine/commit/33f51d4617222a9e64b05d2fb1da55f3c8881874))
+
 ## [4.25.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.1...v4.25.2) (2026-10-27)
 
 ### Correcoes de Bug
