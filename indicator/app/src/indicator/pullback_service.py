@@ -62,7 +62,7 @@ class PullbackService:
     async def _observe(self, symbol: str, period: int, now: int) -> None:
         """Isola erro de um periodo sem atrasar os demais ativos."""
         try:
-            rows = await asyncio.wait_for(self.source.candles(symbol, count=160, period=period), 25)
+            rows = await asyncio.wait_for(self.source.candles(symbol, count=500, period=period), 25)
             candles = closed_candles(rows, now, period)
             if not candles:
                 return

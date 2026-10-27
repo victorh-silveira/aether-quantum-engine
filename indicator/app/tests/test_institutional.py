@@ -140,3 +140,30 @@ def test_senior_setup_requires_all_pillars_and_preserves_direction(monkeypatch):
     monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
     monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
     assert evaluate(mirrored, period, MIN_BARS * period, **kwargs).side == "PUT"
+
+
+def test_senior_setup_trend_continuation_flow(monkeypatch):
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    bars = [Candle(i * period, 101.0, 102.0, 100.0, 101.0) for i in range(64)]
+    bars[-2] = Candle((64 - 2) * period, 101.5, 102.0, 101.4, 101.9)
+    bars[-1] = Candle((64 - 1) * period, 101.9, 102.5, 101.8, 102.3)
+    fast = [101.0] * 60 + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * 59 + [100.0, 100.1, 100.2, 100.3, 100.4]
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, False))
+    hour = datetime.fromtimestamp(bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+    assert evaluate(bars, period, 64 * period, **kwargs).side == "CALL"
+
+    mirrored = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in bars]
+    monkeypatch.setattr(
+        "indicator.pullback._ema", lambda values, span: [300 - x for x in (fast if span == 20 else slow)]
+    )
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
+    assert evaluate(mirrored, period, 64 * period, **kwargs).side == "PUT"

@@ -250,9 +250,10 @@ def evaluate(
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
     if period not in (300, 900, 3600, 86400):
         return SetupResult("SEM SINAL", "periodo_invalido", version=version)
-    if len(candles) < MIN_BARS:
+    min_required = 64 if variant == "senior_institutional" else MIN_BARS
+    if len(candles) < min_required:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)
-    bars = candles[-MIN_BARS:]
+    bars = candles[-MIN_BARS:] if len(candles) >= MIN_BARS else candles[-min_required:]
     if any(
         candle.epoch % period
         or candle.high < max(candle.open, candle.close)
@@ -291,7 +292,7 @@ def evaluate(
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
         bounded = 0.03 * atr <= body <= 1.5 * atr
-        call = (
+        call_pullback = (
             fast[-2] > slow[-2]
             and fast[-1] > fast[-2] > fast[-3] > fast[-4]
             and slow[-2] > slow[-5]
@@ -306,7 +307,20 @@ def evaluate(
             and reference <= confirmation.close <= upper
             and bull_fvg
         )
-        put = (
+        call_continuation = (
+            fast[-2] > slow[-2]
+            and fast[-1] > fast[-2] > fast[-3] > fast[-4]
+            and slow[-2] > slow[-5]
+            and pullback.close >= pullback.open
+            and confirmation.close > confirmation.open
+            and confirmation.close > pullback.close
+            and confirmation.close >= fast[-1]
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and bounded
+            and reference > 0
+            and reference <= confirmation.close <= upper
+        )
+        put_pullback = (
             fast[-2] < slow[-2]
             and fast[-1] < fast[-2] < fast[-3] < fast[-4]
             and slow[-2] < slow[-5]
@@ -321,6 +335,21 @@ def evaluate(
             and lower <= confirmation.close <= reference
             and bear_fvg
         )
+        put_continuation = (
+            fast[-2] < slow[-2]
+            and fast[-1] < fast[-2] < fast[-3] < fast[-4]
+            and slow[-2] < slow[-5]
+            and pullback.close <= pullback.open
+            and confirmation.close < confirmation.open
+            and confirmation.close < pullback.close
+            and confirmation.close <= fast[-1]
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and bounded
+            and reference > 0
+            and lower <= confirmation.close <= reference
+        )
+        call = call_pullback or call_continuation
+        put = put_pullback or put_continuation
         side = "CALL" if call else "PUT" if put else "SEM SINAL"
         reason = "setup_confirmado" if side != "SEM SINAL" else "padrao_incompleto"
         return SetupResult(side, reason, version=version)
