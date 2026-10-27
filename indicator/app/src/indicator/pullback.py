@@ -316,6 +316,7 @@ def evaluate(
             and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
             and (reference <= 0 or confirmation.close >= reference)
+            and confirmation.close >= confirmation.open
         )
         put_pullback = (
             trend_put
@@ -334,6 +335,7 @@ def evaluate(
             and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
             and (reference <= 0 or confirmation.close <= reference)
+            and confirmation.close <= confirmation.open
         )
         call = call_pullback or call_continuation
         put = put_pullback or put_continuation

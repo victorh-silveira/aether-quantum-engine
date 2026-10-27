@@ -448,8 +448,8 @@
       "fractional_lot_stagger_jitter_us": 50.0,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.05,
-      "multi_symbol_orders": true,
-      "max_orders_per_cycle": 12,
+      "multi_symbol_orders": false,
+      "max_orders_per_cycle": 1,
       "loss_protection": {
         "disconnect": {
           "block_threshold": 0.18,
