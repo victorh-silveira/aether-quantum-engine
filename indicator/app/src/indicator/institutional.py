@@ -8,7 +8,7 @@ from math import isfinite, sqrt
 from indicator.domain import Candle
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))
-DEFAULT_KILLZONES_BRT = [3, 4, 5, 6, 7, 10, 11, 12, 14, 15]
+DEFAULT_KILLZONES_BRT = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
 
 
 def session_price_reference(bars: list[Candle]) -> tuple[float, float, float]:

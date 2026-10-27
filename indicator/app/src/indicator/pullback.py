@@ -262,15 +262,14 @@ def evaluate(
         for candle in bars
     ):
         return SetupResult("SEM SINAL", "vela_invalida", version=version)
-    if bars[-1].epoch - bars[-2].epoch != period:
+    if not (
+        bars[-1].epoch - bars[-2].epoch == period
+        or (allow_session_gaps and period < bars[-1].epoch - bars[-2].epoch <= 120 * 3600)
+    ):
         return SetupResult("SEM SINAL", "lacuna", version=version)
     if any(
         right.epoch - left.epoch != period
-        and not (
-            allow_session_gaps
-            and period < right.epoch - left.epoch <= 72 * 3600
-            and left.epoch // 86400 != right.epoch // 86400
-        )
+        and not (allow_session_gaps and period < right.epoch - left.epoch <= 120 * 3600)
         for left, right in zip(bars, bars[1:], strict=False)
     ):
         return SetupResult("SEM SINAL", "lacuna", version=version)
@@ -291,62 +290,56 @@ def evaluate(
         reference, upper, lower = session_price_reference(bars)
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
-        bounded = 0.03 * atr <= body <= 1.5 * atr
+        bounded = 0.02 * atr <= body <= 3.5 * atr
+        trend_call = (
+            (fast[-1] > slow[-1] or fast[-2] > slow[-2]) and fast[-1] >= fast[-3] and confirmation.close > slow[-1]
+        )
+        trend_put = (
+            (fast[-1] < slow[-1] or fast[-2] < slow[-2]) and fast[-1] <= fast[-3] and confirmation.close < slow[-1]
+        )
         call_pullback = (
-            fast[-2] > slow[-2]
-            and fast[-1] > fast[-2] > fast[-3] > fast[-4]
-            and slow[-2] > slow[-5]
-            and abs(pullback.low - fast[-2]) <= 0.5 * atr
-            and pullback.close > slow[-2]
+            trend_call
+            and abs(pullback.low - fast[-2]) <= 1.5 * atr
             and pullback.close < pullback.open
             and confirmation.close > pullback.high
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
-            and reference > 0
-            and reference <= confirmation.close <= upper
+            and (reference <= 0 or confirmation.close >= reference)
             and bull_fvg
         )
         call_continuation = (
-            fast[-2] > slow[-2]
-            and fast[-1] > fast[-2] > fast[-3] > fast[-4]
-            and slow[-2] > slow[-5]
+            trend_call
+            and fast[-1] >= fast[-2]
             and pullback.close >= pullback.open
             and confirmation.close > confirmation.open
             and confirmation.close > pullback.close
             and confirmation.close >= fast[-1]
-            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
-            and reference > 0
-            and reference <= confirmation.close <= upper
+            and (reference <= 0 or confirmation.close >= reference)
         )
         put_pullback = (
-            fast[-2] < slow[-2]
-            and fast[-1] < fast[-2] < fast[-3] < fast[-4]
-            and slow[-2] < slow[-5]
-            and abs(pullback.high - fast[-2]) <= 0.5 * atr
-            and pullback.close < slow[-2]
+            trend_put
+            and abs(pullback.high - fast[-2]) <= 1.5 * atr
             and pullback.close > pullback.open
             and confirmation.close < pullback.low
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 0.75 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
-            and reference > 0
-            and lower <= confirmation.close <= reference
+            and (reference <= 0 or confirmation.close <= reference)
             and bear_fvg
         )
         put_continuation = (
-            fast[-2] < slow[-2]
-            and fast[-1] < fast[-2] < fast[-3] < fast[-4]
-            and slow[-2] < slow[-5]
+            trend_put
+            and fast[-1] <= fast[-2]
             and pullback.close <= pullback.open
             and confirmation.close < confirmation.open
             and confirmation.close < pullback.close
             and confirmation.close <= fast[-1]
-            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
             and bounded
-            and reference > 0
-            and lower <= confirmation.close <= reference
+            and (reference <= 0 or confirmation.close <= reference)
         )
         call = call_pullback or call_continuation
         put = put_pullback or put_continuation
