@@ -1,3 +1,9 @@
+## [4.24.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.24.0...v4.24.1) (2026-10-27)
+
+### Correcoes de Bug
+
+* **engine:** unificar resolucao de python e suportar expansao de simbolos ([d8874b8](https://github.com/victorh-silveira/aether-quantum-engine/commit/d8874b8f26e3d31fa8f27e619637c32eab3d11d6))
+
 ## [4.24.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.23.1...v4.24.0) (2026-10-27)
 
 ### Funcionalidades
