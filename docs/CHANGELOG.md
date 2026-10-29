@@ -1,3 +1,9 @@
+## [4.25.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.4...v4.25.5) (2026-10-29)
+
+### Correcoes de Bug
+
+* **infra:** ajustar paineis do grafana para setups m15 e metricas ativas ([8c219eb](https://github.com/victorh-silveira/aether-quantum-engine/commit/8c219eb523af2fec6f59dcb7229a5699020ee1a7))
+
 ## [4.25.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.3...v4.25.4) (2026-10-29)
 
 ### Correcoes de Bug
