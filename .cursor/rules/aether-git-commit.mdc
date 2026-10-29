@@ -1,0 +1,31 @@
+---
+description: Padrao obrigatorio de commit Git via script com commitlint PT-BR
+alwaysApply: true
+---
+
+# Git Commit Padronizado
+
+- **Obrigatoriedade do Script**: Todo commit no repositorio Aether DEVE ser realizado atraves do script oficial `app/scripts/wsl/commit.sh` (ou via `tools/commit.sh` ou `make app-commit ARGS="..."`).
+- **Hooks de Commit**: O pre-commit roda `commitlint-early` e bateria de linters/testes, e o `commit-msg` roda o `commitlint` oficial. O script de commit valida antecipadamente os parametros impedindo rejeicoes tardias pelos hooks.
+- **Formato Conventional Commits**: `tipo(escopo): assunto em PT-BR` seguido de linha em branco e corpo explicativo detalhado obrigatorio.
+- **Tipos Permitidos (`type-enum`)**:
+  `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `qa`, `refactor`, `revert`, `style`, `test`
+- **Escopos Permitidos (`scope-enum`)**:
+  `all`, `api`, `app`, `config`, `deps`, `domain`, `engine`, `infra`, `llm`, `orchestrator`, `pres`, `release`, `repo`, `risk`, `scripts`, `test`, `tools`, `ws`
+- **Idioma PT-BR Estrito**:
+  O assunto do commit deve ser estritamente em Portugues (PT-BR). Palavras em ingles como `add`, `update`, `remove`, `refine`, `tune`, `veto`, `tighten`, `implement`, `align`, `fix`, `test`, `clean`, `allow`, `change` (e conjugacoes em ingles) sao proibidas e barradas.
+- **Limites e Invariantes**:
+  - Header com maximo de 100 caracteres.
+  - Corpo nunca vazio (`body-empty: never`).
+  - Linha em branco obrigatoria antes do corpo (`body-leading-blank: always`).
+- **Como Invocar**:
+  ```bash
+  bash app/scripts/wsl/commit.sh <tipo> <escopo> "<assunto em PT-BR>" "<corpo descritivo>"
+  ```
+  Ou com a flag `-a` para fazer stage e commitar diretamente:
+  ```bash
+  bash app/scripts/wsl/commit.sh -a -t <tipo> -s <escopo> -m "<assunto em PT-BR>" -b "<corpo descritivo>"
+  ```
+- **Doc e Skill**:
+  - Doc: `docs/engineering-standards.md`
+  - Skill: `aether-git-commit`

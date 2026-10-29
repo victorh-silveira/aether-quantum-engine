@@ -10,4 +10,5 @@ alwaysApply: true
 - Antes do commit: sem `_tmp*`, `COMMIT_MSG.txt`, caches orfaos, imports mortos ou refs stale em docs/matriz
 - Semantica nova = atualizar rule/skill/doc da linha da matriz; skill nova = linha em `agent-coverage` + `AGENTS.md`
 - Higiene profunda (purge): skill `aether-repo-hygiene`; falha de hook: `aether-precommit`
+- Commitar sempre via script: `bash app/scripts/wsl/commit.sh` ou `make app-commit`; rule `aether-git-commit.mdc` e skill `aether-git-commit`
 - Doc: `docs/engineering-surface-sync.md`; skill: `aether-surface-sync`

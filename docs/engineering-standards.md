@@ -31,18 +31,18 @@ Rodar `make app-lint` e `make app-test` para os estágios correspondentes em Pyt
 
 No Conda Windows invocado pelo WSL, a etapa Python de `make app-test` executa pytest sem workers xdist. Em Linux, o limite é dois workers. A cobertura obrigatória de `app/src` permanece em 100%; essa limitação evita replicar Torch e o runtime Python em muitos processos simultâneos. O processo exibe progresso durante a execução e tem limite externo de 600 segundos para encerrar uma suíte presa.
 
-## Commitlint
+## Commitlint e Script de Commit
 
 - Assunto em **PT-BR** (plugin bloqueia verbos ingles comuns)
 - Escopo obrigatorio: `all`, `api`, `app`, `config`, `deps`, `domain`, `engine`, `infra`, `llm`, `orchestrator`, `pres`, `release`, `repo`, `risk`, `scripts`, `test`, `tools`, `ws`
-- Corpo do commit obrigatorio
+- Tipos obrigatorios: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `qa`, `refactor`, `revert`, `style`, `test`
+- Corpo do commit obrigatorio (separado por linha em branco)
+- Commits devem ser realizados via script padronizado: `bash app/scripts/wsl/commit.sh` ou `make app-commit ARGS='...'` (rule `aether-git-commit.mdc` e skill `aether-git-commit`)
 
 Exemplo:
 
-```
-fix(engine): endurece piso de margem calibrada
-
-Bloqueia explore com Cal fraco e edge negativo.
+```bash
+bash app/scripts/wsl/commit.sh fix engine "endurecer piso de margem calibrada" "Bloqueia explore com Cal fraco e edge negativo."
 ```
 
 ## Testes

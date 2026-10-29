@@ -41,7 +41,7 @@ RESET  := \033[0m
 
 .PHONY: app-run app-train app-test app-lint app-workflows-lint app-validate app-security app-build app-clean app-install \
 	indicator-up indicator-down indicator-train indicator-test indicator-lint indicator-security app-train-all \
-	app-pre-commit app-pre-commit-run app-setup-wsl help docker-up docker-down \
+	app-pre-commit app-pre-commit-run app-commit app-setup-wsl help docker-up docker-down \
 	docker-restart docker-rebuild docker-reset docker-clean docker-ps docker-logs \
 	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle lint test
 
@@ -67,6 +67,7 @@ help:
 	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
 	@echo -e "  $(GREEN)app-pre-commit$(RESET)     - Instala e valida githooks pre-commit"
 	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa a matriz completa de hooks em todos os arquivos"
+	@echo -e "  $(GREEN)app-commit$(RESET)         - Commit padronizado com validacao PT-BR e commitlint (ARGS='...')"
 	@echo -e ""
 	@echo -e "$(YELLOW)Docker:$(RESET)"
 	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe stack com Timescale, Redis, MinIO e indicador"
@@ -189,6 +190,9 @@ app-pre-commit:
 
 app-pre-commit-run:
 	$(QA_PYTHON) -m pre_commit run --all-files -c .pre-commit-config.yaml
+
+app-commit:
+	@bash app/scripts/wsl/commit.sh $(ARGS)
 
 app-setup-wsl:
 	bash app/scripts/wsl/setup.sh

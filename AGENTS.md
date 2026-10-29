@@ -63,7 +63,7 @@ Nota histórica de versões anteriores (**Volatility 75 (1s) M5 / TCN / Meta / L
 
 `all`, `api`, `app`, `config`, `deps`, `domain`, `engine`, `infra`, `llm`, `orchestrator`, `pres`, `release`, `repo`, `risk`, `scripts`, `test`, `tools`, `ws`
 
-Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
+Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio. Commits DEVEM ser realizados via script oficial `app/scripts/wsl/commit.sh` (ou `make app-commit`), garantindo conformidade com pre-commit e commit-msg (rule `aether-git-commit.mdc` e skill `aether-git-commit`).
 
 ## Pre-commit
 
@@ -95,6 +95,7 @@ Formato: `tipo(escopo): assunto em PT-BR` + corpo obrigatorio.
 | Launch-train / sanitize / telemetria | `docs/structure.md` §Scripts + skill `aether-ops-runbook` |
 | Deriv PAT/WS | `docs/deriv-api-aether.md` + skill `aether-deriv-connect` |
 | QA / pre-commit | `docs/engineering-standards.md` + `.github/workflows/WORKFLOWS.md` + skill `aether-precommit` |
+| Git commit padronizado / commitlint | `docs/engineering-standards.md` + rule `aether-git-commit.mdc` + skill `aether-git-commit` |
 | Deps Python / requirements | `docs/engineering-python-deps.md` + skill `aether-python-deps` (WS max_size/ping, httpx singleton, Polars, MinIO `to_thread`) |
 | Higienizacao do repositorio | `docs/engineering-repo-hygiene.md` + skill `aether-repo-hygiene` |
 | Fechamento de mudanca (sync superficie) | `docs/engineering-surface-sync.md` + skill `aether-surface-sync` |
