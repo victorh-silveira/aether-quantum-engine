@@ -11,7 +11,7 @@
     "duration_unit": "m",
     "never_skip": false,
     "allow_closed_markets": false,
-    "operate_all_signals": false,
+    "operate_all_signals": true,
     "max_fallback_candidates": 0,
     "loss_cooldown_candles": 1,
     "consecutive_loss_cooldown_candles": 2,
@@ -22,14 +22,14 @@
     "invert_signal": false,
     "organic_direction": false,
     "stream_fallback": false,
-    "dynamic_rotation": false,
+    "dynamic_rotation": true,
     "min_payout_rate": 0.68,
     "min_prob_threshold": 0.5,
     "breakeven_floor": 0.5
   },
   "indicator_consensus": {
     "enabled": true,
-    "auto_symbols": false,
+    "auto_symbols": true,
     "broker_ev_promotion": true,
     "multi_period_trading": true,
     "stake_pct": 0.01
