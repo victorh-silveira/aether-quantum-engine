@@ -1,3 +1,9 @@
+## [4.25.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.3...v4.25.4) (2026-10-29)
+
+### Correcoes de Bug
+
+* **engine:** reforcar bandas de sessao e resiliencia de rate limit ([ace352b](https://github.com/victorh-silveira/aether-quantum-engine/commit/ace352bba1626c51ba3527865407a92cbf895976))
+
 ## [4.25.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.2...v4.25.3) (2026-10-27)
 
 ### Correcoes de Bug
