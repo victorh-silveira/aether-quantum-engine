@@ -1,3 +1,10 @@
+## [4.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.26.0...v4.27.0) (2026-10-29)
+
+### Funcionalidades
+
+* **engine:** ampliar tolerancia de recuo atr do setup institucional ([9a7fdcf](https://github.com/victorh-silveira/aether-quantum-engine/commit/9a7fdcf3d1357630c443d783f9212323db7ef325))
+* **tools:** adicionar script utilitario de consulta ao banco pullback ([636ba02](https://github.com/victorh-silveira/aether-quantum-engine/commit/636ba0296f6d88eb94275d29ca6655c4e584f6d3))
+
 ## [4.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.5...v4.26.0) (2026-10-29)
 
 ### Funcionalidades
