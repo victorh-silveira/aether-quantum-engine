@@ -11,7 +11,7 @@
     "duration_unit": "m",
     "never_skip": false,
     "allow_closed_markets": false,
-    "operate_all_signals": true,
+    "operate_all_signals": false,
     "max_fallback_candidates": 0,
     "loss_cooldown_candles": 1,
     "consecutive_loss_cooldown_candles": 2,
@@ -29,7 +29,7 @@
   },
   "indicator_consensus": {
     "enabled": true,
-    "auto_symbols": true,
+    "auto_symbols": false,
     "broker_ev_promotion": true,
     "multi_period_trading": true,
     "stake_pct": 0.01

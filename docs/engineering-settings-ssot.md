@@ -2,7 +2,7 @@
 
 `config/settings.json` define a rota de compras. O bloco `pullback_strategy` deve ter `enabled=true`, `variant=senior_institutional`, `period_seconds=900`, `duration=15`, `entry_window_seconds=60` e a versao produzida por `version_for_variant`. A ancora configurada e `OTC_SSMI`. O stream micro/MINI do motor ainda usa 300 s para pesquisa legada; ele nao fornece direcao operacional.
 
-`never_skip`, `allow_closed_markets`, `organic_direction`, `stream_fallback` e `invert_signal` ficam desativados (`max_fallback_candidates=0`). Com `operate_all_signals=true`, qualquer ativo do catalogo sintetico M15 que confluir no setup institucional senior abre contrato; em cada ciclo, propostas de ativos distintos sao enviadas sequencialmente (`multi_symbol_orders=true`). A rota pullback exige a ultima vela M15 fechada, a janela de entrada, a versao exata do setup e o lado publicado. H1 e D1 nao geram contratos.
+`never_skip`, `allow_closed_markets`, `organic_direction`, `stream_fallback` e `invert_signal` ficam desativados (`max_fallback_candidates=0`). Com `operate_all_signals=false`, o motor opera exclusivamente na ancora configurada (`OTC_SSMI`), mantendo a telemetria multi-ativo no Grafana via servico do indicador. A rota pullback exige a ultima vela M15 fechada, a janela de entrada, a versao exata do setup e o lado publicado. H1 e D1 nao geram contratos.
 
 O indicador usa apenas OHLC publico da Deriv para a serie do setup. A referencia da sessao UTC usa preco tipico por vela, sem volume; nao e VWAP. As killzones BRT sao 03h-08h, 10h-13h e 14h-16h. O perfil horario do treino e diagnostico e nao substitui essas janelas.
 
