@@ -290,7 +290,7 @@ def evaluate(
         reference, upper, lower = session_price_reference(bars)
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
-        bounded = body <= 3.5 * atr
+        bounded = body <= 4.0 * atr
         trend_call = (
             (fast[-1] > slow[-1] or fast[-2] > slow[-2]) and fast[-1] >= fast[-3] and confirmation.close > slow[-1]
         )
@@ -301,10 +301,10 @@ def evaluate(
         is_classic_bear_pullback = pullback.close > pullback.open and confirmation.close < pullback.low
         call_pullback = (
             trend_call
-            and abs(pullback.low - fast[-2]) <= 1.5 * atr
+            and abs(pullback.low - fast[-2]) <= 2.5 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and bull_fvg
@@ -313,17 +313,17 @@ def evaluate(
             trend_call
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and confirmation.close >= confirmation.open
         )
         put_pullback = (
             trend_put
-            and abs(pullback.high - fast[-2]) <= 1.5 * atr
+            and abs(pullback.high - fast[-2]) <= 2.5 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and bear_fvg
@@ -332,7 +332,7 @@ def evaluate(
             trend_put
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and confirmation.close <= confirmation.open
