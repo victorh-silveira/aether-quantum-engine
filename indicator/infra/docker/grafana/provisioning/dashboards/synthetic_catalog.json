@@ -1,6 +1,6 @@
 {
   "uid": "aether-synthetic-catalog",
-  "title": "Sintéticos | Catálogo Completo",
+  "title": "Sint\u00e9ticos | Cat\u00e1logo Completo",
   "tags": [
     "aether",
     "sinteticos",
@@ -14,7 +14,7 @@
   "panels": [
     {
       "id": 1,
-      "title": "Todos os indices Volatility",
+      "title": "Cat\u00e1logo de \u00cdndices OTC e Sint\u00e9ticos (M15 / H1 / D1)",
       "type": "table",
       "gridPos": {
         "h": 15,

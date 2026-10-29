@@ -2,14 +2,14 @@
   "annotations": {
     "list": []
   },
-  "description": "Amostras históricas do Prometheus. Resolução automática com mínimo de 5 s; pontos sem linhas ou preenchimento.",
+  "description": "Amostras hist\u00f3ricas do Prometheus. Resolu\u00e7\u00e3o autom\u00e1tica com m\u00ednimo de 5 s; pontos sem linhas ou preenchimento.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
   "id": null,
   "links": [
     {
-      "title": "Visão operacional",
+      "title": "Vis\u00e3o operacional",
       "type": "dashboards",
       "asDropdown": false,
       "includeVars": false,
@@ -24,8 +24,8 @@
   "panels": [
     {
       "id": 1,
-      "title": "Saldo da sessão",
-      "description": "Amostras de saldo emitidas durante a sessão; não há valor antes da inicialização.",
+      "title": "Saldo da sess\u00e3o",
+      "description": "Amostras de saldo emitidas durante a sess\u00e3o; n\u00e3o h\u00e1 valor antes da inicializa\u00e7\u00e3o.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -92,8 +92,8 @@
     },
     {
       "id": 2,
-      "title": "Lucro da sessão",
-      "description": "Lucro acumulado desde a abertura da sessão, conforme o motor.",
+      "title": "Lucro da sess\u00e3o",
+      "description": "Lucro acumulado desde a abertura da sess\u00e3o, conforme o motor.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -160,8 +160,8 @@
     },
     {
       "id": 3,
-      "title": "P(CALL) calibrada",
-      "description": "Último snapshot da probabilidade calibrada publicado em cada scrape.",
+      "title": "Evolu\u00e7\u00e3o do PnL Acumulado (USD)",
+      "description": "Hist\u00f3rico do PnL ao longo da sess\u00e3o.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -180,16 +180,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_calibrated{symbol=~\"${symbol:regex}\"} and (time() - timestamp(aether_inference_calibrated{symbol=~\"${symbol:regex}\"}) < 12)",
-          "instant": false,
-          "range": true,
-          "interval": "$__interval",
+          "expr": "aether_trading_pnl_usd",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "currencyUSD",
           "decimals": 2,
           "color": {
             "mode": "fixed",
@@ -228,8 +225,8 @@
     },
     {
       "id": 4,
-      "title": "Edge estimado",
-      "description": "Último edge inferencial publicado em cada scrape; não representa lucro realizado.",
+      "title": "Evolu\u00e7\u00e3o do Drawdown M\u00e1ximo (%)",
+      "description": "Hist\u00f3rico do drawdown m\u00e1ximo da sess\u00e3o.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -248,16 +245,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_inference_payoff_edge{symbol=~\"${symbol:regex}\"} and (time() - timestamp(aether_inference_payoff_edge{symbol=~\"${symbol:regex}\"}) < 12)",
-          "instant": false,
-          "range": true,
-          "interval": "$__interval",
+          "expr": "aether_trading_max_drawdown_pct",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit",
+          "unit": "percent",
           "decimals": 2,
           "color": {
             "mode": "fixed",
@@ -296,8 +290,8 @@
     },
     {
       "id": 5,
-      "title": "Uptime da sessão do bot (HH:MM:SS)",
-      "description": "Evolução temporal do tempo decorrido da sessão do bot em formato HH:MM:SS desde o início até o Stop Win.",
+      "title": "Uptime da sess\u00e3o do bot (HH:MM:SS)",
+      "description": "Evolu\u00e7\u00e3o temporal do tempo decorrido da sess\u00e3o do bot em formato HH:MM:SS desde o in\u00edcio at\u00e9 o Stop Win.",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
@@ -369,9 +363,9 @@
   "style": "dark",
   "tags": [
     "aether",
-    "aether-history-m5",
+    "aether-history-m15",
     "historico",
-    "m5",
+    "m15",
     "pullback",
     "telemetria"
   ],
@@ -389,21 +383,21 @@
     ]
   },
   "timezone": "browser",
-  "title": "Aether | Histórico M5",
+  "title": "Aether | Hist\u00f3rico M15",
   "uid": "aether-history-m5",
   "version": 3,
   "templating": {
     "list": [
       {
         "name": "symbol",
-        "label": "Índice",
+        "label": "\u00cdndice",
         "type": "query",
         "datasource": {
           "type": "prometheus",
           "uid": "prometheus"
         },
-        "query": "label_values(symbol)",
-        "definition": "label_values(symbol)",
+        "query": "label_values(aether_indicator_close, symbol)",
+        "definition": "label_values(aether_indicator_close, symbol)",
         "refresh": 1,
         "includeAll": true,
         "allValue": ".*",
