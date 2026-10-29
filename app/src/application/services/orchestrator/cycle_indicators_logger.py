@@ -211,9 +211,6 @@ def log_cycle_indicators(orch: Any) -> None:
         c_os, r_os = (green, rst)
         c_vo, r_vo = (green, rst)
         c_re, r_re = (green, rst)
-        greens = 5
-        c_pl = green
-        placar_status = "LIBERADO SEM VETOS (ORGANICO)"
         cycle_id = getattr(orch, "_active_cycle_id", 0)
         is_doji_str = "Sim" if m["is_doji"] else "Nao"
         spread = fast[-2] - slow[-2]
@@ -223,7 +220,6 @@ def log_cycle_indicators(orch: Any) -> None:
             f"   {c_mo}MOMENTUM           | Indice de Forca Relativa (RSI 14): {rsi:.1f} | Estocastico (14, 3): %K={sk:.1f} / %D={sd:.1f} | MACD (7, 14, 5): Linha={m_val:+.2f}, Sinal={m_sig:+.2f}, Histograma={m_hist:+.2f}{r_mo}\n"
             f"   {c_os}OSCILADORES        | Canal de Commodities (CCI 14): {m['cci']:+.1f} | Chande Momentum (CMO 14): {m['cmo']:+.1f} | Williams %R (14): {m['williams']:.1f} | Taxa de Variacao (ROC 14): {m['roc']:+.2f}%{r_os}\n"
             f"   {c_vo}VOLATILIDADE       | Volatilidade Media (ATR 14): {atr:.2f} | Bandas de Bollinger (%B 14): {pct_b:.2f} | Canais de Keltner (%B 14): {m['kc_b']:.2f} | Recuo na Media: {recuo:.2f} ATR{r_vo}\n"
-            f"   {c_re}REGIME E TENDENCIA | Forca da Tendencia (ADX 14): {m['adx']:.1f} (+DI={pdi:.1f} / -DI={mdi:.1f}) | Expoente de Hurst (14): {m['hurst']:.2f} | Indecisao (Doji): {is_doji_str} | Rejeicao de Pavio: {rejection} | Tendencia Geral: {trend}{r_re}\n"
-            f"   {c_pl}PLACAR METRICAS    | Verdes (Aprovados): {greens}/5 | Vermelhos (Vetados): {5 - greens}/5 | Decisao: {placar_status}{rst}"
+            f"   {c_re}REGIME E TENDENCIA | Forca da Tendencia (ADX 14): {m['adx']:.1f} (+DI={pdi:.1f} / -DI={mdi:.1f}) | Expoente de Hurst (14): {m['hurst']:.2f} | Indecisao (Doji): {is_doji_str} | Rejeicao de Pavio: {rejection} | Tendencia Geral: {trend}{r_re}"
         )
         orch.logger.info(msg)

@@ -111,6 +111,13 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 details.append(f"{symbol}:{tf_label}={default_status}")
         motivo_map = {
             "padrao_incompleto": "aguardando_recuo_e_confirmacao",
+            "aguardando_confirmacao_alta": "aguardando_confirmacao_alta",
+            "aguardando_confirmacao_baixa": "aguardando_confirmacao_baixa",
+            "exaustao_alem_banda_sessao": "exaustao_alem_banda_sessao",
+            "contra_referencia_sessao": "contra_referencia_sessao",
+            "fvg_nao_mitigado": "fvg_nao_mitigado",
+            "recuo_afastado_ema20": "recuo_afastado_ema20",
+            "sem_tendencia_ema": "sem_tendencia_ema",
             "corpo_fora_faixa": "corpo_vela_fora_limite_atr",
             "ativo_excluido(baixo_edge)": "baixo_ev_historico",
             f"sem_sinal_{tf_label}": "sem_sinal_nesta_vela",

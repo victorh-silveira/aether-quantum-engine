@@ -173,7 +173,7 @@ def test_log_cycle_indicators_flat_bars_zero_variances():
 
 
 def test_log_cycle_indicators_veto_ansi_highlighting():
-    """Valida presenca de codigos ANSI e liberacao sem vetos (organico)."""
+    """Valida presenca de codigos ANSI e indicadores tecnicos sem placar legado."""
     orch = SimpleNamespace(
         config={"pullback_strategy": {"enabled": True}, "anchor": "R_25"},
         logger=MagicMock(),
@@ -197,7 +197,8 @@ def test_log_cycle_indicators_veto_ansi_highlighting():
     assert orch.logger.info.call_count == 1
     msg = orch.logger.info.call_args[0][0]
     assert "\033[92m" in msg or "\033[0m" in msg
-    assert "LIBERADO SEM VETOS (ORGANICO)" in msg
+    assert "REGIME E TENDENCIA" in msg
+    assert "PLACAR METRICAS" not in msg
 
 
 def test_log_cycle_indicators_skips_stale_symbol_when_multiple():
