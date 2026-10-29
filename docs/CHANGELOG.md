@@ -1,3 +1,13 @@
+## [4.26.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.5...v4.26.0) (2026-10-29)
+
+### Funcionalidades
+
+* **scripts:** adicionar script e regra para padronizacao de commit ([fe98912](https://github.com/victorh-silveira/aether-quantum-engine/commit/fe9891290db20c92e42543c8b0a45a08bb1a6626))
+
+### Refatoracoes Tecnicas
+
+* **orchestrator:** remover placar metricas e detalhar motivos de skip ([417e7b4](https://github.com/victorh-silveira/aether-quantum-engine/commit/417e7b4a9f3634a9ed58fd2766e06100ca39b07a))
+
 ## [4.25.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.25.4...v4.25.5) (2026-10-29)
 
 ### Correcoes de Bug
