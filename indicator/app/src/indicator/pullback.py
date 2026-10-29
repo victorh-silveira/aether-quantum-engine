@@ -304,18 +304,18 @@ def evaluate(
             and abs(pullback.low - fast[-2]) <= 1.5 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
             and bounded
-            and (reference <= 0 or confirmation.close >= reference)
+            and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and bull_fvg
         )
         call_continuation = (
             trend_call
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
-            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
             and bounded
-            and (reference <= 0 or confirmation.close >= reference)
+            and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and confirmation.close >= confirmation.open
         )
         put_pullback = (
@@ -323,18 +323,18 @@ def evaluate(
             and abs(pullback.high - fast[-2]) <= 1.5 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
             and bounded
-            and (reference <= 0 or confirmation.close <= reference)
+            and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and bear_fvg
         )
         put_continuation = (
             trend_put
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
-            and abs(confirmation.close - fast[-1]) <= 3.5 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
             and bounded
-            and (reference <= 0 or confirmation.close <= reference)
+            and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and confirmation.close <= confirmation.open
         )
         call = call_pullback or call_continuation

@@ -19,7 +19,7 @@ ASSET_TIMEOUT = 150
 TRAIN_TIMEOUT = 3600
 REQUEST_TIMEOUT = 40
 MIN_CONTIGUOUS_BARS = 5000
-RATE_LIMIT_DELAYS = (2, 5, 10)
+RATE_LIMIT_DELAYS = (2, 5, 10, 20, 30)
 
 
 async def _fetch_candles(source: PublicDeriv, symbol: str, count: int, end: str | int, period: int) -> list:
