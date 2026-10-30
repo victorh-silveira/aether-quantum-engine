@@ -1,3 +1,9 @@
+## [4.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.27.0...v4.28.0) (2026-10-30)
+
+### Funcionalidades
+
+* **domain:** mapear nomes comerciais dos indices sinteticos deriv ([d66d8bd](https://github.com/victorh-silveira/aether-quantum-engine/commit/d66d8bd0830b0e81bb06240e9316828419e973e1))
+
 ## [4.27.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.26.0...v4.27.0) (2026-10-29)
 
 ### Funcionalidades
