@@ -1,3 +1,9 @@
+## [4.28.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.0...v4.28.1) (2026-10-30)
+
+### Correcoes de Bug
+
+* **orchestrator:** resolver race condition de ordem duplicada e nomes de ativos nos logs ([c5eeb9d](https://github.com/victorh-silveira/aether-quantum-engine/commit/c5eeb9d8be9e8fe9696569b98bd4cec09d76e2f8))
+
 ## [4.28.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.27.0...v4.28.0) (2026-10-30)
 
 ### Funcionalidades
