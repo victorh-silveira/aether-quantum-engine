@@ -97,7 +97,9 @@ async def execute_cluster_orders(
             )
             metrics["_pullback_recovery_amount"] = covered
             metrics["_pullback_stake_cap"] = cap_limit
-            metrics["indicator_stake_mode"] = "PULLBACK_RECOVERY" if covered > 0 else "PULLBACK_BASE"
+            metrics["indicator_stake_mode"] = (
+                "PULLBACK_RECOVERY" if covered > 0 else ("PULLBACK_SINGLE_STRIKE" if sst > 0 else "PULLBACK_BASE")
+            )
         elif metrics.get("indicator_controls_execution"):
             if metrics.get("indicator_demo_pilot"):
                 stake = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
@@ -177,7 +179,7 @@ async def execute_cluster_orders(
                         single_strike_target=sst,
                     )
                     metrics["_pullback_recovery_amount"] = 0.0
-                    metrics["indicator_stake_mode"] = "PULLBACK_BASE"
+                    metrics["indicator_stake_mode"] = "PULLBACK_SINGLE_STRIKE" if sst > 0 else "PULLBACK_BASE"
                     if stake <= 0:
                         continue
             custom_dur = metrics.get("duration")

@@ -18,7 +18,7 @@
     "smooth_recovery": true,
     "excluded_symbols": [],
     "promoted_symbol": "OTC_SSMI",
-    "single_strike": false,
+    "single_strike": true,
     "invert_signal": false,
     "organic_direction": false,
     "stream_fallback": false,
