@@ -1,3 +1,9 @@
+## [4.28.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.1...v4.28.2) (2026-10-30)
+
+### Correcoes de Bug
+
+* **engine:** refinar filtros de adx doji e macd no setup senior institutional ([3516693](https://github.com/victorh-silveira/aether-quantum-engine/commit/3516693614a1a63ae2f4eb4c1d44377eb25555bd))
+
 ## [4.28.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.0...v4.28.1) (2026-10-30)
 
 ### Correcoes de Bug
