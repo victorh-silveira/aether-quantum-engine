@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.application.services.indicator_order_claims import release_order_symbol_claim
 from src.application.services.log_dedupe import log_warning_if_changed
 from src.application.services.market_audit_contract import broker_price_audit
 from src.application.services.market_audit_log import (
@@ -132,6 +133,8 @@ async def _complete_contract_settlement(
             cycle_id=contract_cycle or getattr(orch, "_last_result_cycle_id", None),
         )
     getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
+    sym_resolved = str(resolved_meta.get("symbol") or "") if isinstance(resolved_meta, dict) else ""
+    await release_order_symbol_claim(orch, sym_resolved)
     await handle_settlement_loss_quarantine(orch, resolved_meta, contract, c_id, profit)
     if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
         await reset_recovery_skip_counter_for_orch(orch)
@@ -204,6 +207,7 @@ async def _process_late_settlement_once(orch: Any, poc: dict, c_id: int) -> None
         )
         orch._last_loss_clf_learn = None
         getattr(orch, "_pullback_contract_modes", {}).pop(c_id, None)
+        await release_order_symbol_claim(orch, str(sym))
         if profit >= 0.0 and sum(orch.risk_manager.pending_loss.values()) <= 0.0:
             await reset_recovery_skip_counter_for_orch(orch)
         if not orch.state.active_contracts and orch.running:

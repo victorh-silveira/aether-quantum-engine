@@ -36,6 +36,24 @@ def claim_indicator_order(orch, symbol: str, metrics: dict) -> bool:
     return True
 
 
+def _has_active_contract_for_symbol(orch, symbol: str) -> bool:
+    """Verifica se ha contrato em aberto para o simbolo no estado ou risco."""
+    state = getattr(orch, "state", None)
+    active_contracts = getattr(state, "active_contracts", {})
+    if isinstance(active_contracts, dict):
+        for c in active_contracts.values():
+            if str(getattr(c, "symbol", "") or "") == str(symbol):
+                return True
+    rm = getattr(orch, "risk_manager", None)
+    if rm is not None:
+        c_to_sym = getattr(rm, "contract_to_symbol", {})
+        active_ids = getattr(rm, "active_contract_ids", set())
+        for cid in active_ids:
+            if str(c_to_sym.get(cid, "") or "") == str(symbol):
+                return True
+    return False
+
+
 async def claim_indicator_order_once(orch, symbol: str, metrics: dict) -> bool:
     """Reserva a vela localmente e no Redis antes de enviar a compra ao broker."""
     blocked = getattr(orch, "_unknown_purchase_until", None)
@@ -67,8 +85,11 @@ async def claim_indicator_order_once(orch, symbol: str, metrics: dict) -> bool:
                 symbol_key = store._full_key(f"order_symbol_claim:{purchase_account_key(orch, symbol)}")
                 symbol_claimed = bool(await client.set(symbol_key, token, nx=True, ex=period + 30))
                 if not symbol_claimed:
-                    await release_unbought_order_claim(orch, symbol, metrics)
-                    return False
+                    if not _has_active_contract_for_symbol(orch, symbol):
+                        await client.set(symbol_key, token, ex=period + 30)
+                    else:
+                        await release_unbought_order_claim(orch, symbol, metrics)
+                        return False
                 metrics["_symbol_claim_token"] = token
         return claimed
     except Exception as exc:
@@ -76,6 +97,18 @@ async def claim_indicator_order_once(orch, symbol: str, metrics: dict) -> bool:
         if metrics.get("_order_claim_token"):
             await release_unbought_order_claim(orch, symbol, metrics)
         return False
+
+
+async def release_order_symbol_claim(orch, symbol: str) -> None:
+    """Libera a trava de simbolo no Redis apos liquidacao do contrato."""
+    store = getattr(orch, "state_store", None)
+    if isinstance(store, RedisStateStore) and symbol:
+        symbol_key = store._full_key(f"order_symbol_claim:{purchase_account_key(orch, symbol)}")
+        try:
+            client = await store._redis()
+            await client.delete(symbol_key)
+        except Exception as exc:
+            logger.debug("EXEC: falha ao liberar trava de simbolo para %s: %s", symbol, exc)
 
 
 async def release_unbought_order_claim(orch, symbol: str, metrics: dict) -> None:

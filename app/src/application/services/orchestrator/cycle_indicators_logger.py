@@ -6,6 +6,9 @@ import math
 import time
 from typing import Any
 
+from src.domain.symbols.drift_symbols import symbol_display_name
+from src.presentation.terminal.log_context import bind_log_context, get_log_context, restore_log_context
+
 
 def _calc_ema(values: list[float], span: int) -> list[float]:
     """Calcula serie de media movel exponencial causal."""
@@ -212,14 +215,21 @@ def log_cycle_indicators(orch: Any) -> None:
         c_vo, r_vo = (green, rst)
         c_re, r_re = (green, rst)
         cycle_id = getattr(orch, "_active_cycle_id", 0)
+        disp_name = symbol_display_name(symbol)
+        header_name = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
         is_doji_str = "Sim" if m["is_doji"] else "Nao"
         spread = fast[-2] - slow[-2]
         msg = (
-            f"INDICADORES TECNICOS | {symbol} (Ciclo {cycle_id})\n"
+            f"INDICADORES TECNICOS | {header_name} (Ciclo {cycle_id})\n"
             f"   {c_pr}PRECO E MEDIAS     | Fechamento: {cf.close:.2f} | Medias Exponenciais: EMA20={fast[-2]:.2f} / EMA50={slow[-2]:.2f} | Diferenca (Spread): {spread:+.2f} | Cruzamento Rapido: EMA9={ema9:.2f} / EMA21={ema21:.2f}{r_pr}\n"
             f"   {c_mo}MOMENTUM           | Indice de Forca Relativa (RSI 14): {rsi:.1f} | Estocastico (14, 3): %K={sk:.1f} / %D={sd:.1f} | MACD (7, 14, 5): Linha={m_val:+.2f}, Sinal={m_sig:+.2f}, Histograma={m_hist:+.2f}{r_mo}\n"
             f"   {c_os}OSCILADORES        | Canal de Commodities (CCI 14): {m['cci']:+.1f} | Chande Momentum (CMO 14): {m['cmo']:+.1f} | Williams %R (14): {m['williams']:.1f} | Taxa de Variacao (ROC 14): {m['roc']:+.2f}%{r_os}\n"
             f"   {c_vo}VOLATILIDADE       | Volatilidade Media (ATR 14): {atr:.2f} | Bandas de Bollinger (%B 14): {pct_b:.2f} | Canais de Keltner (%B 14): {m['kc_b']:.2f} | Recuo na Media: {recuo:.2f} ATR{r_vo}\n"
             f"   {c_re}REGIME E TENDENCIA | Forca da Tendencia (ADX 14): {m['adx']:.1f} (+DI={pdi:.1f} / -DI={mdi:.1f}) | Expoente de Hurst (14): {m['hurst']:.2f} | Indecisao (Doji): {is_doji_str} | Rejeicao de Pavio: {rejection} | Tendencia Geral: {trend}{r_re}"
         )
-        orch.logger.info(msg)
+        prev_cid, prev_sym = get_log_context()
+        bind_log_context(cycle_id=cycle_id, symbol=symbol)
+        try:
+            orch.logger.info(msg)
+        finally:
+            restore_log_context(prev_cid, prev_sym)

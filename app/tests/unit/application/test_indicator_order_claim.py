@@ -189,3 +189,69 @@ async def test_local_claim_without_redis_can_be_released():
     assert await claim_indicator_order_once(orch, "R_25", metrics)
     await release_unbought_order_claim(orch, "R_25", metrics)
     assert orch._indicator_order_claims == set()
+
+
+@pytest.mark.asyncio
+async def test_multi_period_residual_claim_overridden_when_no_active_contracts():
+    from src.application.services.indicator_order_claims import (
+        release_order_symbol_claim,
+    )
+
+    store = RedisStateStore(url="redis://unused")
+    client = SimpleNamespace(
+        exists=AsyncMock(return_value=False),
+        set=AsyncMock(side_effect=[True, False, True]),
+        delete=AsyncMock(return_value=1),
+    )
+    store._redis = AsyncMock(return_value=client)
+    orch = _orchestrator(store)
+    orch.config["indicator_consensus"] = {"multi_period_trading": True}
+    orch.state = SimpleNamespace(active_contracts={})
+    orch.risk_manager = SimpleNamespace(contract_to_symbol={}, active_contract_ids=set())
+
+    metrics = {"indicator_controls_execution": True, "indicator_candle_epoch": 1200, "indicator_period_seconds": 900}
+    assert await claim_indicator_order_once(orch, "OTC_SSMI", metrics)
+    assert metrics.get("_symbol_claim_token") is not None
+    assert client.set.await_count == 3
+
+    await release_order_symbol_claim(orch, "OTC_SSMI")
+    client.delete.assert_awaited_once()
+
+    client.delete.side_effect = OSError("redis error")
+    await release_order_symbol_claim(orch, "OTC_SSMI")
+
+
+@pytest.mark.asyncio
+async def test_multi_period_claim_blocked_when_active_contract_exists():
+    store = RedisStateStore(url="redis://unused")
+    client = SimpleNamespace(
+        exists=AsyncMock(return_value=False),
+        set=AsyncMock(side_effect=[True, False]),
+        eval=AsyncMock(return_value=1),
+    )
+    store._redis = AsyncMock(return_value=client)
+    orch = _orchestrator(store)
+    orch.config["indicator_consensus"] = {"multi_period_trading": True}
+    orch.state = SimpleNamespace(active_contracts={101: SimpleNamespace(symbol="OTC_SSMI")})
+
+    metrics = {"indicator_controls_execution": True, "indicator_candle_epoch": 1200, "indicator_period_seconds": 900}
+    assert not await claim_indicator_order_once(orch, "OTC_SSMI", metrics)
+    assert client.eval.await_count == 2
+
+
+def test_has_active_contract_for_symbol_state_and_risk():
+    from src.application.services.indicator_order_claims import (
+        _has_active_contract_for_symbol,
+        claim_indicator_order,
+    )
+
+    orch = _orchestrator(None)
+    assert not claim_indicator_order(orch, "R_25", {"indicator_controls_execution": True})
+    orch.state = SimpleNamespace(active_contracts={1: SimpleNamespace(symbol="OTC_SSMI")})
+    assert _has_active_contract_for_symbol(orch, "OTC_SSMI")
+    assert not _has_active_contract_for_symbol(orch, "OTC_NDX")
+
+    orch.state = SimpleNamespace(active_contracts={})
+    orch.risk_manager = SimpleNamespace(contract_to_symbol={2: "OTC_NDX"}, active_contract_ids={2})
+    assert _has_active_contract_for_symbol(orch, "OTC_NDX")
+    assert not _has_active_contract_for_symbol(orch, "OTC_SSMI")

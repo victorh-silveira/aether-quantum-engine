@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from src.application.services.infra_timing_config import resolve_history_fetch_config
 from src.domain.models.market_data import Candle
+from src.domain.symbols.drift_symbols import symbol_display_name
 
 
 if TYPE_CHECKING:
@@ -165,10 +166,12 @@ async def fetch_paginated_candle_history(
         merged = merge_candle_pages(merged, batch)
         if len(merged) <= before_merge:
             break
+        disp_name = symbol_display_name(symbol)
+        sym_label = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
         if chunk_index == 1 or chunk_index % 10 == 0 or len(merged) >= goal:
             progress_log(
                 "DATA | %s | g=%ss | %d/%d velas",
-                symbol,
+                sym_label,
                 granularity,
                 len(merged),
                 goal,
@@ -180,9 +183,11 @@ async def fetch_paginated_candle_history(
     if len(merged) > goal:
         merged = merged[-goal:]
     if len(merged) < goal:
+        disp_name = symbol_display_name(symbol)
+        sym_label = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
         progress_log(
             "DATA | %s | g=%ss | historico API esgotado em %d/%d velas",
-            symbol,
+            sym_label,
             granularity,
             len(merged),
             goal,

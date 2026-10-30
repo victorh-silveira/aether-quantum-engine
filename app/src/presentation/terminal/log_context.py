@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 
+from src.domain.symbols.drift_symbols import symbol_display_name
+
 
 _cycle_id: ContextVar[int | None] = ContextVar("aether_log_cycle_id", default=None)
 _symbol: ContextVar[str | None] = ContextVar("aether_log_symbol", default=None)
@@ -24,16 +26,17 @@ def clear_log_context() -> None:
 
 
 def format_log_context_prefix() -> str:
-    """Retorna prefixo `[cN|SYM]` ou vazio se sem contexto."""
+    """Retorna prefixo `[cN|NOME]` ou vazio se sem contexto."""
     cid = _cycle_id.get()
     sym = _symbol.get()
     if cid is None and not sym:
         return ""
-    if cid is not None and sym:
-        return f"[c{int(cid)}|{sym}] "
+    label = symbol_display_name(sym) if sym else None
+    if cid is not None and label:
+        return f"[c{int(cid)}|{label}] "
     if cid is not None:
         return f"[c{int(cid)}] "
-    return f"[{sym}] "
+    return f"[{label}] "
 
 
 def get_log_context() -> tuple[int | None, str | None]:

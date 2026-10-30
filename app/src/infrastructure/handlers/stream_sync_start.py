@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
+from src.domain.symbols.drift_symbols import symbol_display_name
 from src.infrastructure.handlers.history_fetch import parse_history_fetch_config
 from src.infrastructure.handlers.stream_timeframe import (
     granularity_label,
@@ -66,7 +67,9 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     fetch_cfg = parse_history_fetch_config(handler.config)
     total = len(handler.symbols)
     for index, symbol in enumerate(handler.symbols, start=1):
-        sync_log("DATA: %s (%d/%d) iniciando", symbol, index, total)
+        disp_name = symbol_display_name(symbol)
+        sym_label = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
+        sync_log("DATA: %s (%d/%d) iniciando", sym_label, index, total)
         if macro_count > 0:
             await handler._fetch_symbol_history(
                 symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
@@ -85,7 +88,7 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
             )
         sync_log(
             "DATA: %s (%d/%d) | %s:%d %s:%d",
-            symbol,
+            sym_label,
             index,
             total,
             granularity_label(handler.macro_granularity),
