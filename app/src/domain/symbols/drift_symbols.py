@@ -15,6 +15,27 @@ US_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_SPC", "OTC_NDX", "OTC_DJI"})
 ASIAN_OTC_SYMBOLS: frozenset[str] = frozenset({"OTC_N225", "OTC_HSI", "OTC_AS51"})
 _BRT_TZ = timezone(timedelta(hours=-3))
 
+SYMBOL_DISPLAY_NAMES: dict[str, str] = {
+    "OTC_AEX": "Netherlands 25",
+    "OTC_AS51": "Australia 200",
+    "OTC_DJI": "Wall Street 30",
+    "OTC_FCHI": "France 40",
+    "OTC_FTSE": "UK 100",
+    "OTC_GDAXI": "Germany 40",
+    "OTC_HSI": "Hong Kong 50",
+    "OTC_N225": "Japan 225",
+    "OTC_NDX": "US Tech 100",
+    "OTC_SPC": "US 500",
+    "OTC_SSMI": "Swiss 20",
+    "OTC_SX5E": "Euro 50",
+}
+
+
+def symbol_display_name(symbol: str) -> str:
+    """Retorna o nome comercial do ativo na Deriv ou o proprio simbolo."""
+    return SYMBOL_DISPLAY_NAMES.get(str(symbol).upper(), str(symbol))
+
+
 HEDGE_PEER: dict[str, str] = {}
 
 HIGH_SIDE: frozenset[str] = frozenset()

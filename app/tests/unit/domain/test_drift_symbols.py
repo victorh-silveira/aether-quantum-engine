@@ -3,11 +3,13 @@ from datetime import datetime, timedelta, timezone
 from src.domain.symbols.drift_symbols import (
     DEFAULT_ANCHOR,
     DRIFT_SYMBOLS,
+    SYMBOL_DISPLAY_NAMES,
     TRADING_SYMBOLS,
     hedge_peer,
     is_high_side,
     is_otc_exchange_open_brt,
     sym_is_low_barrier,
+    symbol_display_name,
 )
 
 
@@ -74,3 +76,11 @@ def test_is_otc_exchange_open_brt_all_regions():
     assert is_otc_exchange_open_brt("OTC_N225", wed_night) is True
     assert is_otc_exchange_open_brt("OTC_N225", wed_afternoon) is False
     assert is_otc_exchange_open_brt("OTC_CUSTOM", wed_afternoon) is True
+
+
+def test_symbol_display_name():
+    assert symbol_display_name("OTC_AEX") == "Netherlands 25"
+    assert symbol_display_name("OTC_DJI") == "Wall Street 30"
+    assert symbol_display_name("otc_spc") == "US 500"
+    assert symbol_display_name("UNKNOWN_SYM") == "UNKNOWN_SYM"
+    assert len(SYMBOL_DISPLAY_NAMES) == 12
