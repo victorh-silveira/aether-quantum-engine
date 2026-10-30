@@ -1,3 +1,9 @@
+## [4.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.2...v4.29.0) (2026-10-30)
+
+### Funcionalidades
+
+* **risk:** ativar single strike para atingir stop win em tacada unica ([9385747](https://github.com/victorh-silveira/aether-quantum-engine/commit/9385747cc065218b5611c1a129da95cb7d6c7447))
+
 ## [4.28.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.1...v4.28.2) (2026-10-30)
 
 ### Correcoes de Bug
