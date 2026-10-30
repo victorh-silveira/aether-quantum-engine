@@ -50,12 +50,16 @@ class SetupResult:
     version: str = VERSION
 
 
-def _ema(values: list[float], span: int) -> list[float]:
+def _ema_direct(values: list[float], span: int) -> list[float]:
     alpha = 2.0 / (span + 1.0)
     result = [values[0]]
     for value in values[1:]:
         result.append(alpha * value + (1.0 - alpha) * result[-1])
     return result
+
+
+def _ema(values: list[float], span: int) -> list[float]:
+    return _ema_direct(values, span)
 
 
 def _atr(candles: list[Candle]) -> float:
@@ -130,10 +134,10 @@ def _macd(
     """Calcula linha MACD, sinal e histograma causais harmonizados com 14 periodos."""
     if len(closes) < slow_span + signal_span:
         return 0.0, 0.0, 0.0
-    fast = _ema(closes, fast_span)
-    slow = _ema(closes, slow_span)
+    fast = _ema_direct(closes, fast_span)
+    slow = _ema_direct(closes, slow_span)
     macd_line = [f - s for f, s in zip(fast, slow, strict=True)]
-    sig_line = _ema(macd_line, signal_span)
+    sig_line = _ema_direct(macd_line, signal_span)
     m_val = macd_line[-1]
     s_val = sig_line[-1]
     hist = m_val - s_val
@@ -291,11 +295,31 @@ def evaluate(
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
         bounded = body <= 4.0 * atr
+        is_doji = body < 0.06 * atr
+        adx, pdi, mdi = _adx(bars, 14)
+        _, _, m_hist = _macd(closes, 7, 14, 5)
+        trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
+        call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.90
+        put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.90
+        call_macd_ok = m_hist >= -0.35 * atr
+        put_macd_ok = m_hist <= 0.35 * atr
         trend_call = (
-            (fast[-1] > slow[-1] or fast[-2] > slow[-2]) and fast[-1] >= fast[-3] and confirmation.close > slow[-1]
+            trend_strong
+            and call_dmi_ok
+            and call_macd_ok
+            and not is_doji
+            and (fast[-1] > slow[-1] or fast[-2] > slow[-2])
+            and fast[-1] >= fast[-3]
+            and confirmation.close > slow[-1]
         )
         trend_put = (
-            (fast[-1] < slow[-1] or fast[-2] < slow[-2]) and fast[-1] <= fast[-3] and confirmation.close < slow[-1]
+            trend_strong
+            and put_dmi_ok
+            and put_macd_ok
+            and not is_doji
+            and (fast[-1] < slow[-1] or fast[-2] < slow[-2])
+            and fast[-1] <= fast[-3]
+            and confirmation.close < slow[-1]
         )
         is_classic_bull_pullback = pullback.close < pullback.open and confirmation.close > pullback.high
         is_classic_bear_pullback = pullback.close > pullback.open and confirmation.close < pullback.low
@@ -313,10 +337,11 @@ def evaluate(
             trend_call
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
+            and (bull_fvg or abs(pullback.low - fast[-2]) <= 2.5 * atr)
             and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
-            and confirmation.close >= confirmation.open
+            and confirmation.close > confirmation.open
         )
         put_pullback = (
             trend_put
@@ -332,10 +357,11 @@ def evaluate(
             trend_put
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
+            and (bear_fvg or abs(pullback.high - fast[-2]) <= 2.5 * atr)
             and abs(confirmation.close - fast[-1]) <= 3.0 * atr
             and bounded
             and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
-            and confirmation.close <= confirmation.open
+            and confirmation.close < confirmation.open
         )
         call = call_pullback or call_continuation
         put = put_pullback or put_continuation

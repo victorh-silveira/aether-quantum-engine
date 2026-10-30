@@ -167,3 +167,51 @@ def test_senior_setup_trend_continuation_flow(monkeypatch):
     )
     monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
     assert evaluate(mirrored, period, 64 * period, **kwargs).side == "PUT"
+
+
+def test_senior_setup_filters_doji_adx_dmi_and_macd(monkeypatch):
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    bars = [Candle(i * period, 101.0, 102.0, 100.0, 101.0) for i in range(MIN_BARS)]
+    bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    hour = datetime.fromtimestamp(bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    # Doji rejection
+    doji_bars = list(bars)
+    doji_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 101.82)
+    assert evaluate(doji_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Weak ADX rejection
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (5.0, 20.0, 18.0))
+    assert evaluate(bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Adverse DMI rejection
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 10.0, 25.0))
+    assert evaluate(bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Adverse MACD rejection for CALL
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 25.0, 10.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (0.0, 1.0, -1.0))
+    assert evaluate(bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Adverse MACD rejection for PUT
+    mirrored = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in bars]
+    monkeypatch.setattr(
+        "indicator.pullback._ema", lambda values, span: [300 - x for x in (fast if span == 20 else slow)]
+    )
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 10.0, 25.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (2.0, 0.0, 2.0))
+    assert evaluate(mirrored, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
