@@ -215,3 +215,127 @@ def test_senior_setup_filters_doji_adx_dmi_and_macd(monkeypatch):
     monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 10.0, 25.0))
     monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (2.0, 0.0, 2.0))
     assert evaluate(mirrored, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+
+def test_senior_setup_institutional_guards(monkeypatch):
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+    nine = [101.0] * (MIN_BARS - 4) + [101.6, 101.7, 101.9, 102.1]
+
+    def mock_ema(values, span):
+        if span == 9:
+            return nine
+        return fast if span == 20 else slow
+
+    monkeypatch.setattr("indicator.pullback._ema", mock_ema)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 25.0, 10.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (0.5, 0.2, 0.3))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 52.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
+
+    # Guard: Low Hurst Exponent
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.42)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
+
+    # Guard: Overbought Oscillators
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 72.0)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 52.0)
+
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (88.0, 80.0))
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.90)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
+
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -10.0)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
+
+    # Guard: Adverse Wick Rejection
+    wick_bars = list(base_bars)
+    wick_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 103.5, 101.7, 102.0)
+    assert evaluate(wick_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Guard: Consecutive Bullish Streak
+    streak_bars = list(base_bars)
+    streak_bars[-3] = Candle((MIN_BARS - 3) * period, 101.0, 101.6, 100.9, 101.5)
+    streak_bars[-2] = Candle((MIN_BARS - 2) * period, 101.5, 102.1, 101.4, 102.0)
+    streak_bars[-1] = Candle((MIN_BARS - 1) * period, 102.0, 102.6, 101.9, 102.5)
+    assert evaluate(streak_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Guards on PUT side
+    mirrored_bars = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in base_bars]
+    nine_put = [300 - x for x in nine]
+    fast_put = [300 - x for x in fast]
+    slow_put = [300 - x for x in slow]
+
+    def mock_ema_put(values, span):
+        if span == 9:
+            return nine_put
+        return fast_put if span == 20 else slow_put
+
+    monkeypatch.setattr("indicator.pullback._ema", mock_ema_put)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 10.0, 25.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-0.5, -0.2, -0.3))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 48.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.45)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -55.0)
+
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "PUT"
+
+    # PUT Oversold Guard
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 28.0)
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 48.0)
+
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (14.0, 20.0))
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.10)
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.45)
+
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -90.0)
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -55.0)
+
+    # PUT Adverse Lower Wick Guard
+    wick_put = list(mirrored_bars)
+    wick_put[-1] = Candle((MIN_BARS - 1) * period, 198.2, 198.3, 196.5, 198.0)
+    assert evaluate(wick_put, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # PUT Consecutive Bearish Streak Guard
+    streak_put = list(mirrored_bars)
+    streak_put[-3] = Candle((MIN_BARS - 3) * period, 199.0, 199.1, 198.4, 198.5)
+    streak_put[-2] = Candle((MIN_BARS - 2) * period, 198.5, 198.6, 197.9, 198.0)
+    streak_put[-1] = Candle((MIN_BARS - 1) * period, 198.0, 198.1, 197.4, 197.5)
+    assert evaluate(streak_put, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"

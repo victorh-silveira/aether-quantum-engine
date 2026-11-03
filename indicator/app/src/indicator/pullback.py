@@ -294,10 +294,66 @@ def evaluate(
         reference, upper, lower = session_price_reference(bars)
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
-        bounded = body <= 4.0 * atr
+        candle_range = max(1e-10, confirmation.high - confirmation.low)
+        bounded = body <= 2.2 * atr
         is_doji = body < 0.06 * atr
         adx, pdi, mdi = _adx(bars, 14)
         _, _, m_hist = _macd(closes, 7, 14, 5)
+        rsi = _rsi(closes, 14)
+        stoch_k, _ = _stochastic(bars, 14, 3)
+        pct_b = _bollinger_pct_b(closes, 14)
+        williams = _williams_r(bars, 14)
+        hurst = _hurst_exponent(closes, 14)
+
+        upper_wick = confirmation.high - max(confirmation.open, confirmation.close)
+        lower_wick = min(confirmation.open, confirmation.close) - confirmation.low
+        call_rejection = upper_wick > 0.40 * candle_range and upper_wick > 0.20 * atr
+        put_rejection = lower_wick > 0.40 * candle_range and lower_wick > 0.20 * atr
+
+        has_variance = len(set(closes[-16:-2])) > 2 if len(closes) >= 18 else False
+
+        streak_bull = (
+            len(bars) >= 3
+            and bars[-3].close > bars[-3].open
+            and bars[-2].close > bars[-2].open
+            and bars[-1].close > bars[-1].open
+        )
+        streak_bear = (
+            len(bars) >= 3
+            and bars[-3].close < bars[-3].open
+            and bars[-2].close < bars[-2].open
+            and bars[-1].close < bars[-1].open
+        )
+
+        call_exhaustion = has_variance and (
+            rsi > 70.0
+            or stoch_k > 85.0
+            or pct_b > 0.88
+            or williams > -12.0
+            or call_rejection
+            or streak_bull
+            or hurst < 0.48
+            or (
+                pullback.close > pullback.open
+                and confirmation.close > confirmation.open
+                and abs(confirmation.close - fast[-1]) > 0.80 * atr
+            )
+        )
+        put_exhaustion = has_variance and (
+            rsi < 30.0
+            or stoch_k < 15.0
+            or pct_b < 0.12
+            or williams < -88.0
+            or put_rejection
+            or streak_bear
+            or hurst < 0.48
+            or (
+                pullback.close < pullback.open
+                and confirmation.close < confirmation.open
+                and abs(confirmation.close - fast[-1]) > 0.80 * atr
+            )
+        )
+
         trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
         call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.90
         put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.90
@@ -308,6 +364,7 @@ def evaluate(
             and call_dmi_ok
             and call_macd_ok
             and not is_doji
+            and not call_exhaustion
             and (fast[-1] > slow[-1] or fast[-2] > slow[-2])
             and fast[-1] >= fast[-3]
             and confirmation.close > slow[-1]
@@ -317,18 +374,24 @@ def evaluate(
             and put_dmi_ok
             and put_macd_ok
             and not is_doji
+            and not put_exhaustion
             and (fast[-1] < slow[-1] or fast[-2] < slow[-2])
             and fast[-1] <= fast[-3]
             and confirmation.close < slow[-1]
         )
-        is_classic_bull_pullback = pullback.close < pullback.open and confirmation.close > pullback.high
-        is_classic_bear_pullback = pullback.close > pullback.open and confirmation.close < pullback.low
+        pb_mid = (pullback.open + pullback.close) / 2.0
+        is_classic_bull_pullback = pullback.close < pullback.open and (
+            confirmation.close > pullback.high or confirmation.close >= pb_mid
+        )
+        is_classic_bear_pullback = pullback.close > pullback.open and (
+            confirmation.close < pullback.low or confirmation.close <= pb_mid
+        )
         call_pullback = (
             trend_call
             and abs(pullback.low - fast[-2]) <= 2.5 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
             and bounded
             and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and bull_fvg
@@ -337,8 +400,8 @@ def evaluate(
             trend_call
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
-            and (bull_fvg or abs(pullback.low - fast[-2]) <= 2.5 * atr)
-            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
+            and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.5 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
             and bounded
             and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
             and confirmation.close > confirmation.open
@@ -348,7 +411,7 @@ def evaluate(
             and abs(pullback.high - fast[-2]) <= 2.5 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
             and bounded
             and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and bear_fvg
@@ -357,8 +420,8 @@ def evaluate(
             trend_put
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
-            and (bear_fvg or abs(pullback.high - fast[-2]) <= 2.5 * atr)
-            and abs(confirmation.close - fast[-1]) <= 3.0 * atr
+            and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.5 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.25 * atr
             and bounded
             and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
             and confirmation.close < confirmation.open
