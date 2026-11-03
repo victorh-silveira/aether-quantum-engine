@@ -1,3 +1,9 @@
+## [4.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.29.0...v4.30.0) (2026-11-03)
+
+### Funcionalidades
+
+* **engine:** endurecer confluencia institucional e vetos senior ([cc6307e](https://github.com/victorh-silveira/aether-quantum-engine/commit/cc6307ec4f92d6636b9054247076e0117d6ecbf0))
+
 ## [4.29.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.28.2...v4.29.0) (2026-10-30)
 
 ### Funcionalidades
