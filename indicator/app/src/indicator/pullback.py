@@ -307,8 +307,8 @@ def evaluate(
 
         upper_wick = confirmation.high - max(confirmation.open, confirmation.close)
         lower_wick = min(confirmation.open, confirmation.close) - confirmation.low
-        call_rejection = upper_wick > 0.40 * candle_range and upper_wick > 0.20 * atr
-        put_rejection = lower_wick > 0.40 * candle_range and lower_wick > 0.20 * atr
+        call_rejection = upper_wick >= 0.50 * candle_range and upper_wick >= 0.40 * atr and upper_wick >= 1.2 * body
+        put_rejection = lower_wick >= 0.50 * candle_range and lower_wick >= 0.40 * atr and lower_wick >= 1.2 * body
 
         has_variance = len(set(closes[-16:-2])) > 2 if len(closes) >= 18 else False
 
@@ -325,26 +325,31 @@ def evaluate(
             and bars[-1].close < bars[-1].open
         )
 
+        trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
+        is_high_momentum = trend_strong and adx >= 30.0 and hurst >= 0.50
+
         call_exhaustion = has_variance and (
-            rsi >= 70.0
-            or stoch_k >= 85.0
-            or pct_b >= 0.88
-            or williams >= -12.0
-            or call_rejection
-            or streak_bull
-            or hurst < 0.48
+            call_rejection
+            or hurst < 0.45
+            or (
+                not is_high_momentum
+                and (
+                    rsi >= 70.0 or stoch_k >= 85.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.48
+                )
+            )
+            or (is_high_momentum and (rsi >= 85.0 or pct_b >= 1.05))
         )
         put_exhaustion = has_variance and (
-            rsi <= 30.0
-            or stoch_k <= 15.0
-            or pct_b <= 0.12
-            or williams <= -88.0
-            or put_rejection
-            or streak_bear
-            or hurst < 0.48
+            put_rejection
+            or hurst < 0.45
+            or (
+                not is_high_momentum
+                and (
+                    rsi <= 30.0 or stoch_k <= 15.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.48
+                )
+            )
+            or (is_high_momentum and (rsi <= 15.0 or pct_b <= -0.05))
         )
-
-        trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
         call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.90
         put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.90
         call_macd_ok = m_hist >= -0.35 * atr

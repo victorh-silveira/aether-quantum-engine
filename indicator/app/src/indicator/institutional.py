@@ -50,20 +50,20 @@ def detect_fvg_mitigation(bars: list[Candle], atr: float = 1.0) -> tuple[bool, b
     bull_mitigated = False
     bear_mitigated = False
 
-    for i in range(max(2, len(bars) - 6), len(bars) - 2):
+    for i in range(max(2, len(bars) - 10), len(bars) - 2):
         bar_prev2 = bars[i - 2]
         bar_curr = bars[i]
 
         if bar_curr.low > bar_prev2.high:
             fvg_top = bar_curr.low
             fvg_bottom = bar_prev2.high
-            if pullback.low <= fvg_top + 0.10 * atr and pullback.low >= fvg_bottom - 0.20 * atr:
+            if pullback.low <= fvg_top + 0.35 * atr and pullback.low >= fvg_bottom - 0.35 * atr:
                 bull_mitigated = True
 
         if bar_curr.high < bar_prev2.low:
             fvg_bottom = bar_curr.high
             fvg_top = bar_prev2.low
-            if pullback.high >= fvg_bottom - 0.10 * atr and pullback.high <= fvg_top + 0.20 * atr:
+            if pullback.high >= fvg_bottom - 0.35 * atr and pullback.high <= fvg_top + 0.35 * atr:
                 bear_mitigated = True
 
     return bull_mitigated, bear_mitigated
