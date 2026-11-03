@@ -320,7 +320,7 @@ def test_period_candidates_uses_bayesian_probability_in_demo(monkeypatch):
     orch._indicator_broker_evidence[("R_10", 300, "pullback-1-v5")] = BrokerEvEvidence(10, (1.0, 1.0, 1.0, -1.0))
     candidates = orders.period_candidates(orch, [])
     assert len(candidates) == 1
-    assert candidates[0][1] == TradeDirection.PUT
+    assert candidates[0][1] == TradeDirection.CALL
     assert candidates[0][2]["indicator_signal_side"] == "PUT"
 
 
@@ -560,3 +560,59 @@ async def test_select_period_orders_fair_rotation_and_technical_ranking(monkeypa
     assert selected[0][0] == "OTC_NDX"
     assert selected[1][0] == "OTC_SX5E"
     assert selected[2][0] == "OTC_SPC"
+
+
+def test_resolve_telemetry_side_post_loss_reversal():
+    orch = SimpleNamespace(_pending_loss_reversals={"OTC_SSMI": {"target_dir": "PUT"}})
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {})
+    assert side == "PUT"
+    assert reason == "POST_LOSS_REVERSAL"
+    assert flipped is True
+    assert "OTC_SSMI" not in orch._pending_loss_reversals
+
+
+def test_resolve_telemetry_side_telemetry_bias_and_direct():
+    orch = SimpleNamespace()
+    pb_cfg = {
+        "telemetry_inverted_symbols": ["OTC_SSMI"],
+        "telemetry_direct_symbols": ["OTC_FCHI"],
+    }
+    side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", pb_cfg)
+    assert side_inv == "PUT"
+    assert r_inv == "TELEMETRY_INVERTED_BIAS"
+    assert f_inv is True
+
+    side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", pb_cfg)
+    assert side_dir == "CALL"
+    assert r_dir == "TELEMETRY_WIN_DIRECT"
+    assert f_dir is False
+
+    pb_global = {"invert_signal": True, "telemetry_direct_symbols": ["OTC_FCHI"]}
+    side_g, r_g, f_g = orders.resolve_telemetry_side(orch, "OTC_SPC", "PUT", pb_global)
+    assert side_g == "CALL"
+    assert f_g is True
+
+    side_def, r_def, f_def = orders.resolve_telemetry_side(orch, "R_10", "CALL", {})
+    assert side_def == "CALL"
+    assert r_def == "sinal_base"
+    assert f_def is False
+
+
+def test_period_candidates_loss_reversal_bypasses_quarantine(monkeypatch):
+    orch = _orch("demo")
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "promoted_symbol": "R_10",
+        "period_seconds": 900,
+        "version": "pullback-1-v15",
+    }
+    orch._indicator_broker_evidence[("R_10", 900, "pullback-1-v15")] = BrokerEvEvidence(10, (0.5,))
+    orch._symbol_loss_quarantine = {"R_10": 9999999999.0}
+    orch._pending_loss_reversals = {"R_10": {"target_dir": "PUT"}}
+    candidates = orders.period_candidates(orch, [])
+    assert len(candidates) == 1
+    sym, direction, metrics = candidates[0]
+    assert sym == "R_10"
+    assert direction == TradeDirection.PUT
+    assert metrics["direction_telemetry_flipped"] is True

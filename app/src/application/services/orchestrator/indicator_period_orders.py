@@ -26,6 +26,29 @@ def _closed_candles_slice(candles: list[Any], period: int, now_ts: float) -> lis
     return closed_candles_slice(candles, period, now_ts)
 
 
+def resolve_telemetry_side(
+    orch: Any,
+    symbol: str,
+    original_side: str,
+    pb_cfg: dict,
+) -> tuple[str, str, bool]:
+    """Resolve direcao orientada por telemetria de WINS e inversao de LOSSES."""
+    reversals = getattr(orch, "_pending_loss_reversals", {})
+    reversal_info = reversals.get(symbol)
+    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
+    telemetry_directs = set(pb_cfg.get("telemetry_direct_symbols") or [])
+    invert_global = bool(pb_cfg.get("invert_signal", False))
+    if isinstance(reversal_info, dict) and reversal_info.get("target_dir") in ("CALL", "PUT"):
+        reversals.pop(symbol, None)
+        return str(reversal_info["target_dir"]), "POST_LOSS_REVERSAL", True
+    if symbol in telemetry_inverts or (invert_global and symbol not in telemetry_directs):
+        flipped = "PUT" if original_side == "CALL" else "CALL"
+        return flipped, "TELEMETRY_INVERTED_BIAS", True
+    if symbol in telemetry_directs:
+        return original_side, "TELEMETRY_WIN_DIRECT", False
+    return original_side, "sinal_base", False
+
+
 def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     """Seleciona apenas setups do indicador e exclui ativos com contrato aberto."""
     active_ids = set(getattr(orch.state, "active_contracts", {}))
@@ -66,11 +89,12 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
             and (not dynamic_rotation or has_promoted_signal)
         ):
             continue
+        has_loss_reversal = symbol in getattr(orch, "_pending_loss_reversals", {})
         if (
             period != period_seconds
             or symbol in active_symbols
             or symbol in excluded
-            or now_ts < quarantine.get(symbol, 0)
+            or (not has_loss_reversal and now_ts < quarantine.get(symbol, 0))
             or (
                 signal.model_version != pb_cfg.get("version")
                 if pb_enabled
@@ -90,8 +114,7 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         win_count = sum(value > 0 for value in evidence.returns)
         prob_estimate = (win_count + 0.5) / (evidence.settled + 1.0) if evidence.settled > 0 else 0.5
         probability = evidence.posterior_win_probability or prob_estimate if mode == "real" else prob_estimate
-        side = signal.side
-        decision_reason = "sinal_base"
+        side, decision_reason, is_flipped = resolve_telemetry_side(orch, symbol, signal.side, pb_cfg)
         if side not in ("CALL", "PUT"):
             continue
         metrics = build_indicator_metrics(
@@ -105,6 +128,8 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
             ev=evidence,
             prob=probability,
         )
+        metrics["direction_telemetry_flipped"] = is_flipped
+        metrics["organic_decision_reason"] = decision_reason
         if signal_epoch_current(orch.config, metrics):
             result.append((symbol, TradeDirection[side], metrics))
     return result

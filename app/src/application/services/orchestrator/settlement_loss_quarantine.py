@@ -17,6 +17,19 @@ def resolve_loss_symbol(resolved_meta: Any, contract: Any, orch: Any, c_id: Any)
     return str(sym) if sym else None
 
 
+def resolve_loss_direction(resolved_meta: Any, contract: Any) -> str | None:
+    """Extrai a direcao do contrato liquidado."""
+    dir_val = (
+        (resolved_meta or {}).get("direction") or (resolved_meta or {}).get("indicator_side")
+        if isinstance(resolved_meta, dict)
+        else None
+    )
+    if not dir_val:
+        dir_obj = getattr(contract, "direction", None)
+        dir_val = getattr(dir_obj, "name", None) if dir_obj else None
+    return str(dir_val).upper() if dir_val else None
+
+
 def calculate_loss_cooldown_expiry(
     orch: Any,
     symbol: str,
@@ -54,10 +67,19 @@ async def handle_settlement_loss_quarantine(
     if not symbol:
         return
     consec_map = orch.__dict__.setdefault("_symbol_consecutive_losses", {})
+    reversal_map = orch.__dict__.setdefault("_pending_loss_reversals", {})
+    pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(orch.config, dict) else {}
+    reversal_on_loss = bool(pb_cfg.get("reversal_on_loss", True))
     if profit >= 0.0:
         consec_map[symbol] = 0
+        reversal_map.pop(symbol, None)
         return
     consec_map[symbol] = int(consec_map.get(symbol, 0)) + 1
+    dir_lost = resolve_loss_direction(resolved_meta, contract)
+    if dir_lost in ("CALL", "PUT") and reversal_on_loss:
+        target_opp = "PUT" if dir_lost == "CALL" else "CALL"
+        reversal_map[symbol] = {"from_dir": dir_lost, "target_dir": target_opp, "armed_at": time.time()}
+        orch.logger.info("ALPHA_REVERSAL | %s armado para %s apos LOSS em %s", symbol, target_opp, dir_lost)
     now_ts = time.time()
     quarantine_ts, ttl = calculate_loss_cooldown_expiry(orch, symbol, now_ts)
     if quarantine_ts > 0.0:

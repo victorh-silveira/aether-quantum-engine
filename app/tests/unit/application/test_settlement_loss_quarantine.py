@@ -9,6 +9,7 @@ from src.application.services.orchestrator.settlement_loss_quarantine import (
     handle_settlement_loss_quarantine,
     resolve_loss_symbol,
 )
+from src.domain.models.trade import TradeDirection
 
 
 def test_resolve_loss_symbol_cases():
@@ -104,15 +105,38 @@ async def test_handle_settlement_loss_quarantine_loss_applies():
     orch = MagicMock(
         config={
             "trading": {"mode": "demo"},
-            "pullback_strategy": {"enabled": True, "period_seconds": 900, "loss_cooldown_candles": 1},
+            "pullback_strategy": {
+                "enabled": True,
+                "period_seconds": 900,
+                "loss_cooldown_candles": 1,
+            },
         },
         _symbol_consecutive_losses={},
         state_store=MagicMock(redis=redis_mock),
     )
-    await handle_settlement_loss_quarantine(orch, {"symbol": "OTC_SSMI"}, None, 1, -10.0)
+    await handle_settlement_loss_quarantine(orch, {"symbol": "OTC_SSMI", "direction": "CALL"}, None, 1, -10.0)
     assert orch._symbol_consecutive_losses["OTC_SSMI"] == 1
     assert "OTC_SSMI" in orch._symbol_loss_quarantine
+    assert orch._pending_loss_reversals["OTC_SSMI"]["target_dir"] == "PUT"
     redis_mock.set.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_handle_settlement_loss_quarantine_reversal_on_loss_arms():
+    orch = MagicMock(
+        config={
+            "trading": {"mode": "demo"},
+            "pullback_strategy": {"enabled": True, "period_seconds": 900, "reversal_on_loss": True},
+        },
+        _symbol_consecutive_losses={},
+        _symbol_loss_quarantine={"OTC_SSMI": 1234.0},
+        _pending_loss_reversals={},
+    )
+    contract = MagicMock(direction=TradeDirection.PUT)
+    await handle_settlement_loss_quarantine(orch, None, contract, 1, -15.0)
+    assert orch._symbol_consecutive_losses.get(None) is None
+    await handle_settlement_loss_quarantine(orch, {"symbol": "OTC_SSMI"}, contract, 1, -15.0)
+    assert orch._pending_loss_reversals["OTC_SSMI"]["target_dir"] == "CALL"
 
 
 @pytest.mark.asyncio
@@ -122,10 +146,15 @@ async def test_handle_settlement_loss_quarantine_redis_exception():
     orch = MagicMock(
         config={
             "trading": {"mode": "demo"},
-            "pullback_strategy": {"enabled": True, "period_seconds": 900, "loss_cooldown_candles": 1},
+            "pullback_strategy": {
+                "enabled": True,
+                "period_seconds": 900,
+                "loss_cooldown_candles": 1,
+                "reversal_on_loss": False,
+            },
         },
         _symbol_consecutive_losses={},
         state_store=MagicMock(redis=redis_mock),
     )
-    await handle_settlement_loss_quarantine(orch, {"symbol": "OTC_SSMI"}, None, 1, -10.0)
+    await handle_settlement_loss_quarantine(orch, {"symbol": "OTC_SSMI", "indicator_side": "PUT"}, None, 1, -10.0)
     assert orch._symbol_consecutive_losses["OTC_SSMI"] == 1
