@@ -1,3 +1,13 @@
+## [4.31.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.1...v4.31.2) (2026-11-03)
+
+### Correcoes de Bug
+
+* **engine:** calibrar exaustao direcional e rejeicao de pavio sob alto momentum ([1f5c9ec](https://github.com/victorh-silveira/aether-quantum-engine/commit/1f5c9ec37f6fda61f06fb81e638bdc624c16367b))
+
+### Documentacao
+
+* **repo:** documentar diretorios raiz e descompactar pastas truncadas ([4352021](https://github.com/victorh-silveira/aether-quantum-engine/commit/43520211c9ffc7e68ef977d98216c847fbb0f1b2))
+
 ## [4.31.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.0...v4.31.1) (2026-11-03)
 
 ### Correcoes de Bug
