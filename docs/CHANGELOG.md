@@ -1,3 +1,9 @@
+## [4.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.30.0...v4.31.0) (2026-11-03)
+
+### Funcionalidades
+
+* **orchestrator:** reversao adaptativa por telemetria e eliminacao de skips pos perda ([9d62ecb](https://github.com/victorh-silveira/aether-quantum-engine/commit/9d62ecbaefcf976ef42fb8d3b591a898ac87cd56))
+
 ## [4.30.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.29.0...v4.30.0) (2026-11-03)
 
 ### Funcionalidades
