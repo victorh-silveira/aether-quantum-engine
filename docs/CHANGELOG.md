@@ -1,3 +1,9 @@
+## [4.31.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.0...v4.31.1) (2026-11-03)
+
+### Correcoes de Bug
+
+* **engine:** calibrar sensibilidade de continuacao e doji no setup senior ([9804f1e](https://github.com/victorh-silveira/aether-quantum-engine/commit/9804f1e538b729acfa5538ca71dbef2d9c64a445))
+
 ## [4.31.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.30.0...v4.31.0) (2026-11-03)
 
 ### Funcionalidades
