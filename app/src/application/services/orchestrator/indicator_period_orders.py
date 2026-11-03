@@ -80,6 +80,7 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     )
     quarantine = getattr(orch, "_symbol_loss_quarantine", {})
     operate_all = bool(pb_cfg.get("operate_all_signals", False))
+    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
@@ -90,11 +91,12 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         ):
             continue
         has_loss_reversal = symbol in getattr(orch, "_pending_loss_reversals", {})
+        is_loss_inversion = has_loss_reversal or symbol in telemetry_inverts
         if (
             period != period_seconds
             or symbol in active_symbols
             or symbol in excluded
-            or (not has_loss_reversal and now_ts < quarantine.get(symbol, 0))
+            or (not is_loss_inversion and now_ts < quarantine.get(symbol, 0))
             or (
                 signal.model_version != pb_cfg.get("version")
                 if pb_enabled

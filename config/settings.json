@@ -18,11 +18,16 @@
     "reversal_on_loss": true,
     "telemetry_inverted_symbols": [
       "OTC_SSMI",
+      "OTC_GDAXI",
+      "R_50",
+      "1HZ100V",
+      "1HZ75V",
       "OTC_SPC",
       "OTC_N225",
       "OTC_FTSE"
     ],
     "telemetry_direct_symbols": [
+      "1HZ50V",
       "OTC_FCHI",
       "OTC_SX5E",
       "OTC_AEX"
