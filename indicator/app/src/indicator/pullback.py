@@ -295,11 +295,12 @@ def evaluate(
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
         candle_range = max(1e-10, confirmation.high - confirmation.low)
-        bounded = body <= 2.2 * atr
+        bounded = body <= 2.2 * atr and candle_range <= 2.20 * atr
         is_doji = body < 0.025 * atr
         adx, pdi, mdi = _adx(bars, 14)
         _, _, m_hist = _macd(closes, 7, 14, 5)
         rsi = _rsi(closes, 14)
+        rsi_prev = _rsi(closes[:-1], 14)
         stoch_k, _ = _stochastic(bars, 14, 3)
         pct_b = _bollinger_pct_b(closes, 14)
         williams = _williams_r(bars, 14)
@@ -307,8 +308,8 @@ def evaluate(
 
         upper_wick = confirmation.high - max(confirmation.open, confirmation.close)
         lower_wick = min(confirmation.open, confirmation.close) - confirmation.low
-        call_rejection = upper_wick >= 0.50 * candle_range and upper_wick >= 0.40 * atr and upper_wick >= 1.2 * body
-        put_rejection = lower_wick >= 0.50 * candle_range and lower_wick >= 0.40 * atr and lower_wick >= 1.2 * body
+        call_rejection = upper_wick >= 0.45 * candle_range and upper_wick >= 0.35 * atr and upper_wick >= 1.0 * body
+        put_rejection = lower_wick >= 0.45 * candle_range and lower_wick >= 0.35 * atr and lower_wick >= 1.0 * body
 
         has_variance = len(set(closes[-16:-2])) > 2 if len(closes) >= 18 else False
 
@@ -334,11 +335,14 @@ def evaluate(
         climax_put = (
             stoch_k <= 10.0 or williams <= -92.0 or (m_hist > 0.0 and confirmation.close < fast[-1] - 1.20 * atr)
         )
+        rsi_bear_div = confirmation.close > pullback.close and rsi < rsi_prev - 3.5
+        rsi_bull_div = confirmation.close < pullback.close and rsi > rsi_prev + 3.5
 
         call_exhaustion = has_variance and (
             call_rejection
             or hurst < 0.45
             or climax_call
+            or rsi_bear_div
             or (
                 not is_high_momentum
                 and (
@@ -351,6 +355,7 @@ def evaluate(
             put_rejection
             or hurst < 0.45
             or climax_put
+            or rsi_bull_div
             or (
                 not is_high_momentum
                 and (
@@ -371,6 +376,7 @@ def evaluate(
             and not call_exhaustion
             and (fast[-1] > slow[-1] or fast[-2] > slow[-2])
             and fast[-1] >= fast[-3]
+            and slow[-1] >= slow[-3]
             and confirmation.close > slow[-1]
         )
         trend_put = (
@@ -381,6 +387,7 @@ def evaluate(
             and not put_exhaustion
             and (fast[-1] < slow[-1] or fast[-2] < slow[-2])
             and fast[-1] <= fast[-3]
+            and slow[-1] <= slow[-3]
             and confirmation.close < slow[-1]
         )
         pb_mid = (pullback.open + pullback.close) / 2.0

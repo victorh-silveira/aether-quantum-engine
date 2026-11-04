@@ -13,8 +13,8 @@
     "allow_closed_markets": false,
     "operate_all_signals": true,
     "max_fallback_candidates": 3,
-    "loss_cooldown_candles": 0,
-    "consecutive_loss_cooldown_candles": 0,
+    "loss_cooldown_candles": 1,
+    "consecutive_loss_cooldown_candles": 2,
     "reversal_on_loss": true,
     "telemetry_inverted_symbols": [
       "OTC_SSMI",
@@ -41,7 +41,7 @@
     "organic_direction": false,
     "stream_fallback": false,
     "dynamic_rotation": true,
-    "min_payout_rate": 0.68,
+    "min_payout_rate": 0.7,
     "min_prob_threshold": 0.5,
     "breakeven_floor": 0.5
   },

@@ -369,3 +369,65 @@ def test_senior_setup_institutional_guards(monkeypatch):
     stretched_put = list(mirrored_bars)
     stretched_put[-1] = Candle((MIN_BARS - 1) * period, 196.5, 196.6, 196.0, 196.2)
     assert evaluate(stretched_put, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+
+def test_senior_setup_advanced_anti_loss_guards(monkeypatch):
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+    nine = [101.0] * (MIN_BARS - 4) + [101.6, 101.7, 101.9, 102.1]
+
+    def mock_ema(values, span):
+        if span == 9:
+            return nine
+        return fast if span == 20 else slow
+
+    monkeypatch.setattr("indicator.pullback._ema", mock_ema)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 25.0, 10.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (0.5, 0.2, 0.3))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 52.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
+
+    # 1. Guard: Declining EMA50 on CALL
+    slow_declining = list(slow)
+    slow_declining[-1] = slow_declining[-3] - 0.2
+    monkeypatch.setattr(
+        "indicator.pullback._ema",
+        lambda values, span: nine if span == 9 else fast if span == 20 else slow_declining,
+    )
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._ema", mock_ema)
+
+    # 2. Guard: Elephant Candle (Range > 2.2 * ATR)
+    giant_bars = list(base_bars)
+    giant_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 104.5, 101.7, 103.5)
+    assert evaluate(giant_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # 3. Guard: RSI Bearish Divergence
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 45.0 if len(c) == len(base_bars) else 55.0)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 52.0)
+
+    # 4. Guard: Adverse Wick Rejection (>= 45% wick and >= body)
+    wick_bars = list(base_bars)
+    wick_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.8, 101.75, 102.2)
+    assert evaluate(wick_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
