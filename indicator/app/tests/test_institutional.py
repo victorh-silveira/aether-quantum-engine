@@ -339,3 +339,33 @@ def test_senior_setup_institutional_guards(monkeypatch):
     streak_put[-2] = Candle((MIN_BARS - 2) * period, 198.5, 198.6, 197.9, 198.0)
     streak_put[-1] = Candle((MIN_BARS - 1) * period, 198.0, 198.1, 197.4, 197.5)
     assert evaluate(streak_put, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Climax Guards under High Momentum (CALL)
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (55.0, 30.0, 10.0))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.60)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 68.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (94.0, 93.0))
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -5.0)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (1.0, 1.5, -0.5))
+    stretched_call = list(base_bars)
+    stretched_call[-1] = Candle((MIN_BARS - 1) * period, 103.5, 104.0, 103.4, 103.8)
+    assert evaluate(stretched_call, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+
+    # Climax Guards under High Momentum (PUT)
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (55.0, 10.0, 30.0))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.60)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 32.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (6.0, 8.0))
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -95.0)
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -55.0)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-1.0, -1.5, 0.5))
+    stretched_put = list(mirrored_bars)
+    stretched_put[-1] = Candle((MIN_BARS - 1) * period, 196.5, 196.6, 196.0, 196.2)
+    assert evaluate(stretched_put, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"

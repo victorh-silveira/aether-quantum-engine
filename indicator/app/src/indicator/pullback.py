@@ -328,9 +328,17 @@ def evaluate(
         trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
         is_high_momentum = trend_strong and adx >= 30.0 and hurst >= 0.50
 
+        climax_call = (
+            stoch_k >= 90.0 or williams >= -8.0 or (m_hist < 0.0 and confirmation.close > fast[-1] + 1.20 * atr)
+        )
+        climax_put = (
+            stoch_k <= 10.0 or williams <= -92.0 or (m_hist > 0.0 and confirmation.close < fast[-1] - 1.20 * atr)
+        )
+
         call_exhaustion = has_variance and (
             call_rejection
             or hurst < 0.45
+            or climax_call
             or (
                 not is_high_momentum
                 and (
@@ -342,6 +350,7 @@ def evaluate(
         put_exhaustion = has_variance and (
             put_rejection
             or hurst < 0.45
+            or climax_put
             or (
                 not is_high_momentum
                 and (
@@ -386,7 +395,7 @@ def evaluate(
             and abs(pullback.low - fast[-2]) <= 2.5 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
             and bounded
             and (
                 reference <= 0
@@ -398,8 +407,9 @@ def evaluate(
             trend_call
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
-            and (bull_fvg or abs(pullback.low - fast[-2]) <= 2.0 * atr)
-            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
+            and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.50 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
+            and m_hist >= 0.0
             and bounded
             and (
                 reference <= 0
@@ -412,7 +422,7 @@ def evaluate(
             and abs(pullback.high - fast[-2]) <= 2.5 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
             and bounded
             and (
                 reference <= 0
@@ -424,8 +434,9 @@ def evaluate(
             trend_put
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
-            and (bear_fvg or abs(pullback.high - fast[-2]) <= 2.0 * atr)
-            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
+            and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.50 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
+            and m_hist <= 0.0
             and bounded
             and (
                 reference <= 0

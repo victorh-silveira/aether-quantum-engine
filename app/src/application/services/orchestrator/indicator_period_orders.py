@@ -231,9 +231,15 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
         rt = float(metrics.get("indicator_quote_rate") or 0.0)
         t_str = float(metrics.get("trend_strength") or 0.0)
         pen = -0.05 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
+        reason = str(metrics.get("organic_decision_reason") or "")
+        bonus_direct = 0.08 if reason == "TELEMETRY_WIN_DIRECT" else 0.0
+        pen_climax = -0.08 if t_str > 50.0 else 0.0
         score = (
             float(l95) if l95 is not None else -math.inf,
-            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5) + pen,
+            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
+            + pen
+            + bonus_direct
+            + pen_climax,
             float(ev_val) if ev_val is not None else rt,
             t_str,
             rt,

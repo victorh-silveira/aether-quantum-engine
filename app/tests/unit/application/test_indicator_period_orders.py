@@ -616,3 +616,52 @@ def test_period_candidates_loss_reversal_bypasses_quarantine(monkeypatch):
     assert sym == "R_10"
     assert direction == TradeDirection.PUT
     assert metrics["direction_telemetry_flipped"] is True
+
+
+@pytest.mark.asyncio
+async def test_select_period_orders_prioritizes_telemetry_direct_over_climax(monkeypatch):
+    orch = _orch("demo")
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "period_seconds": 900,
+        "version": "pullback-1-v15",
+        "operate_all_signals": True,
+        "max_fallback_candidates": 2,
+    }
+    orch.config["orchestrator"]["execution"]["multi_symbol_orders"] = False
+
+    order_base = (
+        "OTC_DJI",
+        TradeDirection.CALL,
+        {
+            "indicator_period_seconds": 900,
+            "trade_score": 0.50,
+            "trend_strength": 55.4,
+            "organic_decision_reason": "sinal_base",
+            "indicator_broker_lower_95": 0.10,
+            "indicator_quote_rate": 0.72,
+        },
+    )
+    order_direct = (
+        "OTC_SX5E",
+        TradeDirection.CALL,
+        {
+            "indicator_period_seconds": 900,
+            "trade_score": 0.50,
+            "trend_strength": 40.0,
+            "organic_decision_reason": "TELEMETRY_WIN_DIRECT",
+            "indicator_broker_lower_95": 0.10,
+            "indicator_quote_rate": 0.72,
+        },
+    )
+
+    async def _fake_prequote(o, order, sem):
+        return order
+
+    monkeypatch.setattr(orders, "period_candidates", lambda o, m: [order_base, order_direct])
+    monkeypatch.setattr(orders, "_prequote", _fake_prequote)
+
+    chosen = await orders.select_period_orders(orch, [])
+    assert len(chosen) >= 1
+    assert chosen[0][0] == "OTC_SX5E"
