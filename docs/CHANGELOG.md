@@ -1,3 +1,9 @@
+## [4.32.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.0...v4.32.1) (2026-11-04)
+
+### Correcoes de Bug
+
+* **orchestrator:** sincronizar timing de ciclo m15 e telemetria de setups ([bc86109](https://github.com/victorh-silveira/aether-quantum-engine/commit/bc8610945d488dca69b5edb8c72cdcecc6c9b9e2))
+
 ## [4.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.2...v4.32.0) (2026-11-04)
 
 ### Funcionalidades
