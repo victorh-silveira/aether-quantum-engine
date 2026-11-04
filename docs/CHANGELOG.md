@@ -1,3 +1,9 @@
+## [4.32.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.5...v4.32.6) (2026-11-04)
+
+### Correcoes de Bug
+
+* **orchestrator:** detalhar diagnostico de mercado fechado e blindar servico ([9ecb0ce](https://github.com/victorh-silveira/aether-quantum-engine/commit/9ecb0ce5e59c40a531d2925cd2e488d232cc9a4b))
+
 ## [4.32.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.4...v4.32.5) (2026-11-04)
 
 ### Correcoes de Bug
