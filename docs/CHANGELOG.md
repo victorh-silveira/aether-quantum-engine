@@ -1,3 +1,9 @@
+## [4.32.5](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.4...v4.32.5) (2026-11-04)
+
+### Correcoes de Bug
+
+* **domain:** fortalecer filtros de ema50, pavio adverso e divergencia de rsi ([afe48c1](https://github.com/victorh-silveira/aether-quantum-engine/commit/afe48c161b1bbd8011a8eb26e8493e6ab42496f7))
+
 ## [4.32.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.3...v4.32.4) (2026-11-04)
 
 ### Correcoes de Bug
