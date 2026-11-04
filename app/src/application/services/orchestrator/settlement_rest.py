@@ -47,24 +47,40 @@ async def _balance_after_wait(orch: Any, *, wait_seconds: float) -> float:
 
 
 async def settle_rest_contract_when_due(orch: Any, contract: Contract, *, balance_after_buy: float) -> None:
-    """Apos expiry, infere won/lost pelo saldo REST e liquida via payload sintetico."""
+    """Apos expiry, tenta profit_table oficial ou infere won/lost pelo saldo REST."""
     now = time.time()
     delay = max(1.0, float(contract.expiry_time) - now + 3.0)
+    await asyncio.sleep(max(0.5, float(delay)))
+    c_id = int(contract.contract_id)
     try:
-        bal = await _balance_after_wait(orch, wait_seconds=delay)
+        ws = getattr(orch, "ws", None)
+        if ws is not None and getattr(ws, "is_running", False):
+            from src.application.services.orchestrator.settlement_backfill import (  # noqa: PLC0415
+                backfill_contract_from_profit_table,
+            )
+
+            if await backfill_contract_from_profit_table(orch, c_id):
+                logger.info("SETTLE_REST | contract=%s liquidado via profit_table oficial", c_id)
+                return
+    except Exception as exc:
+        logger.debug("SETTLE_REST | profit_table indisponivel contract=%s: %s", c_id, exc)
+
+    try:
+        bal = await _balance_after_wait(orch, wait_seconds=0.5)
         buy_price = float(contract.buy_price)
         payout = float(contract.payout)
-        win_target = float(balance_after_buy) + payout * 0.85
-        won = bal >= win_target
+        won = (bal >= float(balance_after_buy)) or (bal >= float(balance_after_buy) - buy_price + payout * 0.4)
+        if hasattr(orch, "state") and getattr(orch.state, "balance", None) is not None:
+            orch.state.balance = bal
         payload = _synthetic_poc(
-            contract_id=int(contract.contract_id),
+            contract_id=c_id,
             won=won,
             buy_price=buy_price,
             payout=payout,
         )
         logger.info(
             "SETTLE_REST | contract=%s won=%s bal=%.2f after_buy=%.2f payout=%.2f",
-            contract.contract_id,
+            c_id,
             str(won).lower(),
             bal,
             balance_after_buy,
@@ -72,7 +88,7 @@ async def settle_rest_contract_when_due(orch: Any, contract: Contract, *, balanc
         )
         await process_contract_settlement(orch, payload)
     except Exception as exc:
-        logger.warning("SETTLE_REST falhou contract=%s: %s", contract.contract_id, exc)
+        logger.warning("SETTLE_REST falhou contract=%s: %s", c_id, exc)
 
 
 def schedule_rest_contract_settlement(orch: Any, contract: Contract, *, balance_after_buy: float) -> None:

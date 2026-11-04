@@ -99,6 +99,58 @@ async def test_settle_rest_handles_failure():
 
 
 @pytest.mark.asyncio
+async def test_settle_rest_liquidates_via_profit_table_when_available():
+    orch = MagicMock()
+    orch.ws.is_running = True
+    with (
+        patch("src.application.services.orchestrator.settlement_rest.asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.backfill_contract_from_profit_table",
+            new_callable=AsyncMock,
+            return_value=True,
+        ) as backfill,
+        patch(
+            "src.application.services.orchestrator.settlement_rest._balance_after_wait",
+            new_callable=AsyncMock,
+        ) as bal_wait,
+    ):
+        await settle_rest_contract_when_due(orch, _contract(12), balance_after_buy=100.0)
+    backfill.assert_awaited_once_with(orch, 12)
+    bal_wait.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_settle_rest_profit_table_exception_falls_back_to_balance():
+    orch = MagicMock()
+    orch.ws.is_running = True
+    orch.deriv_account_id = "DOT1"
+    orch.auth.rest_client.return_value.list_accounts = AsyncMock(
+        return_value=[MagicMock(account_id="DOT1", balance=9794.40)]
+    )
+    with (
+        patch("src.application.services.orchestrator.settlement_rest.asyncio.sleep", new_callable=AsyncMock),
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.backfill_contract_from_profit_table",
+            new_callable=AsyncMock,
+            side_effect=RuntimeError("ws error"),
+        ),
+        patch(
+            "src.application.services.orchestrator.settlement_rest.process_contract_settlement",
+            new_callable=AsyncMock,
+        ) as settle,
+    ):
+        contract = _contract(13)
+        contract.buy_price = 199.75
+        contract.payout = 344.49
+        await settle_rest_contract_when_due(orch, contract, balance_after_buy=9649.66)
+    settle.assert_awaited_once()
+    payload = settle.await_args.args[1]
+    assert payload["proposal_open_contract"]["status"] == "won"
+    assert payload["proposal_open_contract"]["profit"] == pytest.approx(144.74)
+    assert orch.state.balance == 9794.40
+
+
+@pytest.mark.asyncio
 async def test_schedule_rest_contract_settlement_tracks_task():
     orch = MagicMock()
     orch._rest_settlement_tasks = None

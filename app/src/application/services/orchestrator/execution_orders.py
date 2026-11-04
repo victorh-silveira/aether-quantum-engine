@@ -255,14 +255,16 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         .get("settlement_request_timeout_seconds", 30.0)
     )
     if str(getattr(executor.orch, "trading_transport", "ws")).lower() == "rest":
-        balance_after = float(getattr(executor.orch.state, "balance", 0.0) or 0.0) - float(contract.buy_price)
+        base_bal = float(getattr(executor.orch.state, "balance", 0.0) or 0.0)
+        balance_after = base_bal - float(contract.buy_price)
         try:
             client = executor.orch.auth.rest_client()
             accounts = await client.list_accounts()
             account_id = str(getattr(executor.orch, "deriv_account_id", "") or "")
             for acc in accounts:
                 if not account_id or str(acc.account_id) == account_id:
-                    balance_after = float(acc.balance)
+                    fetched = float(acc.balance)
+                    balance_after = fetched if fetched < base_bal else balance_after
                     executor.orch.state.balance = balance_after
                     break
         except Exception as exc:
