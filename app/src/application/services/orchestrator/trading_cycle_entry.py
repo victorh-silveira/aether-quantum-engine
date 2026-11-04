@@ -15,8 +15,6 @@ from src.application.services.indicator_consensus import refresh_indicator_conse
 from src.application.services.orchestrator.cycle_indicators_logger import log_cycle_indicators
 from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
 from src.application.services.orchestrator.orchestrator_data_signature import (
-    at_m5_open_window,
-    m5_boundary_epoch,
     seconds_until_next_signature_boundary,
 )
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
@@ -24,7 +22,6 @@ from src.application.services.orchestrator.regime_freeze_yield import await_regi
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
 from src.application.services.orchestrator.trading_cycle_entry_guards import (
-    _signature_open_tolerance_seconds,
     _stop_win_blocks_cycle,
     commit_trading_cycle_data_signature,
     cycle_cadence_seconds,
@@ -185,12 +182,8 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
                             empty_cap = 15.0
                         setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
                         if setup_active:
-                            if at_m5_open_window(orch, tolerance=_signature_open_tolerance_seconds(orch)):
-                                orch._last_m5_cycle_boundary = m5_boundary_epoch(orch)
                             orch._last_processed_epoch = orch._last_epoch
-                            delay = (
-                                max(1.0, min(5.0, boundary_wait)) if boundary_wait <= 5.0 else max(5.0, boundary_wait)
-                            )
+                            delay = 4.0
                         else:
                             delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
                         orch._cooldown_until = time.time() + delay

@@ -121,3 +121,14 @@ def test_get_data_state_signature_formats_correctly():
     assert sig.startswith("m5b:1700000100;")
     assert "m5:1HZ75V@1700000100" in sig
     assert "m15:1HZ75V@1699920000" in sig
+
+
+def test_at_m5_open_window_rejects_boundary_end_seconds():
+    orch = SimpleNamespace(
+        config={"pullback_strategy": {"enabled": True, "period_seconds": 900}},
+        stream=None,
+        symbols=["OTC_SSMI"],
+        _last_epoch=0,
+    )
+    assert at_m5_open_window(orch, now=1793816098.0, tolerance=60.0) is False
+    assert at_m5_open_window(orch, now=1793816102.0, tolerance=60.0) is True

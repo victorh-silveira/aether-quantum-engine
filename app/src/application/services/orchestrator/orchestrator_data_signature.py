@@ -107,9 +107,13 @@ def at_m5_open_window(orch: Any, *, now: float | None = None, tolerance: float =
     """True apenas nos primeiros `tolerance` segundos apos a abertura da vela (multiplo de boundary)."""
     boundary = resolve_signature_boundary_seconds(orch)
     now_ts = _resolve_now(now, orch=orch)
+    local_now = time.time() if now is None else float(now)
+    local_offset = local_now % boundary
+    if local_offset >= boundary - 3.0:
+        return False
     offset = int(now_ts) % boundary
     tol = max(1.0, float(tolerance))
-    return float(offset) <= tol
+    return float(offset) <= tol and float(local_offset) <= tol
 
 
 def m5_boundary_epoch(orch: Any, *, now: float | None = None) -> int:

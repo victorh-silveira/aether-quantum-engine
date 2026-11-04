@@ -208,10 +208,9 @@ async def test_trading_cycle_updates_m5_boundary_when_setup_active_and_open_wind
             return_value={},
         ),
         patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
-        patch(f"{TRADING_CYCLE_MODULE}.at_m5_open_window", return_value=True),
-        patch(f"{TRADING_CYCLE_MODULE}.m5_boundary_epoch", return_value=1700000900),
         patch(f"{TRADING_CYCLE_MODULE}.seconds_until_next_signature_boundary", return_value=3.0),
     ):
         await run_trading_cycle_if_ready(orch)
-    assert orch._last_m5_cycle_boundary == 1700000900
+    assert orch._last_m5_cycle_boundary == 0
     assert orch._last_processed_epoch == 1700000910
+    assert orch._cooldown_until > 0.0

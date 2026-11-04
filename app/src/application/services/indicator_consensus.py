@@ -222,14 +222,15 @@ def signal_epoch_current(config: dict, metrics: dict) -> bool:
             return False
         offset = now % period
         return (offset <= window and epoch_val == expected) or (
-            offset >= period - 5 and epoch_val == (expected + period)
+            offset >= period - 5 and epoch_val in (expected, expected + period)
         )
     p_fb = int(pb_cfg.get("period_seconds", 300))
     now = time.time()
     expected_epoch = int(now // p_fb) * p_fb - p_fb
-    if (now % p_fb) >= p_fb - 5:
-        expected_epoch += p_fb
+    cand_epoch = int(metrics.get("indicator_candle_epoch") or 0)
     if consensus_enabled(config):
-        return int(metrics.get("indicator_candle_epoch") or 0) == expected_epoch
+        return cand_epoch == expected_epoch or (
+            (now % p_fb) >= p_fb - 5 and cand_epoch in (expected_epoch, expected_epoch + p_fb)
+        )
     model_epoch = int(metrics.get("model_input_candle_epoch") or metrics.get("_order_candle_epoch") or 0)
     return model_epoch <= 0 or model_epoch == expected_epoch
