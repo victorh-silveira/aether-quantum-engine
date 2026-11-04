@@ -1,3 +1,9 @@
+## [4.32.4](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.3...v4.32.4) (2026-11-04)
+
+### Correcoes de Bug
+
+* **orchestrator:** blindar sinais contra climax de exaustao e otimizar ranking ([0c4aaad](https://github.com/victorh-silveira/aether-quantum-engine/commit/0c4aaad241bdcc73d1993afc97dd9086316eb3a2))
+
 ## [4.32.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.2...v4.32.3) (2026-11-04)
 
 ### Correcoes de Bug
