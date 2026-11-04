@@ -205,7 +205,7 @@ def log_cycle_indicators(orch: Any) -> None:
             "pdi": pdi,
             "mdi": mdi,
             "hurst": _calc_hurst_exponent(closes, 14),
-            "is_doji": c_body < 0.035 * atr,
+            "is_doji": c_body < 0.025 * atr,
             "rejection": rejection,
         }
         green, rst = "\033[92m", "\033[0m"

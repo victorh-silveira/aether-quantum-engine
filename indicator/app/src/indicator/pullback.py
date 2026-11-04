@@ -296,7 +296,7 @@ def evaluate(
         body = abs(confirmation.close - confirmation.open)
         candle_range = max(1e-10, confirmation.high - confirmation.low)
         bounded = body <= 2.2 * atr
-        is_doji = body < 0.035 * atr
+        is_doji = body < 0.025 * atr
         adx, pdi, mdi = _adx(bars, 14)
         _, _, m_hist = _macd(closes, 7, 14, 5)
         rsi = _rsi(closes, 14)
@@ -386,9 +386,12 @@ def evaluate(
             and abs(pullback.low - fast[-2]) <= 2.5 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
             and bounded
-            and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
+            and (
+                reference <= 0
+                or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper + 0.35 * atr))
+            )
             and bull_fvg
         )
         call_continuation = (
@@ -396,9 +399,12 @@ def evaluate(
             and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
             and (bull_fvg or abs(pullback.low - fast[-2]) <= 2.0 * atr)
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
             and bounded
-            and (reference <= 0 or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper)))
+            and (
+                reference <= 0
+                or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper + 0.35 * atr))
+            )
             and confirmation.close > confirmation.open
         )
         put_pullback = (
@@ -406,9 +412,12 @@ def evaluate(
             and abs(pullback.high - fast[-2]) <= 2.5 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
             and bounded
-            and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
+            and (
+                reference <= 0
+                or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower - 0.35 * atr))
+            )
             and bear_fvg
         )
         put_continuation = (
@@ -416,9 +425,12 @@ def evaluate(
             and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
             and (bear_fvg or abs(pullback.high - fast[-2]) <= 2.0 * atr)
-            and abs(confirmation.close - fast[-1]) <= 2.0 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.20 * atr
             and bounded
-            and (reference <= 0 or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower)))
+            and (
+                reference <= 0
+                or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower - 0.35 * atr))
+            )
             and confirmation.close < confirmation.open
         )
         call = call_pullback or call_continuation
