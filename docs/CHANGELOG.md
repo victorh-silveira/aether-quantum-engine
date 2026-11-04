@@ -1,3 +1,15 @@
+## [4.32.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.2...v4.32.0) (2026-11-04)
+
+### Funcionalidades
+
+* **app:** desestrangular setup pullback M15 para reduzir skips ([a561c28](https://github.com/victorh-silveira/aether-quantum-engine/commit/a561c285c130c58e25bcd86db2510587a4b5c9f4))
+
+### Correcoes de Bug
+
+* **orchestrator:** descongelar cooldown M15 na virada de vela institucional ([2bc6e0a](https://github.com/victorh-silveira/aether-quantum-engine/commit/2bc6e0ae08794a7f4752d7f6a3acafb524d822db))
+* **orchestrator:** habilitar selecao multiativo e fallback de sinais M15 ([a8086d4](https://github.com/victorh-silveira/aether-quantum-engine/commit/a8086d4f366005b6c0e0314935c0c1ce624e27f0))
+* **orchestrator:** sincronizar direcao por telemetria e eliminar skips ([5a2f03f](https://github.com/victorh-silveira/aether-quantum-engine/commit/5a2f03f691231882d8ba2c8ff560a03cb4a6b288))
+
 ## [4.31.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.31.1...v4.31.2) (2026-11-03)
 
 ### Correcoes de Bug
