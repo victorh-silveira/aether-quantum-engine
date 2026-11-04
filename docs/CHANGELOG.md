@@ -1,3 +1,9 @@
+## [4.32.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.1...v4.32.2) (2026-11-04)
+
+### Correcoes de Bug
+
+* **orchestrator:** garantir abertura exata de vela m15 e preservar retry de setups ([e253796](https://github.com/victorh-silveira/aether-quantum-engine/commit/e253796031ac623e7d8971c0fe4120f612527800))
+
 ## [4.32.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.0...v4.32.1) (2026-11-04)
 
 ### Correcoes de Bug
