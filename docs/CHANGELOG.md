@@ -1,3 +1,9 @@
+## [4.32.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.2...v4.32.3) (2026-11-04)
+
+### Correcoes de Bug
+
+* **orchestrator:** corrigir apuracao de win em liquidacao rest e consultar profit table ([f402ac5](https://github.com/victorh-silveira/aether-quantum-engine/commit/f402ac55e12bbebff868aec93b9d65558021a19b))
+
 ## [4.32.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.1...v4.32.2) (2026-11-04)
 
 ### Correcoes de Bug
