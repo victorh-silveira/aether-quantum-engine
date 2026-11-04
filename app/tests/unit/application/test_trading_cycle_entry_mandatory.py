@@ -131,3 +131,63 @@ async def test_trading_cycle_executes_cluster_on_mandatory(orch_ready):
     ):
         await run_trading_cycle_if_ready(orch)
     orch.executor.execute_cluster.assert_awaited_once()
+
+
+def test_check_and_clear_boundary_cooldown_resets_on_new_boundary(orch_ready):
+    from src.application.services.orchestrator.trading_cycle_entry_guards import (
+        check_and_clear_boundary_cooldown,
+        trading_cycle_entry_allowed,
+    )
+
+    orch = orch_ready
+    orch.config["pullback_strategy"] = {"enabled": True, "entry_window_seconds": 60.0}
+    orch._cooldown_until = 1700001000.0
+    orch._last_m5_cycle_boundary = 1700000000
+
+    with (
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.m5_boundary_epoch",
+            return_value=1700000900,
+        ),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.at_m5_open_window",
+            return_value=True,
+        ),
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=1700000910.0),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards._require_signature_boundary",
+            return_value=False,
+        ),
+    ):
+        cleared = check_and_clear_boundary_cooldown(orch)
+        assert cleared is True
+        assert orch._cooldown_until == 0.0
+        assert trading_cycle_entry_allowed(orch) is True
+
+
+def test_check_and_clear_boundary_cooldown_keeps_cooldown_when_same_boundary(orch_ready):
+    from src.application.services.orchestrator.trading_cycle_entry_guards import (
+        check_and_clear_boundary_cooldown,
+        trading_cycle_entry_allowed,
+    )
+
+    orch = orch_ready
+    orch.config["pullback_strategy"] = {"enabled": True, "entry_window_seconds": 60.0}
+    orch._cooldown_until = 1700001000.0
+    orch._last_m5_cycle_boundary = 1700000900
+
+    with (
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.m5_boundary_epoch",
+            return_value=1700000900,
+        ),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.at_m5_open_window",
+            return_value=True,
+        ),
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.time.time", return_value=1700000910.0),
+    ):
+        cleared = check_and_clear_boundary_cooldown(orch)
+        assert cleared is False
+        assert orch._cooldown_until == 1700001000.0
+        assert trading_cycle_entry_allowed(orch) is False

@@ -23,6 +23,9 @@ from src.application.services.orchestrator.post_settlement_resilience import (
 from src.application.services.orchestrator.reconnect_cycle_release import release_trading_cycle_after_reconnect
 from src.application.services.orchestrator.settlement_reconciliation import reconcile_after_ws_recovery
 from src.application.services.orchestrator.trading_cycle_entry import prepare_orchestrator_run_loop
+from src.application.services.orchestrator.trading_cycle_entry_guards import (
+    check_and_clear_boundary_cooldown,
+)
 from src.application.services.orchestrator.warm_up_buffer_guard import await_stream_warm_up_gate
 from src.application.services.orchestrator.watchdog_service import start_ingestion_watchdog
 from src.application.services.orchestrator.ws_bootstrap import (
@@ -163,8 +166,9 @@ async def run_orchestrator_main_loop(orch: Any) -> None:
     reconnect_delay = float(orch_cfg.get("ws_reconnect_delay_seconds", 8.0))
     while orch.running:
         cooldown = float(getattr(orch, "_cooldown_until", 0.0))
-        if cooldown > 0.0 and time.time() < cooldown:
-            await asyncio.sleep(max(0.1, cooldown - time.time()))
+        if cooldown > 0.0 and time.time() < cooldown and not check_and_clear_boundary_cooldown(orch):
+            rem = max(0.05, cooldown - time.time())
+            await asyncio.sleep(min(1.0, rem))
             continue
         _enforce_post_settlement_deadlock_exit(orch)
         await orch._tick_idle_cycle_watchdog()

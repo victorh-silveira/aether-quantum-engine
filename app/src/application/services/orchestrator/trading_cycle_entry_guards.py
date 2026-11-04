@@ -9,6 +9,7 @@ from src.application.services.orchestrator.api_maintenance_guard import api_main
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_data_signature import (
     at_m5_open_window,
+    m5_boundary_epoch,
     resolve_signature_boundary_seconds,
     seconds_until_next_signature_boundary,
 )
@@ -227,6 +228,19 @@ def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
         restore_log_context(prev_cid, prev_sym)
 
 
+def check_and_clear_boundary_cooldown(orch: Any) -> bool:
+    """Limpa cooldown remanescente se uma nova fronteira temporal tiver iniciado na janela de abertura."""
+    if not orch.config.get("pullback_strategy", {}).get("enabled", False):
+        return False
+    tol = _signature_open_tolerance_seconds(orch)
+    cur_b = m5_boundary_epoch(orch)
+    last_b = float(getattr(orch, "_last_m5_cycle_boundary", 0.0) or 0.0)
+    if cur_b > last_b and at_m5_open_window(orch, tolerance=tol):
+        orch._cooldown_until = 0.0
+        return True
+    return False
+
+
 def _signature_open_blocks_cycle(orch: Any) -> bool:
     """True fora da janela de abertura da vela; agenda cooldown ate o proximo multiplo."""
     if not _require_signature_boundary(orch):
@@ -234,8 +248,7 @@ def _signature_open_blocks_cycle(orch: Any) -> bool:
     tol = _signature_open_tolerance_seconds(orch)
     if at_m5_open_window(orch, tolerance=tol):
         if orch.config.get("pullback_strategy", {}).get("enabled", False):
-            boundary = resolve_signature_boundary_seconds(orch)
-            cur_b = int(time.time() // boundary) * boundary
+            cur_b = m5_boundary_epoch(orch)
             if getattr(orch, "_last_m5_cycle_boundary", None) == cur_b:
                 wait = max(0.5, float(seconds_until_next_signature_boundary(orch)))
                 _log_awaiting_m5_open(orch, wait)
@@ -256,7 +269,7 @@ def _signature_open_blocks_cycle(orch: Any) -> bool:
 def trading_cycle_entry_allowed(orch: Any) -> bool:
     """False quando o motor nao pode iniciar um novo ciclo de decisao."""
     cooldown = float(getattr(orch, "_cooldown_until", 0.0))
-    if cooldown > 0.0 and time.time() < cooldown:
+    if cooldown > 0.0 and time.time() < cooldown and not check_and_clear_boundary_cooldown(orch):
         return False
     if _orchestrator_preconditions_block(orch):
         return False
