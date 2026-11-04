@@ -3,6 +3,7 @@
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
 from src.application.services.market_audit_log import emit_audit_info, format_gates_audit_line
+from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
 
 
 _TECHNICAL_REASONS = frozenset(
@@ -102,13 +103,18 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             or []
         )
         details = []
+        sym_statuses = {}
         for symbol in symbols:
             if symbol in excluded:
-                details.append(f"{symbol}:{tf_label}=ativo_excluido(baixo_edge)")
+                sym_status = "ativo_excluido(baixo_edge)"
             elif (symbol, period_seconds) in statuses:
-                details.append(f"{symbol}:{tf_label}={statuses[(symbol, period_seconds)]}")
+                sym_status = statuses[(symbol, period_seconds)]
+            elif not is_otc_exchange_open_brt(symbol):
+                sym_status = "mercado_fechado_brt"
             else:
-                details.append(f"{symbol}:{tf_label}={default_status}")
+                sym_status = default_status
+            details.append(f"{symbol}:{tf_label}={sym_status}")
+            sym_statuses[symbol] = sym_status
         motivo_map = {
             "padrao_incompleto": "aguardando_recuo_e_confirmacao",
             "aguardando_confirmacao_alta": "aguardando_confirmacao_alta",
@@ -120,18 +126,14 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             "sem_tendencia_ema": "sem_tendencia_ema",
             "corpo_fora_faixa": "corpo_vela_fora_limite_atr",
             "ativo_excluido(baixo_edge)": "baixo_ev_historico",
+            "mercado_fechado_brt": "mercado_fechado_fora_pregao_brt",
             f"sem_sinal_{tf_label}": "sem_sinal_nesta_vela",
             "sem_sinal_m5": "sem_sinal_nesta_vela",
             "aguardando_leitura": "aguardando_leitura_indicador",
         }
-        reasons = []
-        for s in symbols:
-            if s in excluded:
-                reasons.append(motivo_map.get("ativo_excluido(baixo_edge)", "baixo_ev_historico"))
-            elif (s, period_seconds) in statuses:
-                reasons.append(motivo_map.get(statuses[(s, period_seconds)], str(statuses[(s, period_seconds)])))
-            else:
-                reasons.append(motivo_map.get(default_status, default_status))
+        reasons = [
+            motivo_map.get(sym_statuses.get(s, default_status), sym_statuses.get(s, default_status)) for s in symbols
+        ]
         motivo_str = ", ".join(dict.fromkeys(reasons)) or "sem_ordem"
         confirmed = [sym for sym, reason in m_statuses.items() if reason == "setup_confirmado"]
         inst = getattr(executor.orch, "business_instrumentor", None)
@@ -139,7 +141,7 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             if hasattr(inst, "update_confirmed_setups_count"):
                 inst.update_confirmed_setups_count(len(confirmed))
             for s in symbols:
-                inst.record_cycle(s, is_execution=False, reason=statuses.get((s, period_seconds), default_status))
+                inst.record_cycle(s, is_execution=False, reason=sym_statuses.get(s, default_status))
         executor.logger.info(
             "[%s] EXEC_SKIP | %s | leituras=%d setups=%d | MOTIVO: %s",
             cid,

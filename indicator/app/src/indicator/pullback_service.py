@@ -48,7 +48,10 @@ class PullbackService:
             self.metrics.set_symbols(symbols)
             self.symbols = symbols
             self.last_catalog = now
-        await self.sink.promote_setups()
+        try:
+            await self.sink.promote_setups()
+        except Exception as exc:
+            logger.warning("PROMOTE_SETUPS falhou: %s", exc)
         tasks = []
         for symbol in self.symbols:
             for period in PERIODS:
@@ -57,7 +60,7 @@ class PullbackService:
                 if self.last_epoch.get(key) == expected:
                     continue
                 tasks.append(self._observe(symbol, period, now))
-        await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
     async def _observe(self, symbol: str, period: int, now: int) -> None:
         """Isola erro de um periodo sem atrasar os demais ativos."""
@@ -80,12 +83,16 @@ class PullbackService:
             logger.info(
                 "SETUP %s %ds %s reason=%s version=%s", symbol, period, result.side, result.reason, result.version
             )
-        except (OSError, RuntimeError, ValueError, TimeoutError) as exc:
+        except Exception as exc:
             logger.warning("SETUP %s %ds indisponivel: %s", symbol, period, exc)
 
     async def run(self) -> None:
         """Observa o catalogo continuamente com isolamento por periodo."""
         while True:
             now = int(time.time())
-            await self.tick(now)
+            try:
+                await self.tick(now)
+            except Exception as exc:
+                logger.error("INDICATOR_TICK_ERROR: %s", exc)
+                await asyncio.sleep(5)
             await asyncio.sleep(max(1, (now // 30 + 1) * 30 - time.time() + 2))

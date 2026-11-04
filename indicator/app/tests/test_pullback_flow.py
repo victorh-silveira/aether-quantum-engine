@@ -283,3 +283,32 @@ def test_compute_hourly_profile_branches():
     empty_opt, empty_window, _ = compute_hourly_profile({})
     assert empty_opt == []
     assert "05:00 as 13:00" in empty_window
+
+
+async def test_pullback_service_promote_error_and_run_recovery():
+    import asyncio
+
+    source, sink, metrics = Source(), Sink(), Telemetry()
+    service = PullbackService(source, sink, metrics)
+
+    async def fail_promote():
+        raise RuntimeError("database temporarily down")
+
+    sink.promote_setups = fail_promote
+    await service.tick(1000)
+
+    call_count = 0
+
+    async def faulty_tick(now):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ConnectionResetError("ws drop")
+        raise asyncio.CancelledError()
+
+    service.tick = faulty_tick
+    try:
+        await service.run()
+    except asyncio.CancelledError:
+        pass
+    assert call_count >= 1
