@@ -607,8 +607,8 @@
     },
     {
       "id": 10,
-      "title": "Sinal Institucional M15 (1=CALL, 2=PUT)",
-      "description": "1 = CALL, 2 = PUT, 0 = SEM SINAL na \u00faltima vela fechada M15.",
+      "title": "Sinal Institucional M15 (1=CALL, -1=PUT)",
+      "description": "1 = CALL, -1 = PUT, 0 = SEM SINAL na última vela fechada M15.",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -626,7 +626,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_indicator_side{symbol=~\"${symbol:regex}\"}",
+          "expr": "aether_indicator_side{symbol=~\"${symbol:regex}\",period=\"900\"}",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -635,8 +635,8 @@
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "decimals": 2,
-          "noValue": "\u2014",
+          "decimals": 0,
+          "noValue": "—",
           "color": {
             "mode": "thresholds"
           },
@@ -644,16 +644,16 @@
             "mode": "absolute",
             "steps": [
               {
+                "color": "red",
+                "value": -1
+              },
+              {
                 "color": "gray",
-                "value": null
+                "value": 0
               },
               {
                 "color": "green",
                 "value": 1
-              },
-              {
-                "color": "red",
-                "value": 2
               }
             ]
           }
@@ -870,7 +870,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_indicator_close{symbol=~\"${symbol:regex}\"}",
+          "expr": "aether_indicator_close{symbol=~\"${symbol:regex}\",period=\"900\"}",
           "instant": true,
           "range": false,
           "refId": "A"

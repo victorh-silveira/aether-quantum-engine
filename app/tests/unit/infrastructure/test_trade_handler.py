@@ -370,6 +370,14 @@ async def test_proposal_snapshot_uses_period_contract_duration(trade_handler, mo
 
 
 @pytest.mark.asyncio
+async def test_proposal_snapshot_handles_error_and_invalid_response(trade_handler, mock_ws):
+    mock_ws.send.return_value = "invalid"
+    assert await trade_handler.fetch_proposal_snapshot("R_25", TradeDirection.CALL, 10.0) is None
+    mock_ws.send.return_value = {"error": {"message": "Closed", "code": "MarketClosed"}}
+    assert await trade_handler.fetch_proposal_snapshot("R_25", TradeDirection.CALL, 10.0) is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("payout", ["18.00", "0.00"])
 async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws, payout):
     mock_ws.send.return_value = {"proposal": {"id": "new_quote", "ask_price": "10.00", "payout": payout}}

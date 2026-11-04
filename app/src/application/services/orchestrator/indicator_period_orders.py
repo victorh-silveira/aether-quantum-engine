@@ -168,7 +168,7 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
     params = {"duration": period // 60, "duration_unit": "m"}
     async with semaphore:
         quote = await asyncio.wait_for(
-            orch.trade_handler.fetch_proposal_snapshot(symbol, direction, stake, params=params), timeout=4.0
+            orch.trade_handler.fetch_proposal_snapshot(symbol, direction, stake, params=params), timeout=6.0
         )
     if quote is None or not quote.get("proposal_id") or not signal_epoch_current(orch.config, metrics):
         return None
@@ -218,7 +218,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
     tasks = [asyncio.create_task(_prequote(orch, order, semaphore)) for order in candidates]
     period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     window = float(orch.config.get("pullback_strategy", {}).get("entry_window_seconds", 60.0))
-    deadline = max(2.0, min(20.0, window - time.time() % period_seconds))
+    deadline = max(4.0, min(20.0, window - time.time() % period_seconds))
     done, pending = await asyncio.wait(tasks, timeout=deadline)
     for task in pending:
         task.cancel()

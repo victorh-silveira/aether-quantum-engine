@@ -191,3 +191,27 @@ def test_check_and_clear_boundary_cooldown_keeps_cooldown_when_same_boundary(orc
         assert cleared is False
         assert orch._cooldown_until == 1700001000.0
         assert trading_cycle_entry_allowed(orch) is False
+
+
+@pytest.mark.asyncio
+async def test_trading_cycle_updates_m5_boundary_when_setup_active_and_open_window(orch_ready):
+    orch = orch_ready
+    orch._last_epoch = 1700000910
+    orch._last_processed_epoch = 0
+    orch._last_m5_cycle_boundary = 0
+    orch.config["pullback_strategy"] = {"enabled": True, "entry_window_seconds": 60.0}
+    orch.config.setdefault("orchestrator", {})["cycle_interval_seconds"] = 0
+    with (
+        patch(
+            f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+            new_callable=AsyncMock,
+            return_value={},
+        ),
+        patch(f"{TRADING_CYCLE_MODULE}.await_regime_freeze_yield", new_callable=AsyncMock),
+        patch(f"{TRADING_CYCLE_MODULE}.at_m5_open_window", return_value=True),
+        patch(f"{TRADING_CYCLE_MODULE}.m5_boundary_epoch", return_value=1700000900),
+        patch(f"{TRADING_CYCLE_MODULE}.seconds_until_next_signature_boundary", return_value=3.0),
+    ):
+        await run_trading_cycle_if_ready(orch)
+    assert orch._last_m5_cycle_boundary == 1700000900
+    assert orch._last_processed_epoch == 1700000910

@@ -399,6 +399,26 @@ def test_signal_epoch_is_rechecked_before_purchase(monkeypatch):
     assert consensus.signal_epoch_current({}, {})
 
 
+def test_signal_epoch_transition_window_at_candle_boundary(monkeypatch):
+    config = {
+        "indicator_consensus": {"enabled": True},
+        "pullback_strategy": {"enabled": True, "period_seconds": 900, "entry_window_seconds": 60},
+    }
+    metrics = {
+        "indicator_controls_execution": True,
+        "indicator_period_seconds": 900,
+        "indicator_candle_epoch": 0,
+    }
+    monkeypatch.setattr(consensus.time, "time", lambda: 898.0)
+    assert consensus.signal_epoch_current(config, metrics) is True
+
+    monkeypatch.setattr(consensus.time, "time", lambda: 298.0)
+    assert (
+        consensus.signal_epoch_current({"indicator_consensus": {"enabled": True}}, {"indicator_candle_epoch": 0})
+        is True
+    )
+
+
 @pytest.mark.parametrize("period", [300, 900, 3600])
 def test_period_signal_requires_current_closed_candle_and_first_thirty_seconds(monkeypatch, period):
     now = period * 3 + 10

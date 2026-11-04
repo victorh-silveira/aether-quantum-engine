@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Any
 
@@ -18,7 +19,16 @@ async def fetch_proposal_snapshot(
     request = build_proposal_request(symbol, direction, stake, config)
     try:
         response = await handler.ws.send(request, timeout=int(handler.ws.request_timeout))
-        if not isinstance(response, dict) or "error" in response:
+        if not isinstance(response, dict):
+            return None
+        if "error" in response:
+            err = response.get("error", {})
+            logging.getLogger("AETH").debug(
+                "QUOTE: proposta Deriv recusada para %s: %s (code=%s)",
+                symbol,
+                err.get("message", "erro"),
+                err.get("code", "-"),
+            )
             return None
         proposal = response.get("proposal")
         if not isinstance(proposal, dict):

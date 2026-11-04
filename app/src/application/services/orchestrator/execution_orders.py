@@ -245,6 +245,9 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
         contract=contract,
         metrics=metrics,
     )
+    inst = getattr(executor.orch, "business_instrumentor", None)
+    if inst is not None:
+        inst.record_cycle(str(symbol), is_execution=True, reason="setup_confirmado")
     executor.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
     req_timeout = float(
         executor.orch.config.get("orchestrator", {})

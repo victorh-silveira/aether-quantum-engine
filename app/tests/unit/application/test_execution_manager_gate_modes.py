@@ -276,3 +276,22 @@ async def test_run_settlement_watch_schedules_cycle_and_handles_error(orch_confi
                 await orch.executor._run_settlement_watch()
         mock_err.assert_called_once()
         orch.schedule_trading_cycle_after_settlement.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_execution_blockers_records_otel_instrumentor(orch_config):
+    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
+        mock_ws_class.return_value.subscribe = MagicMock()
+        orch = Orchestrator(orch_config, "token")
+        orch._active_cycle_id = 8
+        orch.config["pullback_strategy"] = {"enabled": True, "period_seconds": 900}
+        inst = MagicMock()
+        orch.business_instrumentor = inst
+        with patch(
+            "src.application.services.orchestrator.execution_manager.select_period_orders",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            await orch.executor.execute_cluster({})
+        assert inst.record_cycle.called
+        assert inst.update_confirmed_setups_count.called

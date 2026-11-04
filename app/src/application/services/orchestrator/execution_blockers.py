@@ -134,6 +134,12 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 reasons.append(motivo_map.get(default_status, default_status))
         motivo_str = ", ".join(dict.fromkeys(reasons)) or "sem_ordem"
         confirmed = [sym for sym, reason in m_statuses.items() if reason == "setup_confirmado"]
+        inst = getattr(executor.orch, "business_instrumentor", None)
+        if inst is not None:
+            if hasattr(inst, "update_confirmed_setups_count"):
+                inst.update_confirmed_setups_count(len(confirmed))
+            for s in symbols:
+                inst.record_cycle(s, is_execution=False, reason=statuses.get((s, period_seconds), default_status))
         executor.logger.info(
             "[%s] EXEC_SKIP | %s | leituras=%d setups=%d | MOTIVO: %s",
             cid,

@@ -289,3 +289,10 @@ def test_business_metrics_session_uptime_and_stop_win():
     assert instrumentor2._session_stop_win_time is None
     instrumentor2.update_balance(1055.0)
     assert instrumentor2._session_stop_win_time is not None
+
+
+def test_business_metrics_instrumentor_confirmed_setups_count():
+    instrumentor = BusinessMetricsInstrumentor()
+    instrumentor.update_confirmed_setups_count(3)
+    payload = instrumentor.format_prometheus_metrics()
+    assert "aether_indicator_confirmed_setups_count 3" in payload

@@ -34,6 +34,7 @@ class BusinessMetricsInstrumentor:
         self._indicator_contracts: dict[int, tuple[str, float, float | None, int]] = {}
         self._gate_verdicts: dict[tuple[str, str, str], int] = {}
         self._radar: dict[str, dict[str, float | None]] = {}
+        self._confirmed_setups_count: int = 0
 
         self._meter = None
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:
@@ -70,6 +71,10 @@ class BusinessMetricsInstrumentor:
         """Atualiza contagem instantanea de contratos em aberto no broker."""
         self._active_contracts_count = max(0, int(count))
 
+    def update_confirmed_setups_count(self, count: int) -> None:
+        """Atualiza a contagem instantanea de setups institucionais M15 confirmados."""
+        self._confirmed_setups_count = max(0, int(count))
+
     def update_balance(self, balance_usd: float) -> None:
         """Atualiza a banca operacional e recalcula o drawdown instantaneo."""
         val = float(balance_usd)
@@ -82,19 +87,11 @@ class BusinessMetricsInstrumentor:
         if self._session_target_win > 0.0 and profit >= self._session_target_win:
             self.mark_stop_win()
 
-    def record_cycle(
-        self,
-        symbol: str,
-        *,
-        is_execution: bool,
-        reason: str = "ok",
-        duration_ms: float = 0.0,
-    ) -> None:
+    def record_cycle(self, symbol: str, *, is_execution: bool, reason: str = "ok", duration_ms: float = 0.0) -> None:
         """Registra automaticamente conclusao do ciclo com veredito de gates."""
         _ = duration_ms
         verdict = "EXEC" if is_execution else "SKIP"
-        clean_reason = str(reason).strip() or "ok"
-        key = (str(symbol), verdict, clean_reason)
+        key = (str(symbol), verdict, str(reason).strip() or "ok")
         self._gate_verdicts[key] = self._gate_verdicts.get(key, 0) + 1
 
     def record_inference_radar(
@@ -239,11 +236,14 @@ class BusinessMetricsInstrumentor:
             f"aether_trading_balance_usd {round(self._current_balance, 2)}",
             f"aether_trading_pnl_usd {round(self._total_pnl, 4)}",
             f"aether_trading_max_drawdown_pct {round(self._max_drawdown_pct, 2)}",
+            f"aether_indicator_confirmed_setups_count {self._confirmed_setups_count}",
         ]
         brier = self.compute_rolling_brier_score()
         if brier is not None:
-            lines.append(f"aether_trading_brier_score {round(brier, 4)}")
-            lines.append(f"aether_trading_brier_samples {len(self._recent_outcomes)}")
+            lines += [
+                f"aether_trading_brier_score {round(brier, 4)}",
+                f"aether_trading_brier_samples {len(self._recent_outcomes)}",
+            ]
         if self._session_start_balance > 0.0 and self._session_target_win > 0.0:
             lines += [
                 f"aether_session_balance_usd {round(self._current_balance, 2)}",
@@ -259,16 +259,17 @@ class BusinessMetricsInstrumentor:
                 f"aether_session_start_time_seconds {int(self._session_start_time)}",
                 f"aether_session_stop_win_reached {1 if self._session_stop_win_time is not None else 0}",
             ]
-
         for sym, d in self._radar.items():
-            lines += [
-                f'aether_inference_prob{{symbol="{sym}"}} {round(d["prob"], 4)}',
-                f'aether_inference_directional_margin{{symbol="{sym}"}} {round(d["margin"], 4)}',
-                f'aether_inference_conviction{{symbol="{sym}"}} {round(d["conviction"], 4)}',
-                f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(d["anti_trend_lock"])}',
-                f'aether_trading_direction{{symbol="{sym}"}} {round(d["direction_num"], 1)}',
-                f'aether_trading_stake_usd{{symbol="{sym}"}} {round(d["stake_usd"], 2)}',
-            ]
+            lines.extend(
+                [
+                    f'aether_inference_prob{{symbol="{sym}"}} {round(d["prob"], 4)}',
+                    f'aether_inference_directional_margin{{symbol="{sym}"}} {round(d["margin"], 4)}',
+                    f'aether_inference_conviction{{symbol="{sym}"}} {round(d["conviction"], 4)}',
+                    f'aether_anti_trend_lock_active{{symbol="{sym}"}} {int(d["anti_trend_lock"])}',
+                    f'aether_trading_direction{{symbol="{sym}"}} {round(d["direction_num"], 1)}',
+                    f'aether_trading_stake_usd{{symbol="{sym}"}} {round(d["stake_usd"], 2)}',
+                ]
+            )
             if d["cal"] is not None:
                 lines.append(f'aether_inference_calibrated{{symbol="{sym}"}} {round(d["cal"], 4)}')
             if d["edge"] is not None:
