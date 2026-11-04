@@ -110,7 +110,7 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
         signals = getattr(orch, "_indicator_period_signals", {})
         missing = (
             not any(p == period_seconds for _, p in status)
-            if not target_symbol
+            if not target_symbol or int(orch.config.get("pullback_strategy", {}).get("max_fallback_candidates", 0)) > 0
             else (str(target_symbol), period_seconds) not in signals
         )
         if missing and time.time() % period_seconds < 20:

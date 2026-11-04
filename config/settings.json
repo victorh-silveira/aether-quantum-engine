@@ -12,7 +12,7 @@
     "never_skip": false,
     "allow_closed_markets": false,
     "operate_all_signals": true,
-    "max_fallback_candidates": 0,
+    "max_fallback_candidates": 3,
     "loss_cooldown_candles": 0,
     "consecutive_loss_cooldown_candles": 0,
     "reversal_on_loss": true,
