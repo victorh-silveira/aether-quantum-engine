@@ -364,8 +364,8 @@ def evaluate(
             )
             or (is_high_momentum and (rsi <= 15.0 or pct_b <= -0.05))
         )
-        call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.70
-        put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.70
+        call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
+        put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55
         call_macd_ok = m_hist >= -0.35 * atr
         put_macd_ok = m_hist <= 0.35 * atr
         trend_call = (
@@ -396,10 +396,12 @@ def evaluate(
             confirmation.close < pullback.low or confirmation.close <= pb_mid
         )
         ref_call_ok = reference <= 0 or (
-            confirmation.close >= reference - 0.60 * atr and (upper <= 0 or confirmation.close <= upper + 0.50 * atr)
+            (lower <= 0 or confirmation.close >= lower - 0.20 * atr)
+            and (upper <= 0 or confirmation.close <= upper + 0.60 * atr)
         )
         ref_put_ok = reference <= 0 or (
-            confirmation.close <= reference + 0.60 * atr and (lower <= 0 or confirmation.close >= lower - 0.50 * atr)
+            (upper <= 0 or confirmation.close <= upper + 0.20 * atr)
+            and (lower <= 0 or confirmation.close >= lower - 0.60 * atr)
         )
         call_pullback = (
             trend_call
