@@ -295,7 +295,7 @@ def evaluate(
         bull_fvg, bear_fvg = detect_fvg_mitigation(bars, atr)
         body = abs(confirmation.close - confirmation.open)
         candle_range = max(1e-10, confirmation.high - confirmation.low)
-        bounded = body <= 2.2 * atr and candle_range <= 2.20 * atr
+        bounded = body <= 2.5 * atr and candle_range <= 2.60 * atr
         is_doji = body < 0.025 * atr
         adx, pdi, mdi = _adx(bars, 14)
         _, _, m_hist = _macd(closes, 7, 14, 5)
@@ -375,8 +375,7 @@ def evaluate(
             and not is_doji
             and not call_exhaustion
             and (fast[-1] > slow[-1] or fast[-2] > slow[-2])
-            and fast[-1] >= fast[-3]
-            and slow[-1] >= slow[-3]
+            and slow[-1] >= slow[-4] - 0.05 * atr
             and confirmation.close > slow[-1]
         )
         trend_put = (
@@ -386,8 +385,7 @@ def evaluate(
             and not is_doji
             and not put_exhaustion
             and (fast[-1] < slow[-1] or fast[-2] < slow[-2])
-            and fast[-1] <= fast[-3]
-            and slow[-1] <= slow[-3]
+            and slow[-1] <= slow[-4] + 0.05 * atr
             and confirmation.close < slow[-1]
         )
         pb_mid = (pullback.open + pullback.close) / 2.0
@@ -397,58 +395,50 @@ def evaluate(
         is_classic_bear_pullback = pullback.close > pullback.open and (
             confirmation.close < pullback.low or confirmation.close <= pb_mid
         )
+        ref_call_ok = reference <= 0 or (
+            confirmation.close >= reference - 0.60 * atr and (upper <= 0 or confirmation.close <= upper + 0.50 * atr)
+        )
+        ref_put_ok = reference <= 0 or (
+            confirmation.close <= reference + 0.60 * atr and (lower <= 0 or confirmation.close >= lower - 0.50 * atr)
+        )
         call_pullback = (
             trend_call
-            and abs(pullback.low - fast[-2]) <= 2.5 * atr
+            and abs(pullback.low - fast[-2]) <= 2.6 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.60 * atr
             and bounded
-            and (
-                reference <= 0
-                or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper + 0.35 * atr))
-            )
+            and ref_call_ok
             and bull_fvg
         )
         call_continuation = (
             trend_call
-            and fast[-1] >= fast[-2]
             and not is_classic_bull_pullback
-            and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.50 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
-            and m_hist >= 0.0
+            and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.80 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and m_hist >= -0.20 * atr
             and bounded
-            and (
-                reference <= 0
-                or (confirmation.close >= reference and (upper <= 0 or confirmation.close <= upper + 0.35 * atr))
-            )
+            and ref_call_ok
             and confirmation.close > confirmation.open
         )
         put_pullback = (
             trend_put
-            and abs(pullback.high - fast[-2]) <= 2.5 * atr
+            and abs(pullback.high - fast[-2]) <= 2.6 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.60 * atr
             and bounded
-            and (
-                reference <= 0
-                or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower - 0.35 * atr))
-            )
+            and ref_put_ok
             and bear_fvg
         )
         put_continuation = (
             trend_put
-            and fast[-1] <= fast[-2]
             and not is_classic_bear_pullback
-            and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.50 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.20 * atr
-            and m_hist <= 0.0
+            and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.80 * atr)
+            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and m_hist <= 0.20 * atr
             and bounded
-            and (
-                reference <= 0
-                or (confirmation.close <= reference and (lower <= 0 or confirmation.close >= lower - 0.35 * atr))
-            )
+            and ref_put_ok
             and confirmation.close < confirmation.open
         )
         call = call_pullback or call_continuation

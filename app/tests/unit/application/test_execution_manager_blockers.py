@@ -86,6 +86,10 @@ def test_pullback_empty_cycle_reports_observed_setup_reason():
     executor._trade_symbols = lambda: []
     log_execution_blockers(executor, {})
     assert "sem_ativo_operacional" in str(logger.info.call_args)
+    with patch("src.application.services.orchestrator.execution_blockers.is_otc_exchange_open_brt", return_value=False):
+        executor._trade_symbols = lambda: ["OTC_N225"]
+        log_execution_blockers(executor, {})
+        assert "mercado_fechado_brt" in str(logger.info.call_args)
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):
