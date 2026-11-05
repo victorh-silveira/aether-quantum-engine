@@ -1,3 +1,9 @@
+## [4.34.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.0...v4.34.1) (2026-11-05)
+
+### Correcoes de Bug
+
+* **engine:** harmonizar bandas de sessao e dmi no setup pullback m15 ([acf1617](https://github.com/victorh-silveira/aether-quantum-engine/commit/acf1617a1036db1f6380087441752700e1d6a5f7))
+
 ## [4.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.33.0...v4.34.0) (2026-11-05)
 
 ### Funcionalidades
