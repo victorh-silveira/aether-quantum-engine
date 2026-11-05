@@ -1,3 +1,9 @@
+## [4.39.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.38.0...v4.39.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** estabelecer regime de mercado elastico e rastreador de sessao ([4955641](https://github.com/victorh-silveira/aether-quantum-engine/commit/495564159ae95e8e9c9620263c6b347a2ca24a19))
+
 ## [4.38.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.2...v4.38.0) (2026-11-05)
 
 ### Funcionalidades
