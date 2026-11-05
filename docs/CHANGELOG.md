@@ -1,3 +1,9 @@
+## [4.38.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.2...v4.38.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** implementar telemetria direcional elastica e enriquecer logs ([d23f575](https://github.com/victorh-silveira/aether-quantum-engine/commit/d23f5753502494154561a63c71d7db58fbdc8d21))
+
 ## [4.37.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.1...v4.37.2) (2026-11-05)
 
 ### Correcoes de Bug
