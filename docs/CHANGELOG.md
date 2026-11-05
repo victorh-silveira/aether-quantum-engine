@@ -1,3 +1,9 @@
+## [4.34.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.1...v4.34.2) (2026-11-05)
+
+### Correcoes de Bug
+
+* **orchestrator:** eliminar race condition e sincronizar sinais m15 ([60e4fac](https://github.com/victorh-silveira/aether-quantum-engine/commit/60e4facaae65afb59b7568c9fd73d7f2ce62b521))
+
 ## [4.34.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.0...v4.34.1) (2026-11-05)
 
 ### Correcoes de Bug
