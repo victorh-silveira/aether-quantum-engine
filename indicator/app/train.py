@@ -53,6 +53,9 @@ async def train() -> None:
         if best:
             print("\n" + format_ranking_table(ranked) + "\n")
             print("Diagnostico historico apenas: nenhuma versao foi promovida para REAL pelo treino.\n")
+        out_dir = root / "data"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "pullback_ranking.json").write_text(json.dumps(ranked, indent=2, sort_keys=True), encoding="utf-8")
         print("\n" + format_daily_backtest(result, timestamp, payout_rate) + "\n")
         max_losses_global = max((int(row.get("max_losses_consecutivos", 0)) for row in result.values()), default=0)
         summary = {

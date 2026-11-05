@@ -63,6 +63,11 @@ def is_otc_exchange_open_brt(symbol: str, epoch_ts: float | None = None) -> bool
     return True
 
 
+def session_liquidity_weight(symbol: str, epoch_ts: float | None = None) -> float:
+    """Retorna o peso de liquidez do ativo baseado na sessao de pregao aberta."""
+    return 1.0 if is_otc_exchange_open_brt(symbol, epoch_ts) else 0.2
+
+
 def hedge_peer(symbol: str) -> str | None:
     """Retorna o simbolo par de hedge ou None quando nao ha par configurado."""
     return HEDGE_PEER.get(str(symbol))

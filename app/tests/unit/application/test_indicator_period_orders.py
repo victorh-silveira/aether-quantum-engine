@@ -566,36 +566,34 @@ def test_resolve_telemetry_side_post_loss_reversal():
     orch = SimpleNamespace(_pending_loss_reversals={"OTC_SSMI": {"target_dir": "PUT"}})
     side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {})
     assert side == "PUT"
-    assert reason == "POST_LOSS_REVERSAL"
+    assert reason == "REVERSAL_ON_LOSS"
     assert flipped is True
     assert "OTC_SSMI" not in orch._pending_loss_reversals
 
 
 def test_resolve_telemetry_side_telemetry_bias_and_direct():
     orch = SimpleNamespace()
-    pb_cfg = {
-        "telemetry_inverted_symbols": ["OTC_SSMI"],
-        "telemetry_direct_symbols": ["OTC_FCHI"],
-    }
-    side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", pb_cfg)
+    side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {}, context={"adx": 12.0})
     assert side_inv == "PUT"
     assert r_inv == "LATERAL_FADE_INVERTED"
     assert f_inv is True
 
-    side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", pb_cfg)
+    ctx_trend = {"trend": "ALTA", "adx": 26.0, "spread": 0.02}
+    side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", {}, context=ctx_trend)
     assert side_dir == "CALL"
-    assert r_dir == "TELEMETRY_WIN_DIRECT"
+    assert r_dir == "TREND_ALIGNED_DIRECT"
     assert f_dir is False
 
-    pb_global = {"invert_signal": True, "telemetry_direct_symbols": ["OTC_FCHI"]}
-    side_g, r_g, f_g = orders.resolve_telemetry_side(orch, "OTC_SPC", "PUT", pb_global)
-    assert side_g == "CALL"
-    assert f_g is True
-
-    side_def, r_def, f_def = orders.resolve_telemetry_side(orch, "R_10", "CALL", {})
+    ctx_mod = {"adx": 20.0}
+    side_def, r_def, f_def = orders.resolve_telemetry_side(orch, "R_10", "CALL", {}, context=ctx_mod)
     assert side_def == "CALL"
-    assert r_def == "sinal_base"
+    assert r_def == "BASE_SIGNAL_DIRECT"
     assert f_def is False
+
+    side_g, r_g, f_g = orders.resolve_telemetry_side(orch, "R_10", "CALL", {"invert_signal": True}, context=ctx_mod)
+    assert side_g == "PUT"
+    assert r_g == "CONFIG_INVERT_SIGNAL"
+    assert f_g is True
 
 
 def test_resolve_telemetry_side_elastic_trend_and_exhaustion():

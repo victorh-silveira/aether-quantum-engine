@@ -27,6 +27,7 @@ from src.application.services.orchestrator.post_settlement_cycle import (
     run_post_settlement_breath_and_cycle,
     schedule_trading_cycle_after_settlement,
 )
+from src.application.services.orchestrator.session_pair_tracker import SessionPairTracker
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.trading_cycle_entry_guards import trading_cycle_entry_allowed
@@ -95,6 +96,7 @@ class Orchestrator:
         self._pending_result_logs: list[str] = []
         self._cycle_seq = 0
         self._active_cycle_id = 0
+        self._session_pair_tracker = SessionPairTracker()
         self._contract_cycle: dict[int, int] = {}
         self._last_result_cycle_id, self._last_settlement_outcome = 0, ""
         self._session_wins, self._session_losses = 0, 0

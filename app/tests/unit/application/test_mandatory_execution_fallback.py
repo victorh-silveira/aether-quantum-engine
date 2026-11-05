@@ -72,8 +72,8 @@ def test_resolve_fallback_direction_branches():
     assert direction == TradeDirection.CALL
     assert not flipped
 
-    # Caso 5: Ativo invertido pela telemetria em regime lateral (ex: OTC_HSI)
-    orch.config["pullback_strategy"]["telemetry_inverted_symbols"] = ["OTC_HSI"]
+    # Caso 5: Ativo invertido pela telemetria em regime lateral (ex: OTC_HSI com ADX=14)
+    orch._latest_market_metrics = {"OTC_HSI": {"adx": 14.0}}
     bar_bull = MagicMock(close=100.5, open=100.0)
     orch.data_buffer = {"OTC_HSI": [bar_bull]}
     direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_HSI")
@@ -83,7 +83,6 @@ def test_resolve_fallback_direction_branches():
 
     # Caso 6: Ativo em forte tendencia de baixa (ex: OTC_FTSE com ADX=53.0) -> Proibido inverter
     orch._latest_market_metrics = {"OTC_FTSE": {"trend": "BAIXA", "adx": 53.0, "spread": -43.0}}
-    orch.config["pullback_strategy"]["telemetry_inverted_symbols"] = ["OTC_FTSE"]
     bar_bear = MagicMock(close=99.0, open=100.0)
     orch.data_buffer = {"OTC_FTSE": [bar_bear]}
     direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_FTSE")
@@ -178,3 +177,30 @@ async def test_resolve_mandatory_fallback_order_rotation():
         sym, direction, metrics = res[0]
         assert sym == "OTC_SPC"
         assert metrics["_prequoted_proposal_id"] == "prop_OTC_SPC"
+
+
+def test_candidate_fallback_symbols_elastic_scoring():
+    import time
+
+    from src.application.services.orchestrator.mandatory_execution_fallback import _candidate_fallback_symbols
+
+    orch = MagicMock()
+    orch.symbols = ["OTC_SPC", "OTC_NDX", "OTC_FTSE"]
+    orch._last_traded_symbol = "OTC_SSMI"
+    orch._symbol_loss_quarantine = {"OTC_FTSE": time.time() + 100.0}
+    orch._latest_market_metrics = {
+        "OTC_SPC": {"adx": 30.0, "spread": 0.05},
+        "OTC_NDX": {"adx": 15.0, "spread": 0.0},
+    }
+    trk = MagicMock()
+    trk.symbol_rotation_adjustment.return_value = 0.08
+    orch._session_pair_tracker = trk
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "src.application.services.orchestrator.mandatory_execution_fallback.is_otc_exchange_open_brt",
+            lambda s, ts=None: True,
+        )
+        ranked = _candidate_fallback_symbols(orch)
+        assert ranked[0] == "OTC_SPC"
+        assert ranked[-1] == "OTC_FTSE"

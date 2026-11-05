@@ -66,6 +66,9 @@ async def handle_settlement_loss_quarantine(
     symbol = resolve_loss_symbol(resolved_meta, contract, orch, c_id)
     if not symbol:
         return
+    tracker = getattr(orch, "_session_pair_tracker", None)
+    if tracker is not None and hasattr(tracker, "record_symbol_settlement"):
+        tracker.record_symbol_settlement(symbol, won=(profit >= 0.0), profit=profit)
     consec_map = orch.__dict__.setdefault("_symbol_consecutive_losses", {})
     reversal_map = orch.__dict__.setdefault("_pending_loss_reversals", {})
     pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(orch.config, dict) else {}

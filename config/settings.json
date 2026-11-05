@@ -16,22 +16,7 @@
     "loss_cooldown_candles": 1,
     "consecutive_loss_cooldown_candles": 2,
     "reversal_on_loss": true,
-    "telemetry_inverted_symbols": [
-      "OTC_DJI",
-      "OTC_AEX",
-      "OTC_N225",
-      "OTC_FTSE",
-      "OTC_HSI"
-    ],
-    "telemetry_direct_symbols": [
-      "OTC_GDAXI",
-      "OTC_FCHI",
-      "OTC_NDX",
-      "OTC_SPC",
-      "OTC_SSMI",
-      "OTC_SX5E",
-      "OTC_AS51"
-    ],
+    "elastic_regime_enabled": true,
     "smooth_recovery": true,
     "excluded_symbols": [],
     "promoted_symbol": "OTC_SSMI",

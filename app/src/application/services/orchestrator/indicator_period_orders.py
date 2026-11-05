@@ -17,6 +17,8 @@ from src.application.services.rise_fall_quote_guard import calculate_payout_brea
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
 from src.domain.risk.pullback_stake import pullback_stake
+from src.domain.symbols.drift_symbols import session_liquidity_weight
+from src.domain.trading.elastic_regime import classify_market_regime, evaluate_elastic_direction
 from src.infrastructure.handlers.trade_handler_quote_observation import record_indicator_quote
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 
@@ -34,44 +36,28 @@ def resolve_telemetry_side(
     context: dict | None = None,
 ) -> tuple[str, str, bool]:
     """Resolve direcao orientada por telemetria elastica de regime de mercado."""
-    rev_dict = getattr(orch, "_pending_loss_reversals", None)
-    reversals = rev_dict if isinstance(rev_dict, dict) else {}
-    reversal_info = reversals.get(symbol)
-    if isinstance(reversal_info, dict) and reversal_info.get("target_dir") in ("CALL", "PUT"):
-        reversals.pop(symbol, None)
-        return str(reversal_info["target_dir"]), "POST_LOSS_REVERSAL", True
-
+    _ = pb_cfg
     market_metrics = getattr(orch, "_latest_market_metrics", None)
-    metrics = context or (market_metrics.get(symbol, {}) if isinstance(market_metrics, dict) else {})
-    if not isinstance(metrics, dict):
-        metrics = {}
+    m_dict = market_metrics.get(symbol, {}) if isinstance(market_metrics, dict) else {}
+    metrics = context if isinstance(context, dict) else m_dict
     trend = str(metrics.get("trend") or "").upper()
     adx = float(metrics.get("adx") or 0.0) if isinstance(metrics.get("adx"), (int, float)) else 0.0
     spread = float(metrics.get("spread") or 0.0) if isinstance(metrics.get("spread"), (int, float)) else 0.0
     rsi = float(metrics.get("rsi") or 50.0) if isinstance(metrics.get("rsi"), (int, float)) else 50.0
     recuo = float(metrics.get("recuo") or 0.0) if isinstance(metrics.get("recuo"), (int, float)) else 0.0
 
-    is_down_aligned = trend == "BAIXA" and original_side == "PUT"
-    is_up_aligned = trend == "ALTA" and original_side == "CALL"
-    if (adx >= 22.0 or abs(spread) > 0.01) and (is_down_aligned or is_up_aligned):
-        return original_side, "TREND_ALIGNED_DIRECT", False
-
-    if (original_side == "CALL" and (rsi > 75.0 or recuo > 2.0)) or (
-        original_side == "PUT" and (rsi < 25.0 or recuo > 2.0)
-    ):
-        flipped = "PUT" if original_side == "CALL" else "CALL"
-        return flipped, "ELASTIC_EXHAUSTION_INVERTED", True
-
-    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
-    telemetry_directs = set(pb_cfg.get("telemetry_direct_symbols") or [])
-    invert_global = bool(pb_cfg.get("invert_signal", False))
-    if adx < 20.0 and (symbol in telemetry_inverts or (invert_global and symbol not in telemetry_directs)):
-        flipped = "PUT" if original_side == "CALL" else "CALL"
-        return flipped, "LATERAL_FADE_INVERTED", True
-
-    if symbol in telemetry_directs:
-        return original_side, "TELEMETRY_WIN_DIRECT", False
-    return original_side, "sinal_base", False
+    regime = classify_market_regime(adx, spread, rsi, recuo)
+    rev_dict = getattr(orch, "_pending_loss_reversals", None)
+    reversals = rev_dict if isinstance(rev_dict, dict) else {}
+    has_loss_reversal = symbol in reversals
+    side, reason, is_flipped = evaluate_elastic_direction(
+        original_side, trend, regime, has_loss_reversal=has_loss_reversal
+    )
+    if has_loss_reversal and is_flipped:
+        reversals.pop(symbol, None)
+    if bool(pb_cfg.get("invert_signal", False)) and not is_flipped and reason != "TREND_ALIGNED_DIRECT":
+        return ("PUT" if original_side == "CALL" else "CALL"), "CONFIG_INVERT_SIGNAL", True
+    return side, reason, is_flipped
 
 
 def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
@@ -105,7 +91,6 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     )
     quarantine = getattr(orch, "_symbol_loss_quarantine", {})
     operate_all = bool(pb_cfg.get("operate_all_signals", False))
-    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
@@ -116,12 +101,11 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         ):
             continue
         has_loss_reversal = symbol in getattr(orch, "_pending_loss_reversals", {})
-        is_loss_inversion = has_loss_reversal or symbol in telemetry_inverts
         if (
             period != period_seconds
             or symbol in active_symbols
             or symbol in excluded
-            or (not is_loss_inversion and now_ts < quarantine.get(symbol, 0))
+            or (not has_loss_reversal and now_ts < quarantine.get(symbol, 0))
             or (
                 signal.model_version != pb_cfg.get("version")
                 if pb_enabled
@@ -269,12 +253,21 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
             else 0.0
         )
         pen_climax = -0.08 if t_str > 50.0 else 0.0
+        sess_trk = getattr(orch, "_session_pair_tracker", None)
+        sess_adj = (
+            sess_trk.symbol_rotation_adjustment(symbol)
+            if sess_trk is not None and hasattr(sess_trk, "symbol_rotation_adjustment")
+            else 0.0
+        )
+        liq_w = session_liquidity_weight(symbol, time.time())
         score = (
             float(l95) if l95 is not None else -math.inf,
             float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
             + pen
             + bonus_direct
-            + pen_climax,
+            + pen_climax
+            + sess_adj
+            + (0.05 * liq_w),
             float(ev_val) if ev_val is not None else rt,
             t_str,
             rt,

@@ -8,6 +8,7 @@ from src.domain.symbols.drift_symbols import (
     hedge_peer,
     is_high_side,
     is_otc_exchange_open_brt,
+    session_liquidity_weight,
     sym_is_low_barrier,
     symbol_display_name,
 )
@@ -87,3 +88,11 @@ def test_symbol_display_name():
     assert symbol_display_name("otc_spc") == "US 500"
     assert symbol_display_name("UNKNOWN_SYM") == "UNKNOWN_SYM"
     assert len(SYMBOL_DISPLAY_NAMES) == 12
+
+
+def test_session_liquidity_weight():
+    brt = timezone(timedelta(hours=-3))
+    wed_morning = datetime(2026, 10, 21, 7, 0, tzinfo=brt).timestamp()
+    wed_afternoon = datetime(2026, 10, 21, 15, 0, tzinfo=brt).timestamp()
+    assert session_liquidity_weight("OTC_SSMI", wed_morning) == 1.0
+    assert session_liquidity_weight("OTC_SSMI", wed_afternoon) == 0.2

@@ -15,21 +15,33 @@ logger = logging.getLogger(__name__)
 
 
 def _candidate_fallback_symbols(orch: Any) -> list[str]:
-    """Retorna lista priorizada de ativos elegiveis para execucao mandataria com rotacao."""
-    anchor = DEFAULT_ANCHOR
+    """Retorna lista priorizada de ativos elegiveis para execucao mandataria com rotacao elastica."""
     now_ts = time.time()
-    candidates: list[str] = []
-    if is_otc_exchange_open_brt(anchor, now_ts):
-        candidates.append(anchor)
-    for sym in getattr(orch, "symbols", ()):
-        if sym not in candidates and is_otc_exchange_open_brt(sym, now_ts):
-            candidates.append(sym)
-    if not candidates:
-        candidates.append(anchor)
-        for sym in getattr(orch, "symbols", ()):
-            if sym not in candidates:
-                candidates.append(sym)
-    return candidates
+    raw_syms = getattr(orch, "symbols", ())
+    sym_list = list(raw_syms) if isinstance(raw_syms, (list, tuple)) else []
+    raw_symbols = list(dict.fromkeys([DEFAULT_ANCHOR, *sym_list]))
+    raw_quarantine = getattr(orch, "_symbol_loss_quarantine", None)
+    quarantine = raw_quarantine if isinstance(raw_quarantine, dict) else {}
+    last_traded = str(getattr(orch, "_last_traded_symbol", "") or "")
+    metrics_map = getattr(orch, "_latest_market_metrics", None)
+    session_trk = getattr(orch, "_session_pair_tracker", None)
+
+    def _score_symbol(sym: str) -> float:
+        score = 10.0 if is_otc_exchange_open_brt(sym, now_ts) else 0.0
+        m = metrics_map.get(sym, {}) if isinstance(metrics_map, dict) else {}
+        adx = float(m.get("adx") or 0.0) if isinstance(m.get("adx"), (int, float)) else 0.0
+        spread = float(m.get("spread") or 0.0) if isinstance(m.get("spread"), (int, float)) else 0.0
+        score += 2.0 if adx >= 22.0 else 0.0
+        score += 1.0 if abs(spread) > 0.01 else 0.0
+        if session_trk is not None and hasattr(session_trk, "symbol_rotation_adjustment"):
+            adj = session_trk.symbol_rotation_adjustment(sym)
+            score += float(adj) * 5.0 if isinstance(adj, (int, float)) else 0.0
+        q_ts = quarantine.get(sym, 0.0)
+        score -= 20.0 if isinstance(q_ts, (int, float)) and now_ts < float(q_ts) else 0.0
+        score -= 1.5 if sym == last_traded else 0.0
+        return score
+
+    return sorted(raw_symbols, key=_score_symbol, reverse=True)
 
 
 def _select_fallback_symbol(orch: Any) -> str:
@@ -60,7 +72,8 @@ def _resolve_fallback_direction(orch: Any, symbol: str) -> tuple[TradeDirection,
                 if isinstance(c, (int, float)) and isinstance(o, (int, float)):
                     base_side = "CALL" if c >= o else "PUT"
     pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(getattr(orch, "config", None), dict) else {}
-    context = getattr(orch, "_latest_market_metrics", {}).get(symbol, {})
+    metrics_bag = getattr(orch, "_latest_market_metrics", None)
+    context = metrics_bag.get(symbol, {}) if isinstance(metrics_bag, dict) else {}
     resolved_side, decision_reason, is_flipped = resolve_telemetry_side(orch, symbol, base_side, pb_cfg, context)
     return TradeDirection[resolved_side], decision_reason, is_flipped
 
