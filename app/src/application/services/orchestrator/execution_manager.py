@@ -30,6 +30,7 @@ from .execution_manager_execute import execute_cluster_orders
 from .execution_orders import place_order
 from .execution_settlement import reconcile_contracts, run_settlement_watch, wait_for_settlement
 from .indicator_period_orders import select_period_orders
+from .mandatory_execution_fallback import resolve_mandatory_fallback_order
 
 
 class ExecutionManager:
@@ -167,6 +168,8 @@ class ExecutionManager:
             orders = [] if setup_enabled else self._collect_orders(decisions)
             if setup_enabled or self.orch.config.get("indicator_consensus", {}).get("multi_period_trading", False):
                 orders = await select_period_orders(self.orch, orders)
+            if setup_enabled and not orders:
+                orders = await resolve_mandatory_fallback_order(self.orch)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:
                 bind_log_context(cycle_id=self.orch._active_cycle_id, symbol=orders[0][0])

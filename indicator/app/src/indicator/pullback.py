@@ -327,7 +327,7 @@ def evaluate(
         )
 
         trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 8.0
-        is_high_momentum = trend_strong and adx >= 30.0 and hurst >= 0.50
+        is_high_momentum = trend_strong and adx >= 26.0 and hurst >= 0.50
 
         climax_call = (
             stoch_k >= 90.0 or williams >= -8.0 or (m_hist < 0.0 and confirmation.close > fast[-1] + 1.20 * atr)
@@ -349,7 +349,7 @@ def evaluate(
                     rsi >= 70.0 or stoch_k >= 85.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.48
                 )
             )
-            or (is_high_momentum and (rsi >= 92.0 or pct_b >= 1.15))
+            or (is_high_momentum and (rsi >= 98.0 or pct_b >= 1.25))
         )
         put_exhaustion = has_variance and (
             put_rejection
@@ -362,7 +362,7 @@ def evaluate(
                     rsi <= 30.0 or stoch_k <= 15.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.48
                 )
             )
-            or (is_high_momentum and (rsi <= 8.0 or pct_b <= -0.15))
+            or (is_high_momentum and (rsi <= 2.0 or pct_b <= -0.25))
         )
         call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
         put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55

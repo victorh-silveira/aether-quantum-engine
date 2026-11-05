@@ -148,7 +148,7 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             for s in symbols:
                 inst.record_cycle(s, is_execution=False, reason=sym_statuses.get(s, default_status))
         executor.logger.info(
-            "[%s] EXEC_SKIP | %s | leituras=%d setups=%d | MOTIVO: %s",
+            "[%s] EXEC_BLOCKED_ERROR | %s | leituras=%d setups=%d | MOTIVO: %s",
             cid,
             " ".join(details) or "sem_ativo_operacional",
             len(m_statuses),

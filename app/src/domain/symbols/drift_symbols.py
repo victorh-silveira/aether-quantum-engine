@@ -55,7 +55,7 @@ def is_otc_exchange_open_brt(symbol: str, epoch_ts: float | None = None) -> bool
         return False
     minutes = dt.hour * 60 + dt.minute
     if sym in EUROPEAN_OTC_SYMBOLS:
-        return 180 <= minutes <= 810
+        return 180 <= minutes <= 1020
     if sym in US_OTC_SYMBOLS:
         return 600 <= minutes <= 1080
     if sym in ASIAN_OTC_SYMBOLS:

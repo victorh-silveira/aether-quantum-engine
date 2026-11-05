@@ -70,7 +70,8 @@ def test_is_otc_exchange_open_brt_all_regions():
     assert is_otc_exchange_open_brt("R_25") is True
     assert is_otc_exchange_open_brt("OTC_SSMI", sat_noon) is False
     assert is_otc_exchange_open_brt("OTC_SSMI", wed_morning) is True
-    assert is_otc_exchange_open_brt("OTC_SSMI", wed_afternoon) is False
+    assert is_otc_exchange_open_brt("OTC_SSMI", wed_afternoon) is True
+    assert is_otc_exchange_open_brt("OTC_SSMI", wed_night) is False
     assert is_otc_exchange_open_brt("OTC_SPC", wed_morning) is False
     assert is_otc_exchange_open_brt("OTC_SPC", wed_afternoon) is True
     assert is_otc_exchange_open_brt("OTC_N225", wed_night) is True
