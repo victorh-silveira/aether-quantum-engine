@@ -1,3 +1,9 @@
+## [4.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.35.0...v4.36.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** implementar execucao mandatoria zero skips ([a73a60c](https://github.com/victorh-silveira/aether-quantum-engine/commit/a73a60ca679670795fd1a313e18c31407d0750d7))
+
 ## [4.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.2...v4.35.0) (2026-11-05)
 
 ### Funcionalidades
