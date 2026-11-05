@@ -1,3 +1,9 @@
+## [4.37.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.1...v4.37.2) (2026-11-05)
+
+### Correcoes de Bug
+
+* **orchestrator:** alinhar metricas do fallback ao padrao institucional e adicionar logs ([4c55fd8](https://github.com/victorh-silveira/aether-quantum-engine/commit/4c55fd860b82593048669ba11f819bc61d21cdc2))
+
 ## [4.37.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.0...v4.37.1) (2026-11-05)
 
 ### Correcoes de Bug
