@@ -1,3 +1,9 @@
+## [4.35.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.2...v4.35.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** desestrangular sinais m15 e detalhar telemetria ([5dcc6e5](https://github.com/victorh-silveira/aether-quantum-engine/commit/5dcc6e50731277571bda58dfb8b189a87b854a2e))
+
 ## [4.34.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.34.1...v4.34.2) (2026-11-05)
 
 ### Correcoes de Bug
