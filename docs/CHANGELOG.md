@@ -1,3 +1,9 @@
+## [4.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.6...v4.33.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** desestrangular setup M15 e calibrar tolerancia institucional ([e87057a](https://github.com/victorh-silveira/aether-quantum-engine/commit/e87057a83aa6bd97e9d970e609e1e4848dab88c0))
+
 ## [4.32.6](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.5...v4.32.6) (2026-11-04)
 
 ### Correcoes de Bug
