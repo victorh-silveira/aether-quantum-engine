@@ -1,3 +1,9 @@
+## [4.37.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.37.0...v4.37.1) (2026-11-05)
+
+### Correcoes de Bug
+
+* **orchestrator:** implementar rotacao multiativo no fallback e sincronizar horarios ([2b47d1c](https://github.com/victorh-silveira/aether-quantum-engine/commit/2b47d1cd0c437c12be50caf5af8da4935e2df64b))
+
 ## [4.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.36.0...v4.37.0) (2026-11-05)
 
 ### Funcionalidades
