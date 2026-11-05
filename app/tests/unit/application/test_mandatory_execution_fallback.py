@@ -139,3 +139,30 @@ async def test_resolve_mandatory_fallback_order_success():
     assert metrics["_prequoted_proposal_id"] == "prop_12345"
     assert metrics["organic_decision_reason"].startswith("MANDATORY_")
     assert "direction_telemetry_flipped" in metrics
+
+
+@pytest.mark.asyncio
+async def test_resolve_mandatory_fallback_order_rotation():
+    orch = MagicMock()
+    orch._active_cycle_id = 1
+    orch.symbols = ["OTC_SPC", "OTC_NDX"]
+    orch.config = {"pullback_strategy": {"period_seconds": 900}, "risk_management": {"params": {"stake_min": 1.0}}}
+    orch.state.balance = 1000.0
+
+    async def mock_fetch(sym, direction, stake, params=None):
+        if sym == "OTC_SSMI":
+            return None
+        return {"proposal_id": f"prop_{sym}", "price": 10.0, "payout": 18.0, "rate": 0.80}
+
+    orch.trade_handler.fetch_proposal_snapshot = AsyncMock(side_effect=mock_fetch)
+
+    with pytest.MonkeyPatch.context() as mp:
+        mp.setattr(
+            "src.application.services.orchestrator.mandatory_execution_fallback.is_otc_exchange_open_brt",
+            lambda s, ts=None: True,
+        )
+        res = await resolve_mandatory_fallback_order(orch)
+        assert len(res) == 1
+        sym, direction, metrics = res[0]
+        assert sym == "OTC_SPC"
+        assert metrics["_prequoted_proposal_id"] == "prop_OTC_SPC"

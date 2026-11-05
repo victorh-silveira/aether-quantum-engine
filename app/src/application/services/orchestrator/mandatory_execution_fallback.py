@@ -13,16 +13,28 @@ from src.domain.symbols.drift_symbols import DEFAULT_ANCHOR, is_otc_exchange_ope
 logger = logging.getLogger(__name__)
 
 
-def _select_fallback_symbol(orch: Any) -> str:
-    """Seleciona o ativo prioritario elegivel para execucao mandataria."""
+def _candidate_fallback_symbols(orch: Any) -> list[str]:
+    """Retorna lista priorizada de ativos elegiveis para execucao mandataria com rotacao."""
     anchor = DEFAULT_ANCHOR
     now_ts = time.time()
+    candidates: list[str] = []
     if is_otc_exchange_open_brt(anchor, now_ts):
-        return anchor
+        candidates.append(anchor)
     for sym in getattr(orch, "symbols", ()):
-        if is_otc_exchange_open_brt(sym, now_ts):
-            return sym
-    return anchor
+        if sym not in candidates and is_otc_exchange_open_brt(sym, now_ts):
+            candidates.append(sym)
+    if not candidates:
+        candidates.append(anchor)
+        for sym in getattr(orch, "symbols", ()):
+            if sym not in candidates:
+                candidates.append(sym)
+    return candidates
+
+
+def _select_fallback_symbol(orch: Any) -> str:
+    """Seleciona o ativo prioritario elegivel para execucao mandataria."""
+    candidates = _candidate_fallback_symbols(orch)
+    return candidates[0] if candidates else DEFAULT_ANCHOR
 
 
 def _resolve_fallback_direction(orch: Any, symbol: str) -> tuple[TradeDirection, str, bool]:
@@ -52,10 +64,8 @@ def _resolve_fallback_direction(orch: Any, symbol: str) -> tuple[TradeDirection,
 
 
 async def resolve_mandatory_fallback_order(orch: Any) -> list[tuple[str, TradeDirection, dict]]:
-    """Gera e cota a ordem mandataria no broker quando nao ha setup confirmado."""
+    """Gera e cota a ordem mandataria no broker quando nao ha setup confirmado com rotacao ativa."""
     cid = f"C{int(getattr(orch, '_active_cycle_id', 1)):04d}"
-    symbol = _select_fallback_symbol(orch)
-    direction, decision_reason, is_flipped = _resolve_fallback_direction(orch, symbol)
     period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 900))
     stake_min = float(orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
     balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
@@ -63,40 +73,46 @@ async def resolve_mandatory_fallback_order(orch: Any) -> list[tuple[str, TradeDi
     if stake <= 0.0:
         logger.error("[%s] EXEC_ERROR_BALANCE || Saldo insuficiente para ordem mandataria: $%.2f", cid, balance)
         return []
+    candidates = _candidate_fallback_symbols(orch)
     params = {"duration": period // 60, "duration_unit": "m"}
-    try:
-        quote = await orch.trade_handler.fetch_proposal_snapshot(symbol, direction, stake, params=params)
-    except Exception as exc:
-        logger.error("[%s] EXEC_ERROR_API || Falha na cotacao mandataria no broker: %s", cid, exc)
-        return []
-    if quote is None or not quote.get("proposal_id"):
-        logger.error("[%s] EXEC_ERROR_BROKER || Proposta mandataria recusada pelo broker", cid)
-        return []
-    rate = float(quote.get("rate") or 0.70)
-    metrics = {
-        "indicator_candle_epoch": int(time.time()),
-        "indicator_period_seconds": period,
-        "indicator_model_version": "mandatory_institutional_v1",
-        "indicator_quote_rate": rate,
-        "trade_score": 0.55,
-        "calibrated_prob": 0.55,
-        "organic_decision_reason": f"MANDATORY_{decision_reason}",
-        "direction_telemetry_flipped": is_flipped,
-        "indicator_demo_pilot": True,
-        "_prequoted_proposal_id": str(quote["proposal_id"]),
-        "_prequoted_ask_price": float(quote["price"]),
-        "_prequoted_payout": float(quote["payout"]),
-        "_prequoted_rate": rate,
-        "_prequoted_timestamp": time.time(),
-    }
-    logger.info(
-        "[%s] EXEC_MANDATORY || %s %dm %s stake=$%.2f payout=$%.2f rate=%.1f%%",
-        cid,
-        symbol,
-        period // 60,
-        direction.name,
-        float(quote["price"]),
-        float(quote["payout"]),
-        rate * 100,
-    )
-    return [(symbol, direction, metrics)]
+    for symbol in candidates:
+        direction, decision_reason, is_flipped = _resolve_fallback_direction(orch, symbol)
+        try:
+            quote = await orch.trade_handler.fetch_proposal_snapshot(symbol, direction, stake, params=params)
+        except Exception as exc:
+            logger.warning("[%s] EXEC_ERROR_API || Falha na cotacao mandataria para %s: %s", cid, symbol, exc)
+            continue
+        if quote is None or not quote.get("proposal_id"):
+            logger.warning("[%s] EXEC_MANDATORY_RETRY || Cotacao recusada para %s, rotacionando...", cid, symbol)
+            continue
+        rate = float(quote.get("rate") or 0.70)
+        metrics = {
+            "indicator_candle_epoch": int(time.time()),
+            "indicator_period_seconds": period,
+            "indicator_model_version": "mandatory_institutional_v1",
+            "indicator_quote_rate": rate,
+            "trade_score": 0.55,
+            "calibrated_prob": 0.55,
+            "organic_decision_reason": f"MANDATORY_{decision_reason}",
+            "direction_telemetry_flipped": is_flipped,
+            "indicator_demo_pilot": True,
+            "_prequoted_proposal_id": str(quote["proposal_id"]),
+            "_prequoted_ask_price": float(quote["price"]),
+            "_prequoted_payout": float(quote["payout"]),
+            "_prequoted_rate": rate,
+            "_prequoted_timestamp": time.time(),
+        }
+        logger.info(
+            "[%s] EXEC_MANDATORY || %s %dm %s stake=$%.2f payout=$%.2f rate=%.1f%%",
+            cid,
+            symbol,
+            period // 60,
+            direction.name,
+            float(quote["price"]),
+            float(quote["payout"]),
+            rate * 100,
+        )
+        return [(symbol, direction, metrics)]
+
+    logger.error("[%s] EXEC_ERROR_BROKER || Proposta mandataria recusada para todos os candidatos", cid)
+    return []

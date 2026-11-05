@@ -23,7 +23,7 @@ async def fetch_proposal_snapshot(
             return None
         if "error" in response:
             err = response.get("error", {})
-            logging.getLogger("AETH").debug(
+            logging.getLogger("AETH").warning(
                 "QUOTE: proposta Deriv recusada para %s: %s (code=%s)",
                 symbol,
                 err.get("message", "erro"),
