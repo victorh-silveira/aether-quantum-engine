@@ -138,6 +138,8 @@ async def test_resolve_mandatory_fallback_order_success():
     assert direction in (TradeDirection.CALL, TradeDirection.PUT)
     assert metrics["_prequoted_proposal_id"] == "prop_12345"
     assert metrics["organic_decision_reason"].startswith("MANDATORY_")
+    assert metrics.get("indicator_controls_execution") is True
+    assert metrics.get("direction_origin") == "PULLBACK_SETUP"
     assert "direction_telemetry_flipped" in metrics
 
 

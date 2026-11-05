@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import time
 from typing import Any
@@ -49,11 +50,19 @@ async def execute_cluster_orders(
     """Executa ordens com stake fixa para indicador ou Kelly para TCN."""
     executed_count = 0
     reserved_stake = 0.0
+    cid = f"C{int(getattr(executor.orch, '_active_cycle_id', 1)):04d}"
+    log = getattr(executor, "logger", None) or logging.getLogger(__name__)
     multi_symbol = consensus_enabled(executor.orch.config) and bool(
         executor.orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False)
     )
     for i, (symbol, direction, metrics) in enumerate(orders):
         if not signal_epoch_current(executor.orch.config, metrics):
+            log.warning(
+                "[%s] EXEC_BLOCKED_EPOCH || Sinal expirado ou fora da janela para %s (epoch=%s)",
+                cid,
+                symbol,
+                metrics.get("indicator_candle_epoch"),
+            )
             continue
         order_n = i + 1
         conviction = resolve_stake_conviction(metrics, executor.orch.risk_manager.kelly_config)
@@ -154,6 +163,7 @@ async def execute_cluster_orders(
             if stake + 1e-9 < stake_min:
                 continue
         if stake <= 0:
+            log.warning("[%s] EXEC_BLOCKED_STAKE || Stake invalida para %s: $%.2f", cid, symbol, stake)
             continue
 
         if i > 0:
@@ -207,8 +217,7 @@ async def execute_cluster_orders(
                 if setup:
                     modes = getattr(executor.orch, "_pullback_contract_modes", None)
                     if not isinstance(modes, dict):
-                        modes = {}
-                        executor.orch._pullback_contract_modes = modes
+                        executor.orch._pullback_contract_modes = modes = {}
                     modes[int(res.contract_id)] = metrics["indicator_stake_mode"]
                 executed_stake = float(getattr(res, "buy_price", 0.0) or stake)
                 reserved_stake += executed_stake
@@ -275,11 +284,8 @@ async def execute_cluster_orders(
             else:
                 executor.logger.warning("EXEC_FAIL: falha na ordem para %s (%s): %s", symbol, direction.name, e)
                 if is_proposal_runtime_error(e):
-                    hold = int(
-                        executor.orch.config.get("orchestrator", {})
-                        .get("execution", {})
-                        .get("proposal_failure_skip_cycles", 1)
-                    )
+                    exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
+                    hold = int(exec_cfg.get("proposal_failure_skip_cycles", 1))
                     executor.orch.risk_manager.register_proposal_failure(symbol, cycles=hold)
         finally:
             if not registered_contract:

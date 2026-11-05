@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+from src.application.services.orchestrator.indicator_period_filters import build_indicator_metrics
 from src.application.services.orchestrator.indicator_period_orders import resolve_telemetry_side
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.pullback_stake import pullback_stake
@@ -85,23 +86,32 @@ async def resolve_mandatory_fallback_order(orch: Any) -> list[tuple[str, TradeDi
         if quote is None or not quote.get("proposal_id"):
             logger.warning("[%s] EXEC_MANDATORY_RETRY || Cotacao recusada para %s, rotacionando...", cid, symbol)
             continue
+        now_ts = time.time()
+        candle_epoch = int(now_ts // period) * period - period
+        version = str(orch.config.get("pullback_strategy", {}).get("version", "senior_institutional"))
         rate = float(quote.get("rate") or 0.70)
-        metrics = {
-            "indicator_candle_epoch": int(time.time()),
-            "indicator_period_seconds": period,
-            "indicator_model_version": "mandatory_institutional_v1",
-            "indicator_quote_rate": rate,
-            "trade_score": 0.55,
-            "calibrated_prob": 0.55,
-            "organic_decision_reason": f"MANDATORY_{decision_reason}",
-            "direction_telemetry_flipped": is_flipped,
-            "indicator_demo_pilot": True,
-            "_prequoted_proposal_id": str(quote["proposal_id"]),
-            "_prequoted_ask_price": float(quote["price"]),
-            "_prequoted_payout": float(quote["payout"]),
-            "_prequoted_rate": rate,
-            "_prequoted_timestamp": time.time(),
-        }
+        metrics = build_indicator_metrics(
+            candle_epoch,
+            period,
+            version,
+            direction.name,
+            direction.name,
+            f"MANDATORY_{decision_reason}",
+            pilot=True,
+            ev=None,
+            prob=0.55,
+        )
+        metrics.update(
+            {
+                "direction_telemetry_flipped": is_flipped,
+                "indicator_quote_rate": rate,
+                "_prequoted_proposal_id": str(quote["proposal_id"]),
+                "_prequoted_ask_price": float(quote["price"]),
+                "_prequoted_payout": float(quote["payout"]),
+                "_prequoted_rate": rate,
+                "_prequoted_timestamp": now_ts,
+            }
+        )
         logger.info(
             "[%s] EXEC_MANDATORY || %s %dm %s stake=$%.2f payout=$%.2f rate=%.1f%%",
             cid,
