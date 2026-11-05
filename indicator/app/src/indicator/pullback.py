@@ -308,8 +308,8 @@ def evaluate(
 
         upper_wick = confirmation.high - max(confirmation.open, confirmation.close)
         lower_wick = min(confirmation.open, confirmation.close) - confirmation.low
-        call_rejection = upper_wick >= 0.45 * candle_range and upper_wick >= 0.35 * atr and upper_wick >= 1.0 * body
-        put_rejection = lower_wick >= 0.45 * candle_range and lower_wick >= 0.35 * atr and lower_wick >= 1.0 * body
+        call_rejection = upper_wick >= 0.50 * candle_range and upper_wick >= 0.40 * atr and upper_wick >= 1.1 * body
+        put_rejection = lower_wick >= 0.50 * candle_range and lower_wick >= 0.40 * atr and lower_wick >= 1.1 * body
 
         has_variance = len(set(closes[-16:-2])) > 2 if len(closes) >= 18 else False
 
@@ -349,7 +349,7 @@ def evaluate(
                     rsi >= 70.0 or stoch_k >= 85.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.48
                 )
             )
-            or (is_high_momentum and (rsi >= 85.0 or pct_b >= 1.05))
+            or (is_high_momentum and (rsi >= 92.0 or pct_b >= 1.15))
         )
         put_exhaustion = has_variance and (
             put_rejection
@@ -362,19 +362,29 @@ def evaluate(
                     rsi <= 30.0 or stoch_k <= 15.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.48
                 )
             )
-            or (is_high_momentum and (rsi <= 15.0 or pct_b <= -0.05))
+            or (is_high_momentum and (rsi <= 8.0 or pct_b <= -0.15))
         )
         call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
         put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55
         call_macd_ok = m_hist >= -0.35 * atr
         put_macd_ok = m_hist <= 0.35 * atr
+        fast_bear_cross = (
+            fast[-1] < slow[-1]
+            or fast[-2] < slow[-2]
+            or (confirmation.close < fast[-1] and fast[-1] < fast[-2] and mdi > pdi)
+        )
+        fast_bull_cross = (
+            fast[-1] > slow[-1]
+            or fast[-2] > slow[-2]
+            or (confirmation.close > fast[-1] and fast[-1] > fast[-2] and pdi > mdi)
+        )
         trend_call = (
             trend_strong
             and call_dmi_ok
             and call_macd_ok
             and not is_doji
             and not call_exhaustion
-            and (fast[-1] > slow[-1] or fast[-2] > slow[-2])
+            and fast_bull_cross
             and slow[-1] >= slow[-4] - 0.05 * atr
             and confirmation.close > slow[-1]
         )
@@ -384,7 +394,7 @@ def evaluate(
             and put_macd_ok
             and not is_doji
             and not put_exhaustion
-            and (fast[-1] < slow[-1] or fast[-2] < slow[-2])
+            and fast_bear_cross
             and slow[-1] <= slow[-4] + 0.05 * atr
             and confirmation.close < slow[-1]
         )
@@ -403,12 +413,14 @@ def evaluate(
             (upper <= 0 or confirmation.close <= upper + 0.50 * atr)
             and (lower <= 0 or confirmation.close >= lower - 1.20 * atr)
         )
+        max_dist_fast = 4.50 * atr if is_high_momentum else 2.00 * atr
+        max_pb_dist = 4.50 * atr if is_high_momentum else 2.60 * atr
         call_pullback = (
             trend_call
-            and abs(pullback.low - fast[-2]) <= 2.6 * atr
+            and abs(pullback.low - fast[-2]) <= max_pb_dist
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.00 * atr
+            and abs(confirmation.close - fast[-1]) <= max_dist_fast
             and bounded
             and ref_call_ok
             and bull_fvg
@@ -416,8 +428,8 @@ def evaluate(
         call_continuation = (
             trend_call
             and not is_classic_bull_pullback
-            and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.80 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.80 * atr
+            and (bull_fvg or abs(pullback.low - fast[-2]) <= max_pb_dist)
+            and abs(confirmation.close - fast[-1]) <= max_dist_fast
             and m_hist >= -0.20 * atr
             and bounded
             and ref_call_ok
@@ -425,10 +437,10 @@ def evaluate(
         )
         put_pullback = (
             trend_put
-            and abs(pullback.high - fast[-2]) <= 2.6 * atr
+            and abs(pullback.high - fast[-2]) <= max_pb_dist
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 2.00 * atr
+            and abs(confirmation.close - fast[-1]) <= max_dist_fast
             and bounded
             and ref_put_ok
             and bear_fvg
@@ -436,8 +448,8 @@ def evaluate(
         put_continuation = (
             trend_put
             and not is_classic_bear_pullback
-            and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.80 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.80 * atr
+            and (bear_fvg or abs(pullback.high - fast[-2]) <= max_pb_dist)
+            and abs(confirmation.close - fast[-1]) <= max_dist_fast
             and m_hist <= 0.20 * atr
             and bounded
             and ref_put_ok
@@ -446,7 +458,22 @@ def evaluate(
         call = call_pullback or call_continuation
         put = put_pullback or put_continuation
         side = "CALL" if call else "PUT" if put else "SEM SINAL"
-        reason = "setup_confirmado" if side != "SEM SINAL" else "padrao_incompleto"
+        if side != "SEM SINAL":
+            reason = "setup_confirmado"
+        elif call_rejection or put_rejection:
+            reason = "rejeicao_pavio_contrario"
+        elif call_exhaustion or put_exhaustion:
+            reason = "climax_exaustao"
+        elif abs(confirmation.close - fast[-1]) > max_dist_fast:
+            reason = "afastado_da_media"
+        elif not trend_call and not trend_put:
+            reason = "sem_tendencia_alinhada"
+        elif (trend_call and confirmation.close <= confirmation.open) or (
+            trend_put and confirmation.close >= confirmation.open
+        ):
+            reason = "vela_contraria"
+        else:
+            reason = "padrao_incompleto"
         return SetupResult(side, reason, version=version)
     body = abs(confirmation.close - confirmation.open)
     max_body = 2.5 * atr
