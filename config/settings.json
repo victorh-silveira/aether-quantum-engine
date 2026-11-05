@@ -17,21 +17,20 @@
     "consecutive_loss_cooldown_candles": 2,
     "reversal_on_loss": true,
     "telemetry_inverted_symbols": [
-      "OTC_SSMI",
-      "OTC_GDAXI",
-      "R_50",
-      "1HZ100V",
-      "1HZ75V",
-      "OTC_SPC",
       "OTC_DJI",
+      "OTC_AEX",
       "OTC_N225",
-      "OTC_FTSE"
+      "OTC_FTSE",
+      "OTC_HSI"
     ],
     "telemetry_direct_symbols": [
-      "1HZ50V",
+      "OTC_GDAXI",
       "OTC_FCHI",
+      "OTC_NDX",
+      "OTC_SPC",
+      "OTC_SSMI",
       "OTC_SX5E",
-      "OTC_AEX"
+      "OTC_AS51"
     ],
     "smooth_recovery": true,
     "excluded_symbols": [],

@@ -4,6 +4,7 @@ import logging
 import time
 from typing import Any
 
+from src.application.services.orchestrator.indicator_period_orders import resolve_telemetry_side
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.pullback_stake import pullback_stake
 from src.domain.symbols.drift_symbols import DEFAULT_ANCHOR, is_otc_exchange_open_brt
@@ -24,33 +25,37 @@ def _select_fallback_symbol(orch: Any) -> str:
     return anchor
 
 
-def _resolve_fallback_direction(orch: Any, symbol: str) -> TradeDirection:
-    """Determina a direcao direcional mandataria por sinal ou buffer OHLC."""
+def _resolve_fallback_direction(orch: Any, symbol: str) -> tuple[TradeDirection, str, bool]:
+    """Determina a direcao direcional mandataria por sinal ou buffer OHLC aplicando telemetria."""
     period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 900))
     sig = (
         getattr(orch, "_indicator_period_signals", {}).get((symbol, period))
         if isinstance(getattr(orch, "_indicator_period_signals", None), dict)
         else None
     )
+    base_side = "CALL"
     if sig is not None and getattr(sig, "side", "") in ("CALL", "PUT"):
-        return TradeDirection[sig.side]
-    buf_dict = getattr(orch, "data_buffer", None)
-    if isinstance(buf_dict, dict):
-        buf = buf_dict.get(symbol)
-        if isinstance(buf, (list, tuple)) and buf:
-            latest = buf[-1]
-            c = getattr(latest, "close", None)
-            o = getattr(latest, "open", None)
-            if isinstance(c, (int, float)) and isinstance(o, (int, float)):
-                return TradeDirection.CALL if c >= o else TradeDirection.PUT
-    return TradeDirection.CALL
+        base_side = sig.side
+    else:
+        buf_dict = getattr(orch, "data_buffer", None)
+        if isinstance(buf_dict, dict):
+            buf = buf_dict.get(symbol)
+            if isinstance(buf, (list, tuple)) and buf:
+                latest = buf[-1]
+                c = getattr(latest, "close", None)
+                o = getattr(latest, "open", None)
+                if isinstance(c, (int, float)) and isinstance(o, (int, float)):
+                    base_side = "CALL" if c >= o else "PUT"
+    pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(getattr(orch, "config", None), dict) else {}
+    resolved_side, decision_reason, is_flipped = resolve_telemetry_side(orch, symbol, base_side, pb_cfg)
+    return TradeDirection[resolved_side], decision_reason, is_flipped
 
 
 async def resolve_mandatory_fallback_order(orch: Any) -> list[tuple[str, TradeDirection, dict]]:
     """Gera e cota a ordem mandataria no broker quando nao ha setup confirmado."""
     cid = f"C{int(getattr(orch, '_active_cycle_id', 1)):04d}"
     symbol = _select_fallback_symbol(orch)
-    direction = _resolve_fallback_direction(orch, symbol)
+    direction, decision_reason, is_flipped = _resolve_fallback_direction(orch, symbol)
     period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 900))
     stake_min = float(orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
     balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
@@ -75,7 +80,8 @@ async def resolve_mandatory_fallback_order(orch: Any) -> list[tuple[str, TradeDi
         "indicator_quote_rate": rate,
         "trade_score": 0.55,
         "calibrated_prob": 0.55,
-        "organic_decision_reason": "MANDATORY_TREND_EXECUTION",
+        "organic_decision_reason": f"MANDATORY_{decision_reason}",
+        "direction_telemetry_flipped": is_flipped,
         "indicator_demo_pilot": True,
         "_prequoted_proposal_id": str(quote["proposal_id"]),
         "_prequoted_ask_price": float(quote["price"]),

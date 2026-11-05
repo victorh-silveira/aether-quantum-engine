@@ -47,22 +47,39 @@ def test_resolve_fallback_direction_branches():
     sig = MagicMock()
     sig.side = "PUT"
     orch._indicator_period_signals = {("OTC_SSMI", 900): sig}
-    assert _resolve_fallback_direction(orch, "OTC_SSMI") == TradeDirection.PUT
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_SSMI")
+    assert direction == TradeDirection.PUT
+    assert not flipped
 
     # Caso 2: Sem sinal, buffer com close >= open (CALL)
     orch._indicator_period_signals = {}
     bar_bull = MagicMock(close=100.5, open=100.0)
     orch.data_buffer = {"OTC_SSMI": [bar_bull]}
-    assert _resolve_fallback_direction(orch, "OTC_SSMI") == TradeDirection.CALL
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_SSMI")
+    assert direction == TradeDirection.CALL
+    assert not flipped
 
     # Caso 3: Sem sinal, buffer com close < open (PUT)
     bar_bear = MagicMock(close=99.5, open=100.0)
     orch.data_buffer = {"OTC_SSMI": [bar_bear]}
-    assert _resolve_fallback_direction(orch, "OTC_SSMI") == TradeDirection.PUT
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_SSMI")
+    assert direction == TradeDirection.PUT
+    assert not flipped
 
     # Caso 4: Sem buffer
     orch.data_buffer = {}
-    assert _resolve_fallback_direction(orch, "OTC_SSMI") == TradeDirection.CALL
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_SSMI")
+    assert direction == TradeDirection.CALL
+    assert not flipped
+
+    # Caso 5: Ativo invertido pela telemetria (ex: OTC_HSI)
+    orch.config["pullback_strategy"]["telemetry_inverted_symbols"] = ["OTC_HSI"]
+    bar_bull = MagicMock(close=100.5, open=100.0)
+    orch.data_buffer = {"OTC_HSI": [bar_bull]}
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_HSI")
+    assert direction == TradeDirection.PUT
+    assert flipped
+    assert reason == "TELEMETRY_INVERTED_BIAS"
 
 
 @pytest.mark.asyncio
@@ -120,4 +137,5 @@ async def test_resolve_mandatory_fallback_order_success():
     assert sym == "OTC_SSMI"
     assert direction in (TradeDirection.CALL, TradeDirection.PUT)
     assert metrics["_prequoted_proposal_id"] == "prop_12345"
-    assert metrics["organic_decision_reason"] == "MANDATORY_TREND_EXECUTION"
+    assert metrics["organic_decision_reason"].startswith("MANDATORY_")
+    assert "direction_telemetry_flipped" in metrics
