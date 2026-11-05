@@ -326,7 +326,7 @@ def evaluate(
             and bars[-1].close < bars[-1].open
         )
 
-        trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
+        trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 8.0
         is_high_momentum = trend_strong and adx >= 30.0 and hurst >= 0.50
 
         climax_call = (
@@ -364,8 +364,8 @@ def evaluate(
             )
             or (is_high_momentum and (rsi <= 15.0 or pct_b <= -0.05))
         )
-        call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.90
-        put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.90
+        call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.70
+        put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.70
         call_macd_ok = m_hist >= -0.35 * atr
         put_macd_ok = m_hist <= 0.35 * atr
         trend_call = (
