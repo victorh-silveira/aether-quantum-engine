@@ -1,3 +1,9 @@
+## [4.34.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.33.0...v4.34.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** calibrar piso adx e tolerancia dmi no setup m15 ([64de7f8](https://github.com/victorh-silveira/aether-quantum-engine/commit/64de7f8ab6745f9697a2d1b076535aa7f323760b))
+
 ## [4.33.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.32.6...v4.33.0) (2026-11-05)
 
 ### Funcionalidades
