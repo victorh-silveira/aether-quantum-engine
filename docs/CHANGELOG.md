@@ -1,3 +1,9 @@
+## [4.37.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.36.0...v4.37.0) (2026-11-05)
+
+### Funcionalidades
+
+* **orchestrator:** recalibrar matriz direcional por telemetria e evidencias m15 ([a02ea16](https://github.com/victorh-silveira/aether-quantum-engine/commit/a02ea164d1d399dee383998773911b7b54d87062))
+
 ## [4.36.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.35.0...v4.36.0) (2026-11-05)
 
 ### Funcionalidades
