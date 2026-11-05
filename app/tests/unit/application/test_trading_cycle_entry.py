@@ -27,10 +27,19 @@ async def test_pullback_aguarda_publicacao_m5_antes_de_exec_empty():
         _indicator_signal_status={},
         executor=SimpleNamespace(execute_cluster=AsyncMock(return_value=0)),
     )
+
+    call_idx = 0
+
+    async def _mock_refresh(o):
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx > 1:
+            o._indicator_signal_status = {("R_25", 300): "ok"}
+
     with (
         patch(
             "src.application.services.orchestrator.trading_cycle_entry.refresh_indicator_consensus",
-            new_callable=AsyncMock,
+            side_effect=_mock_refresh,
         ) as refresh,
         patch(
             "src.application.services.orchestrator.trading_cycle_entry.asyncio.sleep", new_callable=AsyncMock
@@ -42,8 +51,8 @@ async def test_pullback_aguarda_publicacao_m5_antes_de_exec_empty():
         ),
     ):
         assert await _execute_inference_cluster_cycle(orch) is False
-    assert refresh.await_count == 2
-    wait.assert_awaited_once_with(4)
+    assert refresh.call_count == 2
+    wait.assert_awaited_once_with(1.0)
 
 
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):

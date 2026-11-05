@@ -396,19 +396,19 @@ def evaluate(
             confirmation.close < pullback.low or confirmation.close <= pb_mid
         )
         ref_call_ok = reference <= 0 or (
-            (lower <= 0 or confirmation.close >= lower - 0.20 * atr)
-            and (upper <= 0 or confirmation.close <= upper + 0.60 * atr)
+            (lower <= 0 or confirmation.close >= lower - 0.50 * atr)
+            and (upper <= 0 or confirmation.close <= upper + 1.20 * atr)
         )
         ref_put_ok = reference <= 0 or (
-            (upper <= 0 or confirmation.close <= upper + 0.20 * atr)
-            and (lower <= 0 or confirmation.close >= lower - 0.60 * atr)
+            (upper <= 0 or confirmation.close <= upper + 0.50 * atr)
+            and (lower <= 0 or confirmation.close >= lower - 1.20 * atr)
         )
         call_pullback = (
             trend_call
             and abs(pullback.low - fast[-2]) <= 2.6 * atr
             and is_classic_bull_pullback
             and confirmation.close > confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.60 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.00 * atr
             and bounded
             and ref_call_ok
             and bull_fvg
@@ -417,7 +417,7 @@ def evaluate(
             trend_call
             and not is_classic_bull_pullback
             and (bull_fvg or abs(pullback.low - fast[-2]) <= 1.80 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.80 * atr
             and m_hist >= -0.20 * atr
             and bounded
             and ref_call_ok
@@ -428,7 +428,7 @@ def evaluate(
             and abs(pullback.high - fast[-2]) <= 2.6 * atr
             and is_classic_bear_pullback
             and confirmation.close < confirmation.open
-            and abs(confirmation.close - fast[-1]) <= 1.60 * atr
+            and abs(confirmation.close - fast[-1]) <= 2.00 * atr
             and bounded
             and ref_put_ok
             and bear_fvg
@@ -437,7 +437,7 @@ def evaluate(
             trend_put
             and not is_classic_bear_pullback
             and (bear_fvg or abs(pullback.high - fast[-2]) <= 1.80 * atr)
-            and abs(confirmation.close - fast[-1]) <= 1.50 * atr
+            and abs(confirmation.close - fast[-1]) <= 1.80 * atr
             and m_hist <= 0.20 * atr
             and bounded
             and ref_put_ok

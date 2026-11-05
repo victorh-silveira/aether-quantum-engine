@@ -52,15 +52,24 @@ class PullbackService:
             await self.sink.promote_setups()
         except Exception as exc:
             logger.warning("PROMOTE_SETUPS falhou: %s", exc)
-        tasks = []
-        for symbol in self.symbols:
+        ordered_symbols = sorted(self.symbols, key=lambda s: 0 if s == "OTC_SSMI" else 1)
+        tasks_m15 = []
+        tasks_macro = []
+        for symbol in ordered_symbols:
             for period in PERIODS:
                 key = (symbol, period)
                 expected = now // period * period - period
                 if self.last_epoch.get(key) == expected:
                     continue
-                tasks.append(self._observe(symbol, period, now))
-        await asyncio.gather(*tasks, return_exceptions=True)
+                task = self._observe(symbol, period, now)
+                if period == 900:
+                    tasks_m15.append(task)
+                else:
+                    tasks_macro.append(task)
+        if tasks_m15:
+            await asyncio.gather(*tasks_m15, return_exceptions=True)
+        if tasks_macro:
+            await asyncio.gather(*tasks_macro, return_exceptions=True)
 
     async def _observe(self, symbol: str, period: int, now: int) -> None:
         """Isola erro de um periodo sem atrasar os demais ativos."""

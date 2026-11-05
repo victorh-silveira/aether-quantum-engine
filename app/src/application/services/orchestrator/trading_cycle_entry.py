@@ -105,15 +105,16 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     if setup_enabled:
         period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
         target_symbol = orch.config.get("pullback_strategy", {}).get("promoted_symbol") or orch.config.get("anchor")
-        status = getattr(orch, "_indicator_signal_status", {})
-        signals = getattr(orch, "_indicator_period_signals", {})
-        missing = (
-            not any(p == period_seconds for _, p in status)
-            if not target_symbol or int(orch.config.get("pullback_strategy", {}).get("max_fallback_candidates", 0)) > 0
-            else (str(target_symbol), period_seconds) not in signals
-        )
-        if missing and time.time() % period_seconds < 20:
-            await asyncio.sleep(4)
+        for _ in range(12):
+            status = getattr(orch, "_indicator_signal_status", {})
+            ready = (
+                (str(target_symbol), period_seconds) in status
+                if target_symbol
+                else any(p == period_seconds for _, p in status)
+            )
+            if ready or time.time() % period_seconds >= 20:
+                break
+            await asyncio.sleep(1.0)
             await refresh_indicator_consensus(orch)
     _log_cycle_indicators(orch)
     if (
