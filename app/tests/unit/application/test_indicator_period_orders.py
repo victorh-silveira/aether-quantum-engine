@@ -579,7 +579,7 @@ def test_resolve_telemetry_side_telemetry_bias_and_direct():
     }
     side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", pb_cfg)
     assert side_inv == "PUT"
-    assert r_inv == "TELEMETRY_INVERTED_BIAS"
+    assert r_inv == "LATERAL_FADE_INVERTED"
     assert f_inv is True
 
     side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", pb_cfg)
@@ -596,6 +596,39 @@ def test_resolve_telemetry_side_telemetry_bias_and_direct():
     assert side_def == "CALL"
     assert r_def == "sinal_base"
     assert f_def is False
+
+
+def test_resolve_telemetry_side_elastic_trend_and_exhaustion():
+    orch = SimpleNamespace()
+    pb_cfg = {"telemetry_inverted_symbols": ["OTC_FTSE"]}
+
+    # Hard trend gate: FTSE em forte baixa com sinal PUT -> nao inverte
+    ctx_ftse = {"trend": "BAIXA", "adx": 53.0, "spread": -43.0}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_FTSE", "PUT", pb_cfg, context=ctx_ftse)
+    assert side == "PUT"
+    assert reason == "TREND_ALIGNED_DIRECT"
+    assert flipped is False
+
+    # Hard trend gate: NDX em forte alta com sinal CALL -> nao inverte
+    ctx_ndx = {"trend": "ALTA", "adx": 40.0, "spread": 25.0}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_NDX", "CALL", pb_cfg, context=ctx_ndx)
+    assert side == "CALL"
+    assert reason == "TREND_ALIGNED_DIRECT"
+    assert flipped is False
+
+    # Exaustao extrema de momentum: RSI sobrecomprado (>75) em CALL -> inverte
+    ctx_exh = {"rsi": 82.0, "recuo": 1.0}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "CALL", {}, context=ctx_exh)
+    assert side == "PUT"
+    assert reason == "ELASTIC_EXHAUSTION_INVERTED"
+    assert flipped is True
+
+    # Exaustao extrema de momentum: recuo esticado (>2.0 ATR) em PUT -> inverte
+    ctx_rec = {"rsi": 40.0, "recuo": 2.6}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "PUT", {}, context=ctx_rec)
+    assert side == "CALL"
+    assert reason == "ELASTIC_EXHAUSTION_INVERTED"
+    assert flipped is True
 
 
 def test_period_candidates_loss_reversal_bypasses_quarantine(monkeypatch):

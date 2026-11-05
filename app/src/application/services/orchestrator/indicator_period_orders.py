@@ -31,19 +31,44 @@ def resolve_telemetry_side(
     symbol: str,
     original_side: str,
     pb_cfg: dict,
+    context: dict | None = None,
 ) -> tuple[str, str, bool]:
-    """Resolve direcao orientada por telemetria de WINS e inversao de LOSSES."""
-    reversals = getattr(orch, "_pending_loss_reversals", {})
+    """Resolve direcao orientada por telemetria elastica de regime de mercado."""
+    rev_dict = getattr(orch, "_pending_loss_reversals", None)
+    reversals = rev_dict if isinstance(rev_dict, dict) else {}
     reversal_info = reversals.get(symbol)
-    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
-    telemetry_directs = set(pb_cfg.get("telemetry_direct_symbols") or [])
-    invert_global = bool(pb_cfg.get("invert_signal", False))
     if isinstance(reversal_info, dict) and reversal_info.get("target_dir") in ("CALL", "PUT"):
         reversals.pop(symbol, None)
         return str(reversal_info["target_dir"]), "POST_LOSS_REVERSAL", True
-    if symbol in telemetry_inverts or (invert_global and symbol not in telemetry_directs):
+
+    market_metrics = getattr(orch, "_latest_market_metrics", None)
+    metrics = context or (market_metrics.get(symbol, {}) if isinstance(market_metrics, dict) else {})
+    if not isinstance(metrics, dict):
+        metrics = {}
+    trend = str(metrics.get("trend") or "").upper()
+    adx = float(metrics.get("adx") or 0.0) if isinstance(metrics.get("adx"), (int, float)) else 0.0
+    spread = float(metrics.get("spread") or 0.0) if isinstance(metrics.get("spread"), (int, float)) else 0.0
+    rsi = float(metrics.get("rsi") or 50.0) if isinstance(metrics.get("rsi"), (int, float)) else 50.0
+    recuo = float(metrics.get("recuo") or 0.0) if isinstance(metrics.get("recuo"), (int, float)) else 0.0
+
+    is_down_aligned = trend == "BAIXA" and original_side == "PUT"
+    is_up_aligned = trend == "ALTA" and original_side == "CALL"
+    if (adx >= 22.0 or abs(spread) > 0.01) and (is_down_aligned or is_up_aligned):
+        return original_side, "TREND_ALIGNED_DIRECT", False
+
+    if (original_side == "CALL" and (rsi > 75.0 or recuo > 2.0)) or (
+        original_side == "PUT" and (rsi < 25.0 or recuo > 2.0)
+    ):
         flipped = "PUT" if original_side == "CALL" else "CALL"
-        return flipped, "TELEMETRY_INVERTED_BIAS", True
+        return flipped, "ELASTIC_EXHAUSTION_INVERTED", True
+
+    telemetry_inverts = set(pb_cfg.get("telemetry_inverted_symbols") or [])
+    telemetry_directs = set(pb_cfg.get("telemetry_direct_symbols") or [])
+    invert_global = bool(pb_cfg.get("invert_signal", False))
+    if adx < 20.0 and (symbol in telemetry_inverts or (invert_global and symbol not in telemetry_directs)):
+        flipped = "PUT" if original_side == "CALL" else "CALL"
+        return flipped, "LATERAL_FADE_INVERTED", True
+
     if symbol in telemetry_directs:
         return original_side, "TELEMETRY_WIN_DIRECT", False
     return original_side, "sinal_base", False
@@ -232,7 +257,17 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
         t_str = float(metrics.get("trend_strength") or 0.0)
         pen = -0.05 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
         reason = str(metrics.get("organic_decision_reason") or "")
-        bonus_direct = 0.08 if reason in ("TELEMETRY_WIN_DIRECT", "TELEMETRY_INVERTED_BIAS") else 0.0
+        bonus_direct = (
+            0.08
+            if reason
+            in (
+                "TREND_ALIGNED_DIRECT",
+                "TELEMETRY_WIN_DIRECT",
+                "LATERAL_FADE_INVERTED",
+                "ELASTIC_EXHAUSTION_INVERTED",
+            )
+            else 0.0
+        )
         pen_climax = -0.08 if t_str > 50.0 else 0.0
         score = (
             float(l95) if l95 is not None else -math.inf,

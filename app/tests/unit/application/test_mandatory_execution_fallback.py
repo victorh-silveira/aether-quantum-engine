@@ -72,14 +72,24 @@ def test_resolve_fallback_direction_branches():
     assert direction == TradeDirection.CALL
     assert not flipped
 
-    # Caso 5: Ativo invertido pela telemetria (ex: OTC_HSI)
+    # Caso 5: Ativo invertido pela telemetria em regime lateral (ex: OTC_HSI)
     orch.config["pullback_strategy"]["telemetry_inverted_symbols"] = ["OTC_HSI"]
     bar_bull = MagicMock(close=100.5, open=100.0)
     orch.data_buffer = {"OTC_HSI": [bar_bull]}
     direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_HSI")
     assert direction == TradeDirection.PUT
     assert flipped
-    assert reason == "TELEMETRY_INVERTED_BIAS"
+    assert reason == "LATERAL_FADE_INVERTED"
+
+    # Caso 6: Ativo em forte tendencia de baixa (ex: OTC_FTSE com ADX=53.0) -> Proibido inverter
+    orch._latest_market_metrics = {"OTC_FTSE": {"trend": "BAIXA", "adx": 53.0, "spread": -43.0}}
+    orch.config["pullback_strategy"]["telemetry_inverted_symbols"] = ["OTC_FTSE"]
+    bar_bear = MagicMock(close=99.0, open=100.0)
+    orch.data_buffer = {"OTC_FTSE": [bar_bear]}
+    direction, reason, flipped = _resolve_fallback_direction(orch, "OTC_FTSE")
+    assert direction == TradeDirection.PUT
+    assert not flipped
+    assert reason == "TREND_ALIGNED_DIRECT"
 
 
 @pytest.mark.asyncio

@@ -60,7 +60,8 @@ def _resolve_fallback_direction(orch: Any, symbol: str) -> tuple[TradeDirection,
                 if isinstance(c, (int, float)) and isinstance(o, (int, float)):
                     base_side = "CALL" if c >= o else "PUT"
     pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(getattr(orch, "config", None), dict) else {}
-    resolved_side, decision_reason, is_flipped = resolve_telemetry_side(orch, symbol, base_side, pb_cfg)
+    context = getattr(orch, "_latest_market_metrics", {}).get(symbol, {})
+    resolved_side, decision_reason, is_flipped = resolve_telemetry_side(orch, symbol, base_side, pb_cfg, context)
     return TradeDirection[resolved_side], decision_reason, is_flipped
 
 

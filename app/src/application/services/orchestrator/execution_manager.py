@@ -173,18 +173,21 @@ class ExecutionManager:
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:
                 bind_log_context(cycle_id=self.orch._active_cycle_id, symbol=orders[0][0])
-                selected = " ".join(
-                    f"{symbol}:{int(m.get('indicator_period_seconds') or 300) // 60}m:{direction.name}"
-                    + (
-                        f" ({m.get('organic_decision_reason')})"
-                        if m.get("organic_decision_reason")
-                        else (
-                            " (INVERTIDO)" if self.orch.config.get("pullback_strategy", {}).get("invert_signal") else ""
-                        )
+                for symbol, direction, m in orders:
+                    dur_m = int(m.get("indicator_period_seconds") or 900) // 60
+                    reason = m.get("organic_decision_reason") or "setup_confirmado"
+                    orig_side = m.get("indicator_signal_side") or direction.name
+                    flip_tag = f" [FLIPPED de {orig_side}]" if m.get("direction_telemetry_flipped") else ""
+                    m_metrics = getattr(self.orch, "_latest_market_metrics", None)
+                    t_info = m_metrics.get(symbol, {}) if isinstance(m_metrics, dict) else {}
+                    tr_text = (
+                        f" | TENDENCIA: {t_info.get('trend', 'N/A')} (ADX={float(t_info.get('adx', 0)):.1f})"
+                        if t_info
+                        else ""
                     )
-                    for symbol, direction, m in orders
-                )
-                self.logger.info("EXEC_SETUP | %s | MOTIVO: setup_confirmado", selected)
+                    selected_key = f"{symbol}:{dur_m}m:{direction.name}"
+                    extra = f"{flip_tag}{tr_text}"
+                    self.logger.info("EXEC_SETUP | %s%s | MOTIVO: %s", selected_key, extra, reason)
             pending = sum(self.orch.risk_manager.pending_loss.values())
             if pending > 0.0:
                 sw = resolve_stop_win_target(

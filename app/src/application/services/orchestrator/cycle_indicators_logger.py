@@ -208,6 +208,13 @@ def log_cycle_indicators(orch: Any) -> None:
             "is_doji": c_body < 0.025 * atr,
             "rejection": rejection,
         }
+        spread = fast[-2] - slow[-2]
+        m["trend"] = trend
+        m["spread"] = spread
+        m["recuo"] = recuo
+        if not isinstance(getattr(orch, "_latest_market_metrics", None), dict):
+            orch._latest_market_metrics = {}
+        orch._latest_market_metrics[symbol] = m
         green, rst = "\033[92m", "\033[0m"
         c_pr, r_pr = (green, rst)
         c_mo, r_mo = (green, rst)
@@ -218,7 +225,6 @@ def log_cycle_indicators(orch: Any) -> None:
         disp_name = symbol_display_name(symbol)
         header_name = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
         is_doji_str = "Sim" if m["is_doji"] else "Nao"
-        spread = fast[-2] - slow[-2]
         msg = (
             f"INDICADORES TECNICOS | {header_name} (Ciclo {cycle_id})\n"
             f"   {c_pr}PRECO E MEDIAS     | Fechamento: {cf.close:.2f} | Medias Exponenciais: EMA20={fast[-2]:.2f} / EMA50={slow[-2]:.2f} | Diferenca (Spread): {spread:+.2f} | Cruzamento Rapido: EMA9={ema9:.2f} / EMA21={ema21:.2f}{r_pr}\n"
