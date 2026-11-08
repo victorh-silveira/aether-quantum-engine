@@ -1,0 +1,22 @@
+---
+description: Liquidacao de contratos, reconciliacao atomica e fila de prioridade Redis ZSET
+alwaysApply: true
+---
+
+# Liquidação de Ordens e Settlement
+
+## 1. Contexto e Escopo
+O modulo app/src/application/services/settlement/ e app/src/infrastructure/storage/ gerenciam o ciclo completo de liquidacao de contratos e conciliacao financeira com o broker.
+
+## 2. Hard Gates Inegociáveis
+- **Fila Prioritária Redis ZSET:** Contratos abertos aguardando resolucao sao enfileirados exclusivamente na chave ZSET settlement:queue:priority com score baseado no timestamp de expiracao previsto.
+- **Reconciliação com Profit Table:** Todo contrato liquidado deve ser reconciliado com o endpoint profit_table da Deriv para auditoria de retorno real e deducao de payout efetivo.
+- **Deduplicação por Contract ID:** Nenhum contrato pode ser processado mais de uma vez. Operacoes de liquidacao utilizam locks distribuidos no Redis e validacao por ID unico.
+
+## 3. Padrões de Implementação
+- **Tolerância a Desconexão:** Se o stream de liquidacao falhar, o motor consulta ativamente o historico via REST para recuperar o resultado da operacao pendente.
+- **Quarentena por Falha:** Em caso de perda prolongada de estado durante o vencimento de uma ordem, o ativo e colocado em quarentena de 900s antes de qualquer nova tentativa.
+
+## 4. Proibições Estritas
+- Proibido remover contratos pendentes da fila antes de confirmar sua liquidacao definitiva.
+- Proibido assumir resultado positivo ou negativo sem confirmacao expressa do broker.

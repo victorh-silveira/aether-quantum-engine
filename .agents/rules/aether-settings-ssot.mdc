@@ -1,0 +1,22 @@
+---
+description: Configuracoes em config/settings.json como SSOT inegociavel do sistema
+alwaysApply: true
+---
+
+# SSOT de Configurações do Sistema
+
+## 1. Contexto e Escopo
+O arquivo config/settings.json e a unica fonte da verdade soberana para todos os parametros operacionais, limites de risco, ativos e credenciais do motor e do indicador.
+
+## 2. Hard Gates Inegociáveis
+- **Leitura Centralizada:** O acesso a settings.json ocorre exclusivamente atraves das funcoes padronizadas em app/settings_io.py e dos parsers tipados em app/src/domain/config_knobs.py.
+- **Imutabilidade em Runtime:** Configuracoes carregadas nao devem ser modificadas em memoria dinamicamente para driblar gates ou regras de seguranca.
+- **Validação de Doutrina:** Modificacoes em settings.json sao validadas pelo teste test_doctrine_settings_ssot.py para garantir que nenhum limite critico de risco seja afrouxado.
+
+## 3. Padrões de Implementação
+- **Valores Default Defensivos:** Todo knob deve possuir fallback defensivo e fail-closed caso a chave esteja ausente ou corrompida.
+- **Tipagem Estrita:** Carregar parametros atraves de dataclasses fortemente tipadas em vez de dicionarios soltos.
+
+## 4. Proibições Estritas
+- Nunca ler config/settings.json com open() direto nos servicos de aplicacao; use settings_io.
+- Nunca comitar chaves privadas, senhas ou tokens dentro de settings.json (usar referencias a variaveis de ambiente).

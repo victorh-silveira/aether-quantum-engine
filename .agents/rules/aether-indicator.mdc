@@ -1,0 +1,23 @@
+---
+description: Contrato do servico de indicador publico de mercados sinteticos e acoes OTC
+alwaysApply: true
+---
+
+# Subsistema Indicador Público
+
+## 1. Contexto e Escopo
+O modulo indicator/ atua como um subsistema analitico autonomo e desacoplado, monitorando dados de mercado publicos e disponibilizando sinais analiticos em tempo real sem autoridade de compra de contratos.
+
+## 2. Hard Gates Inegociáveis
+- **Barreira de Isolamento:** O indicador consome apenas endpoints publicos da Deriv (active_symbols, ticks_history). E expressamente proibido incluir chaves de API autenticadas, rotas de envio de ordens ou gestao de risco financeiro neste servico.
+- **Universo de Monitoramento:** Monitora os 12 ativos de acoes mundiais OTC (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI, OTC_AS51) e indices de volatilidade sinteticos.
+- **Diagnóstico sem Promoção:** Diagnosticos emitidos em make app-train avaliam exclusivamente proxies direcionais de velas para ranqueamento estatistico, sem promover contratos ou modificar settings ativos.
+
+## 3. Padrões de Implementação
+- **Telemetria Compartilhada:** Compartilha o TimescaleDB, Prometheus e Grafana da infraestrutura Docker raiz. Painéis de sinais filtram a ultima leitura confirmada de cada par.
+- **Atualização Provisória:** Observacao provisoria de preco atualizada a cada 30 segundos utilizando a vela M15 em formacao, sem reescrever o historico confirmado de velas anteriores.
+- **Tratamento de Dados Ausentes:** Exibir SEM SINAL e o motivo correspondente caso ocorram faltas de dados, velas atrasadas ou quebra de padrao.
+
+## 4. Proibições Estritas
+- Nunca introduzir rotas de compra ou gestao de saldo dentro de indicator/.
+- Nunca alterar o estado do motor principal a partir de rotinas do indicador.

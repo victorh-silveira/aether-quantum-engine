@@ -123,4 +123,4 @@ CloudOps detalhado: [`engineering-devops-cloudops-senior.md`](engineering-devops
 - [`engineering-architecture-senior.md`](engineering-architecture-senior.md) — host, DDD, sidecars, event loop
 - [`engineering-python-deps.md`](engineering-python-deps.md) — pins, Polars-only, ABI
 - [`AGENTS.md`](../AGENTS.md) — entrada de agentes, universo ops, proibições
-- Skills Cursor: `.cursor/skills/aether-python-313-runtime/`, `aether-asyncio-supervisor/`, `aether-polars-arrow/`, `aether-torch-cuda-infer/`, `aether-asyncpg-timescale/`, `aether-redis-hiredis/`
+- Skills de agentes: `.agents/skills/aether-python-313-runtime/`, `aether-asyncio-supervisor/`, `aether-polars-arrow/`, `aether-torch-cuda-infer/`, `aether-asyncpg-timescale/`, `aether-redis-hiredis/`

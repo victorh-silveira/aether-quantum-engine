@@ -1,0 +1,27 @@
+---
+description: Padrao obrigatorio de commits Git via Conventional Commits em PT-BR
+alwaysApply: true
+---
+
+# Padrão de Commits Git e Commitlint
+
+## 1. Contexto e Escopo
+O historico de commits do Aether e rigorosamente padronizado para permitir geracao automatica de changelogs, rastreabilidade de mudancas e auditoria de engenharia.
+
+## 2. Hard Gates Inegociáveis
+- **Idioma PT-BR:** A mensagem de commit (assunto e corpo) deve ser escrita estritamente em Portugues do Brasil. Mensagens em ingles serao rejeitadas pelo hook de commit-msg.
+- **Formato Conventional Commits:** Seguir a estrutura:
+  tipo(escopo): assunto em PT-BR no imperativo
+
+  Corpo descritivo detalhando o contexto e as mudancas tecnicas realizadas.
+- **Escopos Permitidos:** Apenas os escopos definidos em linters/commitlint.config.mjs:
+  all, api, app, config, deps, domain, engine, infra, llm, orchestrator, pres, release, repo, risk, scripts, test, tools, ws.
+- **Tipos Permitidos:** feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert.
+
+## 3. Padrões de Implementação
+- **Script Oficial:** Commits DEVEM ser realizados exclusivamente via script app/scripts/wsl/commit.sh ou make app-commit.
+- **Assunto Conciso:** Assunto em letras minusculas, sem ponto final, com no maximo 72 caracteres.
+
+## 4. Proibições Estritas
+- Proibido comitar diretamente via git commit sem passar pelos hooks de validacao.
+- Proibido commits com assunto generico como 'fixes', 'update', 'mudancas'.

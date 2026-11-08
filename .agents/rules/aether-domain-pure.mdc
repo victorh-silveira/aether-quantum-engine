@@ -1,0 +1,24 @@
+---
+description: Pureza absoluta do dominio de negocio e matematica financeira do Aether
+alwaysApply: true
+---
+
+# Pureza do Domínio de Negócio
+
+## 1. Contexto e Escopo
+O nucleo do sistema reside em app/src/domain/. Esta camada expressa as regras fundamentais de negocio, modelos probabilisticos, invariantes matematicos e politicas de risco de trading.
+
+## 2. Hard Gates Inegociáveis
+- **Isolamento Total:** Zero imports de bibliotecas com efeitos colaterais de rede, disco ou SO (proibido httpx, websockets, redis, asyncpg, os, sys, etc.).
+- **Imutabilidade e Determinismo:** Entidades e value objects devem ser imutaveis (dataclasses frozen ou slots) e seus metodos devem ser funcoes puras e deterministicas.
+- **Independência de Frameworks:** O dominio nao conhece WebSockets, HTTP, Docker ou drivers de persistencia.
+
+## 3. Padrões de Implementação
+- **Cálculos Matemáticos:** Modelagem estrita de payouts, desvios padrao, Fair Value Gaps (FVG) e medias moveis exponenciais sobre tipos primitivos ou tuplas/estruturas imutaveis.
+- **Gestão de Erros de Domínio:** Lancar excecoes de dominio especificas quando uma invariante de negocio for violada, permitindo que a camada de aplicacao trate a excecao.
+- **Validação de Invariantes:** Knobs de risco e limites de exposicao financeira sao validados em doctrine_invariants.py e aplicados deterministicamente.
+
+## 4. Proibições Estritas
+- Nunca realizar chamadas assincronas (async/await) dentro do nucleo de dominio.
+- Nunca instanciar conexoes com servicos externos em domain/.
+- Nunca ler arquivos de configuracao diretamente do disco dentro do dominio (receber valores injetados).

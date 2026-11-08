@@ -1,0 +1,22 @@
+---
+description: Significancia estatistica, Lei dos Grandes Numeros e promocao por 200 contratos
+alwaysApply: true
+---
+
+# Significância Estatística e Amostragem
+
+## 1. Contexto e Escopo
+Decisoes operacionais, promocoes de setups e aprovacoes de novas versoes sao orientadas exclusivamente por significancia estatistica fundamentada na Lei dos Grandes Numeros (LLN).
+
+## 2. Hard Gates Inegociáveis
+- **Amostra Mínima de Promoção:** Para que uma nova versao de setup seja promovida para operacao em conta REAL, sao necessarios pelo menos **200 contratos DEMO unicos e liquidados pelo broker** na mesma versao, ativo e timeframe.
+- **Limite Inferior Unilateral de 95%:** O retorno medio liquido dos contratos liquidados deve apresentar limite inferior do intervalo de confianca de 95% estritamente positivo (IC95% > 0).
+- **Sem Inferência de Séries Curtas:** Proibido alterar configuracoes de risco, gates ou pesos com base em streaks curtas (menos de 30 operacoes).
+
+## 3. Padrões de Implementação
+- **Auditoria por Liquidação de Broker:** Apenas contratos formalmente liquidados com retorno financeiro confirmado pelo broker contam para amostragem. Resultados de backtests ou proxies de velas nao qualificam promocoes.
+- **Rastreabilidade por Versão:** Cada ordem registra a versao exata do setup no momento da compra para analise segregada na profit_table.
+
+## 4. Proibições Estritas
+- Nunca aprovar setups para conta REAL baseando-se unicamente em backtests sinteticos.
+- Nunca diminuir o tamanho amostral de 200 contratos para acelerar lancamentos em REAL.

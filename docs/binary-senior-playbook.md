@@ -1,69 +1,59 @@
-# Playbook Trader Senior — Contratos Rise/Fall M15 (indices OTC)
+# Playbook de Execução Sênior: Opções Binárias Rise/Fall M15
 
-## 1. Postura e Filosofia Operacional
+## 1. Princípios Operacionais Inegociáveis
 
-O Aether Quantum Engine observa um setup técnico versionado; sua vantagem econômica depende de contratos DEMO liquidados pelo broker e da cotação REAL. A execução é regida pela variante **`senior_institutional`** em velas M15 fechadas (contrato de 900 segundos). O proxy de velas não comprova lucro.
-
-- **Ativo Promovido Vigente**: **`OTC_SSMI`** (ancora configurada; aptidao REAL depende exclusivamente do broker).
-- **Universo de Monitoramento**: 12 índices sintéticos mundiais de ações OTC avaliados com OHLC da Deriv (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
-- **Tempo e Cadência**: Ciclo rigoroso de 900 segundos (M15). Abertura de ordens autorizada somente até 60 segundos após a abertura da nova vela.
+1. **Execução Baseada em Evidência:** Decisões de mercado são governadas por confluência matemática determinística.
+2. **Ativo Âncora Oficial:** `OTC_SSMI` (Swiss Market Index 20 / Deriv OTC).
+3. **Cadência Temporal:** Timeframe M15 fixo (900 segundos). Entrada autorizada exclusivamente nos primeiros 60 segundos da vela.
+4. **Respeito aos Hard Gates:** Se qualquer um dos 5 pilares falhar, a ação imediata é **SKIP** (não operar).
 
 ---
 
-## 2. Checklist Mental do Trader Sênior (Matriz de 5 Pilares)
+## 2. Checklist de Validação do Sinal M15
 
-Antes de autorizar o envio de qualquer proposta à corretora, o motor valida 5 condições independentes:
+Antes de disparar a ordem, o motor valida a seguinte árvore de decisão:
 
 ```
-[1] HORÁRIO BRT (Killzone Ativa?)
-    └── London Open (03h–08h) OU NY Overlap (10h–13h) OU London Fix (14h–16h)
-        └── SE NÃO ➔ VETO (SEM SINAL: Fora da Killzone)
+[1] KILLZONE BRT ATIVA?
+    ├── 03h-08h | 10h-13h | 14h-16h BRT
+    └── SE NÃO ──> VETO (SKIP: Fora da Killzone)
 
-[2] TENDÊNCIA ESTRUTURAL (EMA20 > EMA50?)
-    └── Alinhamento de médias e inclinação positiva
-        └── SE NÃO ➔ VETO (SEM SINAL: Mercado Lateral ou Indeciso)
+[2] TENDÊNCIA ESTRUTURAL M15 ALINHADA?
+    ├── CALL: EMA20 > EMA50 (ascendentes)
+    ├── PUT:  EMA20 < EMA50 (descendentes)
+    └── SE NÃO ──> VETO (SKIP: Mercado sem Tendencia)
 
-[3] RETRAÇÃO DE VOLATILIDADE (Pullback Saudável?)
-    └── Recuo penetra até 0.5 ATR14 da EMA20 sem violar a EMA50
-        └── SE NÃO ➔ VETO (SEM SINAL: Retração Excessiva ou Insuficiente)
+[3] RETRAÇÃO DE VOLATILIDADE SAUDÁVEL?
+    ├── Recuo anterior <= 0.5 ATR14 da EMA20
+    ├── Sem fechar além da EMA50
+    └── SE NÃO ──> VETO (SKIP: Recuo Fora do Padrao)
 
-[4] REFERENCIA OHLC DA SESSAO & BANDAS (Preco favoravel?)
-    └── Fechamento favorável à referencia da sessao UTC e contido em +/- 1.5 sigma
-        └── SE NÃO ➔ VETO (SEM SINAL: Exaustão Institucional Contra a referencia da sessao)
+[4] PREÇO DA SESSÃO UTC DENTRO DE BANDAS?
+    ├── Fechamento favorável à média de preço típico
+    ├── Contido em +/- 1.5 desvios padrão da sessão
+    └── SE NÃO ──> VETO (SKIP: Exaustao Estatistica)
 
-[5] DESEQUILÍBRIO INSTITUCIONAL (Fair Value Gap Mitigado?)
-    └── Imbalance entre t-2 e t testado e fechado pela retração
-        └── SE NÃO ➔ VETO (SEM SINAL: Falta de Mitigação de FVG)
+[5] FAIR VALUE GAP MITIGADO?
+    ├── Imbalance entre t-2 e t testado pelo recuo
+    └── SE NÃO ──> VETO (SKIP: Desequilibrio Nao Mitigado)
+
+[6] JANELA TEMPORAL VÁLIDA?
+    ├── Timestamp atual <= 60s da abertura da vela M15
+    └── SE NÃO ──> VETO (SKIP: Timeout da Janela M15)
+
+[7] PROPOSTA DA CORRETORA VIÁVEL?
+    ├── Payout líquido cotado válido
+    ├── EV > 0 com margem >= 0.01 acima do break-even
+    └── SE NÃO ──> VETO (SKIP: Sem Edge Economico)
 ```
 
 ---
 
-## 3. Gestão de Risco e Dimensionamento de Capital
+## 3. Protocolo de Gestão de Risco e Sizing
 
-1. **Stake Base**: Rigorosamente **1% da banca disponível** (em DEMO e REAL).
-2. **Sem Martingale**: É terminantemente proibido dobrar lotes após perdas.
-3. **Amortização Linear 1/1**: Em caso de perda, a recuperação calcula a stake necessária baseando-se no payout líquido cotado:
-   $$Stake_{rec} = \min\left(\frac{Perda}{Payout}, 5\% \times Banca\right)$$
-   com teto máximo inviolável de **5% por ordem**.
-4. **Veto Econômico na Cotação Final**:
-   $$EV = p \times (1 + Payout_{líquido}) - 1 > 0$$
-   com margem mínima de 0,01 acima do break-even. Se a Deriv oferecer payout degradado que negative o EV, a ordem é abortada no último milissegundo.
-
----
-
-## 4. Auditoria de Sessão e Comandos Operacionais
-
-- Treinamento e Diagnóstico de Ativos:
-  ```bash
-  make app-train
-  ```
-- Execução Operacional:
-  ```bash
-  make app-run
-  ```
-- Auditoria de Qualidade e Pré-commit:
-  ```bash
-  make app-pre-commit-run
-  ```
-- Monitoramento Live:
-  Dashboards Grafana em `http://localhost:3000` (Painéis Aether e Sintéticos).
+- **Tamanho de Lote Normal (EXPLORE):**
+  $$	ext{Stake} = 0,01 	imes 	ext{Saldo Disponível}$$
+- **Recuperação Linear (RECOVER):**
+  $$	ext{Stake} = \min\left(rac{	ext{Prejuízo Pendente}}{	ext{Payout Cotado}}, 0,05 	imes 	ext{Saldo Disponível}ight)$$
+- **Cap de Proteção:** Teto máximo de 5% por ordem.
+- **Cooldown Pós-Loss:** Aguardo de 1 vela M15 (`loss_cooldown_candles=1`), estendendo para 2 velas em perdas consecutivas, liberando exatamente na abertura da próxima vela qualificada.

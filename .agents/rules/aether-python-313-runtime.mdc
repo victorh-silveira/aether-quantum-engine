@@ -1,0 +1,24 @@
+---
+description: Runtime CPython 3.13, asyncio TaskGroups, event loop cooperativo e Tier 2 JIT
+alwaysApply: true
+---
+
+# Runtime CPython 3.13 e Asyncio
+
+## 1. Contexto e Escopo
+O motor Aether foi projetado e validado especificamente para CPython 3.13.12 no host. Toda a pilha tira proveito das otimizacoes de especializacao de interpretador, melhorias de Garbage Collection e TaskGroups assincronos.
+
+## 2. Hard Gates Inegociáveis
+- **Sem Starvation do Event Loop:** Nenhuma operacao bloqueante de CPU (ex: calculo de tensores pesados, serializacao massiva) pode rodar diretamente na thread do event loop. Use asyncio.to_thread.
+- **Gerenciamento com TaskGroup:** Toda orquestracao concorrente deve adotar asyncio.TaskGroup estruturado, garantindo propagacao correta de CancelledError e encerramento sem corotinas orfas.
+- **Tratamento de Cancelamento:** Blocos de limpeza e persistencia critica em handlers devem ser protegidos com asyncio.shield.
+
+## 3. Padrões de Implementação
+- **Tipagem Estática Completa:** Use type hints modernos (PEP 585 e PEP 604 com | e minusculas nativas). Imports de compatibilidade com __future__.annotations.
+- **Buffers Eficientes:** Operacoes de stream e serializacao devem utilizar memoryview e bytearray para minimizar copias de memoria no heap.
+- **Garbage Collection:** Monitore a frequencia de ciclos do GC para evitar picos de latencia durante a janela critica de abertura de contrato (primeiros 60s da vela).
+
+## 4. Proibições Estritas
+- Nunca usar time.sleep() no motor. Utilize asyncio.sleep().
+- Nunca suprimir CancelledError sem re-propagacao adequada.
+- Nunca usar loops infinitos sem pontos explicitos de cooperacao com o loop (await asyncio.sleep(0)).

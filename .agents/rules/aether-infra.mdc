@@ -1,0 +1,23 @@
+---
+description: Infraestrutura Docker Compose, TimescaleDB, Redis hiredis, MinIO e sidecars
+alwaysApply: true
+---
+
+# Infraestrutura e Serviços Docker
+
+## 1. Contexto e Escopo
+A infraestrutura de suporte e orquestrada via Docker Compose na raiz do repositorio com os perfis core, telemetry e indicator. O motor de trading roda diretamente no host por razoes de baixa latencia de rede e acesso direto a hardware.
+
+## 2. Hard Gates Inegociáveis
+- **Isolamento e Segurança:** Binds de portas publicados estritamente em 127.0.0.1. Containers operam com no-new-privileges: true e limites rigidos de memoria (mem_limit) e CPU configurados.
+- **Persistência TimescaleDB:** Hypertables com particionamento temporal para OHLC e ticks, transacoes seguras via conexoes pooladas asyncpg e politicas de retencao ativas.
+- **Redis Hiredis:** Redis configurado com parser C hiredis para maxima velocidade, persistencia AOF ativa (appendfsync everysec) e fila prioritaria ZSET para o settlement.
+
+## 3. Padrões de Implementação
+- **Healthchecks Nativos:** Todos os servicos essenciais (Redis, Timescale, MinIO) implementam healthchecks rigorosos e dependencias declaradas via depends_on: condition: service_healthy.
+- **Observabilidade:** Prometheus coletando metricas de negocio e latencia, Grafana expondo dashboards segregados entre operacoes de contrato e observacoes analiticas de mercado.
+- **MinIO S3:** Armazenamento de checkpoints de modelos e auditorias estaticas.
+
+## 4. Proibições Estritas
+- Nunca expor portas de banco ou cache para interfaces externas (0.0.0.0).
+- Nunca subir servicos dependentes sem checagem de saude previa.

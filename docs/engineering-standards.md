@@ -1,71 +1,32 @@
-# Engenharia e QA
+# Padrões de Engenharia de Software e Qualidade
 
-Padroes obrigatorios para contribuicao e agentes. Entrada: [`AGENTS.md`](../AGENTS.md).
+## 1. Diretrizes Fundamentais de Qualidade
 
-## Ambiente
+1. **Cobertura 100% Inegociável:** Todo código sob `app/src/` e `indicator/app/src/` deve manter 100% de cobertura de linhas e ramos. Reduções de cobertura resultam em falha imediata no CI.
+2. **Limite Estrutural de 300 Linhas:** Nenhum arquivo Python em `app/src/**/*.py` pode ultrapassar 300 linhas de código.
+3. **Pipeline de Linters Estrito (Crash-First):**
+   - **Ruff:** Verificação sintática e formatação automática.
+   - **Interrogate:** 100% de docstrings em módulos, classes e funções.
+   - **Vulture:** Detecção e eliminação de código morto.
+   - **Bandit & Gitleaks:** Auditoria de segurança e prevenção de vazamento de segredos.
+4. **Commits Padronizados em PT-BR:**
+   - Mensagens estritamente em Português no formato Conventional Commits.
+   - Execução via `app/scripts/wsl/commit.sh` ou `make app-commit`.
 
-- Python **3.13** (conda `deriv-api` / `.python-version`); motor **asyncio no host**; sidecars Docker `core,ml`
-- Arquitetura DDD/hexagonal: [`engineering-architecture-senior.md`](engineering-architecture-senior.md)
-- Comandos de terminal no **WSL**
-- Codigo sem comentarios inline; docstrings OK
-- Arquivos em `app/src/**/*.py` com no maximo **300 linhas**
-- Event loop: nao bloquear com PyTorch/Polars/NumPy pesado no hot path (offload)
+---
 
-## Pre-commit
-
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) e as actions em [`.github/actions/ci/`](../.github/actions/ci/) chamam o mesmo motor `app/scripts/operations/clean_workspace.py --area --stage` (paridade bidirecional). Crash-first: lint → validate → security → test → build.
-
-| Area | Stage | Pre-commit / CI |
-|------|-------|-----------------|
-| python | lint | Ruff, Interrogate, Vulture com confiança 100 e allowlist auditada, 300 linhas |
-| python | JSON / YAML | steps `Python \| JSON *` e `Python \| YAML *` (`--config-text json\|yaml`) |
-| python | validate / build | compileall `app/src` |
-| python | security | Bandit + pip-audit dos requirements do projeto + Gitleaks (fail-closed local e CI) |
-| python | test | pytest + cobertura **100%** em `app/src` |
-| docker | lint…build | Hadolint, compose config, Trivy, smoke, `docker build` (build no CI) |
-| shell | lint / validate | `bash -n` / shellcheck em `*.sh` |
-| local | clean | `--stage clean --light-clean` |
-| commit | commitlint | primeiro no pre-commit (`COMMIT_EDITMSG`) + hook `commit-msg` |
-
-Rodar `make app-lint` e `make app-test` para os estágios correspondentes em Python, JSON/YAML, Docker, Shell, Rust e indicador. `make app-validate`, `make app-security` e `make app-build` cobrem os demais estágios. O pre-commit também valida lint e testes do indicador. Rodar: `make app-pre-commit-run` ou `pre-commit run --all-files` (WSL, raiz do repo). Gitleaks precisa estar no PATH local. Detalhe: [`../linters/README.md`](../linters/README.md) e [`.github/workflows/WORKFLOWS.md`](../.github/workflows/WORKFLOWS.md).
-
-No Conda Windows invocado pelo WSL, a etapa Python de `make app-test` executa pytest sem workers xdist. Em Linux, o limite é dois workers. A cobertura obrigatória de `app/src` permanece em 100%; essa limitação evita replicar Torch e o runtime Python em muitos processos simultâneos. O processo exibe progresso durante a execução e tem limite externo de 600 segundos para encerrar uma suíte presa.
-
-## Commitlint e Script de Commit
-
-- Assunto em **PT-BR** (plugin bloqueia verbos ingles comuns)
-- Escopo obrigatorio: `all`, `api`, `app`, `config`, `deps`, `domain`, `engine`, `infra`, `llm`, `orchestrator`, `pres`, `release`, `repo`, `risk`, `scripts`, `test`, `tools`, `ws`
-- Tipos obrigatorios: `build`, `chore`, `ci`, `docs`, `feat`, `fix`, `perf`, `qa`, `refactor`, `revert`, `style`, `test`
-- Corpo do commit obrigatorio (separado por linha em branco)
-- Commits devem ser realizados via script padronizado: `bash app/scripts/wsl/commit.sh` ou `make app-commit ARGS='...'` (rule `aether-git-commit.mdc` e skill `aether-git-commit`)
-
-Exemplo:
+## 2. Comandos Oficiais de Validação
 
 ```bash
-bash app/scripts/wsl/commit.sh fix engine "endurecer piso de margem calibrada" "Bloqueia explore com Cal fraco e edge negativo."
+# Validacao completa de linters e docstrings
+make app-lint
+
+# Suite completa de testes unitarios com cobertura 100%
+make app-test
+
+# Testes do subsistema indicador
+make indicator-test
+
+# Validacao da matriz de cobertura de agentes
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/repo/test_agent_coverage_matrix.py -v
 ```
-
-## Testes
-
-- Layout: `app/tests/unit/{application,domain,infrastructure,presentation,scripts}/`
-- Espelhar a camada do codigo sob teste
-- Cobertura de `src` obrigatoriamente **100%**; `clean_workspace` rejeita qualquer limiar diferente de 100.
-- Novos ramos: teste unitario no mesmo PR
-- Hypothesis so em invariantes de dominio (Kelly / `p_eff` FLIP), `max_examples` baixo, pin em `requirements-dev`; **proibido** mutmut, Pact, Testcontainers, E2E visual ou carga no pre-commit
-
-## Fluxo de contribuicao
-
-1. Ler [`AGENTS.md`](../AGENTS.md) e a linha correspondente em [`agent-coverage.md`](agent-coverage.md)
-2. Mudanca minima; hipotese falsificavel se for knob
-3. Pre-commit verde
-4. Commit PT-BR + push (so se pedido)
-
-Sem `CONTRIBUTING.md` separado: este doc + AGENTS sao o SSOT de contribuicao.
-
-## Enforcement da doutrina no core
-
-Modulo `app/src/application/services/doctrine_invariants.py` tipa knobs da doutrina (edge floors, ACC, sample_size, caps, fusion/neg_edge). Testes:
-
-- `tests/unit/application/test_doctrine_invariants.py`
-- `tests/unit/application/test_doctrine_settings_ssot.py` (congela `settings.json` de producao)
-- `tests/unit/repo/test_agent_coverage_matrix.py` (matriz ↔ `.cursor/rules|skills` + docs)

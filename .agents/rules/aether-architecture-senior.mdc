@@ -1,0 +1,25 @@
+---
+description: Arquitetura senior Aether — host CPython 3.13, DDD/hexagonal, asyncio, Polars SSOT
+alwaysApply: true
+---
+
+# Arquitetura Senior e Design Hexagonal
+
+## 1. Contexto e Escopo
+O Aether Quantum Engine e projetado sob a arquitetura Domain-Driven Design (DDD) Hexagonal (Ports & Adapters). O motor executa nativamente no host em ambiente Linux WSL sob CPython 3.13.12 com asyncio, enquanto servicos de infraestrutura (TimescaleDB, Redis, MinIO, Grafana e Prometheus) executam em containers Docker isolados.
+
+## 2. Hard Gates Inegociáveis
+- **Camadas Rígidas:** O fluxo de dependencia aponta estritamente para dentro: Presentation -> Application -> Domain. A camada de Infraestrutura implementa as portas de saida (outbound ports) definidas em Application.
+- **Pureza de Domínio:** A pasta app/src/domain/ deve permanecer 100% pura, contendo apenas entidades, objetos de valor, matematica de mercado e invariantes de risco. E terminantemente proibido importar frameworks, bibliotecas de banco de dados ou realizar I/O dentro de domain/.
+- **Manipulação Colunar SSOT:** O Polars e o unico framework colunar autorizado para processamento de dados tabulares. Uso de pandas e sumariamente proibido em todo o monorepo.
+- **Limite Estrutural:** Nenhum arquivo em app/src/**/*.py pode exceder 300 linhas de codigo.
+
+## 3. Padrões de Implementação
+- **Asyncio Cooperativo:** Operacoes pesadas de processamento matematico ou I/O bloqueante devem ser delegadas explicitamente para asyncio.to_thread para nao degradar o event loop principal.
+- **Supervisão:** Use TaskGroup e ContextVars para rastreabilidade de tarefas assincronas e encerramento gracioso com tratamento de CancelledError.
+- **Persistência e Cache:** Fila de settlement SSOT gerenciada exclusivamente via ZSET no Redis (settlement:queue:priority). Leituras historicas massivas persistidas no TimescaleDB via pool asyncpg.
+
+## 4. Proibições Estritas
+- Nunca introduzir I/O em classes de dominio.
+- Nunca acoplar servicos de contrato operacional com a rota publica do indicador.
+- Nunca misturar configuracoes hardcoded no codigo; utilize config/settings.json como SSOT.

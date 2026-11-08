@@ -1,14 +1,14 @@
-# Matriz de cobertura do agente (100%)
+# Matriz de Cobertura de Agentes (100%)
 
-Cada superficie do bot tem **doc + rule + skill** (ou `—` justificado). Entrada: [`AGENTS.md`](../AGENTS.md).
+Cada superficie tecnica do Aether Quantum Engine possui cobertura estrita formada por **documentacao tecnica + regra (.mdc) + habilidade (skill)**. O ponto de entrada soberano e o [`AGENTS.md`](../AGENTS.md).
 
-Rules/skills vivem em [`.cursor/`](../.cursor/) e sao **versionadas** no git.
+O harness de agentes reside na pasta canonica [`.agents/`](../.agents/) e e versionado no Git. A pasta [`.cursor/`](../.cursor/) atua como camada de compatibilidade.
 
-Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test_agent_coverage_matrix` (ver [engineering-standards.md](engineering-standards.md)).
+A sincronizacao e testada automaticamente em `app/tests/unit/repo/test_agent_coverage_matrix.py`.
 
 ## Matriz
 
-| Superficie | Doc | Rule (`.cursor/rules/`) | Skill (`.cursor/skills/`) |
+| Superficie | Doc | Rule (`.agents/rules/`) | Skill (`.agents/skills/`) |
 |------------|-----|-------------------------|---------------------------|
 | Arquitetura senior (host/DDD/asyncio/ML/infra) | [engineering-architecture-senior.md](engineering-architecture-senior.md) + [arquitetura.md](arquitetura.md) | `aether-architecture-senior.mdc` | `aether-architecture-senior` |
 | Runtime CPython 3.13 / GIL / GC / Tier2 | [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-313-runtime.mdc` | `aether-python-313-runtime` |
@@ -19,7 +19,7 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | Redis hiredis / settlement ZSET | [engineering-settlement.md](engineering-settlement.md) + [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-settlement.mdc` | `aether-redis-hiredis` |
 | Doutrina / sessao | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
 | Playbook senior binario | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
-| Risco / Kelly | [medallion.md](medallion.md) + doutrina | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Risco / Kelly | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
 | Execution gates (inversao condicionada a edge e proposta cotada) | [binary-senior-playbook.md](binary-senior-playbook.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) + [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-session-review` + `aether-binary-senior` |
 | Gates por indicadores (catalogo / backlog) | [engineering-indicator-gates.md](engineering-indicator-gates.md) | `aether-execution-gates.mdc` | `aether-binary-senior` + `aether-session-review` |
 | Compra por setup M15 do indicador | [arquitetura.md](arquitetura.md) + [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-indicator-consensus.mdc` | `aether-indicator-consensus` + `aether-settings-change` |
@@ -35,17 +35,18 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | DevOps / CloudOps sênior (Compose, Redis, TS, MinIO) | [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-devops-cloudops` |
 | Deriv API / WS / PAT | [deriv-api-aether.md](deriv-api-aether.md) | `aether-deriv-api.mdc` | `aether-deriv-connect` |
 | Settings / knobs SSOT | [engineering-settings-ssot.md](engineering-settings-ssot.md) | `aether-settings-ssot.mdc` | `aether-settings-change` |
-| Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) + [.github/workflows/WORKFLOWS.md](../.github/workflows/WORKFLOWS.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
+| Engenharia / QA / testes | [engineering-standards.md](engineering-standards.md) + [WORKFLOWS.md](../.github/workflows/WORKFLOWS.md) | `aether-engineering.mdc` + `aether-testing.mdc` | `aether-precommit` |
 | Deps Python / requirements | [engineering-python-deps.md](engineering-python-deps.md) + [engineering-python-313-runtime.md](engineering-python-313-runtime.md) | `aether-python-deps.mdc` | `aether-python-deps` |
 | Higienizacao do repositorio | [engineering-repo-hygiene.md](engineering-repo-hygiene.md) | `aether-repo-hygiene.mdc` | `aether-repo-hygiene` |
 | Surface sync (fechamento) | [engineering-surface-sync.md](engineering-surface-sync.md) | `aether-surface-sync.mdc` | `aether-surface-sync` |
 | Git commit padronizado / commitlint | [engineering-standards.md](engineering-standards.md) | `aether-git-commit.mdc` | `aether-git-commit` |
 | Contrato prompt-modelo | [prompt-model.md](../prompt-model.md) | `aether-engineering.mdc` | `aether-surface-sync` |
 | Logging / presentation (telemetria de contrato e Brier auditado) | [engineering-observability.md](engineering-observability.md) + [engineering-logging-inventory.md](engineering-logging-inventory.md) | `aether-logging.mdc` | `aether-session-review` |
-| Scripts / ops | [structure.md](structure.md) §Scripts | `aether-scripts.mdc` | `aether-ops-runbook` |
-| Domain models/math/symbols | [structure.md](structure.md) §Domain + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) (`1HZ75V`) | `aether-domain-pure.mdc` | — |
+| Scripts / ops | [structure.md](structure.md) | `aether-scripts.mdc` | `aether-ops-runbook` |
+| Domain models/math/symbols | [structure.md](structure.md) + [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-domain-pure.mdc` | — |
 | Volatility 75 (1s) Index | [deriv-indices-algorithm.md](deriv-indices-algorithm.md) | `aether-v75-market.mdc` | `aether-v75-market-analyst` |
-| Kelly Single-Strike 4.31% | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Sizing Single-Strike 4.31% / Payout 0.85 | [medallion.md](medallion.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Indicador publico de sinais sinteticos | [strategy-pullback.md](strategy-pullback.md) + [arquitetura.md](arquitetura.md) | `aether-indicator.mdc` | `aether-indicator` |
 | Verificador de Sinais M15 | [binary-senior-playbook.md](binary-senior-playbook.md) | `aether-execution-gates.mdc` | `aether-binary-senior` |
 
 ## Pastas DDD ↔ matriz
@@ -55,13 +56,13 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 | `app/src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
 | `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
 | `app/src/application/services/execution_scale_*.py` | Scale vision telemetria / regime (sem alterar lado) |
-| `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe (sample_weighting, majority-collapse, regime via recency; `raw_extreme`) |
-| `app/src/application/services/execution_*.py` | Execution: tecnico + TCN + confluencia institucional |
+| `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe |
+| `app/src/application/services/execution_*.py` | Execution: tecnico + confluencia institucional |
 | `app/src/domain/risk/` | Risco / Kelly |
 | `app/src/domain/analytics/` | Sample size / SIDE_EQ |
-| `app/src/domain/models|math|symbols/` | Domain models/math/symbols |
-| `app/src/infrastructure/api|handlers stream|ws` | Deriv API |
-| `app/src/infrastructure/state|storage|market|inference|factories` | Infra |
+| `app/src/domain/models/`, `domain/math/`, `domain/symbols/` | Domain models/math/symbols |
+| `app/src/infrastructure/api/`, `infrastructure/websocket/` | Deriv API |
+| `app/src/infrastructure/state/`, `storage/`, `telemetry/` | Infra |
 | `app/src/presentation/` | Logging |
 | `app/scripts/` | Scripts / ops |
 | `app/tests/` | Engenharia / QA / testes |
@@ -70,4 +71,4 @@ Enforcement no core: `doctrine_invariants.py` + testes `test_doctrine_*` / `test
 
 ## Rules alwaysApply
 
-Todas as rules em `.cursor/rules/*.mdc` estao com `alwaysApply: true` (doutrina, engenharia, dominio, ops, deps, higiene, surface sync).
+Todas as rules em `.agents/rules/*.mdc` estao com `alwaysApply: true` (doutrina, engenharia, dominio, ops, deps, higiene, surface sync).

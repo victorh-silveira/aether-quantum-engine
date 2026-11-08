@@ -1,0 +1,22 @@
+---
+description: Exigencia inegociavel de 100% de cobertura de testes, linters e pre-commit
+alwaysApply: true
+---
+
+# Testes Automatizados e Qualidade de Código
+
+## 1. Contexto e Escopo
+A estabilidade e robustez do Aether sao asseguradas por uma piramide de testes abrangente, envolvendo testes unitarios, de integracao e testes baseados em propriedades.
+
+## 2. Hard Gates Inegociáveis
+- **Cobertura 100% Obrigatória:** Todo o codigo em app/src/ e indicator/app/src/ deve manter cobertura de 100% de linhas e ramos. Reducoes de cobertura falham o build sumariamente (--cov-fail-under=100).
+- **Sem Mocks no Domínio:** Classes de dominio devem ser testadas diretamente atraves de chamadas deterministicas sem mocks artificiais.
+- **Pipeline de Lint Completo:** Passar com zero erros no Ruff (check e format), Interrogate (100% de docstrings), Vulture (zero codigo morto) e verificacao de limite de 300 linhas.
+
+## 3. Padrões de Implementação
+- **Hypothesis para Invariantes:** Utilizar testes baseados em propriedades com Hypothesis para validar calculos de risco, bandas de desvio padrao e integridade de buffers com geracao aleatoria controlada de cenarios.
+- **Testes de Integração com Docker:** Validar integracao com Redis e TimescaleDB utilizando a stack local de containers.
+
+## 4. Proibições Estritas
+- Nunca desativar linters ou pular verificacoes de pre-commit (--no-verify e proibido).
+- Nunca adicionar testes vazios (assert True) para inflar artificialmente a cobertura.

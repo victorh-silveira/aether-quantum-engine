@@ -1,0 +1,25 @@
+---
+description: Dimensionamento de capital institucional, stake base de 1%, cap 5% e amortizacao 1/1
+alwaysApply: true
+---
+
+# Gestão de Risco e Dimensionamento de Lote
+
+## 1. Contexto e Escopo
+A preservacao de capital e o imperativo supremo do motor. O dimensionamento e governado pelo modelo de risco institucional senior em app/src/domain/risk/.
+
+## 2. Hard Gates Inegociáveis
+- **Stake Base:** A stake base de qualquer contrato e fixada em exatamente **1% da banca disponivel** no momento da proposta.
+- **Cap Máximo de Recuperação:** O teto maximo absoluto de qualquer ordem de recuperacao e estritamente limitado a **5% da banca disponivel**.
+- **Amortização Linear 1/1:** Recuperacao baseada no payout liquido cotado (min(max(PEND / payout, 1%), 5%)), amortizando perdas sem multiplicadores exponenciais ou geometricos.
+- **Banimento de Martingale e D'Alembert:** Metodos de progressao geometrica (Martingale, Fibonacci acelerado, D'Alembert) estao terminantemente proibidos no codigo.
+- **Gate de EV Positivo em REAL:** Ordens em conta REAL exigem cotacao com EV positivo e margem de seguranca minima de 0,01 acima do break-even apos corte de haircut.
+
+## 3. Padrões de Implementação
+- **Consulta de Saldo Dinâmico:** O saldo da banca e verificado diretamente na resposta da conta antes da requisicao de proposta de contrato.
+- **Isolamento de Payout:** Payout cotado nulo, zero ou ausente na resposta da corretora aborta a negociacao imediatamente.
+- **Stop-Win Institucional:** Meta de ganho diario com travamento automatico de novas entradas apos atingimento de meta de sessao.
+
+## 4. Proibições Estritas
+- Proibido qualquer aumento discricionario de stake apos uma sequencia de perdas.
+- Proibido remover tetos de protecao financeira ou travas de saldo minimo.

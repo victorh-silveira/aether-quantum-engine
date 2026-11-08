@@ -1,0 +1,24 @@
+---
+description: Hard Gates de execucao de ordens M15, filtros de vela fechada e validacao de proposta
+alwaysApply: true
+---
+
+# Gates de Execução Operacional
+
+## 1. Contexto e Escopo
+Nenhuma ordem Rise/Fall pode ser submetida a corretora sem aprovacao unanime de todos os gates analiticos, temporais e financeiros.
+
+## 2. Hard Gates Inegociáveis
+- **Vela Fechada Atual:** Apenas velas M15 perfeitamente fechadas, contiguas e sem lacunas intradiarias qualificam para calculo de sinal. Velas em formacao fornecem apenas leituras provisorias de telemetria.
+- **Janela de Entrada de 60 Segundos:** A ordem so pode ser aberta nos primeiros 60 segundos apos a abertura da vela M15. Apos 60s, a oportunidade e descartada e o ciclo registra SKIP_TIMEOUT.
+- **Validação de Proposta e EV Positivo:** Abertura em REAL exige proposta cotada valida com payout liquido confirmado, probabilidade finita e EV estritamente positivo com margem minima de 0,01 acima do break-even apos deducao de haircut.
+
+## 3. Padrões de Implementação
+- **Deduplicação Atômica:** Cada ordem deve reservar a combinacao (conta, ativo, vela_epoch) localmente em memoria e via Redis com chave atomica SET NX com expiracao compativel antes do envio.
+- **Isolamento de Ativos:** Operacoes em ativos distintos dentro do mesmo ciclo sao processadas sequencialmente garantindo reserva previa de saldo.
+- **Estado de Transição:** O contrato confirmado e imediatamente registrado no estado local e contabilizado na exposicao de risco antes mesmo do recebimento do stream de liquidacao.
+
+## 4. Proibições Estritas
+- Proibido qualquer mecanismo que force execucoes artificiais (force_trade_every_cycle).
+- Proibido reutilizar sinais ou direcoes de velas anteriores sem nova confluencia completa.
+- Proibido operar com payouts nulos, ausentes ou estimados.

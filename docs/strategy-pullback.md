@@ -1,35 +1,69 @@
-# Setup institucional M15
+# Estratégia Quantitativa: Pullback Institucional M15
 
-## Sinal operacional
+## 1. Visão Geral da Estratégia
 
-O indicador consulta o catalogo publico e as velas OHLC da Deriv. O motor compra apenas sinais `senior_institutional` de M15 da versao configurada, com vela fechada atual e entrada ate 60 segundos apos a abertura da proxima vela. O contrato Rise/Fall dura 15 minutos. H1 e D1 sao pesquisa; M5 do stream legado nao define nem altera o lado.
+O Aether Quantum Engine adota a estratégia quantitativa de recuo institucional (`senior_institutional`) operando contratos Rise/Fall de 15 minutos (900 segundos) na corretora Deriv.
 
-O setup usa 128 velas de M15 para aquecer as medias e exige, para CALL:
+O ativo âncora soberano é o **`OTC_SSMI`** (Swiss Market Index 20 / Deriv OTC). O universo de candidatos avaliados em pesquisa pelo subsistema `indicator/` abrange 12 ativos mundiais de ações OTC (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
 
-1. EMA20 acima da EMA50, EMA20 crescente nas ultimas tres transicoes e EMA50 ascendente.
-2. Vela de recuo contraria a tendencia, com minima a ate 0,5 ATR14 da EMA20 e fechamento acima da EMA50; confirmacao bullish acima da maxima do recuo, corpo de 0,03 a 1,5 ATR14 e fechamento a ate 0,75 ATR14 da EMA20.
-3. Fechamento acima da referencia de preco da sessao UTC e abaixo de sua banda superior de 1,5 desvio padrao.
-4. Fair Value Gap bullish efetivo em velas anteriores com recuo que testa sua faixa.
-5. Vela de confirmacao nas horas BRT 03-07, 10-12 ou 14-15. Lista ausente usa essas horas; lista vazia bloqueia o sinal.
+---
 
-PUT espelha as condicoes. A referencia da sessao e a media dos precos tipicos `(high + low + close) / 3` das velas desde 00:00 UTC, com bandas de desvio padrao. O OHLC publico nao fornece volume para esta rota: **essa medida nao e VWAP por volume**. Menos de duas velas na sessao produz `SEM SINAL`. Nao se usa preco de outra fonte para completar a serie da Deriv.
+## 2. A Matriz dos 5 Pilares Institucionais
 
-Lacunas intradiarias, velas duplicadas conflitantes e dado atrasado produzem `SEM SINAL`. Para OTC, uma pausa entre dias UTC de ate 72 horas pode separar sessoes; as velas sao mantidas com seus horarios originais, sem interpolacao, e a vela de confirmacao precisa ser contigua a anterior.
+Uma oportunidade de compra (CALL ou PUT) só é validada quando atende **concomitantemente** aos 5 pilares estruturais sobre velas M15 perfeitamente fechadas:
 
-## Treino e evidencia
+### Pilar 1: Tendência Estrutural
+- **CALL:** A média móvel exponencial de 20 períodos ($	ext{EMA}_{20}$) deve estar estritamente acima da média de 50 períodos ($	ext{EMA}_{50}$), com inclinação positiva nas últimas 3 transições.
+- **PUT:** $	ext{EMA}_{20} < 	ext{EMA}_{50}$ com inclinação descendente.
 
-`make app-train` calcula apenas um **proxy direcional de velas** para M15, H1 e D1 e mostra ranking diagnostico por ativo. Nao muda `config/settings.json`, nao escolhe o ativo operacional e nao marca a versao como `ativo`. OHLC externo, quando consultado em pesquisas separadas, nao e concatenado ao OHLC da Deriv. Taxa de acerto ou EV do proxy nao representa resultado de contrato.
+### Pilar 2: Retração Técnica de Volatilidade
+- A vela anterior à confirmação deve ter realizado um recuo em direção à média.
+- A mínima da vela de recuo (para CALL) deve estar contida em até **$0,5 	imes 	ext{ATR}_{14}$** da $	ext{EMA}_{20}$, sem fechar abaixo da $	ext{EMA}_{50}$.
+- A vela de confirmação subsequente deve fechar a favor da tendência com corpo entre $0,03$ e $1,5 	imes 	ext{ATR}_{14}$.
 
-O EV do ranking usa um payout hipotetico exibido na tabela, lido de `pullback_strategy.min_payout_rate`; nao usa cotacao da Deriv. O resumo separa setups M15 do total de M15/H1/D1. Falhas de consulta, inclusive limite de requisicoes apos tentativas com espera, aparecem como `COLETA INDISPONIVEL` e nao como ausencia de sinal. Reexecute a coleta em outro momento para completar esses pares; nao preencha lacunas com velas sinteticas.
-Ativos sem setups aparecem como `SEM AMOSTRA`, sem taxa de acerto ou EV numericos.
-Na coleta OTC, lacunas entre dias UTC sao tratadas como pausas de sessao e nao geram chamadas de reparo; lacunas dentro do mesmo dia ainda podem ser consultadas. A avaliacao continua exigindo contiguidade na vela de confirmacao.
+### Pilar 3: Referência OHLC da Sessão UTC
+- Cálculo do preço típico acumulado da sessão UTC iniciado às 00:00 UTC:
+  $$	ext{Preço Típico} = rac{	ext{High} + 	ext{Low} + 	ext{Close}}{3}$$
+- **Bandas de Dispersão:** Bandas de tolerância de $\pm 1,5 \sigma$ (desvio padrão) em torno da média de preços típicos.
+- O fechamento da vela de confirmação deve ser favorável à referência e permanecer contido dentro das bandas de $\pm 1,5 \sigma$ (evitando exaustão estatística).
+- *Nota de Engenharia:* Esta métrica utiliza exclusivamente OHLC puro, pois o stream público OTC não fornece volume real; **não é VWAP volumétrica**.
 
-O `app-train` tambem imprime um backtest M15 por ativo e data BRT. `HOJE` conta setups apenas quando ha vela fechada do ativo no dia; `s/d` indica ausencia de dados do dia, nao zero entradas. `ULT. DIA` conta os setups na data da ultima vela disponivel, mesmo com o mercado fechado agora. O detalhe diario lista cada data com entrada historica. `SALDO/U` soma, com stake fixa hipotetica de uma unidade, `acertos * min_payout_rate - erros`; empates contam zero somente nessa simulacao. A entrada e avaliada pela direcao da vela M15 seguinte, sem cotacao, compra no horario real, custo ou liquidacao pelo broker. Esse backtest nao estima o EV operacional nem qualifica REAL.
+### Pilar 4: Mitigação de Fair Value Gap (FVG)
+- Identificação de desequilíbrio estrutural (imbalance) entre as velas $t-2$ e $t$.
+- O recuo deve mitigar (penetrar e testar) a faixa de preço do FVG, confirmando o preenchimento de liquidez antes da continuação do movimento.
 
-O piloto DEMO da versao nova aceita ate 200 propostas validas com stake base de 1% da banca disponivel, mesmo sem EV positivo. Somente contratos unicos liquidados pelo broker e atribuidos ao mesmo ativo, periodo e versao compoem a amostra. O registro muda de `piloto` para `ativo` apenas com 200 compras e liquidacoes e limite inferior unilateral de 95% do retorno liquido medio positivo; caso contrario, vai para `reprovado`.
+### Pilar 5: Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3)
+A entrada só é autorizada se o fechamento da vela de confirmação estiver contido estritamente em uma das 3 janelas de maior liquidez institucional:
+1. **London Open:** 03h00 às 08h00 BRT
+2. **New York Overlap:** 10h00 às 13h00 BRT
+3. **London Fix:** 14h00 às 16h00 BRT
+Qualquer vela fora desses intervalos recebe veto sumário (`SEM SINAL: Fora da Killzone`).
 
-REAL exige adicionalmente essa evidencia no motor, posterior Beta(0,5; 0,5), haircut, EV positivo e margem de 0,01 acima do break-even na cotacao final. A compra conserva o lado do sinal aprovado. Sem sinal atual ou cotacao valida, nao ha ordem.
+---
 
-## Risco e auditoria
+## 3. Janela de Execução e Validação Econômica
 
-A stake base e 1% da banca disponivel. A recuperacao 1/1 usa o payout liquido cotado e respeita 5% por ordem com amortizacao suave em etapas se a perda exceder o teto; perdas pendentes nao geram sinal. O cooldown pos-loss alinha com a fronteira da vela M15 (`loss_cooldown_candles=1`, estendendo para `consecutive_loss_cooldown_candles=2` em perdas consecutivas no mesmo par), liberando o ativo exatamente na abertura da proxima vela elegivel sem atrasos residuais. Reservas por conta/ativo/vela, deduplicacao por `contract_id` e reconciliacao de compras sem ACK continuam obrigatorias. Nao ha stop loss ou teto acumulado de perda.
+- **Janela Temporal:** A abertura do contrato deve ser disparada em até **60 segundos** após a abertura da nova vela M15. Transcorridos 60 segundos, a ordem é abortada por timeout (`SKIP_TIMEOUT`).
+- **Validação de Valor Esperado (EV):**
+  $$EV = P(	ext{Win}) 	imes (1 + 	ext{Payout}_{	ext{líquido}}) - 1$$
+- Ordens em conta REAL exigem:
+  1. $EV > 0$ calculado sobre o payout líquido confirmado pela proposta do broker.
+  2. Margem de segurança de pelo menos $0,01$ acima do ponto de equilíbrio ($BE = rac{1}{1 + 	ext{Payout}}$).
+
+---
+
+## 4. Gestão de Risco e Dimensionamento
+
+- **Stake Base:** Exatamente **1% do saldo disponível da banca**.
+- **Amortização Linear 1/1:** Em caso de perda, a recuperação busca recompor o prejuízo acumulado de forma linear:
+  $$	ext{Stake}_{	ext{rec}} = \min\left(\max\left(rac{	ext{Prejuízo}}{	ext{Payout}}, 1\% 	imes 	ext{Banca}ight), 5\% 	imes 	ext{Banca}ight)$$
+- **Teto Inviolável:** Nenhuma ordem pode ultrapassar **5% da banca disponível**.
+- **Banimento Estrito:** Martingale, D'Alembert e Kelly exponencial estão terminantemente proibidos da rota operacional.
+
+---
+
+## 5. Critérios de Promoção e Amostragem (LLN)
+
+- **Piloto DEMO:** Novas implementações ou calibrações entram inicialmente em modo `piloto` na conta DEMO.
+- **Amostra de 200 Contratos:** A promoção para conta REAL exige histórico de pelo menos **200 contratos únicos liquidados pelo broker** com a mesma versão de setup.
+- **Limite Inferior Positivo:** O limite inferior unilateral de 95% do intervalo de confiança para o retorno líquido médio deve ser estritamente superior a zero ($IC_{95\%} > 0$).

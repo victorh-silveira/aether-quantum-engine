@@ -2,7 +2,7 @@
 
 Contrato reutilizavel derivado deste repositorio de referencia (**Aether Quantum Engine**). Use este arquivo para orientar um agente a gerar ou adaptar qualquer projeto (Python ou outra linguagem) com o mesmo padrao de engenharia: DDD, hexagonal, TDD, qualidade, DX e documentacao.
 
-Dominios de negocio de outros PoCs (ex.: OTRS → Google Chat) sao apenas exemplos historicos de aplicacao do padrao — **nao** regra obrigatoria do novo projeto. O negocio deste repo (Deriv / 1HZ75V / TCN) tambem nao deve ser copiado cegamente.
+Dominios de negocio de outros PoCs sao apenas exemplos historicos de aplicacao do padrao — **nao** regra obrigatoria do novo projeto. O negocio deste repo (Deriv / OTC_SSMI / Setup Institucional M15) tambem nao deve ser copiado cegamente.
 
 ## 1. Papel e objetivo
 

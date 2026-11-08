@@ -1,0 +1,23 @@
+---
+description: Integracao com WebSocket Deriv, handshake seguro, PAT/OTP e resiliencia de conexao
+alwaysApply: true
+---
+
+# Integração WebSocket Deriv API
+
+## 1. Contexto e Escopo
+A comunicacao com a corretora Deriv e realizada via WebSocket seguro sobre SSL (wss://api.derivws.com/websockets/v3). O fluxo autenticado suporta envio de propostas, execucao de ordens e reconciliacao de estado.
+
+## 2. Hard Gates Inegociáveis
+- **Segurança de Credenciais:** Tokens PAT (Personal Access Token) e OTP nunca sao persistidos em disco ou expostos em logs. A leitura ocorre exclusivamente via variaveis de ambiente ou memoria protegida.
+- **Validação de Mensagens:** Todo payload de requisicao e resposta deve passar por validacao estrita de esquema antes de processamento pela camada de aplicacao.
+- **Quarentena por Timeout de Compra:** Se ocorrer timeout ou perda de conexao durante o envio da requisicao de buy, o ativo entra imediatamente em quarentena de 900 segundos no Redis para evitar compras duplicadas, consultando o portfolio antes de qualquer reabertura.
+
+## 3. Padrões de Implementação
+- **Reconexão Exponencial:** Implementar reconexao automatica com backoff exponencial e jitter para evitar sobrecarga (thundering herd).
+- **Keepalive Ativo:** Monitoramento continuo de latencia com mensagens de ping/pong a cada 30 segundos.
+- **Rejeição de Proposta:** Caso a Deriv rejeite um ID de proposta com 'Unknown contract proposal', apenas a rota especifica do indicador tenta uma compra direta por parametros no mesmo socket, uma unica vez, validando a vela M15 atual.
+
+## 4. Proibições Estritas
+- Nunca executar reconexoes em loop apertado sem backoff.
+- Nunca ignorar respostas de erro do broker; toda rejeicao deve ser registrada e contabilizada nos gates de risco.

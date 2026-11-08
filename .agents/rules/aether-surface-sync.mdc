@@ -1,0 +1,26 @@
+---
+description: Protocolo obrigatorio de sincronizacao de superficie (docs, rules, skills, AGENTS.md)
+alwaysApply: true
+---
+
+# Sincronização de Superfície de Agentes
+
+## 1. Contexto e Escopo
+Toda alteracao material no sistema (seja de arquitetura, codigo, estrategia, infraestrutura ou configuracoes) exige atualizacao simultanea e sincronizada de toda a superficie de IA do monorepo.
+
+## 2. Hard Gates Inegociáveis
+- **Fechamento Sincronizado:** Nenhuma alteracao de codigo pode ser concluida sem atualizar a documentacao tecnica afetada em docs/, as regras pertinentes em .agents/rules/, as habilidades em .agents/skills/, a matriz docs/agent-coverage.md e o ponto de entrada AGENTS.md.
+- **Validação Automatizada:** O teste app/tests/unit/repo/test_agent_coverage_matrix.py deve passar com sucesso absoluto apos qualquer mudanca na superficie.
+- **Commit em PT-BR:** Commits realizados via make app-commit garantindo execucao integral dos hooks de validacao.
+
+## 3. Padrões de Implementação
+- **Checklist de Fechamento:**
+  1. Codigo implementado com 100% de cobertura de testes.
+  2. Documentos tecnicos em docs/*.md atualizados.
+  3. Regras em .agents/rules/*.mdc revisadas.
+  4. Habilidades em .agents/skills/*/SKILL.md sincronizadas.
+  5. AGENTS.md alinhado com o estado da arte do repositorio.
+  6. make app-lint e make app-test validados.
+
+## 4. Proibições Estritas
+- Nunca comitar mudancas funcionais deixando documentacoes ou regras desatualizadas.

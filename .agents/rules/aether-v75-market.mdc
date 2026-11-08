@@ -1,0 +1,20 @@
+---
+description: Dinamica de indices sinteticos continuos 24/7 e analise de regimes de volatilidade
+alwaysApply: true
+---
+
+# Dinâmica de Índices Sintéticos Contínuos
+
+## 1. Contexto e Escopo
+Indices de volatilidade sinteticos da Deriv (como Volatility 75 (1s) Index / 1HZ75V) operam continuamente 24 horas por dia, 7 dias por semana, gerados por geradores deterministicos de numeros pseudoaleatorios.
+
+## 2. Hard Gates Inegociáveis
+- **Isolamento da Rota de Contratos:** O indice ativo configurado para contratos Rise/Fall e o OTC_SSMI. Indices sinteticos puros de volatilidade como 1HZ75V sao utilizados apenas para pesquisa, analise comparativa de regimes e telemetria analitica.
+- **Ausência de Fechamentos Tradicionais:** Indices sinteticos nao possuem feriados, fins de semana ou pausas entre sessoes; analises temporais devem levar em consideracao a continuidade ininterrupta dos dados.
+
+## 3. Padrões de Implementação
+- **Métricas de Regime:** Calculo de ATR relativo, compressao de Bollinger Bands e expoente de Hurst para deteccao de regimes de persistencia de tendencia ou reversao a media.
+- **Filtragem de Ruído:** Amostragem M5/M15 para reducao do ruido de alta frequencia inerente aos ticks de 1 segundo.
+
+## 4. Proibições Estritas
+- Nunca assumir correlacao de mercado financeiro real entre indices sinteticos puros e ativos OTC de acoes mundiais.

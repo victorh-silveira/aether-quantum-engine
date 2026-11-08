@@ -1,0 +1,23 @@
+---
+description: Padroes de scripts operacionais em app/scripts, tratamento de sinais e idempotencia
+alwaysApply: true
+---
+
+# Padrões para Scripts Operacionais
+
+## 1. Contexto e Escopo
+Todos os utilitarios de suporte, manutencao e execucao residem em app/scripts/operations/ e app/scripts/wsl/.
+
+## 2. Hard Gates Inegociáveis
+- **Execução WSL Linux:** Todos os scripts de automacao e shell devem ser projetados para execucao exclusiva em ambiente WSL Linux (Bash). Scripts .bat sao mantidos apenas como atalhos para desenvolvedores Windows que delegam para WSL.
+- **Idempotência:** Todo script deve ser idempotente: executa-lo multiplas vezes sucessivas deve produzir o mesmo estado final sem corromper dados ou travar processos.
+- **Tratamento de Sinais POSIX:** Scripts Python de longa duracao devem capturar SIGINT e SIGTERM, garantindo encerramento seguro e liberacao de recursos.
+
+## 3. Padrões de Implementação
+- **Códigos de Retorno:** Retornar sys.exit(0) em caso de sucesso e codigo nao-zero (sys.exit(1)) em caso de falha.
+- **Logs Claros:** Saidas no terminal devem informar claramente cada etapa do processo utilizando mensagens objetivas e sem emojis.
+- **Checagem de Argumentos:** Validacao estrita de argumentos de linha de comando com argparse.
+
+## 4. Proibições Estritas
+- Nunca deixar subprocessos ou processos filhos orfaos em background ao encerrar um script.
+- Nunca suprimir erros de execucao silenciosamente.

@@ -1,0 +1,85 @@
+{
+  "mcpServers": {
+    "timescaledb": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-postgres",
+        "postgresql://aether:aether@localhost:5432/aether"
+      ]
+    },
+    "redis": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@liangshanli/mcp-server-redis"
+      ],
+      "env": {
+        "REDIS_HOST": "localhost",
+        "REDIS_PORT": "6379"
+      }
+    },
+    "docker": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "docker-mcp"
+      ],
+      "env": {
+        "DOCKER_HOST": "npipe:////./pipe/docker_engine"
+      }
+    },
+    "prometheus": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "prometheus-mcp-server"
+      ],
+      "env": {
+        "PROMETHEUS_BASE_URL": "http://localhost:9090"
+      }
+    },
+    "grafana": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@tocharianou/grafana-mcp"
+      ],
+      "env": {
+        "GRAFANA_URL": "http://localhost:3000",
+        "GRAFANA_USERNAME": "admin",
+        "GRAFANA_PASSWORD": "aether"
+      }
+    },
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "C:\\Users\\victor-silveira\\Desktop\\GitHub\\aether-quantum-engine"
+      ]
+    },
+    "context7": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@upstash/context7-mcp"
+      ]
+    },
+    "trivy-security": {
+      "command": "wsl.exe",
+      "args": [
+        "trivy",
+        "mcp"
+      ]
+    },
+    "rea": {
+      "command": "cmd.exe",
+      "args": [
+        "/c",
+        "rea",
+        "--mcp"
+      ]
+    }
+  }
+}

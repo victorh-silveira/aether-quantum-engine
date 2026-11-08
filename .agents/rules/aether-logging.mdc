@@ -1,0 +1,22 @@
+---
+description: Padroes de logs estruturados, rastreabilidade de ordens e ausencia de emojis
+alwaysApply: true
+---
+
+# Logs Estruturados e Telemetria
+
+## 1. Contexto e Escopo
+O modulo app/src/presentation/ gerencia a saida de logs estruturados e telemetria para o terminal e agregadores.
+
+## 2. Hard Gates Inegociáveis
+- **Sem Emojis:** Todos os logs, mensagens de console e relatorios devem ser totalmente livres de emojis ou icones graficos.
+- **Formato Padronizado:** Mensagens devem seguir a estrutura padrao com timestamp UTC, nivel de log, contexto do modulo e dados estruturados em pares chave=valor.
+- **Rastreabilidade de Ordem:** Toda mensagem associada a uma proposta ou contrato deve conter contract_id, symbol, candle_epoch, stake, payout e ev.
+
+## 3. Padrões de Implementação
+- **Níveis de Severidade:** Uso criterioso de DEBUG (apenas em desenvolvimento), INFO (ciclos normais, sinais), WARNING (reconexao, gaps recuperaveis), ERROR (rejeicoes, falhas de I/O) e CRITICAL (corrupcao de estado, panico de watchdog).
+- **Sem Overhead no Hot-path:** Loggers em rotinas assincronas rapidas devem evitar formatacoes complexas ou operacoes de I/O sincronas que bloqueiem a thread.
+
+## 4. Proibições Estritas
+- Nunca registrar credenciais, tokens PAT ou OTP nos logs.
+- Nunca poluir os logs de INFO com mensagens repetitivas a cada tick de mercado.

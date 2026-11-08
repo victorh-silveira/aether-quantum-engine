@@ -1,0 +1,29 @@
+---
+description: Confluencia institucional senior de 5 pilares, referencia OHLC e Killzones BRT
+alwaysApply: true
+---
+
+# Setup Institucional Sênior (Senior Institutional)
+
+## 1. Contexto e Escopo
+A rota operacional ativa do Aether adota a variante senior_institutional no timeframe M15 para contratos Rise/Fall de 15 minutos, operando no ativo ancora OTC_SSMI.
+
+## 2. Os 5 Pilares Inegociáveis
+1. **Tendência Estrutural:** Medias moveis exponenciais EMA20 e EMA50 alinhadas na direcao do sinal (EMA20 > EMA50 para CALL; EMA20 < EMA50 para PUT).
+2. **Recuo Técnico:** O preco da vela anterior deve ter recuado ate no maximo 0,5 ATR14 da EMA20.
+3. **Preço de Sessão UTC:** Preco favoravel a referencia OHLC da sessao UTC (preco tipico sem volume; nao e VWAP), com fechamento contido nas bandas de +/- 1,5 desvio padrao.
+4. **Fair Value Gap (FVG):** Mitigacao confirmada de Fair Value Gap entre as velas t-2 e t.
+5. **Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3):**
+   - London Open: 03h00 as 08h00 BRT
+   - New York Overlap: 10h00 as 13h00 BRT
+   - London Fix: 14h00 as 16h00 BRT
+   - Fora dessas 3 janelas, o gate bloqueia sumariamente qualquer tentativa de abertura de posicao.
+
+## 3. Padrões de Implementação
+- **Séries Contíguas:** Intervalos entre sessoes UTC de ate 72 horas em OTC sao preservados sem interpolacao; lacunas intradiarias anormais resultam em SEM SINAL.
+- **Âncora Operacional:** OTC_SSMI configurado em config/settings.json e drift_symbols.py como ancoragem operacional soberana. H1 e D1 permanecem restritos a pesquisa e diagnostico.
+- **Promoção de Versões:** Novas versoes entram como piloto em DEMO e exigem historico de 200 contratos liquidados com retorno medio positivo para habilitacao em REAL.
+
+## 4. Proibições Estritas
+- Nunca operar fora das janelas de Killzone BRT.
+- Nunca utilizar volumes sinteticos como se fossem reais (usar OHLC puro).

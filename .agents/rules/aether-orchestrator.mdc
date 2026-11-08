@@ -1,0 +1,22 @@
+---
+description: Orquestrador assincrono, ciclo M15, warmup de buffers e supervisao por watchdog
+alwaysApply: true
+---
+
+# Orquestrador de Ciclos e Supervisão
+
+## 1. Contexto e Escopo
+O servico de orquestracao em app/src/application/services/orchestrator/ coordena os ciclos operacionais do motor, o warmup de mercado e a execucao temporal sincronizada.
+
+## 2. Hard Gates Inegociáveis
+- **Warmup Obrigatório:** O motor nao processa sinais antes de preencher completamente os buffers historicos de candles M15 necessarios para calculo confiavel de ATR14, EMA20 e EMA50.
+- **Sincronização com o Relógio M15:** O ciclo principal opera sincronizado com os limites exatos de 900 segundos das velas M15, garantindo avaliacao precisa nos primeiros 60 segundos da abertura.
+- **Watchdog Ativo:** Um servico de watchdog monitora continuamente a saude do loop assincrono e dos streams; estagnacao prolongada dispara alertas e safe-shutdown defensivo.
+
+## 3. Padrões de Implementação
+- **Assinatura de Ciclo:** Cada ciclo de avaliacao gera uma assinatura unica baseada em symbol e candle_epoch para garantir idempotencia e prevenir processamento duplicado.
+- **Transição de Estados:** Estados operacionais (STARTING, WARMING_UP, ACTIVE, PAUSED, STOPPING) gerenciados por maquina de estados finita.
+
+## 4. Proibições Estritas
+- Nunca operar sem conclusao integral do warmup de buffers.
+- Nunca congelar o ciclo aguardando respostas sincronas de rede.

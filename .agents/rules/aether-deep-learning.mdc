@@ -1,0 +1,22 @@
+---
+description: Isolamento da stack de pesquisa experimental de ML (TCN) fora do caminho operacional
+alwaysApply: true
+---
+
+# Pesquisa Experimental em Deep Learning
+
+## 1. Contexto e Escopo
+Modelos de Deep Learning (TCN - Temporal Convolutional Networks) e classificadores complementares estao isolados exclusivamente no modulo de pesquisa experimental make app-research-ml.
+
+## 2. Hard Gates Inegociáveis
+- **Desconexão Operacional:** Nenhum modelo de Deep Learning possui autoridade para abrir ordens na rota operacional ativa. O caminho critico e 100% governado pelo setup deterministico senior_institutional M15.
+- **Isolamento de Recursos:** Treinamentos pesados de redes neurais devem ser executados sob limites explicitos de memoria e CPU para nao impactar o funcionamento do motor de cotacao.
+- **Artefatos e Checkpoints:** Modelos exportados sao armazenados no MinIO ou em data/dl/ e possuem metadados completos de treino, janelas de validacao e metricas ECE/Brier.
+
+## 3. Padrões de Implementação
+- **Inference Mode:** Quando executada no host, a inferencia com PyTorch deve rodar sob torch.inference_mode() e ser despachada para asyncio.to_thread para evitar travamentos no loop.
+- **Zero Vazamento Temporal:** Janelas de validacao walk-forward devem respeitar embargo estrito entre treino, calibracao e teste.
+
+## 4. Proibições Estritas
+- Proibido acoplar pipelines de treino no ciclo principal de execucao operacional.
+- Proibido reintroduzir dependencias diretas de PyTorch na tomada de decisao de contratos M15.

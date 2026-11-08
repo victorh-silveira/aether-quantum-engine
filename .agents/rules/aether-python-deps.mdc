@@ -1,0 +1,23 @@
+---
+description: Politica estrita de dependencias Python, Polars SSOT e banimento de pandas
+alwaysApply: true
+---
+
+# Dependências Python e Política de Dados
+
+## 1. Contexto e Escopo
+O projeto mantem uma superficie de dependencias minima e altamente auditada. A integridade de dependencias e validada automaticamente pelo teste unitario test_python_deps_policy.py.
+
+## 2. Hard Gates Inegociáveis
+- **Banimento Estrito de Pandas:** O uso de pandas e terminantemente proibido em qualquer modulo de app/src, indicator/ ou scripts. Qualquer commit contendo import pandas sera reprovado no pre-commit.
+- **Polars como Padrão Exclusivo:** Todo processamento analitico e temporal utiliza Polars (LazyFrame e DataFrame) com interoperabilidade zero-copy via Apache Arrow.
+- **Controle de Threads do Polars:** POLARS_MAX_THREADS deve ser configurado de forma consciente para nao competir com as threads do runtime assincrono.
+
+## 3. Padrões de Implementação
+- **Requirements SSOT:** Dependencias principais residem em app/requirements.txt e dependencias de teste/linters em app/requirements-dev.txt.
+- **Pinagem de Versões:** Todas as dependencias de producao devem ter versoes estritamente fixadas para garantir reprodutibilidade deterministica entre host e CI.
+- **Bibliotecas Críticas de I/O:** httpx como cliente HTTP singleton, websockets configurado com ping/pong keepalive e hiredis como parser C de alta velocidade.
+
+## 4. Proibições Estritas
+- Nunca adicionar novas dependencias sem justificativa formal e aprovacao de arquitetura.
+- Nunca utilizar bibliotecas de manipulacao tabular que introduzam sobrecarga desnecessaria de memoria.

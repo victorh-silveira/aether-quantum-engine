@@ -34,8 +34,8 @@ def test_agents_md_exists():
 def test_agent_coverage_matrix_rules_and_skills_exist():
     rows = _matrix_rows()
     assert len(rows) >= 10
-    rules_dir = repo_path(".cursor", "rules")
-    skills_dir = repo_path(".cursor", "skills")
+    rules_dir = repo_path(".agents", "rules")
+    skills_dir = repo_path(".agents", "skills")
     for row in rows:
         cols = [c.strip() for c in row.strip("|").split("|")]
         assert len(cols) >= 4
@@ -63,7 +63,7 @@ def test_agent_coverage_matrix_docs_exist():
 
 
 def test_all_rules_are_always_apply():
-    rules_dir = repo_path(".cursor", "rules")
+    rules_dir = repo_path(".agents", "rules")
     files = sorted(rules_dir.glob("*.mdc"))
     assert files
     for path in files:
