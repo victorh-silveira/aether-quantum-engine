@@ -14,8 +14,10 @@ on:
       - "config/**"
       - "infra/**"
       - "native/**"
-      - "app/**"
-      - "indicator/**"
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "run_indicator.py"
       - "run.py"
       - "train.py"
   pull_request:
@@ -30,8 +32,10 @@ on:
       - "config/**"
       - "infra/**"
       - "native/**"
-      - "app/**"
-      - "indicator/**"
+      - "src/**"
+      - "tests/**"
+      - "scripts/**"
+      - "run_indicator.py"
       - "run.py"
       - "train.py"
   workflow_dispatch:
@@ -66,34 +70,34 @@ jobs:
           sudo mv /tmp/gitleaks /usr/local/bin/gitleaks
       - name: Python | Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage lint
+        run: python scripts/operations/clean_workspace.py --area python --stage lint
       - name: Python | JSON Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text json
+        run: python scripts/operations/clean_workspace.py --area python --stage lint --config-text json
       - name: Python | YAML Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
+        run: python scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
       - name: Python | Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage validate
+        run: python scripts/operations/clean_workspace.py --area python --stage validate
       - name: Python | JSON Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text json
+        run: python scripts/operations/clean_workspace.py --area python --stage validate --config-text json
       - name: Python | YAML Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
+        run: python scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
       - name: Python | Seguranca
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage security
+        run: python scripts/operations/clean_workspace.py --area python --stage security
       - name: Python | Testes
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
+        run: python scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
       - name: Python | JSON Testes
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage test --config-text json
+        run: python scripts/operations/clean_workspace.py --area python --stage test --config-text json
       - name: Python | Build
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area python --stage build
+        run: python scripts/operations/clean_workspace.py --area python --stage build
 
   docker:
     name: CI - Docker
@@ -119,10 +123,10 @@ jobs:
           version: v0.74.0
       - name: Docker | Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area docker --stage lint
+        run: python scripts/operations/clean_workspace.py --area docker --stage lint
       - name: Docker | Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area docker --stage validate
+        run: python scripts/operations/clean_workspace.py --area docker --stage validate
       - name: Docker | Compose e Dashboards
         shell: bash
         run: |
@@ -130,13 +134,13 @@ jobs:
           python -c 'import json,pathlib; files=list(pathlib.Path("indicator/infra/docker/grafana/provisioning/dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
       - name: Docker | Seguranca
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area docker --stage security
+        run: python scripts/operations/clean_workspace.py --area docker --stage security
       - name: Docker | Testes
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area docker --stage test
+        run: python scripts/operations/clean_workspace.py --area docker --stage test
       - name: Docker | Build
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area docker --stage build
+        run: python scripts/operations/clean_workspace.py --area docker --stage build
 
   shell:
     name: CI - Shell
@@ -158,19 +162,19 @@ jobs:
           fi
       - name: Shell | Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area shell --stage lint
+        run: python scripts/operations/clean_workspace.py --area shell --stage lint
       - name: Shell | Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area shell --stage validate
+        run: python scripts/operations/clean_workspace.py --area shell --stage validate
       - name: Shell | Seguranca
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area shell --stage security
+        run: python scripts/operations/clean_workspace.py --area shell --stage security
       - name: Shell | Testes
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area shell --stage test
+        run: python scripts/operations/clean_workspace.py --area shell --stage test
       - name: Shell | Build
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area shell --stage build
+        run: python scripts/operations/clean_workspace.py --area shell --stage build
 
   rust:
     name: CI - Rust
@@ -196,19 +200,19 @@ jobs:
           workspaces: native/aether_core
       - name: Rust | Lint
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area rust --stage lint
+        run: python scripts/operations/clean_workspace.py --area rust --stage lint
       - name: Rust | Validate
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area rust --stage validate
+        run: python scripts/operations/clean_workspace.py --area rust --stage validate
       - name: Rust | Seguranca
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area rust --stage security
+        run: python scripts/operations/clean_workspace.py --area rust --stage security
       - name: Rust | Testes
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area rust --stage test
+        run: python scripts/operations/clean_workspace.py --area rust --stage test
       - name: Rust | Build
         shell: bash
-        run: python app/scripts/operations/clean_workspace.py --area rust --stage build
+        run: python scripts/operations/clean_workspace.py --area rust --stage build
 
   workflows:
     name: CI - Workflows
