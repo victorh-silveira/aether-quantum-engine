@@ -1,0 +1,8 @@
+# Dependencias minimas de runtime para o subsistema de indicador publico
+websockets==16.0
+asyncpg==0.32.0
+httpx==0.28.1
+numpy==2.4.6
+polars==1.23.0
+python-dotenv==1.2.2
+rich==15.0.0

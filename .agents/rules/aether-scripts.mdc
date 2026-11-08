@@ -6,7 +6,7 @@ alwaysApply: true
 # Padrões para Scripts Operacionais
 
 ## 1. Contexto e Escopo
-Todos os utilitarios de suporte, manutencao e execucao residem em app/scripts/operations/ e app/scripts/wsl/.
+Todos os utilitarios de suporte, manutencao e execucao residem em scripts/operations/ e scripts/wsl/.
 
 ## 2. Hard Gates Inegociáveis
 - **Execução WSL Linux:** Todos os scripts de automacao e shell devem ser projetados para execucao exclusiva em ambiente WSL Linux (Bash). Scripts .bat sao mantidos apenas como atalhos para desenvolvedores Windows que delegam para WSL.

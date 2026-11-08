@@ -6,7 +6,7 @@ alwaysApply: true
 # Gestão de Risco e Dimensionamento de Lote
 
 ## 1. Contexto e Escopo
-A preservacao de capital e o imperativo supremo do motor. O dimensionamento e governado pelo modelo de risco institucional senior em app/src/domain/risk/.
+A preservacao de capital e o imperativo supremo do motor. O dimensionamento e governado pelo modelo de risco institucional senior em src/domain/risk/.
 
 ## 2. Hard Gates Inegociáveis
 - **Stake Base:** A stake base de qualquer contrato e fixada em exatamente **1% da banca disponivel** no momento da proposta.

@@ -10,9 +10,9 @@ O Aether Quantum Engine e projetado sob a arquitetura Domain-Driven Design (DDD)
 
 ## 2. Hard Gates Inegociáveis
 - **Camadas Rígidas:** O fluxo de dependencia aponta estritamente para dentro: Presentation -> Application -> Domain. A camada de Infraestrutura implementa as portas de saida (outbound ports) definidas em Application.
-- **Pureza de Domínio:** A pasta app/src/domain/ deve permanecer 100% pura, contendo apenas entidades, objetos de valor, matematica de mercado e invariantes de risco. E terminantemente proibido importar frameworks, bibliotecas de banco de dados ou realizar I/O dentro de domain/.
+- **Pureza de Domínio:** A pasta src/domain/ deve permanecer 100% pura, contendo apenas entidades, objetos de valor, matematica de mercado e invariantes de risco. E terminantemente proibido importar frameworks, bibliotecas de banco de dados ou realizar I/O dentro de domain/.
 - **Manipulação Colunar SSOT:** O Polars e o unico framework colunar autorizado para processamento de dados tabulares. Uso de pandas e sumariamente proibido em todo o monorepo.
-- **Limite Estrutural:** Nenhum arquivo em app/src/**/*.py pode exceder 300 linhas de codigo.
+- **Limite Estrutural:** Nenhum arquivo em src/**/*.py pode exceder 300 linhas de codigo.
 
 ## 3. Padrões de Implementação
 - **Asyncio Cooperativo:** Operacoes pesadas de processamento matematico ou I/O bloqueante devem ser delegadas explicitamente para asyncio.to_thread para nao degradar o event loop principal.

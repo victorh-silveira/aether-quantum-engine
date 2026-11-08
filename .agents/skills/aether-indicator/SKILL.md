@@ -29,5 +29,5 @@ make indicator-test
 ```
 
 ## 4. Critérios de Aceite
-- 100% de cobertura alcancada em `indicator/app/src/`.
+- 100% de cobertura alcancada em `src/indicator/`.
 - Painéis do Grafana exibindo leituras sem erros de consulta.

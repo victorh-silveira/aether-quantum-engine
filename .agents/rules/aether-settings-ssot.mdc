@@ -9,7 +9,7 @@ alwaysApply: true
 O arquivo config/settings.json e a unica fonte da verdade soberana para todos os parametros operacionais, limites de risco, ativos e credenciais do motor e do indicador.
 
 ## 2. Hard Gates Inegociáveis
-- **Leitura Centralizada:** O acesso a settings.json ocorre exclusivamente atraves das funcoes padronizadas em app/settings_io.py e dos parsers tipados em app/src/domain/config_knobs.py.
+- **Leitura Centralizada:** O acesso a settings.json ocorre exclusivamente atraves das funcoes padronizadas em settings_io.py e dos parsers tipados em src/domain/config_knobs.py.
 - **Imutabilidade em Runtime:** Configuracoes carregadas nao devem ser modificadas em memoria dinamicamente para driblar gates ou regras de seguranca.
 - **Validação de Doutrina:** Modificacoes em settings.json sao validadas pelo teste test_doctrine_settings_ssot.py para garantir que nenhum limite critico de risco seja afrouxado.
 

@@ -9,7 +9,7 @@ alwaysApply: true
 A estabilidade e robustez do Aether sao asseguradas por uma piramide de testes abrangente, envolvendo testes unitarios, de integracao e testes baseados em propriedades.
 
 ## 2. Hard Gates Inegociáveis
-- **Cobertura 100% Obrigatória:** Todo o codigo em app/src/ e indicator/app/src/ deve manter cobertura de 100% de linhas e ramos. Reducoes de cobertura falham o build sumariamente (--cov-fail-under=100).
+- **Cobertura 100% Obrigatória:** Todo o codigo em src/ e src/indicator/ deve manter cobertura de 100% de linhas e ramos. Reducoes de cobertura falham o build sumariamente (--cov-fail-under=100).
 - **Sem Mocks no Domínio:** Classes de dominio devem ser testadas diretamente atraves de chamadas deterministicas sem mocks artificiais.
 - **Pipeline de Lint Completo:** Passar com zero erros no Ruff (check e format), Interrogate (100% de docstrings), Vulture (zero codigo morto) e verificacao de limite de 300 linhas.
 

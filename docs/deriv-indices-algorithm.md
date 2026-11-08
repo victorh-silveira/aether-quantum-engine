@@ -20,7 +20,7 @@ Universo operacional unico: **`1HZ75V`** (Volatility 75 (1s) Index / Deriv). Ati
 | Settle wait / tolerancia | poll **0.5 s** / tolerancia **600 s**; timeout pos-ciclo **1200 s** |
 | Watchdog stale tick | **300 s** |
 
-SSOT: `config/settings.json` + `app/src/domain/symbols/drift_symbols.py`.
+SSOT: `config/settings.json` + `src/domain/symbols/drift_symbols.py`.
 
 ---
 

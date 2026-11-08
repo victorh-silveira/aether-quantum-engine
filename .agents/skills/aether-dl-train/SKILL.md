@@ -21,7 +21,7 @@ description: Treinamento e avaliacao da stack de pesquisa experimental de ML (TC
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe app/scripts/operations/check_dl_checkpoint.py
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe scripts/operations/check_dl_checkpoint.py
 /mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/application/test_deep_learning*.py -v
 ```
 

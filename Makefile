@@ -3,7 +3,7 @@
 # ==============================================================================
 
 SHELL := /bin/bash
-APP_DIR=app
+APP_DIR=.
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
 DOCKER_PROFILES ?= core,telemetry,indicator
@@ -87,66 +87,64 @@ help:
 
 app-install:
 	$(PYTHON) -m pip install --upgrade pip
-	$(PYTHON) -m pip install -r $(APP_DIR)/requirements.txt -r $(APP_DIR)/requirements-dev.txt
-	$(MAKE) -C indicator app-install
+	$(PYTHON) -m pip install -r requirements.txt -r requirements-dev.txt
 
 app-lint:
-	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage lint
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage lint --config-text json
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage lint
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage lint
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage lint
+	$(PYTHON) scripts/operations/clean_workspace.py --area python --stage lint
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage lint --config-text json
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage lint
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage lint
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage lint
 	@$(MAKE) --no-print-directory app-workflows-lint
 
 app-workflows-lint:
 	@if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/ci.yml; else echo '[workflows] actionlint ausente; job CI - Workflows valida no GitHub'; fi
 
 app-validate:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage validate
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage validate --config-text json
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage validate
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage validate
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage validate
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage validate
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage validate --config-text json
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage validate
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage validate
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage validate
 
 app-test:
-	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage test --config-text json
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage test
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage test
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage test
+	$(PYTHON) scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage test --config-text json
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage test
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage test
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage test
 
 app-security:
-	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage security
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage security
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage security
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage security
+	$(PYTHON) scripts/operations/clean_workspace.py --area python --stage security
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage security
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage security
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage security
 
 app-build:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area python --stage build
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area docker --stage build
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area shell --stage build
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage build
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage build
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage build
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage build
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage build
 
 app-rust-lint:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage lint
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage lint
 
 app-rust-validate:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage validate
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage validate
 
 app-rust-security:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage security
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage security
 
 app-rust-test:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage test
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage test
 
 app-rust-build:
-	$(QA_PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --area rust --stage build
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage build
 
 app-clean:
-	$(PYTHON) $(APP_DIR)/scripts/operations/clean_workspace.py --stage clean
-	$(MAKE) -C indicator app-clean
+	$(PYTHON) scripts/operations/clean_workspace.py --stage clean
 
 app-run:
 	$(PYTHON) run.py
@@ -156,9 +154,9 @@ app-train:
 	@$(MAKE) --no-print-directory indicator-train
 
 app-research-ml:
-	$(PYTHON) $(APP_DIR)/train.py
-	$(PYTHON) $(APP_DIR)/scripts/operations/check_dl_checkpoint.py
-	@$(PYTHON) $(APP_DIR)/scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel.'
+	$(PYTHON) train.py
+	$(PYTHON) scripts/operations/check_dl_checkpoint.py
+	@$(PYTHON) scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel.'
 
 indicator-up: docker-up
 
@@ -167,20 +165,21 @@ indicator-down: docker-down
 indicator-train:
 	@if [ "$$($(INDICATOR_PYTHON) -c 'import sys; print(sys.platform)')" = linux ] && command -v prlimit >/dev/null 2>&1; then \
 		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		prlimit --as=$$(( $(INDICATOR_TRAIN_MEMORY_MB) * 1024 * 1024 )) -- $(INDICATOR_PYTHON) indicator/app/train.py; \
+		prlimit --as=$$(( $(INDICATOR_TRAIN_MEMORY_MB) * 1024 * 1024 )) -- $(INDICATOR_PYTHON) run_indicator.py; \
 	else \
 		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		$(INDICATOR_PYTHON) indicator/app/train.py; \
+		$(INDICATOR_PYTHON) run_indicator.py; \
 	fi
 
 indicator-test:
-	$(MAKE) -C indicator test PYTHON=$(INDICATOR_PYTHON)
+	$(INDICATOR_PYTHON) -m pytest tests/indicator --cov=src/indicator --cov-report=term-missing --cov-fail-under=100
 
 indicator-lint:
-	$(MAKE) -C indicator lint PYTHON=$(INDICATOR_PYTHON)
+	$(INDICATOR_PYTHON) -m ruff check src/indicator tests/indicator
+	$(INDICATOR_PYTHON) -m ruff format --check src/indicator tests/indicator
 
 indicator-security:
-	$(MAKE) -C indicator app-security PYTHON=$(INDICATOR_PYTHON)
+	$(INDICATOR_PYTHON) -m ruff check --select S --ignore S104 src/indicator
 
 app-train-all: app-train
 
@@ -192,10 +191,10 @@ app-pre-commit-run:
 	$(QA_PYTHON) -m pre_commit run --all-files -c .pre-commit-config.yaml
 
 app-commit:
-	@bash app/scripts/wsl/commit.sh $(ARGS)
+	@bash scripts/wsl/commit.sh $(ARGS)
 
 app-setup-wsl:
-	bash app/scripts/wsl/setup.sh
+	bash scripts/wsl/setup.sh
 
 # ------------------------------------------------------------------------------
 # Docker Targets
@@ -203,18 +202,18 @@ app-setup-wsl:
 
 docker-sanitize-run:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-sanitize-run · limpa checkpoints e artefactos da run anterior"'
-	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py
+	$(PYTHON) scripts/operations/sanitize_fresh_run.py
 
 docker-sanitize-run-keep-meta:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-sanitize-run-keep-meta · limpa TCN/loss/estado (mantem meta_lgbm.pkl)"'
-	$(PYTHON) $(APP_DIR)/scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
+	$(PYTHON) scripts/operations/sanitize_fresh_run.py --keep-meta-bundle
 
 docker-up:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-up · Aether stack (profiles: $(DOCKER_PROFILES))"'
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
 	@bash infra/docker/sh/host-prereq.sh
 	@test -f .env || cp .env.example .env
-	@mkdir -p indicator/data/indicator-models
+	@mkdir -p data/indicator-models
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
 	$(DOCKER_COMPOSE) up -d --build
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'

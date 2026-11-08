@@ -1,6 +1,8 @@
 import asyncio
+from datetime import datetime, timedelta, timezone
+
 import asyncpg
-from datetime import datetime, timezone, timedelta
+
 
 BRT = timezone(timedelta(hours=-3))
 
@@ -18,6 +20,7 @@ NAMES = {
     "OTC_SSMI": "Swiss 20",
     "OTC_SX5E": "Euro 50",
 }
+
 
 async def main():
     conn = await asyncpg.connect("postgresql://aether:aether@127.0.0.1:5432/aether")
@@ -38,6 +41,7 @@ async def main():
         dt = datetime.fromtimestamp(r["candle_epoch"], tz=BRT).strftime("%Y-%m-%d %H:%M:%S")
         print(f"{name:<20} | {dt:<20} | {r['side']:<8} | {r['reason']:<25} | {r['symbol']:<10}")
     await conn.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

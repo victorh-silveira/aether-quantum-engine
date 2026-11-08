@@ -1,0 +1,165 @@
+{
+  "uid": "aether-synthetic-asset",
+  "title": "Sint\u00e9ticos | Ativo M15 / Multi-per\u00edodo",
+  "tags": [
+    "aether",
+    "m15",
+    "pullback",
+    "sinteticos"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 2,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Setup atual",
+      "type": "table",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "rawSql": "SELECT s.symbol AS ativo, CASE s.period_seconds WHEN 900 THEN 'M15' WHEN 3600 THEN 'H1' ELSE 'D1' END AS periodo, s.side AS sinal, s.reason AS motivo, upper(coalesce(r.state, 'sem_registro')) AS estado, s.setup_version AS versao, to_timestamp(s.candle_epoch + s.period_seconds) AS vela_fechada FROM pullback_signals s LEFT JOIN pullback_registry r ON r.symbol = s.symbol AND r.period_seconds = s.period_seconds AND r.setup_version = s.setup_version WHERE s.symbol = coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND s.period_seconds = coalesce(nullif(${period:sqlstring}, '')::integer, 900) AND s.setup_version LIKE 'pullback-1-%' ORDER BY s.candle_epoch DESC LIMIT 1",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Historico de setups",
+      "type": "table",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "rawSql": "SELECT to_timestamp(candle_epoch+period_seconds) AS horario,side AS sinal,reason AS motivo,setup_version AS versao FROM pullback_signals WHERE symbol=coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND period_seconds=coalesce(nullif(${period:sqlstring}, '')::integer, 900) AND $__unixEpochFilter(candle_epoch) ORDER BY candle_epoch DESC LIMIT 300",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Resultados confirmados do broker",
+      "type": "table",
+      "gridPos": {
+        "h": 7,
+        "w": 24,
+        "x": 0,
+        "y": 14
+      },
+      "datasource": {
+        "type": "grafana-postgresql-datasource",
+        "uid": "timescale"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "grafana-postgresql-datasource",
+            "uid": "timescale"
+          },
+          "rawSql": "SELECT to_timestamp(date_start) AS horario, account_mode AS conta, direction AS lado, contract_id, round(buy_price::numeric, 2) AS stake, round(profit::numeric, 2) AS resultado, settlement_source AS fonte FROM contract_executions WHERE symbol = coalesce(nullif(${symbol:sqlstring}, ''), 'OTC_SSMI') AND (indicator_period_seconds = coalesce(nullif(${period:sqlstring}, '')::integer, 900) OR indicator_period_seconds IS NULL) AND indicator_model_version LIKE 'pullback-1-%' AND settlement_source IN ('broker', 'profit_table', 'inferred_rest') AND $__unixEpochFilter(date_start) ORDER BY date_start DESC LIMIT 100",
+          "format": "table",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false
+        }
+      }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "symbol",
+        "type": "query",
+        "datasource": {
+          "type": "grafana-postgresql-datasource",
+          "uid": "timescale"
+        },
+        "query": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
+        "definition": "SELECT name AS __text, symbol AS __value FROM indicator_symbols WHERE active ORDER BY name",
+        "current": {
+          "selected": true,
+          "text": "Swiss 20",
+          "value": "OTC_SSMI"
+        },
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false
+      },
+      {
+        "name": "period",
+        "type": "custom",
+        "query": "900,3600,86400",
+        "current": {
+          "selected": true,
+          "text": "900",
+          "value": "900"
+        },
+        "includeAll": false,
+        "multi": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  }
+}

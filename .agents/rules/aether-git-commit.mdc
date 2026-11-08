@@ -19,7 +19,7 @@ O historico de commits do Aether e rigorosamente padronizado para permitir gerac
 - **Tipos Permitidos:** feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert.
 
 ## 3. Padrões de Implementação
-- **Script Oficial:** Commits DEVEM ser realizados exclusivamente via script app/scripts/wsl/commit.sh ou make app-commit.
+- **Script Oficial:** Commits DEVEM ser realizados exclusivamente via script scripts/wsl/commit.sh ou make app-commit.
 - **Assunto Conciso:** Assunto em letras minusculas, sem ponto final, com no maximo 72 caracteres.
 
 ## 4. Proibições Estritas

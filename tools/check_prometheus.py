@@ -1,17 +1,16 @@
-import urllib.request
 import json
+import urllib.request
+
 
 def get_metric(metric):
     url = f"http://localhost:9090/api/v1/query?query={metric}"
     try:
         with urllib.request.urlopen(url) as resp:
             data = json.loads(resp.read().decode())
-            return {
-                r["metric"].get("symbol", "global"): r["value"][1]
-                for r in data["data"]["result"]
-            }
+            return {r["metric"].get("symbol", "global"): r["value"][1] for r in data["data"]["result"]}
     except Exception:
         return {}
+
 
 val = get_metric("aether_indicator_validation%7Bperiod=%22900%22%7D")
 side = get_metric("aether_indicator_side%7Bperiod=%22900%22%7D")
@@ -38,7 +37,9 @@ side_names = {"1": "CALL", "-1": "PUT", "0": "NEUTRO"}
 print("====================================================================================================")
 print("  ESTADO DOS 12 ATIVOS OTC NO PROMETHEUS (PERIODO M15 / 900s)")
 print("====================================================================================================")
-print(f"{'NOME DO ATIVO (DERIV)':<20} | {'SIMBOLO':<10} | {'STATUS M15':<18} | {'SINAL (SIDE)':<14} | {'FRESH':<6} | {'PRECO':<10}")
+print(
+    f"{'NOME DO ATIVO (DERIV)':<20} | {'SIMBOLO':<10} | {'STATUS M15':<18} | {'SINAL (SIDE)':<14} | {'FRESH':<6} | {'PRECO':<10}"
+)
 print("-" * 100)
 for s in sorted(val.keys()):
     name = NAMES.get(s, s)

@@ -6,7 +6,7 @@ alwaysApply: true
 # Orquestrador de Ciclos e Supervisão
 
 ## 1. Contexto e Escopo
-O servico de orquestracao em app/src/application/services/orchestrator/ coordena os ciclos operacionais do motor, o warmup de mercado e a execucao temporal sincronizada.
+O servico de orquestracao em src/application/services/orchestrator/ coordena os ciclos operacionais do motor, o warmup de mercado e a execucao temporal sincronizada.
 
 ## 2. Hard Gates Inegociáveis
 - **Warmup Obrigatório:** O motor nao processa sinais antes de preencher completamente os buffers historicos de candles M15 necessarios para calculo confiavel de ATR14, EMA20 e EMA50.

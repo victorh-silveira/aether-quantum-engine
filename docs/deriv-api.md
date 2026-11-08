@@ -7,7 +7,7 @@
 | Aspecto | Implementação no projeto |
 |---------|-------------------------|
 | Credenciais | `.env`: `AETHER_DERIV_PAT`, `AETHER_DERIV_APP_ID`; opcional `AETHER_DERIV_ACCOUNT_ID` |
-| Validação | `python app/scripts/operations/deriv_pat_connect.py` |
+| Validação | `python scripts/operations/deriv_pat_connect.py` |
 | Market data (treino e execução) | `wss://api.derivws.com/trading/v1/options/ws/public` (`api_config.public_ws_url`) — **sem OTP** |
 | Contas / saldo | REST `GET /trading/v1/options/accounts` com `Deriv-App-ID` + `Authorization: Bearer <PAT>` |
 | Trading preferencial | WSS OTP (`POST .../accounts/{id}/otp` → `wss://.../ws/demo|real?otp=...`) para `proposal` + `buy` |

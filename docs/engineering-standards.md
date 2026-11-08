@@ -2,8 +2,8 @@
 
 ## 1. Diretrizes Fundamentais de Qualidade
 
-1. **Cobertura 100% Inegociável:** Todo código sob `app/src/` e `indicator/app/src/` deve manter 100% de cobertura de linhas e ramos. Reduções de cobertura resultam em falha imediata no CI.
-2. **Limite Estrutural de 300 Linhas:** Nenhum arquivo Python em `app/src/**/*.py` pode ultrapassar 300 linhas de código.
+1. **Cobertura 100% Inegociável:** Todo código sob `src/` e `src/indicator/` deve manter 100% de cobertura de linhas e ramos. Reduções de cobertura resultam em falha imediata no CI.
+2. **Limite Estrutural de 300 Linhas:** Nenhum arquivo Python em `src/**/*.py` pode ultrapassar 300 linhas de código.
 3. **Pipeline de Linters Estrito (Crash-First):**
    - **Ruff:** Verificação sintática e formatação automática.
    - **Interrogate:** 100% de docstrings em módulos, classes e funções.
@@ -11,7 +11,7 @@
    - **Bandit & Gitleaks:** Auditoria de segurança e prevenção de vazamento de segredos.
 4. **Commits Padronizados em PT-BR:**
    - Mensagens estritamente em Português no formato Conventional Commits.
-   - Execução via `app/scripts/wsl/commit.sh` ou `make app-commit`.
+   - Execução via `scripts/wsl/commit.sh` ou `make app-commit`.
 
 ---
 

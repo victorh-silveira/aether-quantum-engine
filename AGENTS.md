@@ -21,7 +21,7 @@ Ponto de entrada unico e soberano para agentes autonomos de IA e desenvolvedores
 - **DataFrames e Series:** O **Polars** e o unico padrao para manipulacao colunar de alta performance (`LazyFrame`, `DataFrame`, zero-copy com Apache Arrow). O uso de pandas e estritamente proibido.
 - **Integridade Visual:** Sem emojis em codigo-fonte, logs de sistema ou documentacoes tecnicas.
 - **Documentacao de Codigo:** Codigo autoexplicativo com docstrings completas. Comentarios soltos no corpo de funcoes devem ser evitados.
-- **Contrato de Commits:** Commits devem seguir rigorosamente o padrao Conventional Commits em PT-BR utilizando o script oficial `app/scripts/wsl/commit.sh` (ou `make app-commit`), garantindo conformidade com pre-commit e commitlint.
+- **Contrato de Commits:** Commits devem seguir rigorosamente o padrao Conventional Commits em PT-BR utilizando o script oficial `scripts/wsl/commit.sh` (ou `make app-commit`), garantindo conformidade com pre-commit e commitlint.
 
 ---
 
@@ -55,7 +55,7 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 
 ## 4. Subsistema Indicador Publico de Mercado
 
-O diretorio `indicator/` compoe o subsistema publico de leitura e analise de mercado:
+O diretorio `src/indicator/` compoe o subsistema publico de leitura e analise de mercado:
 - Opera desacoplado e sem credenciais de negociacao, consumindo apenas endpoints publicos da Deriv (`active_symbols`, `ticks_history`).
 - Monitora os 12 ativos mundiais de acoes OTC (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI, OTC_AS51) e indices de volatilidade.
 - Compartilha a infraestrutura Docker Compose da raiz (TimescaleDB, Redis, Prometheus e Grafana).
@@ -70,8 +70,8 @@ Qualquer violacao dos seguintes pontos resulta em reprovacao imediata nos proces
 2. Modificar tamanhos de lote por impulso ou vinganca apos perda (revenge sizing).
 3. Remover caps de protecao de stake, timeouts ou travas da fila de settlement.
 4. Introduzir stop loss financeiro arbitrario sem mandato formal do operador.
-5. Criar ou manter arquivos em `app/src/**/*.py` acima do limite de **300 linhas**.
-6. Reduzir a cobertura de testes unitarios em `app/src` abaixo de **100%**.
+5. Criar ou manter arquivos em `src/**/*.py` acima do limite de **300 linhas**.
+6. Reduzir a cobertura de testes unitarios em `src` abaixo de **100%**.
 7. Criar commits com mensagens em ingles ou escopos fora do enum commitlint.
 
 ---

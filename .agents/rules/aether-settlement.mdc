@@ -6,7 +6,7 @@ alwaysApply: true
 # Liquidação de Ordens e Settlement
 
 ## 1. Contexto e Escopo
-O modulo app/src/application/services/settlement/ e app/src/infrastructure/storage/ gerenciam o ciclo completo de liquidacao de contratos e conciliacao financeira com o broker.
+O modulo src/application/services/settlement/ e src/infrastructure/storage/ gerenciam o ciclo completo de liquidacao de contratos e conciliacao financeira com o broker.
 
 ## 2. Hard Gates Inegociáveis
 - **Fila Prioritária Redis ZSET:** Contratos abertos aguardando resolucao sao enfileirados exclusivamente na chave ZSET settlement:queue:priority com score baseado no timestamp de expiracao previsto.

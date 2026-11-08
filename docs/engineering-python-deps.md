@@ -88,7 +88,7 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 
 ### minio
 
-- SDK sync/urllib3: **sempre** `await asyncio.to_thread(...)` ([`minio_model_store.py`](../app/src/infrastructure/storage/minio_model_store.py)).
+- SDK sync/urllib3: **sempre** `await asyncio.to_thread(...)` ([`minio_model_store.py`](../src/infrastructure/storage/minio_model_store.py)).
 - Validar integridade (ETag/hash) antes de `joblib`/torch load.
 
 ---

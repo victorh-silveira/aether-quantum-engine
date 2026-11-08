@@ -9,7 +9,7 @@ alwaysApply: true
 Diretrizes fundamentais de qualidade de codigo, design limpo e sustentabilidade tecnica aplicadas em todo o codigo do monorepo Aether.
 
 ## 2. Hard Gates Inegociáveis
-- **Limite Máximo de 300 Linhas:** Nenhum arquivo Python em app/src/**/*.py pode exceder 300 linhas. Arquivos que se aproximem do limite devem ser modularizados por meio de composicao e submodulos focados.
+- **Limite Máximo de 300 Linhas:** Nenhum arquivo Python em src/**/*.py pode exceder 300 linhas. Arquivos que se aproximem do limite devem ser modularizados por meio de composicao e submodulos focados.
 - **Ausência de Comentários Supérfluos:** O codigo deve ser autoexplicativo por meio de nomenclatura precisa e tipagem. Evite comentarios inline explicando o que o codigo faz; utilize docstrings objetivas para explicar o proposito e contratos.
 - **Sem Emojis em Arquivos Técnicos:** Emojis sao terminantemente proibidos em arquivos de codigo, mensagens de commit, logs e documentacoes tecnicas.
 

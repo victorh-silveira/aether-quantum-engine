@@ -12,7 +12,7 @@ description: Higienizacao de codigo morto, branch cleanup, remocao de arquivos o
 1. **Detecção de Código Morto:**
    - Execute o Vulture para localizar variaveis, metodos ou classes sem utilizacao:
      ```bash
-     python app/scripts/operations/clean_workspace.py --area python --stage lint
+     python scripts/operations/clean_workspace.py --area python --stage lint
      ```
 2. **Sanitização de Cache e Temporários:**
    - Limpe caches e arquivos de execucao local:
@@ -29,5 +29,5 @@ make app-lint
 ```
 
 ## 4. Critérios de Aceite
-- Zero codigo morto em `app/src/`.
+- Zero codigo morto em `src/`.
 - Working tree do Git estritamente limpa.

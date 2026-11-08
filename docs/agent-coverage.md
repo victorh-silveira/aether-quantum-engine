@@ -53,18 +53,18 @@ A sincronizacao e testada automaticamente em `app/tests/unit/repo/test_agent_cov
 
 | Pasta | Linha da matriz |
 |-------|-----------------|
-| `app/src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
-| `app/src/application/services/orchestrator/` | Orchestrator / ciclo |
-| `app/src/application/services/execution_scale_*.py` | Scale vision telemetria / regime (sem alterar lado) |
-| `app/src/application/services/deep_learning/` | DL / labels / calib / vies de classe |
-| `app/src/application/services/execution_*.py` | Execution: tecnico + confluencia institucional |
-| `app/src/domain/risk/` | Risco / Kelly |
-| `app/src/domain/analytics/` | Sample size / SIDE_EQ |
-| `app/src/domain/models/`, `domain/math/`, `domain/symbols/` | Domain models/math/symbols |
-| `app/src/infrastructure/api/`, `infrastructure/websocket/` | Deriv API |
-| `app/src/infrastructure/state/`, `storage/`, `telemetry/` | Infra |
-| `app/src/presentation/` | Logging |
-| `app/scripts/` | Scripts / ops |
+| `src/` (camadas + ports) | Arquitetura senior (host/DDD/asyncio/ML/infra) |
+| `src/application/services/orchestrator/` | Orchestrator / ciclo |
+| `src/application/services/execution_scale_*.py` | Scale vision telemetria / regime (sem alterar lado) |
+| `src/application/services/deep_learning/` | DL / labels / calib / vies de classe |
+| `src/application/services/execution_*.py` | Execution: tecnico + confluencia institucional |
+| `src/domain/risk/` | Risco / Kelly |
+| `src/domain/analytics/` | Sample size / SIDE_EQ |
+| `src/domain/models/`, `domain/math/`, `domain/symbols/` | Domain models/math/symbols |
+| `src/infrastructure/api/`, `infrastructure/websocket/` | Deriv API |
+| `src/infrastructure/state/`, `storage/`, `telemetry/` | Infra |
+| `src/presentation/` | Logging |
+| `scripts/` | Scripts / ops |
 | `app/tests/` | Engenharia / QA / testes |
 | `config/settings.json` | Settings SSOT |
 | `infra/docker/` | Infra |

@@ -23,7 +23,7 @@ description: Padrao obrigatorio de commits Git via Conventional Commits em PT-BR
 3. **Execução do Commit Oficial:**
    - Utilize o script oficial que garante pre-commit e commitlint:
      ```bash
-     bash app/scripts/wsl/commit.sh "tipo(escopo): mensagem descritiva"
+     bash scripts/wsl/commit.sh "tipo(escopo): mensagem descritiva"
      # ou
      make app-commit MSG="tipo(escopo): mensagem descritiva"
      ```

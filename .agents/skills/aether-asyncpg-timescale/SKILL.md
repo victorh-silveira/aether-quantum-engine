@@ -21,7 +21,7 @@ description: Audita pool asyncpg, transacoes, ingestao e hypertables TimescaleDB
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe app/scripts/operations/ensure_timescale.py
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe scripts/operations/ensure_timescale.py
 /mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/infrastructure/test_timescale*.py -v
 ```
 

@@ -6,7 +6,7 @@ alwaysApply: true
 # Logs Estruturados e Telemetria
 
 ## 1. Contexto e Escopo
-O modulo app/src/presentation/ gerencia a saida de logs estruturados e telemetria para o terminal e agregadores.
+O modulo src/presentation/ gerencia a saida de logs estruturados e telemetria para o terminal e agregadores.
 
 ## 2. Hard Gates Inegociáveis
 - **Sem Emojis:** Todos os logs, mensagens de console e relatorios devem ser totalmente livres de emojis ou icones graficos.

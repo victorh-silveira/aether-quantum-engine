@@ -4,7 +4,7 @@
 
 O fluxo ativo usa TCN em velas M5 do índice `1HZ75V`. A configuração em `config/settings.json` define 25.000 barras de treino, lookback 32, 14 features, label `spot_forward`, horizonte de uma vela e contrato Rise/Fall de 5 minutos. D1 fornece contexto macro ao motor; o treino TCN lean carrega apenas M5. O motor usa o checkpoint local produzido por `launch-train`; `online_training=false` impede retreino TCN durante a sessão.
 
-O label `spot_forward` usa a direção da próxima vela fechada. Esse label não equivale ao resultado confirmado de um contrato Rise/Fall. O treino usa validação interna para ajuste, calibração e detecção de colapso de classe. O benchmark linear compara uma regressão logística a um classificador majoritário nesse mesmo recorte temporal; é apenas telemetria. **Não há qualificação estatística da TCN nem promoção baseada nessas métricas.** Um checkpoint com pesos, normalização e geometria incompatíveis não é carregado. O verificador `app/scripts/operations/check_dl_checkpoint.py` confere esses requisitos após o treino.
+O label `spot_forward` usa a direção da próxima vela fechada. Esse label não equivale ao resultado confirmado de um contrato Rise/Fall. O treino usa validação interna para ajuste, calibração e detecção de colapso de classe. O benchmark linear compara uma regressão logística a um classificador majoritário nesse mesmo recorte temporal; é apenas telemetria. **Não há qualificação estatística da TCN nem promoção baseada nessas métricas.** Um checkpoint com pesos, normalização e geometria incompatíveis não é carregado. O verificador `scripts/operations/check_dl_checkpoint.py` confere esses requisitos após o treino.
 
 A perda ativa de classificação é BCE simétrica (`asymmetric_payout_loss=false`). Pesar CALL por 0,85 e PUT por 1,0 desloca a probabilidade ótima para PUT mesmo com labels 50/50; o payout deve entrar no cálculo de EV da proposta, não na probabilidade CALL. Na seleção interna de épocas, estados sem colapso de classe têm prioridade; se todos colapsarem, o melhor estado colapsado permanece como fallback técnico e o diagnóstico continua explícito. Isso não qualifica o modelo nem demonstra vantagem. Após mudar a perda, retreine TCN e meta.
 
@@ -31,10 +31,10 @@ Os resultados obtidos no experimento anterior em M1 com `triple_barrier` pertenc
 
 O meta usa rótulos aproximados derivados de velas e sua validação temporal não substitui resultados confirmados de contratos. Um checkpoint tecnicamente válido ou uma melhora pequena sobre a referência não demonstra vantagem em operação ao vivo.
 
-`app/scripts/operations/compare_dl_losses.py` compara perda ponderada por payout e BCE com a mesma inicialização, amostras e split temporal. A ferramenta lê a granularidade ativa de `settings.json`, não exporta checkpoint e exige histórico M5 contínuo no Timescale.
+`scripts/operations/compare_dl_losses.py` compara perda ponderada por payout e BCE com a mesma inicialização, amostras e split temporal. A ferramenta lê a granularidade ativa de `settings.json`, não exporta checkpoint e exige histórico M5 contínuo no Timescale.
 
 ```bash
-python app/scripts/operations/compare_dl_losses.py --bars 5000 --epochs 40 --seed 42
+python scripts/operations/compare_dl_losses.py --bars 5000 --epochs 40 --seed 42
 ```
 
 É necessário repetir a comparação com dados M5 antes de concluir qual perda se ajusta melhor. Nenhum resultado antigo em M1 deve ser atribuído à configuração M5.
@@ -61,17 +61,17 @@ O cálculo de features e normalização precisa ser causal: acrescentar candles 
 
 Na observação anterior em 04/10/2026 havia somente 3 contratos `broker` atribuídos, insuficientes para concluir que existe EV positivo. O histórico M1 coletado naquela ocasião não constitui uma avaliação M5.
 
-Para coletar ticks públicos sem abrir trades, use `python app/scripts/operations/collect_public_ticks.py`. A coleta não faz backfill automático; a retenção de ticks é de 30 dias. Ao comparar labels com resultados reais, verifique timestamps, payout e fonte do settlement antes de interpretar diferenças.
+Para coletar ticks públicos sem abrir trades, use `python scripts/operations/collect_public_ticks.py`. A coleta não faz backfill automático; a retenção de ticks é de 30 dias. Ao comparar labels com resultados reais, verifique timestamps, payout e fonte do settlement antes de interpretar diferenças.
 
 ## Operação
 
 ```bash
 python train.py
-python app/scripts/operations/check_dl_checkpoint.py
+python scripts/operations/check_dl_checkpoint.py
 python run.py
 ```
 
-O launcher WSL `app/scripts/wsl/launch-train-wsl.sh` executa o pipeline completo. Após alterar os sidecars, `make docker-rebuild` recarrega meta e loss-classifier sem apagar o checkpoint local.
+O launcher WSL `scripts/wsl/launch-train-wsl.sh` executa o pipeline completo. Após alterar os sidecars, `make docker-rebuild` recarrega meta e loss-classifier sem apagar o checkpoint local.
 
 ## Parada antecipada no `make app-train`
 

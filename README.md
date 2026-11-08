@@ -22,7 +22,7 @@ O fluxo de execucao operacional e governado pelo [Setup Institucional M15](docs/
 - **DDD Hexagonal (Ports & Adapters):** Dominio puro sem I/O; portas e adaptadores desacoplados para integracao com WebSockets, Redis e TimescaleDB.
 - **Polars SSOT:** Processamento colunar exclusivo via Polars com interoperabilidade Apache Arrow zero-copy. Banimento terminante de pandas.
 - **Harness Universal de Agentes de IA (`.agents/`):** 24 regras operacionais (`.agents/rules/`), 25 habilidades com runbooks (`.agents/skills/`), personas de subagentes (`.agents/agents/`) e integracao MCP (`.agents/mcp.json`).
-- **Garantia de Qualidade:** 100% de cobertura obrigatoria de testes unitarios em `app/src/` e `indicator/app/src/`, linters rigorosos (Ruff, Interrogate, Vulture) e limite maximo estrito de 300 linhas por arquivo.
+- **Garantia de Qualidade:** 100% de cobertura obrigatoria de testes unitarios em `src/` e `src/indicator/`, linters rigorosos (Ruff, Interrogate, Vulture) e limite maximo estrito de 300 linhas por arquivo.
 
 ---
 

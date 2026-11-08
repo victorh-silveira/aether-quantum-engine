@@ -6,7 +6,7 @@ alwaysApply: true
 # Pureza do Domínio de Negócio
 
 ## 1. Contexto e Escopo
-O nucleo do sistema reside em app/src/domain/. Esta camada expressa as regras fundamentais de negocio, modelos probabilisticos, invariantes matematicos e politicas de risco de trading.
+O nucleo do sistema reside em src/domain/. Esta camada expressa as regras fundamentais de negocio, modelos probabilisticos, invariantes matematicos e politicas de risco de trading.
 
 ## 2. Hard Gates Inegociáveis
 - **Isolamento Total:** Zero imports de bibliotecas com efeitos colaterais de rede, disco ou SO (proibido httpx, websockets, redis, asyncpg, os, sys, etc.).

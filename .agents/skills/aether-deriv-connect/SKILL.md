@@ -21,7 +21,7 @@ description: Diagnostico de conexao WebSocket Deriv, handshake WSS, autenticacao
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe app/scripts/operations/deriv_pat_connect.py
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe scripts/operations/deriv_pat_connect.py
 /mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/infrastructure/test_deriv_ws*.py -v
 ```
 

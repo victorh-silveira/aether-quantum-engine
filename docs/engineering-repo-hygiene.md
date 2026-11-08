@@ -39,7 +39,7 @@ Proibido `print()` / `rich.print` no hot path de ticks (I/O sync no loop).
 
 ### Feature flags
 
-- Flag nova exige **TTL** no registro `app/src/domain/config_flag_ttl.py` (`TEMPORARY_FLAGS`) ou remocao no mesmo sprint.
+- Flag nova exige **TTL** no registro `src/domain/config_flag_ttl.py` (`TEMPORARY_FLAGS`) ou remocao no mesmo sprint.
 - Branch `else` legado apos migracao V2 nao pode ficar meses.
 - Sentinela: `test_temporary_feature_flags_not_expired` falha se flag existir apos data de expiry.
 - Catalogo ativo = TCN + meta + gates; knobs SSOT permanentes em `settings.json` ficam **fora** do registro.
@@ -59,7 +59,7 @@ Proibido `print()` / `rich.print` no hot path de ticks (I/O sync no loop).
 
 ### Redis
 
-TTL SSOT efemero: `REDIS_EPHEMERAL_SIG_TTL_SECONDS` = **900** (3 ciclos M5) em `app/src/infrastructure/state/redis_ephemeral_ttl.py`.
+TTL SSOT efemero: `REDIS_EPHEMERAL_SIG_TTL_SECONDS` = **900** (3 ciclos M5) em `src/infrastructure/state/redis_ephemeral_ttl.py`.
 
 | Chave / padrao | TTL | Notas |
 |----------------|-----|--------|
@@ -75,7 +75,7 @@ TTL SSOT efemero: `REDIS_EPHEMERAL_SIG_TTL_SECONDS` = **900** (3 ciclos M5) em `
 
 ### Feature flags temporarias
 
-- Registro: `app/src/domain/config_flag_ttl.py` → `TEMPORARY_FLAGS: list[tuple[str, date]]`.
+- Registro: `src/domain/config_flag_ttl.py` → `TEMPORARY_FLAGS: list[tuple[str, date]]`.
 - Sentinela: `test_temporary_feature_flags_not_expired` falha se `date.today() > expiry`.
 - Knobs permanentes em `config/settings.json` **nao** entram no registro.
 - Catalogo ativo de producao: **TCN + meta + gates** (sem pasta `domain/strategies`); pesquisa em `research/` (gitignore).
@@ -98,10 +98,10 @@ Rotina periodica (dev):
 # WSL
 docker system prune -af --volumes   # cuidado: volumes nomeados
 sudo fstrim /
-bash app/scripts/wsl/clean_env.sh
+bash scripts/wsl/clean_env.sh
 ```
 
-Compactar `ext4.vhdx` no Windows apos `wsl --shutdown` (diskpart) — trimestral; **nao** automatizar diskpart no CI. O script `app/scripts/wsl/clean_env.sh` apenas lembra a rotina.
+Compactar `ext4.vhdx` no Windows apos `wsl --shutdown` (diskpart) — trimestral; **nao** automatizar diskpart no CI. O script `scripts/wsl/clean_env.sh` apenas lembra a rotina.
 
 Passos manuais (Windows, Admin):
 

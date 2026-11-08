@@ -2,7 +2,7 @@
 
 O painel **Qualificacao EV por versao do indicador** usa `indicator_broker_ev_status` e mostra compras DEMO, liquidacoes `broker`, EV medio cotado, retorno liquido medio e limite inferior unilateral de 95%. `PILOTO DEMO` coleta amostras com stake minima; `AGUARDANDO BROKER` nao autoriza novas compras piloto apos 200 compras; `APTO REAL` exige 200 liquidacoes confirmadas e limite inferior positivo. Ausencia de linha significa ausencia de amostra, nao retorno zero. A tabela de contratos compara `mean_quoted_ev` ao retorno realizado da mesma versao. `OK` do treino do indicador e somente estatistico.
 
-Presentation: `app/src/presentation/terminal/logger.py`.
+Presentation: `src/presentation/terminal/logger.py`.
 Contexto: `log_context.py`. SETTLE: `settle_log.py`. SSOT: `logging_config.resolve_logging_config`.
 Dedupe: `log_dedupe.py`. Inventario: [`engineering-logging-inventory.md`](engineering-logging-inventory.md).
 

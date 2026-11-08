@@ -779,6 +779,37 @@
   "trading": {
     "mode": "demo"
   },
+  "indicator": {
+    "product": "stock_indices_indicator",
+    "catalog_scope": "stock_indices",
+    "public_ws_url": "wss://api.derivws.com/trading/v1/options/ws/public",
+    "periods_seconds": [
+      900,
+      3600,
+      86400
+    ],
+    "models_dir": "data/indicator-models",
+    "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
+    "metrics_port": 9101,
+    "pullback_variant": "senior_institutional",
+    "pullback_strategy": {
+      "excluded_symbols": [],
+      "dynamic_rotation": true,
+      "breakeven_floor": 0.58,
+      "min_prob_threshold": 0.58
+    },
+    "anchor": "OTC_SSMI",
+    "symbols": [
+      "OTC_SSMI",
+      "OTC_SPC",
+      "OTC_NDX",
+      "OTC_DJI",
+      "OTC_SX5E",
+      "OTC_GDAXI",
+      "OTC_FCHI",
+      "OTC_AEX"
+    ]
+  },
   "orchestrator_timing_config": {
     "signature_boundary_seconds": 900,
     "watchdog_stale_tick_seconds": 900

@@ -16,7 +16,7 @@ repos:
 
       - id: python-lint
         name: Python | Lint
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint
+        entry: python scripts/operations/clean_workspace.py --area python --stage lint
         language: system
         pass_filenames: false
         always_run: true
@@ -24,7 +24,7 @@ repos:
 
       - id: python-json-lint
         name: Python | JSON Lint
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text json
+        entry: python scripts/operations/clean_workspace.py --area python --stage lint --config-text json
         language: system
         pass_filenames: false
         always_run: true
@@ -32,7 +32,7 @@ repos:
 
       - id: python-yaml-lint
         name: Python | YAML Lint
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
+        entry: python scripts/operations/clean_workspace.py --area python --stage lint --config-text yaml
         language: system
         pass_filenames: false
         always_run: true
@@ -40,7 +40,7 @@ repos:
 
       - id: python-validate
         name: Python | Validate
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate
+        entry: python scripts/operations/clean_workspace.py --area python --stage validate
         language: system
         pass_filenames: false
         always_run: true
@@ -48,7 +48,7 @@ repos:
 
       - id: python-json-validate
         name: Python | JSON Validate
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text json
+        entry: python scripts/operations/clean_workspace.py --area python --stage validate --config-text json
         language: system
         pass_filenames: false
         always_run: true
@@ -56,7 +56,7 @@ repos:
 
       - id: python-yaml-validate
         name: Python | YAML Validate
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
+        entry: python scripts/operations/clean_workspace.py --area python --stage validate --config-text yaml
         language: system
         pass_filenames: false
         always_run: true
@@ -64,7 +64,7 @@ repos:
 
       - id: python-security
         name: Python | Seguranca
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage security
+        entry: python scripts/operations/clean_workspace.py --area python --stage security
         language: system
         pass_filenames: false
         always_run: true
@@ -72,7 +72,7 @@ repos:
 
       - id: python-test
         name: Python | Testes
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
+        entry: python scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
         language: system
         pass_filenames: false
         always_run: true
@@ -80,7 +80,7 @@ repos:
 
       - id: python-json-test
         name: Python | JSON Testes
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage test --config-text json
+        entry: python scripts/operations/clean_workspace.py --area python --stage test --config-text json
         language: system
         pass_filenames: false
         always_run: true
@@ -88,7 +88,7 @@ repos:
 
       - id: python-build
         name: Python | Build
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage build
+        entry: python scripts/operations/clean_workspace.py --area python --stage build
         language: system
         pass_filenames: false
         always_run: true
@@ -96,7 +96,7 @@ repos:
 
       - id: docker-lint
         name: Docker | Lint
-        entry: python app/scripts/operations/clean_workspace.py --area docker --stage lint
+        entry: python scripts/operations/clean_workspace.py --area docker --stage lint
         language: system
         pass_filenames: false
         always_run: true
@@ -104,7 +104,7 @@ repos:
 
       - id: docker-validate
         name: Docker | Validate
-        entry: python app/scripts/operations/clean_workspace.py --area docker --stage validate
+        entry: python scripts/operations/clean_workspace.py --area docker --stage validate
         language: system
         pass_filenames: false
         always_run: true
@@ -112,7 +112,7 @@ repos:
 
       - id: docker-security
         name: Docker | Seguranca
-        entry: python app/scripts/operations/clean_workspace.py --area docker --stage security
+        entry: python scripts/operations/clean_workspace.py --area docker --stage security
         language: system
         pass_filenames: false
         always_run: true
@@ -120,7 +120,7 @@ repos:
 
       - id: docker-test
         name: Docker | Testes
-        entry: python app/scripts/operations/clean_workspace.py --area docker --stage test
+        entry: python scripts/operations/clean_workspace.py --area docker --stage test
         language: system
         pass_filenames: false
         always_run: true
@@ -128,7 +128,7 @@ repos:
 
       - id: docker-build
         name: Docker | Build
-        entry: python app/scripts/operations/clean_workspace.py --area docker --stage build
+        entry: python scripts/operations/clean_workspace.py --area docker --stage build
         language: system
         pass_filenames: false
         always_run: true
@@ -136,7 +136,7 @@ repos:
 
       - id: shell-lint
         name: Shell | Lint
-        entry: python app/scripts/operations/clean_workspace.py --area shell --stage lint
+        entry: python scripts/operations/clean_workspace.py --area shell --stage lint
         language: system
         pass_filenames: false
         always_run: true
@@ -144,7 +144,7 @@ repos:
 
       - id: shell-validate
         name: Shell | Validate
-        entry: python app/scripts/operations/clean_workspace.py --area shell --stage validate
+        entry: python scripts/operations/clean_workspace.py --area shell --stage validate
         language: system
         pass_filenames: false
         always_run: true
@@ -152,7 +152,7 @@ repos:
 
       - id: shell-security
         name: Shell | Seguranca
-        entry: python app/scripts/operations/clean_workspace.py --area shell --stage security
+        entry: python scripts/operations/clean_workspace.py --area shell --stage security
         language: system
         pass_filenames: false
         always_run: true
@@ -160,7 +160,7 @@ repos:
 
       - id: shell-test
         name: Shell | Testes
-        entry: python app/scripts/operations/clean_workspace.py --area shell --stage test
+        entry: python scripts/operations/clean_workspace.py --area shell --stage test
         language: system
         pass_filenames: false
         always_run: true
@@ -168,7 +168,7 @@ repos:
 
       - id: shell-build
         name: Shell | Build
-        entry: python app/scripts/operations/clean_workspace.py --area shell --stage build
+        entry: python scripts/operations/clean_workspace.py --area shell --stage build
         language: system
         pass_filenames: false
         always_run: true
@@ -176,7 +176,7 @@ repos:
 
       - id: rust-lint
         name: Rust | Lint
-        entry: python app/scripts/operations/clean_workspace.py --area rust --stage lint
+        entry: python scripts/operations/clean_workspace.py --area rust --stage lint
         language: system
         pass_filenames: false
         always_run: true
@@ -184,7 +184,7 @@ repos:
 
       - id: rust-validate
         name: Rust | Validate
-        entry: python app/scripts/operations/clean_workspace.py --area rust --stage validate
+        entry: python scripts/operations/clean_workspace.py --area rust --stage validate
         language: system
         pass_filenames: false
         always_run: true
@@ -192,7 +192,7 @@ repos:
 
       - id: rust-security
         name: Rust | Seguranca
-        entry: python app/scripts/operations/clean_workspace.py --area rust --stage security
+        entry: python scripts/operations/clean_workspace.py --area rust --stage security
         language: system
         pass_filenames: false
         always_run: true
@@ -200,7 +200,7 @@ repos:
 
       - id: rust-test
         name: Rust | Testes
-        entry: python app/scripts/operations/clean_workspace.py --area rust --stage test
+        entry: python scripts/operations/clean_workspace.py --area rust --stage test
         language: system
         pass_filenames: false
         always_run: true
@@ -208,7 +208,7 @@ repos:
 
       - id: rust-build
         name: Rust | Build
-        entry: python app/scripts/operations/clean_workspace.py --area rust --stage build
+        entry: python scripts/operations/clean_workspace.py --area rust --stage build
         language: system
         pass_filenames: false
         always_run: true
@@ -224,7 +224,7 @@ repos:
 
       - id: cleanup
         name: Limpeza (caches e artefatos locais)
-        entry: python app/scripts/operations/clean_workspace.py --area python --stage clean --light-clean
+        entry: python scripts/operations/clean_workspace.py --area python --stage clean --light-clean
         language: system
         pass_filenames: false
         always_run: true

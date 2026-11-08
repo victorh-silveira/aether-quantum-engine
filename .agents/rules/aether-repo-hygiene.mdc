@@ -9,12 +9,12 @@ alwaysApply: true
 Manter o repositorio limpo, coeso, enxuto e livre de arquivos temporarios, codigo morto ou dependencias orfas.
 
 ## 2. Hard Gates Inegociáveis
-- **Código Morto Zero:** Nenhuma funcao, classe ou variavel nao utilizada e tolerada em app/src/. O script Vulture e executado no pipeline de lint para barrar codigo orfao.
+- **Código Morto Zero:** Nenhuma funcao, classe ou variavel nao utilizada e tolerada em src/. O script Vulture e executado no pipeline de lint para barrar codigo orfao.
 - **Whitelist do Vulture Restrita:** O arquivo .vulture_whitelist.py deve conter exclusivamente simbolos exigidos por interfaces dinamicas ou contratos obrigatorios de frameworks, sempre com justificativa.
 - **Limpeza de Artefatos Locais:** Diretorios de cache (__pycache__, .pytest_cache, .ruff_cache, .hypothesis) sao estritamente ignorados pelo Git e sanitizados pelo clean_workspace.py.
 
 ## 3. Padrões de Implementação
-- **Rotina de Limpeza:** Executar periodicamente make app-clean e python app/scripts/operations/clean_workspace.py --stage clean.
+- **Rotina de Limpeza:** Executar periodicamente make app-clean e python scripts/operations/clean_workspace.py --stage clean.
 - **Controle de Branches e Git:** Manter a branch main estavel, sem commits de WIP (Work in Progress) e sem arquivos binarios pesados rastreados indevidamente.
 
 ## 4. Proibições Estritas
