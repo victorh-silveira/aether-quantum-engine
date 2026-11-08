@@ -1,10 +1,9 @@
 # Aether Quantum Engine
 
 [![CI/CD](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/victorh-silveira/aether-quantum-engine/actions/workflows/ci.yml)
-[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](app/.python-version)
-[![Cobertura do motor: 100%](https://img.shields.io/badge/cobertura%20motor-100%25-2E7D32)](app/pyproject.toml)
-[![Cobertura do indicador: 100%](https://img.shields.io/badge/cobertura%20indicador-100%25-2E7D32)](indicator/app/pyproject.toml)
-[![Polars](https://img.shields.io/badge/dados-Polars-CD792C)](app/requirements.txt)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)](.python-version)
+[![Cobertura de testes: 100%](https://img.shields.io/badge/cobertura%20testes-100%25-2E7D32)](pyproject.toml)
+[![Polars](https://img.shields.io/badge/dados-Polars-CD792C)](requirements.txt)
 [![Docker Compose](https://img.shields.io/badge/infra-Docker%20Compose-2496ED?logo=docker&logoColor=white)](infra/docker/docker-compose.yml)
 [![TimescaleDB](https://img.shields.io/badge/series%20temporais-TimescaleDB-FDB515)](infra/docker/docker-compose.yml)
 [![Redis](https://img.shields.io/badge/cache-Redis-DC382D?logo=redis&logoColor=white)](infra/docker/docker-compose.yml)
