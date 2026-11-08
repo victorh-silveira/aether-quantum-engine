@@ -1,3 +1,9 @@
+## [4.40.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.39.0...v4.40.0) (2026-11-08)
+
+### Funcionalidades
+
+* **llm:** reestrutura o harness de agentes e moderniza a documentacao ([28cf0d8](https://github.com/victorh-silveira/aether-quantum-engine/commit/28cf0d8e037ffcc1f237ad5eaaa657010f674d00))
+
 ## [4.39.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.38.0...v4.39.0) (2026-11-05)
 
 ### Funcionalidades
