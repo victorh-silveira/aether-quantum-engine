@@ -1,3 +1,13 @@
+## [4.40.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.40.1...v4.40.2) (2026-11-09)
+
+### Correcoes de Bug
+
+* **engine:** contextualizar rejeicao de pavio contrario a tendencia estrutural ([fad6fe8](https://github.com/victorh-silveira/aether-quantum-engine/commit/fad6fe835f9fe8c1b2a649866d2ad4d395efe82b))
+
+### Refatoracoes Tecnicas
+
+* **engine:** hierarquizar razoes de sinal e refinar exaustao no setup senior ([1595f65](https://github.com/victorh-silveira/aether-quantum-engine/commit/1595f658a0b6c32714efae934572e76ecf82bcc0))
+
 ## [4.40.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.40.0...v4.40.1) (2026-11-09)
 
 ### Correcoes de Bug
