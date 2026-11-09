@@ -23,11 +23,11 @@ _EXTRA_DF = frozenset(
 )
 _SCAN_ROOTS = ("src", "infra/docker")
 _HOST_PIN_MARKERS = (
-    "websockets==16.0",
+    "websockets==17.4",
     "httpx==0.28.1",
-    "numpy==2.4.6",
-    "polars==1.23.0",
-    "torch==2.10.0",
+    "numpy==2.5.4",
+    "polars==2.1.0",
+    "torch>=2.6.0",
 )
 
 

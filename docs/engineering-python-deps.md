@@ -10,30 +10,30 @@ Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps` (+ `aether-polars-ar
 
 | Lib | Versao | Papel |
 |-----|--------|--------|
-| websockets | 16.0 | WSS Deriv |
+| websockets | 17.4 | WSS Deriv |
 | httpx | 0.28.1 | HTTP async (meta/loss) |
-| python-dotenv | 1.2.2 | `.env` bootstrap |
-| numpy | 2.4.6 | arrays / ML |
-| polars | 1.23.0 | DataFrame SSOT |
+| python-dotenv | 1.2.4 | `.env` bootstrap |
+| numpy | 2.5.4 | arrays / ML |
+| polars | 2.1.0 | DataFrame SSOT |
 | rich | 15.0.0 | terminal |
 | redis[hiredis] | >=5.0 | estado + settlement |
 | asyncpg | >=0.30 | Timescale |
 | minio | >=7.2 | artefatos S3 |
-| torch | 2.10.0 | TCN CUDA host |
-| lightgbm | 4.6.0 | meta/loss tabular |
-| optuna | 4.2.1 | HPO offline |
-| scikit-learn | 1.6.1 | metricas |
-| joblib | 1.4.2 | serializacao meta/loss |
+| torch | 2.6.0 | TCN CUDA host |
+| lightgbm | 4.7.0 | meta/loss tabular |
+| optuna | 5.0.0 | HPO offline |
+| scikit-learn | 1.9.1 | metricas |
+| joblib | 1.6.0 | serializacao meta/loss |
 
 Sidecars ML: FastAPI + uvicorn[standard] (uvloop/httptools) em `python:3.13-slim`.
 
-Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9.4, pip-audit 2.10.0, pytest 9.0.3 + asyncio/mock/timeout/xdist/cov, hypothesis 6.168.0 (Kelly / p_eff).
+Dev: ruff 0.17.4, pre-commit 4.7.0, interrogate 1.7.0, vulture 2.16, bandit 1.9.4, pip-audit 2.10.1, pytest 9.2.0 + asyncio/mock/timeout/xdist/cov, hypothesis 6.170.15 (Kelly / p_eff).
 
 ---
 
 ## 1. Rede e streaming
 
-### websockets 16.0
+### websockets 17.4
 
 - Internals: sans-I/O + `websockets.speedups` (C/Cython); frames RFC 6455 desacoplados do transporte asyncio.
 - **SSOT connect:** `max_size=4_194_304` (4 MiB), `ping_interval=20`, `ping_timeout=10` (WSL/NAT half-open). Defaults em `websocket_connect.apply_websocket_connect_defaults`.
@@ -47,7 +47,7 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 - Timeouts padrao httpx sao estritos (~5s).
 - Preferir caminhos assincronos unificados.
 
-### python-dotenv 1.2.2
+### python-dotenv 1.2.4
 
 - So no bootstrap; `load_dotenv()` default `override=False` (env do SO/Compose ganha).
 - Tudo e `str` — parse/validacao em infra, nao no hot path de ticks.
@@ -56,13 +56,13 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 
 ## 2. Vetorizacao
 
-### numpy 2.4.6
+### numpy 2.5.4
 
 - ABI 2.x / DType API; wheels C devem ser binarios compatíveis.
 - Preferir views (slice, `ravel`) a `.flatten()` / copias.
 - Type promotion 2.x e mais estrita (evitar promover tudo a float64 por acidente).
 
-### polars 1.23.0 (SSOT DataFrame)
+### polars 2.1.0 (SSOT DataFrame)
 
 - Arrow columnar; **pandas proibido** (`to_pandas`, dual-stack, 3a lib DF).
 - Preferir `LazyFrame` (predicate/projection pushdown); codigo novo nao deve encadear eager materializando a cada passo.
@@ -95,18 +95,18 @@ Dev: ruff 0.15.13, pre-commit 4.6.0, interrogate 1.7.0, vulture 2.16, bandit 1.9
 
 ## 4. ML
 
-### torch 2.10.0
+### torch 2.6.0
 
 - Inferencia: `torch.inference_mode()`; hot path `to_thread(eager_local_predict)`.
 - Warm-up CUDA no bootstrap (WSL frio).
 - `torch.compile` = opt-in offline; nao obrigar no DEMO live.
 
-### lightgbm 4.6.0
+### lightgbm 4.7.0
 
 - Sidecar: `n_jobs=2` + `OMP_NUM_THREADS=2` (Compose/Dockerfile).
 - Host train: `n_jobs=1` tipico (nao disputar VRAM/CPU com inferencia).
 
-### optuna 4.2.1
+### optuna 5.0.0
 
 - HPO offline; storage paralelo: evitar SQLite no FS WSL (locks); preferir RDB/Redis.
 

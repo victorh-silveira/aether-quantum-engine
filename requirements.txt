@@ -1,13 +1,13 @@
 # ---- COMUNICACAO & REDE ----
-websockets==16.0               # Comunicação bidirecional em tempo real (WebSockets assíncrono)
+websockets==17.4               # Comunicação bidirecional em tempo real (WebSockets assíncrono)
 httpx==0.28.1                  # Cliente HTTP moderno com suporte a requisições assíncronas (async/await)
 
 # ---- AMBIENTE & CONFIGURACAO ----
-python-dotenv==1.2.2           # Carrega variáveis de ambiente a partir de um arquivo .env
+python-dotenv==1.2.4           # Carrega variáveis de ambiente a partir de um arquivo .env
 
 # ---- PROCESSAMENTO DE DADOS ----
-numpy==2.4.6                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
-polars==1.23.0                 # Unica lib de DataFrame SSOT (features DL + meta tabular); pandas proibido
+numpy==2.5.4                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
+polars==2.1.0                  # Unica lib de DataFrame SSOT (features DL + meta tabular); pandas proibido
 
 # ---- INTERFACE & UI ----
 rich==15.0.0                   # Renderização de texto formatado, cores, tabelas e logs bonitos no terminal
@@ -18,8 +18,7 @@ asyncpg>=0.30                  # Driver de conexão assíncrono de alta performa
 minio>=7.2                     # SDK para integração com armazenamento de objetos compatível com AWS S3
 
 # ---- DEEP LEARNING & INFERENCIA ----
-torch==2.10.0                  # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
-scikit-learn==1.6.1            # Metricas e baselines lineares de pre-flight (sklearn.dummy, LogisticRegression)
-optuna==4.2.1                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
-joblib==1.4.2                  # Serializacao explicita e execucao paralela
-
+torch>=2.6.0                   # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
+scikit-learn==1.9.1            # Metricas e baselines lineares de pre-flight (sklearn.dummy, LogisticRegression)
+optuna==5.0.0                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
+joblib==1.6.0                  # Serializacao explicita e execucao paralela
