@@ -32,14 +32,9 @@ def run_yaml(stage: str, root: Path) -> None:
     if not files:
         skip("python", "nenhum YAML")
         return
-    if stage == "lint":
+    if stage in {"lint", "validate", "test"}:
         for path in files:
             _assert_yaml_text(path)
-            print(f"[python] yaml lint ok {path.relative_to(root)}")
-        return
-    if stage == "validate":
-        for path in files:
-            _assert_yaml_text(path)
-            print(f"[python] yaml validate ok {path.relative_to(root)}")
+            print(f"[python] yaml {stage} ok {path.relative_to(root)}")
         return
     skip("python", f"yaml estagio {stage} coberto por gitleaks")

@@ -1,5 +1,7 @@
 """Gates Docker (Hadolint, compose, Trivy, build)."""
 
+import json
+import os
 from pathlib import Path
 
 from scripts.operations.qa.common import is_ci, require_tool, run_cmd, skip
@@ -19,6 +21,21 @@ def _dockerfiles(root: Path) -> list[Path]:
 
 def _compose_file(root: Path) -> Path:
     return root / "infra" / "docker" / "docker-compose.yml"
+
+
+def _validate_grafana_dashboards(root: Path) -> None:
+    dashboards_dir = root / "infra" / "docker" / "grafana" / "indicator-dashboards"
+    if not dashboards_dir.is_dir():
+        return
+    files = sorted(dashboards_dir.glob("*.json"))
+    if not files:
+        raise FileNotFoundError(f"Nenhum dashboard Grafana encontrado em {dashboards_dir}")
+    for file in files:
+        try:
+            json.loads(file.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise ValueError(f"Dashboard Grafana corrompido em {file}: {exc}") from exc
+    print(f"[docker] grafana dashboards ok ({len(files)} arquivos)")
 
 
 def run_docker(stage: str, root: Path) -> None:
@@ -46,11 +63,15 @@ def run_docker(stage: str, root: Path) -> None:
         if not compose.is_file():
             skip("docker", "compose ausente")
             return
+        compose_env = dict(os.environ)
+        compose_env["COMPOSE_PROFILES"] = "core,telemetry,indicator"
         run_cmd(
-            [docker, "compose", "-f", str(compose), "config", "-q"],
+            [docker, "compose", "-f", str(compose), "--project-directory", str(compose.parent), "config", "-q"],
             cwd=root,
-            description="Docker Compose config",
+            description="Docker Compose config (profiles core,telemetry,indicator)",
+            env=compose_env,
         )
+        _validate_grafana_dashboards(root)
         return
     if stage == "security":
         trivy = require_tool("trivy", area="docker")

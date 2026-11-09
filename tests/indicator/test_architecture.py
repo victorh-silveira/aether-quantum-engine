@@ -169,4 +169,4 @@ def test_ci_validates_indicator_before_main_release():
     assert "--area python --stage test" in workflow
     clean_workspace = (root / "scripts/operations/clean_workspace.py").read_text(encoding="utf-8")
     assert "stage_test" in clean_workspace
-    assert "needs: [python, docker, shell, rust, workflows]" in workflow
+    assert "needs: [commitlint, python, docker, shell, rust, workflows]" in workflow

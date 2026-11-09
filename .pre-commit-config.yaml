@@ -86,6 +86,14 @@ repos:
         always_run: true
         stages: [pre-commit]
 
+      - id: python-yaml-test
+        name: Python | YAML Testes
+        entry: python scripts/operations/clean_workspace.py --area python --stage test --config-text yaml
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]
+
       - id: python-build
         name: Python | Build
         entry: python scripts/operations/clean_workspace.py --area python --stage build
@@ -216,7 +224,7 @@ repos:
 
       - id: workflows-lint
         name: Workflows | Lint
-        entry: make app-workflows-lint
+        entry: bash linters/git-hooks/bin/workflows-lint.sh
         language: system
         pass_filenames: false
         always_run: true

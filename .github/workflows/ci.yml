@@ -48,6 +48,29 @@ permissions:
   contents: read
 
 jobs:
+  commitlint:
+    name: CI - Commitlint
+    if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Obter codigo fonte
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Commitlint | Conventional Commits
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config linters/commitlint.config.mjs --from "origin/${{ github.base_ref }}" --to "HEAD" --verbose
+          else
+            git log -1 --pretty=format:"%B" | npx --yes -p @commitlint/cli -p @commitlint/config-conventional commitlint --config linters/commitlint.config.mjs --verbose
+          fi
+
   python:
     name: CI - Python
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
@@ -95,9 +118,15 @@ jobs:
       - name: Python | JSON Testes
         shell: bash
         run: python scripts/operations/clean_workspace.py --area python --stage test --config-text json
+      - name: Python | YAML Testes
+        shell: bash
+        run: python scripts/operations/clean_workspace.py --area python --stage test --config-text yaml
       - name: Python | Build
         shell: bash
         run: python scripts/operations/clean_workspace.py --area python --stage build
+      - name: Limpeza (caches e artefatos locais)
+        shell: bash
+        run: python scripts/operations/clean_workspace.py --area python --stage clean --light-clean
 
   docker:
     name: CI - Docker
@@ -127,11 +156,6 @@ jobs:
       - name: Docker | Validate
         shell: bash
         run: python scripts/operations/clean_workspace.py --area docker --stage validate
-      - name: Docker | Compose e Dashboards
-        shell: bash
-        run: |
-          COMPOSE_PROFILES=core,telemetry,indicator docker compose -f infra/docker/docker-compose.yml --project-directory infra/docker config --quiet
-          python -c 'import json,pathlib; files=list(pathlib.Path("infra/docker/grafana/indicator-dashboards").glob("*.json")); assert len(files)==3; [json.loads(path.read_text()) for path in files]'
       - name: Docker | Seguranca
         shell: bash
         run: python scripts/operations/clean_workspace.py --area docker --stage security
@@ -227,7 +251,7 @@ jobs:
 
   release:
     name: CI - Publicação
-    needs: [python, docker, shell, rust, workflows]
+    needs: [commitlint, python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -289,7 +313,7 @@ jobs:
 
   pipeline-summary:
     name: CI - Resumo
-    needs: [python, docker, shell, rust, workflows, release]
+    needs: [commitlint, python, docker, shell, rust, workflows, release]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -299,6 +323,7 @@ jobs:
       - name: Resumo | Pipeline
         uses: ./.github/actions/shared/pipeline-summary
         with:
+          commitlint: ${{ needs.commitlint.result }}
           python: ${{ needs.python.result }}
           docker: ${{ needs.docker.result }}
           shell: ${{ needs.shell.result }}

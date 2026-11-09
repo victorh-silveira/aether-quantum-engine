@@ -99,7 +99,7 @@ app-lint:
 	@$(MAKE) --no-print-directory app-workflows-lint
 
 app-workflows-lint:
-	@if command -v actionlint >/dev/null 2>&1; then actionlint .github/workflows/ci.yml; else echo '[workflows] actionlint ausente; job CI - Workflows valida no GitHub'; fi
+	@bash linters/git-hooks/bin/workflows-lint.sh
 
 app-validate:
 	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage validate
@@ -112,6 +112,7 @@ app-validate:
 app-test:
 	$(PYTHON) scripts/operations/clean_workspace.py --area python --stage test --coverage-fail-under 100
 	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage test --config-text json
+	$(QA_PYTHON) scripts/operations/clean_workspace.py --area python --stage test --config-text yaml
 	$(QA_PYTHON) scripts/operations/clean_workspace.py --area docker --stage test
 	$(QA_PYTHON) scripts/operations/clean_workspace.py --area shell --stage test
 	$(QA_PYTHON) scripts/operations/clean_workspace.py --area rust --stage test
@@ -213,7 +214,7 @@ docker-up:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
 	@bash infra/docker/sh/host-prereq.sh
 	@test -f .env || cp .env.example .env
-	@mkdir -p data/indicator-models
+	@mkdir -p data/indicator-models 2>/dev/null || true
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
 	$(DOCKER_COMPOSE) up -d --build
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'

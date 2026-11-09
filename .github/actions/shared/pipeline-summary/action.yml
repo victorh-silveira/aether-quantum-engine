@@ -1,6 +1,8 @@
 name: Resumo do pipeline
 description: Publica o estado das etapas em português no resumo do GitHub
 inputs:
+  commitlint:
+    required: true
   python:
     required: true
   docker:
@@ -25,6 +27,7 @@ runs:
     - name: Resumo | Pipeline
       shell: bash
       env:
+        RESULTADO_COMMITLINT: ${{ inputs.commitlint }}
         RESULTADO_PYTHON: ${{ inputs.python }}
         RESULTADO_DOCKER: ${{ inputs.docker }}
         RESULTADO_SHELL: ${{ inputs.shell }}
@@ -48,6 +51,7 @@ runs:
           echo ""
           echo "| Etapa | Resultado |"
           echo "|-------|--------|"
+          echo "| Commitlint | $(traduzir "$RESULTADO_COMMITLINT") |"
           echo "| Python | $(traduzir "$RESULTADO_PYTHON") |"
           echo "| Docker | $(traduzir "$RESULTADO_DOCKER") |"
           echo "| Shell | $(traduzir "$RESULTADO_SHELL") |"

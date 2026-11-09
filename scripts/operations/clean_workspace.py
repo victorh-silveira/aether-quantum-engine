@@ -220,7 +220,8 @@ def _imports_available(python: Path, modules: tuple[str, ...]) -> bool:
 def _ensure_project_python(stage: str) -> None:
     modules = _STAGE_MODULES.get(stage, ())
     current = Path(sys.executable)
-    if _imports_available(current, modules):
+    env_name = _conda_env_name()
+    if env_name in current.parts and _imports_available(current, modules):
         return
     for candidate in _conda_python_candidates():
         try:
@@ -231,6 +232,8 @@ def _ensure_project_python(stage: str) -> None:
             continue
         if _imports_available(candidate, modules):
             sys.exit(subprocess.run([str(candidate), *map(str, sys.argv)], check=False, shell=False).returncode)
+    if _imports_available(current, modules):
+        return
     if modules:
         print(f"\n[ERRO] Dependencias ausentes para o estagio '{stage}': {', '.join(modules)}")
         print(f"Ative o Conda e instale com: conda activate {_conda_env_name()} && make app-install")
