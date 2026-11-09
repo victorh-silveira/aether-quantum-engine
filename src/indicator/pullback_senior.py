@@ -127,26 +127,26 @@ def evaluate_senior_institutional(
         or fast[-2] > slow[-2]
         or (confirmation.close > fast[-1] and fast[-1] > fast[-2] and pdi > mdi)
     )
-    trend_call = (
+    structural_call = (
         trend_strong
         and call_dmi_ok
         and call_macd_ok
         and not is_doji
-        and not call_exhaustion
         and fast_bull_cross
         and slow[-1] >= slow[-4] - 0.05 * atr
         and confirmation.close > slow[-1]
     )
-    trend_put = (
+    structural_put = (
         trend_strong
         and put_dmi_ok
         and put_macd_ok
         and not is_doji
-        and not put_exhaustion
         and fast_bear_cross
         and slow[-1] <= slow[-4] + 0.05 * atr
         and confirmation.close < slow[-1]
     )
+    trend_call = structural_call and not call_exhaustion
+    trend_put = structural_put and not put_exhaustion
     pb_mid = (pullback.open + pullback.close) / 2.0
     is_classic_bull_pullback = pullback.close < pullback.open and (
         confirmation.close > pullback.high or confirmation.close >= pb_mid
@@ -211,16 +211,16 @@ def evaluate_senior_institutional(
         reason = "setup_confirmado"
     elif call_rejection or put_rejection:
         reason = "rejeicao_pavio_contrario"
-    elif call_exhaustion or put_exhaustion:
-        reason = "climax_exaustao"
+    elif not structural_call and not structural_put:
+        reason = "sem_tendencia_alinhada"
     elif abs(confirmation.close - fast[-1]) > max_dist_fast:
         reason = "afastado_da_media"
-    elif not trend_call and not trend_put:
-        reason = "sem_tendencia_alinhada"
-    elif (trend_call and confirmation.close <= confirmation.open) or (
-        trend_put and confirmation.close >= confirmation.open
+    elif (structural_call and confirmation.close <= confirmation.open) or (
+        structural_put and confirmation.close >= confirmation.open
     ):
         reason = "vela_contraria"
+    elif (structural_call and call_exhaustion) or (structural_put and put_exhaustion):
+        reason = "climax_exaustao"
     else:
         reason = "padrao_incompleto"
     return side, reason
