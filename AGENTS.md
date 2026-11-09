@@ -82,7 +82,7 @@ As instrucoes executivas para ferramentas de IA estao padronizadas e centralizad
 - **Regras Operacionais (Rules):** [`.agents/rules/`](.agents/rules/) (todas configuradas com `alwaysApply: true`).
 - **Habilidades de Execucao (Skills):** [`.agents/skills/`](.agents/skills/) (procedimentos operacionais passo a passo).
 - **Integracao de Ferramentas (MCP):** [`.agents/mcp.json`](.agents/mcp.json) (servidores de dados, metricas e containers).
-- **Compatibilidade:** O diretorio `.cursor/` funciona como espelho de compatibilidade para ambientes baseados na IDE Cursor.
+- **Universalidade:** Estrutura agnostica compativel nativamente com qualquer ecossistema de agentes IA/LLM atraves do padrao aberto `AGENTS.md` e do harness `.agents/`.
 
 ---
 

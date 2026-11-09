@@ -90,7 +90,7 @@ Ajuste nomes de entrypoint/build file a linguagem; preserve a intencao das pasta
 │   ├── git-hooks/
 │   └── releaserc.json        # se usar semantic-release
 ├── config/                   # settings operacionais (neste repo: settings.json)
-├── .cursor/                  # rules + skills versionadas (superficie agentes)
+├── .agents/                  # rules + skills versionadas (superficie universal de agentes)
 ├── Makefile
 ├── AGENTS.md
 ├── prompt-model.md
@@ -163,12 +163,14 @@ Manter alinhada ao codigo:
 | `.env.example` | Vars sem segredos reais |
 | `prompt-model.md` | Este contrato (raiz) |
 
-## 7. Superficie de agentes (Cursor)
+## 7. Superficie universal de agentes
 
-Neste repositorio a superficie e versionada:
+Neste repositorio a superficie e versionada e agnostica para qualquer IA/LLM:
 
-- Rules: `.cursor/rules/*.mdc` (`alwaysApply: true`)
-- Skills: `.cursor/skills/*/SKILL.md`
+- Rules: `.agents/rules/*.mdc` (`alwaysApply: true`)
+- Skills: `.agents/skills/*/SKILL.md`
+- Subagentes: `.agents/agents/*.md`
+- Ferramentas MCP: `.agents/mcp.json`
 - Indices: `AGENTS.md` + `docs/agent-coverage.md`
 - Fechamento de mudanca: skill `aether-surface-sync` + `docs/engineering-surface-sync.md` (sync docs/rules/skills, pre-commit WSL, anti-sujeira)
 
@@ -185,7 +187,7 @@ Em projeto novo: ou adote a mesma matriz, ou documente equivalente minimo em `AG
 7. Adicionar `infra/` somente se o contexto exigir runtime local; nao copiar stack Aether/Docker cegamente.
 8. Escrever/atualizar docs da secao 6 e `AGENTS.md` (e matriz se existir).
 9. Rodar `make app-lint`, `make app-test`, `make app-security` (ou equivalentes) ate verde.
-10. Garantir commits Conventional Commits e ausencia de segredos; fechar com surface sync se houver superficie Cursor.
+10. Garantir commits Conventional Commits e ausencia de segredos; fechar com surface sync da superficie de agentes.
 
 ## 9. Anti-padroes
 
@@ -229,14 +231,14 @@ INVARIANTES (obrigatorios)
 12. Type checking estrito quando a linguagem permitir.
 
 PASTAS ALVO
-app/src/{domain,application,infrastructure,presentation}
-app/tests/{unit,integration}
-app/scripts/operations/
+src/{domain,application,infrastructure,presentation}
+tests/{unit,integration}
+scripts/operations/
 docs/{arquitetura,structure,engineering-standards,engineering-observability}.md
 linters/ (commitlint + git-hooks)
 Makefile, AGENTS.md, prompt-model.md, README.md, .env.example, entrypoint na raiz
 infra/ somente se necessario ao dominio
-.cursor/ rules+skills se adotar superficie de agentes
+.agents/ rules+skills se adotar superficie de agentes
 
 QUALIDADE
 - Python: Ruff, Interrogate, Vulture, pytest+cov fail-under 100, Bandit, pip-audit, pre-commit, commitlint; DataFrame SSOT = Polars se houver tabelas.
@@ -252,7 +254,7 @@ PROTOCOLO
 4) Implementar TDD (domain → application → adapters → presentation).
 5) Nao copiar stack Aether/Docker/OTRS a menos que o dominio peca algo equivalente.
 6) Atualizar docs e AGENTS.md (e agent-coverage se existir).
-7) Rodar gates ate verde; fechar com surface sync se houver .cursor/.
+7) Rodar gates ate verde; fechar com surface sync se houver .agents/.
 
 ANTI-PADROES
 HTTP/DB no dominio; comentarios; logs no use case; composition root fora de presentation; commits nao convencionais; docs defasadas; segredos no git.

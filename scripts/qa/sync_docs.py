@@ -5,7 +5,7 @@ from pathlib import Path
 
 def main() -> None:
     """Atualiza referencias a pastas antigas em documentacoes e regras."""
-    targets = [Path(".agents"), Path(".cursor"), Path("README.md"), Path("docs")]
+    targets = [Path(".agents"), Path("README.md"), Path("docs")]
     for target in targets:
         files = [target] if target.is_file() else list(target.rglob("*.md*"))
         for p in files:

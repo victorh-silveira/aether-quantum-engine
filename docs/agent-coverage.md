@@ -2,9 +2,9 @@
 
 Cada superficie tecnica do Aether Quantum Engine possui cobertura estrita formada por **documentacao tecnica + regra (.mdc) + habilidade (skill)**. O ponto de entrada soberano e o [`AGENTS.md`](../AGENTS.md).
 
-O harness de agentes reside na pasta canonica [`.agents/`](../.agents/) e e versionado no Git. A pasta [`.cursor/`](../.cursor/) atua como camada de compatibilidade.
+O harness de agentes reside na pasta canonica [`.agents/`](../.agents/) e e versionado no Git de forma agnostica para qualquer IA/LLM.
 
-A sincronizacao e testada automaticamente em `app/tests/unit/repo/test_agent_coverage_matrix.py`.
+A sincronizacao e testada automaticamente em `tests/unit/repo/test_agent_coverage_matrix.py`.
 
 ## Matriz
 
