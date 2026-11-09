@@ -209,7 +209,7 @@ def evaluate_senior_institutional(
     side = "CALL" if call else "PUT" if put else "SEM SINAL"
     if side != "SEM SINAL":
         reason = "setup_confirmado"
-    elif call_rejection or put_rejection:
+    elif (structural_call and call_rejection) or (structural_put and put_rejection):
         reason = "rejeicao_pavio_contrario"
     elif not structural_call and not structural_put:
         reason = "sem_tendencia_alinhada"
