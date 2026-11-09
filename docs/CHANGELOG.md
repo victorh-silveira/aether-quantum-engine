@@ -1,3 +1,17 @@
+## [4.40.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.40.0...v4.40.1) (2026-11-09)
+
+### Correcoes de Bug
+
+* **orchestrator:** eliminar inversoes espurias de sinal e condicionar fallback mandatorio ([48eb46c](https://github.com/victorh-silveira/aether-quantum-engine/commit/48eb46ce7fa115964937c9a457ab2b4b8ad5f67e))
+
+### Refatoracoes Tecnicas
+
+* **repo:** unificar subsistema indicador em src e modernizar stack docker ([e45d8d0](https://github.com/victorh-silveira/aether-quantum-engine/commit/e45d8d01dd81f71d9c9a3b0ad2271c3c10583d2b))
+
+### Documentacao
+
+* **repo:** alinhar descricao do projeto e badges no readme ([ab7dd85](https://github.com/victorh-silveira/aether-quantum-engine/commit/ab7dd85c248ac90ac696789a99d995dc2786e6b5))
+
 ## [4.40.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v4.39.0...v4.40.0) (2026-11-08)
 
 ### Funcionalidades
