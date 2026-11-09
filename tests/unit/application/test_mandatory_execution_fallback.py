@@ -73,6 +73,7 @@ def test_resolve_fallback_direction_branches():
     assert not flipped
 
     # Caso 5: Ativo invertido pela telemetria em regime lateral (ex: OTC_HSI com ADX=14)
+    orch.config["pullback_strategy"]["elastic_regime_enabled"] = True
     orch._latest_market_metrics = {"OTC_HSI": {"adx": 14.0}}
     bar_bull = MagicMock(close=100.5, open=100.0)
     orch.data_buffer = {"OTC_HSI": [bar_bull]}

@@ -1,3 +1,5 @@
+import pytest
+
 from src.application.services.execution_symbols import select_best_execution_candidate
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, PAIR
@@ -60,3 +62,46 @@ def test_select_best_candidate_single_candidate():
         )[0]
         == ANCHOR
     )
+
+
+@pytest.mark.asyncio
+async def test_execution_manager_pullback_never_skip_flag():
+    from unittest.mock import AsyncMock, MagicMock, patch
+
+    from src.application.services.orchestrator.execution_manager import ExecutionManager
+
+    orch = MagicMock()
+    orch.config = {
+        "pullback_strategy": {"enabled": True, "never_skip": False},
+        "indicator_consensus": {"multi_period_trading": False},
+        "orchestrator": {"execution": {}},
+        "risk_management": {},
+    }
+    orch.state = MagicMock(balance=1000.0)
+    orch.risk_manager = MagicMock(pending_loss={})
+    orch._active_cycle_id = 1
+    orch.logger = MagicMock()
+
+    mgr = ExecutionManager(orch)
+
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_manager.select_period_orders",
+            new_callable=AsyncMock,
+            return_value=[],
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager.resolve_mandatory_fallback_order",
+            new_callable=AsyncMock,
+        ) as mock_fallback,
+        patch(
+            "src.application.services.orchestrator.execution_manager.prepare_recovery_skip_counter",
+            new_callable=AsyncMock,
+        ),
+    ):
+        await mgr.execute_cluster({})
+        mock_fallback.assert_not_called()
+
+        orch.config["pullback_strategy"]["never_skip"] = True
+        await mgr.execute_cluster({})
+        mock_fallback.assert_called_once()

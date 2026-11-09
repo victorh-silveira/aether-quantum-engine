@@ -109,6 +109,7 @@ async def test_handle_settlement_loss_quarantine_loss_applies():
                 "enabled": True,
                 "period_seconds": 900,
                 "loss_cooldown_candles": 1,
+                "reversal_on_loss": True,
             },
         },
         _symbol_consecutive_losses={},

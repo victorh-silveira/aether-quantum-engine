@@ -26,10 +26,10 @@ def classify_market_regime(
     clean_adx = float(adx) if isinstance(adx, (int, float)) else 0.0
     clean_spread = float(spread) if isinstance(spread, (int, float)) else 0.0
 
-    if (clean_rsi > 75.0 or clean_rsi < 25.0) or clean_recuo > 2.0:
-        return MarketRegime.EXHAUSTION
     if clean_adx >= 22.0 or abs(clean_spread) > 0.01:
         return MarketRegime.STRONG_TREND
+    if (clean_rsi > 75.0 or clean_rsi < 25.0) or clean_recuo > 2.0:
+        return MarketRegime.EXHAUSTION
     if 18.0 <= clean_adx < 22.0:
         return MarketRegime.MODERATE_TREND
     if 0.0 < clean_adx < 18.0:
@@ -53,9 +53,10 @@ def evaluate_elastic_direction(
     trend_clean = str(trend).upper().strip()
     is_aligned = (trend_clean == "ALTA" and side == "CALL") or (trend_clean == "BAIXA" and side == "PUT")
 
+    if is_aligned:
+        return side, "TREND_ALIGNED_DIRECT", False
+
     if regime == MarketRegime.STRONG_TREND:
-        if is_aligned:
-            return side, "TREND_ALIGNED_DIRECT", False
         if has_loss_reversal:
             return opp_side, "REVERSAL_ON_LOSS", True
         return side, "BASE_SIGNAL_DIRECT", False

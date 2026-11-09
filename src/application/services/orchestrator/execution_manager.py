@@ -168,7 +168,8 @@ class ExecutionManager:
             orders = [] if setup_enabled else self._collect_orders(decisions)
             if setup_enabled or self.orch.config.get("indicator_consensus", {}).get("multi_period_trading", False):
                 orders = await select_period_orders(self.orch, orders)
-            if setup_enabled and not orders:
+            never_skip = bool(self.orch.config.get("pullback_strategy", {}).get("never_skip", False))
+            if setup_enabled and not orders and never_skip:
                 orders = await resolve_mandatory_fallback_order(self.orch)
             cid = f"C{int(self.orch._active_cycle_id):04d}"
             if setup_enabled and orders:

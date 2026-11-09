@@ -72,7 +72,7 @@ async def handle_settlement_loss_quarantine(
     consec_map = orch.__dict__.setdefault("_symbol_consecutive_losses", {})
     reversal_map = orch.__dict__.setdefault("_pending_loss_reversals", {})
     pb_cfg = orch.config.get("pullback_strategy", {}) if isinstance(orch.config, dict) else {}
-    reversal_on_loss = bool(pb_cfg.get("reversal_on_loss", True))
+    reversal_on_loss = bool(pb_cfg.get("reversal_on_loss", False))
     if profit >= 0.0:
         consec_map[symbol] = 0
         reversal_map.pop(symbol, None)

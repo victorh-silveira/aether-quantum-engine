@@ -564,7 +564,7 @@ async def test_select_period_orders_fair_rotation_and_technical_ranking(monkeypa
 
 def test_resolve_telemetry_side_post_loss_reversal():
     orch = SimpleNamespace(_pending_loss_reversals={"OTC_SSMI": {"target_dir": "PUT"}})
-    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {})
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {"reversal_on_loss": True})
     assert side == "PUT"
     assert reason == "REVERSAL_ON_LOSS"
     assert flipped is True
@@ -573,19 +573,25 @@ def test_resolve_telemetry_side_post_loss_reversal():
 
 def test_resolve_telemetry_side_telemetry_bias_and_direct():
     orch = SimpleNamespace()
-    side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", {}, context={"adx": 12.0})
+    pb_on = {"elastic_regime_enabled": True}
+    side_inv, r_inv, f_inv = orders.resolve_telemetry_side(orch, "OTC_SSMI", "CALL", pb_on, context={"adx": 12.0})
     assert side_inv == "PUT"
     assert r_inv == "LATERAL_FADE_INVERTED"
     assert f_inv is True
 
     ctx_trend = {"trend": "ALTA", "adx": 26.0, "spread": 0.02}
-    side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", {}, context=ctx_trend)
+    side_dir, r_dir, f_dir = orders.resolve_telemetry_side(orch, "OTC_FCHI", "CALL", pb_on, context=ctx_trend)
     assert side_dir == "CALL"
     assert r_dir == "TREND_ALIGNED_DIRECT"
     assert f_dir is False
 
     ctx_mod = {"adx": 20.0}
-    side_def, r_def, f_def = orders.resolve_telemetry_side(orch, "R_10", "CALL", {}, context=ctx_mod)
+    side_pure, r_pure, f_pure = orders.resolve_telemetry_side(orch, "R_10", "CALL", {}, context=ctx_mod)
+    assert side_pure == "CALL"
+    assert r_pure == "BASE_SIGNAL_DIRECT"
+    assert f_pure is False
+
+    side_def, r_def, f_def = orders.resolve_telemetry_side(orch, "R_10", "CALL", pb_on, context=ctx_mod)
     assert side_def == "CALL"
     assert r_def == "BASE_SIGNAL_DIRECT"
     assert f_def is False
@@ -598,7 +604,7 @@ def test_resolve_telemetry_side_telemetry_bias_and_direct():
 
 def test_resolve_telemetry_side_elastic_trend_and_exhaustion():
     orch = SimpleNamespace()
-    pb_cfg = {"telemetry_inverted_symbols": ["OTC_FTSE"]}
+    pb_cfg = {"elastic_regime_enabled": True, "telemetry_inverted_symbols": ["OTC_FTSE"]}
 
     # Hard trend gate: FTSE em forte baixa com sinal PUT -> nao inverte
     ctx_ftse = {"trend": "BAIXA", "adx": 53.0, "spread": -43.0}
@@ -614,16 +620,16 @@ def test_resolve_telemetry_side_elastic_trend_and_exhaustion():
     assert reason == "TREND_ALIGNED_DIRECT"
     assert flipped is False
 
-    # Exaustao extrema de momentum: RSI sobrecomprado (>75) em CALL -> inverte
-    ctx_exh = {"rsi": 82.0, "recuo": 1.0}
-    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "CALL", {}, context=ctx_exh)
+    # Exaustao extrema de momentum: RSI sobrecomprado (>75) em CALL sem tendencia alinhada -> inverte
+    ctx_exh = {"trend": "LATERAL", "rsi": 82.0, "recuo": 1.0}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "CALL", pb_cfg, context=ctx_exh)
     assert side == "PUT"
     assert reason == "ELASTIC_EXHAUSTION_INVERTED"
     assert flipped is True
 
-    # Exaustao extrema de momentum: recuo esticado (>2.0 ATR) em PUT -> inverte
-    ctx_rec = {"rsi": 40.0, "recuo": 2.6}
-    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "PUT", {}, context=ctx_rec)
+    # Exaustao extrema de momentum: recuo esticado (>2.0 ATR) em PUT sem tendencia alinhada -> inverte
+    ctx_rec = {"trend": "LATERAL", "rsi": 40.0, "recuo": 2.6}
+    side, reason, flipped = orders.resolve_telemetry_side(orch, "OTC_SPC", "PUT", pb_cfg, context=ctx_rec)
     assert side == "CALL"
     assert reason == "ELASTIC_EXHAUSTION_INVERTED"
     assert flipped is True
@@ -637,6 +643,7 @@ def test_period_candidates_loss_reversal_bypasses_quarantine(monkeypatch):
         "promoted_symbol": "R_10",
         "period_seconds": 900,
         "version": "pullback-1-v15",
+        "reversal_on_loss": True,
     }
     orch._indicator_broker_evidence[("R_10", 900, "pullback-1-v15")] = BrokerEvEvidence(10, (0.5,))
     orch._symbol_loss_quarantine = {"R_10": 9999999999.0}

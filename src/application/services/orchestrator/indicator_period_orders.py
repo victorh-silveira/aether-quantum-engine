@@ -36,7 +36,16 @@ def resolve_telemetry_side(
     context: dict | None = None,
 ) -> tuple[str, str, bool]:
     """Resolve direcao orientada por telemetria elastica de regime de mercado."""
-    _ = pb_cfg
+    elastic_on = bool(pb_cfg.get("elastic_regime_enabled", False))
+    reversal_on = bool(pb_cfg.get("reversal_on_loss", False))
+    invert_cfg = bool(pb_cfg.get("invert_signal", False))
+    rev_dict = getattr(orch, "_pending_loss_reversals", None)
+    reversals = rev_dict if isinstance(rev_dict, dict) else {}
+    has_loss_reversal = bool(reversal_on and (symbol in reversals))
+
+    if not elastic_on and not has_loss_reversal and not invert_cfg:
+        return original_side, "BASE_SIGNAL_DIRECT", False
+
     market_metrics = getattr(orch, "_latest_market_metrics", None)
     m_dict = market_metrics.get(symbol, {}) if isinstance(market_metrics, dict) else {}
     metrics = context if isinstance(context, dict) else m_dict
@@ -47,15 +56,12 @@ def resolve_telemetry_side(
     recuo = float(metrics.get("recuo") or 0.0) if isinstance(metrics.get("recuo"), (int, float)) else 0.0
 
     regime = classify_market_regime(adx, spread, rsi, recuo)
-    rev_dict = getattr(orch, "_pending_loss_reversals", None)
-    reversals = rev_dict if isinstance(rev_dict, dict) else {}
-    has_loss_reversal = symbol in reversals
     side, reason, is_flipped = evaluate_elastic_direction(
         original_side, trend, regime, has_loss_reversal=has_loss_reversal
     )
     if has_loss_reversal and is_flipped:
         reversals.pop(symbol, None)
-    if bool(pb_cfg.get("invert_signal", False)) and not is_flipped and reason != "TREND_ALIGNED_DIRECT":
+    if invert_cfg and not is_flipped and reason != "TREND_ALIGNED_DIRECT":
         return ("PUT" if original_side == "CALL" else "CALL"), "CONFIG_INVERT_SIGNAL", True
     return side, reason, is_flipped
 
