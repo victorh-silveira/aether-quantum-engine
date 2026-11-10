@@ -258,7 +258,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
             )
             else 0.0
         )
-        pen_climax = -0.08 if t_str > 50.0 else 0.0
+        trend_adj = 0.05 if t_str >= 25.0 else (-0.05 if t_str < 18.0 else 0.0)
         sess_trk = getattr(orch, "_session_pair_tracker", None)
         sess_adj = (
             sess_trk.symbol_rotation_adjustment(symbol)
@@ -271,7 +271,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
             float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
             + pen
             + bonus_direct
-            + pen_climax
+            + trend_adj
             + sess_adj
             + (0.05 * liq_w),
             float(ev_val) if ev_val is not None else rt,

@@ -466,3 +466,49 @@ def test_senior_setup_granular_telemetry_reasons(monkeypatch):
     res = evaluate(bearish_conf, period, MIN_BARS * period, **kwargs)
     assert res.side == "SEM SINAL"
     assert res.reason == "vela_contraria"
+
+
+def test_senior_setup_macd_cross_divergence_guards(monkeypatch):
+    """Testa veto de PUT com MACD bullish cross e veto de CALL com MACD bearish cross."""
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 25.0, 10.0))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 52.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    # CALL com MACD bearish cross (m_val < s_val e hist < 0): deve vetar
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-0.2, 0.1, -0.3))
+    res_call = evaluate(base_bars, period, MIN_BARS * period, **kwargs)
+    assert res_call.side == "SEM SINAL"
+
+    # PUT com MACD bullish cross (m_val > s_val e hist > 0, analogo ao DJI): deve vetar
+    mirrored = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in base_bars]
+    monkeypatch.setattr(
+        "indicator.pullback._ema", lambda values, span: [300 - x for x in (fast if span == 20 else slow)]
+    )
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 197.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (25.0, 10.0, 25.0))
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-39.87, -50.54, 10.67))
+    res_put = evaluate(mirrored, period, MIN_BARS * period, **kwargs)
+    assert res_put.side == "SEM SINAL"

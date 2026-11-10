@@ -55,7 +55,7 @@ def evaluate_senior_institutional(
     bounded = body <= 2.5 * atr and candle_range <= 2.60 * atr
     is_doji = body < 0.025 * atr
     adx, pdi, mdi = fn_adx(bars, 14)
-    _, _, m_hist = fn_macd(closes, 7, 14, 5)
+    m_val, s_val, m_hist = fn_macd(closes, 7, 14, 5)
     rsi = fn_rsi(closes, 14)
     rsi_prev = fn_rsi(closes[:-1], 14)
     stoch_k, _ = fn_stoch(bars, 14, 3)
@@ -86,8 +86,21 @@ def evaluate_senior_institutional(
     trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 8.0
     is_high_momentum = trend_strong and adx >= 26.0 and hurst >= 0.50
 
-    climax_call = stoch_k >= 90.0 or williams >= -8.0 or (m_hist < 0.0 and confirmation.close > fast[-1] + 1.20 * atr)
-    climax_put = stoch_k <= 10.0 or williams <= -92.0 or (m_hist > 0.0 and confirmation.close < fast[-1] - 1.20 * atr)
+    macd_bull_div = m_hist > 0.0 and m_val > s_val
+    macd_bear_div = m_hist < 0.0 and m_val < s_val
+
+    climax_call = (
+        stoch_k >= 90.0
+        or williams >= -8.0
+        or macd_bear_div
+        or (m_hist < 0.0 and confirmation.close > fast[-1] + 1.20 * atr)
+    )
+    climax_put = (
+        stoch_k <= 10.0
+        or williams <= -92.0
+        or macd_bull_div
+        or (m_hist > 0.0 and confirmation.close < fast[-1] - 1.20 * atr)
+    )
     rsi_bear_div = confirmation.close > pullback.close and rsi < rsi_prev - 3.5
     rsi_bull_div = confirmation.close < pullback.close and rsi > rsi_prev + 3.5
 
@@ -115,8 +128,8 @@ def evaluate_senior_institutional(
     )
     call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
     put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55
-    call_macd_ok = m_hist >= -0.35 * atr
-    put_macd_ok = m_hist <= 0.35 * atr
+    call_macd_ok = (m_hist >= -0.05 * atr) and not (m_val < s_val and m_hist < 0.0)
+    put_macd_ok = (m_hist <= 0.05 * atr) and not (m_val > s_val and m_hist > 0.0)
     fast_bear_cross = (
         fast[-1] < slow[-1]
         or fast[-2] < slow[-2]
@@ -179,7 +192,7 @@ def evaluate_senior_institutional(
         and not is_classic_bull_pullback
         and (bull_fvg or abs(pullback.low - fast[-2]) <= max_pb_dist)
         and abs(confirmation.close - fast[-1]) <= max_dist_fast
-        and m_hist >= -0.20 * atr
+        and m_hist >= -0.05 * atr
         and bounded
         and ref_call_ok
         and confirmation.close > confirmation.open
@@ -199,7 +212,7 @@ def evaluate_senior_institutional(
         and not is_classic_bear_pullback
         and (bear_fvg or abs(pullback.high - fast[-2]) <= max_pb_dist)
         and abs(confirmation.close - fast[-1]) <= max_dist_fast
-        and m_hist <= 0.20 * atr
+        and m_hist <= 0.05 * atr
         and bounded
         and ref_put_ok
         and confirmation.close < confirmation.open
