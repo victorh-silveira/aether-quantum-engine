@@ -512,3 +512,67 @@ def test_senior_setup_macd_cross_divergence_guards(monkeypatch):
     monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-39.87, -50.54, 10.67))
     res_put = evaluate(mirrored, period, MIN_BARS * period, **kwargs)
     assert res_put.side == "SEM SINAL"
+
+
+def test_canonical_killzones_reject_post_london_fix():
+    """Valida rejeicao estrita de velas fora das Killzones canonicas BRT."""
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE, DEFAULT_KILLZONES_BRT, is_within_killzone
+
+    # 16h45 BRT (hora 16) - fechamento as 17h00 BRT: deve ser rejeitada
+    dt_1645 = datetime(2026, 11, 10, 16, 45, tzinfo=BRT_TIMEZONE)
+    epoch_1645 = int(dt_1645.timestamp())
+    assert is_within_killzone(epoch_1645) is False
+    assert is_within_killzone(epoch_1645, DEFAULT_KILLZONES_BRT) is False
+
+    # 17h00 BRT (hora 17) - deve ser rejeitada
+    dt_1700 = datetime(2026, 11, 10, 17, 0, tzinfo=BRT_TIMEZONE)
+    epoch_1700 = int(dt_1700.timestamp())
+    assert is_within_killzone(epoch_1700) is False
+
+    # Janelas validas: 05h (London Open), 11h (NY Overlap), 15h (London Fix)
+    for h in (5, 11, 15):
+        dt_ok = datetime(2026, 11, 10, h, 15, tzinfo=BRT_TIMEZONE)
+        assert is_within_killzone(int(dt_ok.timestamp())) is True
+
+    # Janelas invalidas intermediarias: 08h, 09h, 13h, 16h
+    for h in (8, 9, 13, 16):
+        dt_bad = datetime(2026, 11, 10, h, 0, tzinfo=BRT_TIMEZONE)
+        assert is_within_killzone(int(dt_bad.timestamp())) is False
+
+
+def test_senior_setup_rejects_extreme_overbought_even_in_high_momentum(monkeypatch):
+    """Testa veto de CALL com RSI >= 75 mesmo sob regime is_high_momentum."""
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    # ADX alto (72.5) e Hurst alto (0.71) ativam is_high_momentum = True
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (72.5, 32.1, 5.1))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.71)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (15.75, 11.41, 4.34))
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (82.9, 85.7))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.75)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -17.1)
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    # Com RSI = 81.4 (exaustao compradora como no GDAXI): DEVE vetar por climax_exaustao
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 81.4)
+    res = evaluate(base_bars, period, MIN_BARS * period, **kwargs)
+    assert res.side == "SEM SINAL"
+    assert res.reason == "climax_exaustao"

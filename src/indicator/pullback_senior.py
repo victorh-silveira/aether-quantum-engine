@@ -109,22 +109,26 @@ def evaluate_senior_institutional(
         or hurst < 0.45
         or climax_call
         or rsi_bear_div
+        or rsi >= 75.0
+        or stoch_k >= 88.0
         or (
             not is_high_momentum
-            and (rsi >= 70.0 or stoch_k >= 85.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.48)
+            and (rsi >= 68.0 or stoch_k >= 82.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.48)
         )
-        or (is_high_momentum and (rsi >= 98.0 or pct_b >= 1.25))
+        or (is_high_momentum and (rsi >= 75.0 or pct_b >= 1.05))
     )
     put_exhaustion = has_variance and (
         put_rejection
         or hurst < 0.45
         or climax_put
         or rsi_bull_div
+        or rsi <= 25.0
+        or stoch_k <= 12.0
         or (
             not is_high_momentum
-            and (rsi <= 30.0 or stoch_k <= 15.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.48)
+            and (rsi <= 32.0 or stoch_k <= 18.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.48)
         )
-        or (is_high_momentum and (rsi <= 2.0 or pct_b <= -0.25))
+        or (is_high_momentum and (rsi <= 25.0 or pct_b <= -0.05))
     )
     call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
     put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55
@@ -175,8 +179,8 @@ def evaluate_senior_institutional(
         (upper <= 0 or confirmation.close <= upper + 0.50 * atr)
         and (lower <= 0 or confirmation.close >= lower - 1.20 * atr)
     )
-    max_dist_fast = 4.50 * atr if is_high_momentum else 2.00 * atr
-    max_pb_dist = 4.50 * atr if is_high_momentum else 2.60 * atr
+    max_dist_fast = 2.20 * atr if is_high_momentum else 1.80 * atr
+    max_pb_dist = 2.50 * atr if is_high_momentum else 2.00 * atr
     call_pullback = (
         trend_call
         and abs(pullback.low - fast[-2]) <= max_pb_dist
