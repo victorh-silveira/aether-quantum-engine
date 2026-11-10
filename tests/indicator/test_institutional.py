@@ -531,13 +531,13 @@ def test_canonical_killzones_reject_post_london_fix():
     epoch_1700 = int(dt_1700.timestamp())
     assert is_within_killzone(epoch_1700) is False
 
-    # Janelas validas: 05h (London Open), 11h (NY Overlap), 15h (London Fix)
-    for h in (5, 11, 15):
+    # Janelas validas de alta densidade: 03h, 05h, 07h (London Open), 10h, 11h, 12h (NY Overlap), 15h (London Fix)
+    for h in (3, 5, 7, 10, 11, 12, 15):
         dt_ok = datetime(2026, 11, 10, h, 15, tzinfo=BRT_TIMEZONE)
         assert is_within_killzone(int(dt_ok.timestamp())) is True
 
-    # Janelas invalidas intermediarias: 08h, 09h, 13h, 16h
-    for h in (8, 9, 13, 16):
+    # Janelas invalidas ou vales mortos expurgados: 04h, 06h, 08h, 09h, 13h, 14h, 16h
+    for h in (4, 6, 8, 9, 13, 14, 16):
         dt_bad = datetime(2026, 11, 10, h, 0, tzinfo=BRT_TIMEZONE)
         assert is_within_killzone(int(dt_bad.timestamp())) is False
 

@@ -9,8 +9,8 @@ from indicator.domain import Candle
 
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))
-# Killzones canônicas BRT: London Open (3-7), NY Overlap (10-12) e London Fix (14-15)
-DEFAULT_KILLZONES_BRT = [3, 4, 5, 6, 7, 10, 11, 12, 14, 15]
+# Killzones de alta densidade BRT: London Open (3, 5, 7), NY Overlap (10, 11, 12) e London Fix (15)
+DEFAULT_KILLZONES_BRT = [3, 5, 7, 10, 11, 12, 15]
 
 
 def session_price_reference(bars: list[Candle]) -> tuple[float, float, float]:

@@ -23,6 +23,15 @@ from src.infrastructure.handlers.trade_handler_quote_observation import record_i
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 
 
+TIER_1_SYMBOLS = {"OTC_SSMI", "OTC_SPC", "OTC_AS51"}
+TIER_3_SYMBOLS = {"OTC_FTSE", "OTC_N225", "OTC_DJI", "OTC_NDX", "OTC_GDAXI"}
+
+
+def asset_consistency_adj(sym: str) -> float:
+    """Ajuste de consistencia empirica de 7 dias por tier de ativo."""
+    return 0.04 if sym in TIER_1_SYMBOLS else (-0.04 if sym in TIER_3_SYMBOLS else 0.0)
+
+
 def _closed_candles_slice(candles: list[Any], period: int, now_ts: float) -> list[Any]:
     """Compatibilidade interna para fatiamento de velas fechadas."""
     return closed_candles_slice(candles, period, now_ts)
@@ -245,7 +254,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
         l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")
         rt = float(metrics.get("indicator_quote_rate") or 0.0)
         t_str = float(metrics.get("trend_strength") or 0.0)
-        pen = -0.05 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
+        pen = -0.06 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
         reason = str(metrics.get("organic_decision_reason") or "")
         bonus_direct = (
             0.08
@@ -266,12 +275,14 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
             else 0.0
         )
         liq_w = session_liquidity_weight(symbol, time.time())
+        tier_adj = asset_consistency_adj(symbol)
         score = (
             float(l95) if l95 is not None else -math.inf,
             float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
             + pen
             + bonus_direct
             + trend_adj
+            + tier_adj
             + sess_adj
             + (0.05 * liq_w),
             float(ev_val) if ev_val is not None else rt,

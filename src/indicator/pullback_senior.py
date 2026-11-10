@@ -150,6 +150,7 @@ def evaluate_senior_institutional(
         and call_macd_ok
         and not is_doji
         and fast_bull_cross
+        and fast[-1] >= fast[-3] - 0.10 * atr
         and slow[-1] >= slow[-4] - 0.05 * atr
         and confirmation.close > slow[-1]
     )
@@ -159,6 +160,7 @@ def evaluate_senior_institutional(
         and put_macd_ok
         and not is_doji
         and fast_bear_cross
+        and fast[-1] <= fast[-3] + 0.10 * atr
         and slow[-1] <= slow[-4] + 0.05 * atr
         and confirmation.close < slow[-1]
     )
