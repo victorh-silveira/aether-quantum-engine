@@ -1,3 +1,9 @@
+## [5.0.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.2...v5.0.3) (2026-11-10)
+
+### Correcoes de Bug
+
+* **engine:** otimizar killzones canonicas e consistencia de ativos ([fa08bb8](https://github.com/victorh-silveira/aether-quantum-engine/commit/fa08bb80ee350379a1b8ff8f7f25d47ec97d054c))
+
 ## [5.0.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.1...v5.0.2) (2026-11-10)
 
 ### Correcoes de Bug
