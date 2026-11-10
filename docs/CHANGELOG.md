@@ -1,3 +1,9 @@
+## [5.0.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.1...v5.0.2) (2026-11-10)
+
+### Correcoes de Bug
+
+* **engine:** blindar killzones canonicas e teto de exaustao ([a9c17f8](https://github.com/victorh-silveira/aether-quantum-engine/commit/a9c17f89e92963b08ed1f27058e5ad15301c4c5f))
+
 ## [5.0.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.0...v5.0.1) (2026-11-10)
 
 ### Correcoes de Bug
