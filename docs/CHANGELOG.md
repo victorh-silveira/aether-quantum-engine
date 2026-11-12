@@ -1,3 +1,9 @@
+## [5.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.3...v5.1.0) (2026-11-12)
+
+### Funcionalidades
+
+* **all:** consolidar observabilidade m15, killzone e sync deriv ([11849a5](https://github.com/victorh-silveira/aether-quantum-engine/commit/11849a59e599478d144ebcf888c625da31743c0f))
+
 ## [5.0.3](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.2...v5.0.3) (2026-11-10)
 
 ### Correcoes de Bug
