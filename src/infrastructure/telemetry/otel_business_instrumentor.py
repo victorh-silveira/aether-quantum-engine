@@ -7,6 +7,8 @@ import logging
 import math
 import time
 
+from src.infrastructure.telemetry.prometheus_runtime_metrics import RuntimeTelemetryState
+
 
 logger = logging.getLogger("AETH")
 
@@ -35,7 +37,7 @@ class BusinessMetricsInstrumentor:
         self._gate_verdicts: dict[tuple[str, str, str], int] = {}
         self._radar: dict[str, dict[str, float | None]] = {}
         self._confirmed_setups_count: int = 0
-
+        self.runtime = RuntimeTelemetryState()
         self._meter = None
         if _OTEL_SDK_AVAILABLE and otel_metrics is not None:
             try:
@@ -57,6 +59,7 @@ class BusinessMetricsInstrumentor:
 
     def mark_stop_win(self) -> None:
         """Fixa o instante em que a meta da sessao foi alcancada."""
+        self.runtime.stop_win_reached = True
         if self._session_stop_win_time is None:
             self._session_stop_win_time = time.time()
 
@@ -290,6 +293,7 @@ class BusinessMetricsInstrumentor:
             f'aether_trading_gate_verdicts_total{{symbol="{s}",verdict="{v}",reason="{r}"}} {c}'
             for (s, v, r), c in self._gate_verdicts.items()
         )
+        lines.extend(self.runtime.render_prometheus_lines())
         return "\n".join(lines) + "\n"
 
 

@@ -124,7 +124,7 @@ def test_senior_setup_requires_all_pillars_and_preserves_direction(monkeypatch):
     monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
     monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
     monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
-    hour = datetime.fromtimestamp(bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
     assert evaluate(bars, period, MIN_BARS * period, **kwargs).side == "CALL"
     monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, False))
@@ -157,7 +157,7 @@ def test_senior_setup_trend_continuation_flow(monkeypatch):
     monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
     monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
     monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, False))
-    hour = datetime.fromtimestamp(bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
     assert evaluate(bars, period, 64 * period, **kwargs).side == "CALL"
 
@@ -184,7 +184,7 @@ def test_senior_setup_filters_doji_adx_dmi_and_macd(monkeypatch):
     monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
     monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
     monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
-    hour = datetime.fromtimestamp(bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     # Doji rejection
@@ -248,13 +248,15 @@ def test_senior_setup_institutional_guards(monkeypatch):
     monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
     monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
 
-    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
 
-    # Guard: Low Hurst Exponent
+    # Guard: Hurst curto moderado (0.42-0.44) nao veta mais tendencia saudavel; Hurst extremo (< 0.38) veta
     monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.42)
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.36)
     assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
     monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.58)
 
@@ -402,7 +404,7 @@ def test_senior_setup_advanced_anti_loss_guards(monkeypatch):
     monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
     monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
 
-    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
@@ -458,7 +460,7 @@ def test_senior_setup_granular_telemetry_reasons(monkeypatch):
     monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
     monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
 
-    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     bearish_conf = list(base_bars)
@@ -493,7 +495,7 @@ def test_senior_setup_macd_cross_divergence_guards(monkeypatch):
     monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.55)
     monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -45.0)
 
-    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     # CALL com MACD bearish cross (m_val < s_val e hist < 0): deve vetar
@@ -520,24 +522,18 @@ def test_canonical_killzones_reject_post_london_fix():
 
     from indicator.institutional import BRT_TIMEZONE, DEFAULT_KILLZONES_BRT, is_within_killzone
 
-    # 16h45 BRT (hora 16) - fechamento as 17h00 BRT: deve ser rejeitada
-    dt_1645 = datetime(2026, 11, 10, 16, 45, tzinfo=BRT_TIMEZONE)
-    epoch_1645 = int(dt_1645.timestamp())
-    assert is_within_killzone(epoch_1645) is False
-    assert is_within_killzone(epoch_1645, DEFAULT_KILLZONES_BRT) is False
-
-    # 17h00 BRT (hora 17) - deve ser rejeitada
+    # 17h00 BRT (hora 17) e 18h15 BRT (pos-Killzone) - devem ser rejeitadas
     dt_1700 = datetime(2026, 11, 10, 17, 0, tzinfo=BRT_TIMEZONE)
-    epoch_1700 = int(dt_1700.timestamp())
-    assert is_within_killzone(epoch_1700) is False
+    assert is_within_killzone(int(dt_1700.timestamp())) is False
+    assert is_within_killzone(int(dt_1700.timestamp()), DEFAULT_KILLZONES_BRT) is False
 
-    # Janelas validas de alta densidade: 03h, 05h, 07h (London Open), 10h, 11h, 12h (NY Overlap), 15h (London Fix)
-    for h in (3, 5, 7, 10, 11, 12, 15):
+    # Janelas validas calibradas acima do breakeven: 07h, 09h, 10h, 12h, 13h, 15h, 16h BRT
+    for h in (7, 9, 10, 12, 13, 15, 16):
         dt_ok = datetime(2026, 11, 10, h, 15, tzinfo=BRT_TIMEZONE)
         assert is_within_killzone(int(dt_ok.timestamp())) is True
 
-    # Janelas invalidas ou vales mortos expurgados: 04h, 06h, 08h, 09h, 13h, 14h, 16h
-    for h in (4, 6, 8, 9, 13, 14, 16):
+    # Janelas expurgadas com WR abaixo do breakeven: madrugada/abertura 03-06h, 08h, 11h, 14h, 17h+
+    for h in (3, 4, 5, 6, 8, 11, 14, 17, 23):
         dt_bad = datetime(2026, 11, 10, h, 0, tzinfo=BRT_TIMEZONE)
         assert is_within_killzone(int(dt_bad.timestamp())) is False
 
@@ -568,7 +564,7 @@ def test_senior_setup_rejects_extreme_overbought_even_in_high_momentum(monkeypat
     monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.75)
     monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -17.1)
 
-    hour = datetime.fromtimestamp(base_bars[-1].epoch, tz=BRT_TIMEZONE).hour
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
 
     # Com RSI = 81.4 (exaustao compradora como no GDAXI): DEVE vetar por climax_exaustao
@@ -576,3 +572,111 @@ def test_senior_setup_rejects_extreme_overbought_even_in_high_momentum(monkeypat
     res = evaluate(base_bars, period, MIN_BARS * period, **kwargs)
     assert res.side == "SEM SINAL"
     assert res.reason == "climax_exaustao"
+
+
+def test_senior_setup_allows_mild_negative_macd_during_pullback(monkeypatch):
+    """Permite recuo controlado com MACD histograma levemente negativo sem esticar da EMA20."""
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 103.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (46.0, 26.0, 9.0))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.64)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 60.0)
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (70.0, 68.0))
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.72)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -25.0)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (4.98, 5.64, -0.15))
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
+    res = evaluate(base_bars, period, MIN_BARS * period, variant="senior_institutional", optimal_hours_brt=[hour])
+    assert res.side == "CALL"
+    assert res.reason == "setup_confirmado"
+
+
+def test_senior_setup_high_momentum_uniform_stoch_and_fast_dist(monkeypatch):
+    """Confirma corte uniforme de Stoch 82/18 e distancia EMA20 <= 1.75 ATR sob high momentum (1.50 normal)."""
+    from datetime import datetime
+
+    from indicator.institutional import BRT_TIMEZONE, is_within_killzone
+
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+
+    monkeypatch.setattr("indicator.pullback._ema", lambda values, span: fast if span == 20 else slow)
+    monkeypatch.setattr("indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (101.5, 105.0, 100.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (True, False))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (48.0, 30.0, 8.0))
+    monkeypatch.setattr("indicator.pullback._hurst_exponent", lambda c, p: 0.65)
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 62.0)
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.80)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -20.0)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (5.0, 4.0, 1.0))
+
+    hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
+    kwargs = {"variant": "senior_institutional", "optimal_hours_brt": [hour]}
+
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (81.1, 79.0))
+    assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
+
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (83.0, 80.0))
+    res_stoch = evaluate(base_bars, period, MIN_BARS * period, **kwargs)
+    assert res_stoch.side == "SEM SINAL"
+    assert res_stoch.reason == "climax_exaustao"
+
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (70.0, 65.0))
+    within_hm = list(base_bars)
+    within_hm[-1] = Candle((MIN_BARS - 1) * period, 102.8, 103.7, 102.7, 103.6)
+    assert evaluate(within_hm, period, MIN_BARS * period, **kwargs).side == "CALL"
+
+    stretched = list(base_bars)
+    stretched[-1] = Candle((MIN_BARS - 1) * period, 102.8, 103.95, 102.7, 103.85)
+    res_dist = evaluate(stretched, period, MIN_BARS * period, **kwargs)
+    assert res_dist.side == "SEM SINAL"
+    assert res_dist.reason == "afastado_da_media"
+
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (22.0, 26.0, 12.0))
+    assert evaluate(within_hm, period, MIN_BARS * period, **kwargs).reason == "afastado_da_media"
+
+    frozen = list(base_bars)
+    frozen[-1] = Candle((MIN_BARS - 1) * period, 102.2, 102.2, 102.2, 102.2)
+    res_frozen = evaluate(frozen, period, MIN_BARS * period, **kwargs)
+    assert res_frozen.side == "SEM SINAL"
+    assert res_frozen.reason == "mercado_sem_oscilacao"
+
+    ep_0645 = int(datetime(2026, 11, 11, 6, 45, tzinfo=BRT_TIMEZONE).timestamp())
+    ep_0745 = int(datetime(2026, 11, 11, 7, 45, tzinfo=BRT_TIMEZONE).timestamp())
+    assert is_within_killzone(ep_0645, period_seconds=900) is True
+    assert is_within_killzone(ep_0745, period_seconds=900) is False
+
+    mirrored = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in base_bars]
+    monkeypatch.setattr(
+        "indicator.pullback._ema", lambda values, span: [300 - x for x in (fast if span == 20 else slow)]
+    )
+    monkeypatch.setattr("indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 195.0))
+    monkeypatch.setattr("indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
+    monkeypatch.setattr("indicator.pullback._adx", lambda b, p: (48.0, 8.0, 30.0))
+    monkeypatch.setattr("indicator.pullback._rsi", lambda c, p: 38.0)
+    monkeypatch.setattr("indicator.pullback._bollinger_pct_b", lambda c, p: 0.20)
+    monkeypatch.setattr("indicator.pullback._williams_r", lambda b, p: -80.0)
+    monkeypatch.setattr("indicator.pullback._macd", lambda c, f, s, sig: (-5.0, -4.0, -1.0))
+    monkeypatch.setattr("indicator.pullback._stochastic", lambda b, k, d: (17.0, 20.0))
+    res_put_stoch = evaluate(mirrored, period, MIN_BARS * period, **kwargs)
+    assert res_put_stoch.side == "SEM SINAL"
+    assert res_put_stoch.reason == "climax_exaustao"

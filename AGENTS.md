@@ -40,10 +40,11 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 3. **Preco de Referencia de Sessao:** Cotacao contida dentro das bandas de +/- 1,5 desvio padrao em relacao a referencia OHLC da sessao UTC (sem volume, referencia OHLC pura).
 4. **Mitigacao de Desequilibrio (FVG):** Confirmacao de mitigacao de Fair Value Gap entre as velas $t-2$ e $t$.
 5. **Hard Gate de Killzones no Horario de Brasilia (BRT / UTC-3):**
-   - **London Open:** 03h00 as 08h00 BRT
-   - **New York Overlap:** 10h00 as 13h00 BRT
-   - **London Fix:** 14h00 as 16h00 BRT
-   - Qualquer vela fora dessas janelas horarias e sumariamente rejeitada pelo gate.
+   - **London Mid:** 07h00 as 08h00 BRT (hora `7`)
+   - **Pre-NY Open:** 09h00 as 10h00 BRT (hora `9`)
+   - **New York Overlap:** 10h00 as 11h00 e 12h00 as 14h00 BRT (horas `10, 12, 13`)
+   - **London Fix / Pos-Fix:** 15h00 as 17h00 BRT (horas `15, 16`)
+   - Qualquer vela fora dessas janelas horarias (`[7, 9, 10, 12, 13, 15, 16]`) e sumariamente rejeitada pelo gate.
 
 ### Gestao de Capital e Dimensionamento:
 - **Stake Base:** 1% do saldo disponivel da banca.

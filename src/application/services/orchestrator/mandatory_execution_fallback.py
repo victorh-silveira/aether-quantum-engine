@@ -27,6 +27,7 @@ def _candidate_fallback_symbols(orch: Any) -> list[str]:
     session_trk = getattr(orch, "_session_pair_tracker", None)
 
     def _score_symbol(sym: str) -> float:
+        """Pontua candidato de fallback conforme horario, regime e quarentena."""
         score = 10.0 if is_otc_exchange_open_brt(sym, now_ts) else 0.0
         m = metrics_map.get(sym, {}) if isinstance(metrics_map, dict) else {}
         adx = float(m.get("adx") or 0.0) if isinstance(m.get("adx"), (int, float)) else 0.0

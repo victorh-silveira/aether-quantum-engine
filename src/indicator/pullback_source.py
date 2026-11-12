@@ -8,8 +8,10 @@ from indicator.deriv import PublicDeriv
 class PullbackSource:
     """Distribui consultas entre quatro WebSockets sem compartilhar recv concorrente."""
 
-    def __init__(self, url: str, size: int = 4) -> None:
-        self.clients = [PublicDeriv(url) for _ in range(max(1, size))]
+    def __init__(self, url: str, size: int = 4, *, on_rtt: object = None) -> None:
+        self.clients = [
+            PublicDeriv(url, on_rtt=on_rtt) if on_rtt is not None else PublicDeriv(url) for _ in range(max(1, size))
+        ]
         self.next_client = 0
 
     async def symbols(self) -> list[dict[str, object]]:

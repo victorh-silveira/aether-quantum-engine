@@ -1,0 +1,116 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "liveNow": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Stop Win Alcancado (Sessao)",
+      "description": "1 = meta diaria Stop-Win atingida; 0 = operacao ativa.",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "aether_session_stop_win_reached",
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "OPERACAO_ATIVA", "color": "green" }, "1": { "text": "STOP_WIN", "color": "blue" } }, "type": "value" }
+          ],
+          "noValue": "DESCONECTADO"
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "colorMode": "value", "graphMode": "none" }
+    },
+    {
+      "id": 2,
+      "title": "Latencia Ciclo Motor (s) & Sync Historico (s)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 9, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_cycle_duration_seconds", "legendFormat": "Ciclo Motor (s)", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_indicator_tick_duration_seconds", "legendFormat": "Tick Indicador (s)", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_history_sync_duration_seconds", "legendFormat": "Sync Inicial (s)", "refId": "C" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] }
+    },
+    {
+      "id": 3,
+      "title": "Latencia WebSocket API Deriv (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 9, "x": 15, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_indicator_deriv_ws_rtt_ms", "legendFormat": "Indicador {{method}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_deriv_ws_rtt_ms", "legendFormat": "Motor {{method}}", "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] }
+    },
+    {
+      "id": 4,
+      "title": "Motivos de Bloqueio do Indicador M15 (Acumulado)",
+      "type": "timeseries",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by (reason) (aether_indicator_reason_total{period=\"900\"})",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 5,
+      "title": "Mercado Real Aberto vs Sessao Estendida Deriv OTC",
+      "type": "table",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_indicator_real_market_open", "format": "table", "instant": true, "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "prometheus" }, "expr": "aether_indicator_deriv_otc_open", "format": "table", "instant": true, "refId": "B" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] }
+    },
+    {
+      "id": 6,
+      "title": "Auditoria M15: Payout Observado, Break-Even e Rastreio (trace_id)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 13 },
+      "datasource": { "type": "timescale", "uid": "timescale" },
+      "targets": [
+        {
+          "datasource": { "type": "timescale", "uid": "timescale" },
+          "format": "table",
+          "rawQuery": true,
+          "rawSql": "SELECT to_timestamp(date_start) AS horario, symbol AS ativo, account_mode AS conta, contract_id, contract_type AS direcao, round(buy_price::numeric, 2) AS stake, round(payout::numeric, 2) AS payout, observed_payout_rate AS payout_liq, observed_breakeven_prob AS breakeven_prob, round(profit::numeric, 2) AS lucro, status, settlement_source AS fonte, trace_id FROM contract_label_audit_m15 ORDER BY date_start DESC LIMIT 100",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": { "defaults": {}, "overrides": [] }
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": ["aether-health-m15", "telemetry"],
+  "templating": { "list": [] },
+  "time": { "from": "now-24h", "to": "now" },
+  "timezone": "America/Sao_Paulo",
+  "title": "Aether | Saude API, Latencia & Bloqueios M15",
+  "uid": "aether-health-m15",
+  "version": 1
+}

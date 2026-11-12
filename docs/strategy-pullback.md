@@ -33,10 +33,10 @@ Uma oportunidade de compra (CALL ou PUT) só é validada quando atende **concomi
 - O recuo deve mitigar (penetrar e testar) a faixa de preço do FVG, confirmando o preenchimento de liquidez antes da continuação do movimento.
 
 ### Pilar 5: Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3)
-A entrada só é autorizada se o fechamento da vela de confirmação estiver contido estritamente em uma das 3 janelas de maior liquidez institucional:
-1. **London Open:** 03h00 às 08h00 BRT
-2. **New York Overlap:** 10h00 às 13h00 BRT
-3. **London Fix:** 14h00 às 16h00 BRT
+A entrada só é autorizada se a abertura da vela de confirmação fechada estiver contida estritamente nas janelas BRT validadas acima do break-even (`[7, 9, 10, 12, 13, 15, 16]`):
+1. **London Mid & Pre-NY:** horas `7` (07h00–08h00) e `9` (09h00–10h00) BRT
+2. **New York Overlap:** horas `10`, `12` e `13` BRT
+3. **London Fix e Pós-Fix:** horas `15` e `16` BRT
 Qualquer vela fora desses intervalos recebe veto sumário (`SEM SINAL: Fora da Killzone`).
 
 ---

@@ -5,6 +5,7 @@ from __future__ import annotations
 from contextvars import ContextVar
 
 from src.domain.symbols.drift_symbols import symbol_display_name
+from src.infrastructure.telemetry.otel_tracer import current_trace_id
 
 
 _cycle_id: ContextVar[int | None] = ContextVar("aether_log_cycle_id", default=None)
@@ -26,17 +27,19 @@ def clear_log_context() -> None:
 
 
 def format_log_context_prefix() -> str:
-    """Retorna prefixo `[cN|NOME]` ou vazio se sem contexto."""
+    """Retorna prefixo `[cN|NOME]` (ou com `t=` quando ha trace ativo) ou vazio."""
     cid = _cycle_id.get()
     sym = _symbol.get()
+    tid = current_trace_id()
+    trace_tag = f"|t={tid[:8]}" if tid else ""
     if cid is None and not sym:
-        return ""
+        return f"[t={tid[:8]}] " if tid else ""
     label = symbol_display_name(sym) if sym else None
     if cid is not None and label:
-        return f"[c{int(cid)}|{label}] "
+        return f"[c{int(cid)}|{label}{trace_tag}] "
     if cid is not None:
-        return f"[c{int(cid)}] "
-    return f"[{label}] "
+        return f"[c{int(cid)}{trace_tag}] "
+    return f"[{label}{trace_tag}] "
 
 
 def get_log_context() -> tuple[int | None, str | None]:

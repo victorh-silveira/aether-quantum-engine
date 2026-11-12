@@ -2,10 +2,46 @@
 
 from __future__ import annotations
 
+import math
+import time
 from typing import Any
 
 from src.application.services.indicator_consensus import signal_epoch_current
-from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
+from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt, session_liquidity_weight
+
+
+_DIRECT_REASONS = (
+    "TREND_ALIGNED_DIRECT",
+    "TELEMETRY_WIN_DIRECT",
+    "LATERAL_FADE_INVERTED",
+    "ELASTIC_EXHAUSTION_INVERTED",
+)
+
+
+def order_selection_score(orch: Any, symbol: str, metrics: dict, tier_adj: float) -> tuple:
+    """Compoe tupla deterministica de ranqueamento entre ordens cotadas no ciclo."""
+    l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")
+    rt = float(metrics.get("indicator_quote_rate") or 0.0)
+    t_str = float(metrics.get("trend_strength") or 0.0)
+    pen = -0.06 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
+    reason = str(metrics.get("organic_decision_reason") or "")
+    bonus_direct = 0.08 if reason in _DIRECT_REASONS else 0.0
+    trend_adj = 0.05 if t_str >= 25.0 else (-0.05 if t_str < 18.0 else 0.0)
+    sess_trk = getattr(orch, "_session_pair_tracker", None)
+    sess_adj = (
+        sess_trk.symbol_rotation_adjustment(symbol)
+        if sess_trk is not None and hasattr(sess_trk, "symbol_rotation_adjustment")
+        else 0.0
+    )
+    liq_w = session_liquidity_weight(symbol, time.time())
+    prob_term = float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
+    return (
+        float(l95) if l95 is not None else -math.inf,
+        prob_term + pen + bonus_direct + trend_adj + tier_adj + sess_adj + (0.05 * liq_w),
+        float(ev_val) if ev_val is not None else rt,
+        t_str,
+        rt,
+    )
 
 
 def closed_candles_slice(candles: list[Any], period: int, now_ts: float) -> list[Any]:

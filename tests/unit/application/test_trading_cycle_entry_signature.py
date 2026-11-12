@@ -312,3 +312,33 @@ def test_signature_open_tolerance_bad_and_require_off():
         _log_awaiting_m5_open(orch_log, 12.0)
         _log_awaiting_m5_open(orch_log, 12.0)
     assert orch_log.logger.info.call_count == 1
+
+
+def test_mark_boundary_cycle_evaluated_sets_boundary_and_blocks_cooldown_clear():
+    from src.application.services.orchestrator.trading_cycle_entry_guards import (
+        check_and_clear_boundary_cooldown,
+        mark_boundary_cycle_evaluated,
+    )
+
+    orch_disabled = SimpleNamespace(config={"pullback_strategy": {"enabled": False}}, _last_m5_cycle_boundary=0.0)
+    mark_boundary_cycle_evaluated(orch_disabled)
+    assert orch_disabled._last_m5_cycle_boundary == 0.0
+
+    orch = SimpleNamespace(
+        config={
+            "pullback_strategy": {"enabled": True},
+            "orchestrator": {"signature_boundary_seconds": 900, "signature_boundary_open_tolerance_seconds": 60.0},
+        },
+        _last_m5_cycle_boundary=0.0,
+        _cooldown_until=9999.0,
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry_guards.m5_boundary_epoch", return_value=1800.0
+        ),
+        patch("src.application.services.orchestrator.trading_cycle_entry_guards.at_m5_open_window", return_value=True),
+    ):
+        mark_boundary_cycle_evaluated(orch)
+        assert orch._last_m5_cycle_boundary == 1800.0
+        assert check_and_clear_boundary_cooldown(orch) is False
+        assert orch._cooldown_until == 9999.0

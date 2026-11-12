@@ -25,13 +25,16 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
     _stop_win_blocks_cycle,
     commit_trading_cycle_data_signature,
     cycle_cadence_seconds,
+    mark_boundary_cycle_evaluated,
     mark_cycle_attempt_complete,
     trading_cycle_entry_allowed,
 )
 from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
 from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
 from src.application.services.strategy.decision_mode import resolve_decision_mode
+from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
 from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
+from src.infrastructure.telemetry.otel_tracer import flush_otlp_spans_async, trace_span
 from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
 
@@ -90,6 +93,37 @@ def _log_cycle_indicators(orch: Any) -> None:
     log_cycle_indicators(orch)
 
 
+def _indicator_status_ready(orch: Any, period_seconds: int) -> bool:
+    """Confere se as leituras do indicador necessarias ao ciclo ja foram publicadas."""
+    status = getattr(orch, "_indicator_signal_status", {})
+    pb_cfg = orch.config.get("pullback_strategy", {})
+    if pb_cfg.get("dynamic_rotation") or pb_cfg.get("operate_all_signals"):
+        cfg_symbols = orch.config.get("indicator", {}).get("symbols") or getattr(orch, "symbols", []) or []
+        allow_closed = bool(pb_cfg.get("allow_closed_markets", False))
+        now_ts = time.time()
+        expected = {str(s) for s in cfg_symbols if allow_closed or is_otc_exchange_open_brt(str(s), now_ts)}
+        if expected:
+            return all((sym, period_seconds) in status for sym in expected)
+    target_symbol = pb_cfg.get("promoted_symbol") or orch.config.get("anchor")
+    if target_symbol:
+        return (str(target_symbol), period_seconds) in status
+    return any(p == period_seconds for _, p in status)
+
+
+def _publish_confirmed_setups_metric(orch: Any) -> None:
+    """Atualiza o gauge Prometheus de setups confirmados em todo ciclo ativo."""
+    inst = getattr(orch, "business_instrumentor", None)
+    if inst is None or not hasattr(inst, "update_confirmed_setups_count"):
+        return
+    period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
+    confirmed_count = sum(
+        1
+        for (_, period), reason in getattr(orch, "_indicator_signal_status", {}).items()
+        if period == period_seconds and reason == "setup_confirmado"
+    )
+    inst.update_confirmed_setups_count(confirmed_count)
+
+
 async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
     setup_enabled = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
@@ -104,19 +138,13 @@ async def _execute_inference_cluster_cycle(orch: Any) -> bool:
     await refresh_indicator_consensus(orch)
     if setup_enabled:
         period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
-        target_symbol = orch.config.get("pullback_strategy", {}).get("promoted_symbol") or orch.config.get("anchor")
         for _ in range(12):
-            status = getattr(orch, "_indicator_signal_status", {})
-            ready = (
-                (str(target_symbol), period_seconds) in status
-                if target_symbol
-                else any(p == period_seconds for _, p in status)
-            )
-            if ready or time.time() % period_seconds >= 20:
+            if _indicator_status_ready(orch, period_seconds) or time.time() % period_seconds >= 10:
                 break
             await asyncio.sleep(1.0)
             await refresh_indicator_consensus(orch)
     _log_cycle_indicators(orch)
+    _publish_confirmed_setups_metric(orch)
     if (
         int(orch._cycle_seq)
         % max(
@@ -162,32 +190,43 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
             orch._active_cycle_id = orch._cycle_seq
             invalidate_ema_cache(orch._active_cycle_id)
             orch._side_eq_log_keys = set()
-            bind_log_context(cycle_id=orch._active_cycle_id, symbol=getattr(orch, "anchor", None))
-            ran = True
-            if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
-                cluster_executed = await _execute_inference_cluster_cycle(orch)
-                if cluster_executed:
-                    commit_trading_cycle_data_signature(orch)
-                    orch._last_processed_epoch = orch._last_epoch
-                    await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
-                else:
-                    commit_trading_cycle_data_signature(orch)
-                    if not force_trade_from_orch(orch):
-                        boundary_wait = float(seconds_until_next_signature_boundary(orch))
-                        orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
-                        if not isinstance(orch_cfg, dict):
-                            orch_cfg = {}
-                        try:
-                            empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 15))
-                        except (TypeError, ValueError):
-                            empty_cap = 15.0
-                        setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
-                        if setup_active:
-                            orch._last_processed_epoch = orch._last_epoch
-                            delay = 4.0
-                        else:
-                            delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
-                        orch._cooldown_until = time.time() + delay
+            started_at = time.monotonic()
+            with trace_span(
+                "trading.cycle",
+                attributes={"cycle.id": int(orch._active_cycle_id), "anchor": str(getattr(orch, "anchor", ""))},
+            ):
+                bind_log_context(cycle_id=orch._active_cycle_id, symbol=getattr(orch, "anchor", None))
+                ran = True
+                if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
+                    cluster_executed = await _execute_inference_cluster_cycle(orch)
+                    if cluster_executed:
+                        commit_trading_cycle_data_signature(orch)
+                        mark_boundary_cycle_evaluated(orch)
+                        orch._last_processed_epoch = orch._last_epoch
+                        await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
+                    else:
+                        commit_trading_cycle_data_signature(orch)
+                        if not force_trade_from_orch(orch):
+                            boundary_wait = float(seconds_until_next_signature_boundary(orch))
+                            orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
+                            if not isinstance(orch_cfg, dict):
+                                orch_cfg = {}
+                            try:
+                                empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 15))
+                            except (TypeError, ValueError):
+                                empty_cap = 15.0
+                            setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
+                            if setup_active:
+                                if getattr(orch, "_indicator_signal_status", None):
+                                    mark_boundary_cycle_evaluated(orch)
+                                orch._last_processed_epoch = orch._last_epoch
+                                delay = 4.0
+                            else:
+                                delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
+                            orch._cooldown_until = time.time() + delay
+            inst = getattr(orch, "business_instrumentor", None)
+            if inst is not None and hasattr(inst, "runtime"):
+                inst.runtime.record_cycle_duration(time.monotonic() - started_at)
     except Exception as e:
         orch.logger.error("FALHA: Ciclo: %s", e)
         ran = True
@@ -197,4 +236,5 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
         if ran:
             mark_cycle_attempt_complete(orch)
         orch._last_cycle_cluster_executed = cluster_executed
+        await flush_otlp_spans_async()
     return ran

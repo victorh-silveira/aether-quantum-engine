@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 from typing import Any
 
@@ -160,3 +161,38 @@ async def backfill_pending_contracts(orch: Any, contract_ids: list[int]) -> int:
         if await backfill_contract_from_profit_table(orch, int(c_id)):
             settled += 1
     return settled
+
+
+async def backfill_inferred_rest_contracts(orch: Any, *, limit: int = 60) -> int:
+    """Reconcilia contratos gravados como inferred_rest usando profit_table oficial."""
+    writer = getattr(orch, "market_writer", None)
+    fetch_ids = getattr(writer, "fetch_inferred_rest_contract_ids", None)
+    if not callable(fetch_ids):
+        return 0
+    pending = fetch_ids(limit=limit)
+    if not inspect.isawaitable(pending):
+        return 0
+    ids = await pending
+    if not ids:
+        return 0
+    try:
+        res = await orch.ws.send({"profit_table": 1, "description": 1, "limit": limit, "offset": 0}, timeout=30.0)
+    except Exception:
+        return 0
+    rows = res.get("profit_table", {}).get("transactions") if isinstance(res.get("profit_table"), dict) else None
+    if not isinstance(rows, list):
+        return 0
+    by_id = {int(r["contract_id"]): r for r in rows if isinstance(r, dict) and r.get("contract_id") is not None}
+    updated = 0
+    from src.application.services.orchestrator.settlement_audit import record_settlement_audit  # noqa: PLC0415
+
+    for c_id in ids:
+        row = by_id.get(int(c_id))
+        if row is None:
+            continue
+        payload = settlement_payload_from_profit_row(int(c_id), row)["proposal_open_contract"]
+        sym = str(payload.get("underlying_symbol") or getattr(orch, "anchor", "OTC_SSMI"))
+        contract_stub = type("ContractStub", (), {"direction": str(payload.get("contract_type") or "UNKNOWN")})()
+        await record_settlement_audit(orch, payload, contract_stub, sym)
+        updated += 1
+    return updated

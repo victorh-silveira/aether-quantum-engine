@@ -82,12 +82,14 @@ services:
       - ./sql/007_contract_executions_resilience.sql:/docker-entrypoint-initdb.d/007_contract_executions_resilience.sql:ro
       - ./sql/008_contract_model_attribution.sql:/docker-entrypoint-initdb.d/008_contract_model_attribution.sql:ro
       - ./sql/009_contract_label_audit_m5.sql:/docker-entrypoint-initdb.d/009_contract_label_audit_m5.sql:ro
+      - ./sql/010_m15_observability_lifecycle.sql:/docker-entrypoint-initdb.d/010_m15_observability_lifecycle.sql:ro
       - ./sql/004_timescale-lifecycle.sql:/docker-scripts/004_timescale-lifecycle.sql:ro
       - ./sql/005_timescale_crags.sql:/docker-scripts/005_timescale_crags.sql:ro
       - ./sql/006_contract_executions.sql:/docker-scripts/006_contract_executions.sql:ro
       - ./sql/007_contract_executions_resilience.sql:/docker-scripts/007_contract_executions_resilience.sql:ro
       - ./sql/008_contract_model_attribution.sql:/docker-scripts/008_contract_model_attribution.sql:ro
       - ./sql/009_contract_label_audit_m5.sql:/docker-scripts/009_contract_label_audit_m5.sql:ro
+      - ./sql/010_m15_observability_lifecycle.sql:/docker-scripts/010_m15_observability_lifecycle.sql:ro
     mem_limit: 1g
     mem_swappiness: 0
     cpus: 1.0
@@ -260,7 +262,41 @@ services:
       - aether-telemetry
       - aether-backend
 
+  aether-observe-traces-tempo:
+    image: grafana/tempo:2.7.2
+    container_name: aether-observe-traces-tempo
+    profiles: [telemetry]
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4318:4318"
+      - "127.0.0.1:3200:3200"
+    mem_limit: 256m
+    mem_swappiness: 0
+    cpus: 0.25
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 32768
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo/tempo.yml:/etc/tempo.yml:ro
+      - aether_tempo_data:/var/tempo
+    logging: *aether-logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3200/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - aether-telemetry
+
 volumes:
+  aether_tempo_data:
   aether_redis_data:
   aether_ts_data:
   aether_minio_data:

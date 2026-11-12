@@ -55,6 +55,54 @@ async def test_pullback_aguarda_publicacao_m5_antes_de_exec_empty():
     wait.assert_awaited_once_with(1.0)
 
 
+@pytest.mark.asyncio
+async def test_pullback_dynamic_rotation_waits_open_symbols_and_publishes_setup_count():
+    instrumentor = MagicMock()
+    orch = SimpleNamespace(
+        config={
+            "pullback_strategy": {"enabled": True, "period_seconds": 900, "dynamic_rotation": True},
+            "indicator": {"symbols": ["OTC_SSMI", "OTC_FCHI"]},
+            "infra": {"correlation": {"correlation_refresh_cycles": 5}},
+        },
+        logger=MagicMock(),
+        _active_cycle_id=1,
+        _cycle_seq=1,
+        symbols=["OTC_SSMI"],
+        _indicator_signal_status={},
+        business_instrumentor=instrumentor,
+        executor=SimpleNamespace(execute_cluster=AsyncMock(return_value=1)),
+    )
+    call_idx = 0
+
+    async def _mock_refresh(o):
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 1:
+            o._indicator_signal_status = {("OTC_SSMI", 900): "sem_sinal"}
+        else:
+            o._indicator_signal_status = {("OTC_SSMI", 900): "sem_sinal", ("OTC_FCHI", 900): "setup_confirmado"}
+
+    with (
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.refresh_indicator_consensus",
+            side_effect=_mock_refresh,
+        ) as refresh,
+        patch("src.application.services.orchestrator.trading_cycle_entry.asyncio.sleep", new_callable=AsyncMock),
+        patch("src.application.services.orchestrator.trading_cycle_entry.time.time", return_value=1794409201.0),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.is_otc_exchange_open_brt",
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.orchestrator.trading_cycle_entry.session_persistence_blocks_trading_cycle",
+            return_value=False,
+        ),
+    ):
+        assert await _execute_inference_cluster_cycle(orch) is True
+    assert refresh.call_count == 2
+    instrumentor.update_confirmed_setups_count.assert_called_once_with(1)
+
+
 def test_trading_cycle_entry_blocked_in_train_engine_mode(orch_ready):
     orch = orch_ready
     apply_engine_mode(orch.config, ENGINE_MODE_TRAIN)

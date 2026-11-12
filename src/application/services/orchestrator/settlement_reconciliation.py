@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from src.application.services.orchestrator.settlement_backfill import (
+    backfill_inferred_rest_contracts,
     reconcile_single_contract,
     settlement_payload_from_profit_row,
 )
@@ -146,6 +147,7 @@ async def reconcile_after_ws_recovery(orch: Any) -> ReconciliationResult:
             result=result,
         )
         await orch._save_full_state()
+        await backfill_inferred_rest_contracts(orch, limit=_profit_table_limit(orch))
     except Exception as exc:
         if is_transient_broker_error(exc):
             mark_ws_offline(orch.ws)

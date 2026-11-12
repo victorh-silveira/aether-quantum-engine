@@ -6,6 +6,7 @@ import asyncio
 import time
 
 from indicator.domain import LiveObservation, Signal
+from indicator.institutional import market_session_status_brt
 
 
 class Metrics:
@@ -15,6 +16,10 @@ class Metrics:
         self.signals: dict[tuple[str, int], Signal] = {}
         self.live: dict[tuple[str, int], LiveObservation] = {}
         self.symbols: dict[str, str] = {}
+        self.reason_counts: dict[tuple[str, int, str], int] = {}
+        self.deriv_rtt_ms: dict[str, float] = {}
+        self.deriv_errors: dict[str, int] = {}
+        self.last_tick_duration_seconds: float | None = None
         self._server: asyncio.Server | None = None
 
     def set_symbols(self, symbols: dict[str, str]) -> None:
@@ -23,9 +28,22 @@ class Metrics:
         self.signals = {key: value for key, value in self.signals.items() if key[0] in symbols}
         self.live = {key: value for key, value in self.live.items() if key[0] in symbols}
 
+    def record_deriv_rtt(self, method: str, rtt_ms: float, *, ok: bool = True) -> None:
+        """Registra latencia WS da Deriv e contagem de falhas por metodo."""
+        key = str(method or "unknown")
+        self.deriv_rtt_ms[key] = max(0.0, float(rtt_ms))
+        if not ok:
+            self.deriv_errors[key] = int(self.deriv_errors.get(key, 0)) + 1
+
+    def record_tick_duration(self, duration_seconds: float) -> None:
+        """Registra duracao do ultimo ciclo de observacao do indicador."""
+        self.last_tick_duration_seconds = max(0.0, float(duration_seconds))
+
     def update(self, signal: Signal) -> None:
-        """Guarda ultima leitura."""
+        """Guarda ultima leitura e contabiliza motivo por par/periodo."""
         self.signals[(signal.symbol, signal.period)] = signal
+        key = (signal.symbol, signal.period, signal.reason)
+        self.reason_counts[key] = int(self.reason_counts.get(key, 0)) + 1
 
     def update_live(self, observation: LiveObservation) -> None:
         """Guarda observação provisória sem modificar previsão confirmada."""
@@ -70,7 +88,37 @@ class Metrics:
                 lines.append(f"aether_indicator_live_delta{labels} {live.delta:.8f}")
                 lines.append(f"aether_indicator_live_side{labels} {side_map.get(live.interim_side, 0)}")
                 lines.append(f"aether_indicator_live_observed_at{labels} {live.observed_at}")
+        lines.extend(self._render_runtime_telemetry(now))
         return "\n".join(lines) + "\n"
+
+    def _render_runtime_telemetry(self, now: float) -> list[str]:
+        """Exporta bloqueios, latencia Deriv WS e abertura real vs Deriv OTC."""
+        lines: list[str] = [
+            "# TYPE aether_indicator_real_market_open gauge",
+            "# TYPE aether_indicator_deriv_otc_open gauge",
+        ]
+        for symbol in sorted(self.symbols):
+            real_open, otc_open = market_session_status_brt(symbol, now)
+            lines.append(f'aether_indicator_real_market_open{{symbol="{symbol}"}} {int(real_open)}')
+            lines.append(f'aether_indicator_deriv_otc_open{{symbol="{symbol}"}} {int(otc_open)}')
+        if self.reason_counts:
+            lines.append("# TYPE aether_indicator_reason_total counter")
+            for (symbol, period, reason), count in sorted(self.reason_counts.items()):
+                lines.append(
+                    f'aether_indicator_reason_total{{symbol="{symbol}",period="{period}",reason="{reason}"}} {count}'
+                )
+        if self.deriv_rtt_ms:
+            lines.append("# TYPE aether_indicator_deriv_ws_rtt_ms gauge")
+            for method, rtt_ms in sorted(self.deriv_rtt_ms.items()):
+                lines.append(f'aether_indicator_deriv_ws_rtt_ms{{method="{method}"}} {rtt_ms:.3f}')
+        if self.deriv_errors:
+            lines.append("# TYPE aether_indicator_deriv_ws_errors_total counter")
+            for method, errs in sorted(self.deriv_errors.items()):
+                lines.append(f'aether_indicator_deriv_ws_errors_total{{method="{method}"}} {errs}')
+        if self.last_tick_duration_seconds is not None:
+            lines.append("# TYPE aether_indicator_tick_duration_seconds gauge")
+            lines.append(f"aether_indicator_tick_duration_seconds {self.last_tick_duration_seconds:.6f}")
+        return lines
 
     async def _handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         """Processa requisicoes HTTP do scrape de metricas."""

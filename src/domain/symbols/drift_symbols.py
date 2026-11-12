@@ -1,7 +1,7 @@
 """Simbolos de trading Deriv (universo single-symbol OTC_SSMI e rotacao OTC)."""
 
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 
 TRADING_SYMBOLS: tuple[str, ...] = ("OTC_SSMI",)
@@ -76,6 +76,47 @@ def hedge_peer(symbol: str) -> str | None:
 def is_high_side(symbol: str) -> bool:
     """True quando o simbolo esta no lado high do universo (vazio em single-symbol)."""
     return str(symbol) in HIGH_SIDE
+
+
+_BRT_TZ_OFFSET = timezone(timedelta(hours=-3))
+_DERIV_OTC_WEEKDAY_HOURS_BRT: dict[str, tuple[int, ...]] = {
+    "OTC_SPC": tuple(range(4, 18)),
+    "OTC_NDX": tuple(range(4, 18)),
+    "OTC_DJI": tuple(range(4, 18)),
+    "OTC_SX5E": tuple(range(4, 18)),
+    "OTC_FTSE": tuple(range(4, 18)),
+    "OTC_FCHI": tuple(range(4, 18)),
+    "OTC_GDAXI": tuple(range(4, 18)),
+    "OTC_AEX": tuple(range(4, 18)),
+    "OTC_SSMI": tuple(range(4, 18)),
+    "OTC_AS51": tuple(range(0, 16)) + (20, 21, 22, 23),
+    "OTC_N225": tuple(range(0, 17)) + (20, 21, 22, 23),
+    "OTC_HSI": (0, 1, 2, 3, 4, 22, 23),
+}
+
+
+def is_deriv_otc_session_open_brt(symbol: str, epoch_ts: float | None = None) -> bool:
+    """Informa se a sessao estendida Deriv OTC do ativo opera no horario BRT informado."""
+    sym = str(symbol)
+    if not sym.startswith("OTC_"):
+        return True
+    hours = _DERIV_OTC_WEEKDAY_HOURS_BRT.get(sym)
+    if hours is None:
+        return is_otc_exchange_open_brt(sym, epoch_ts)
+    dt = (datetime.fromtimestamp(float(epoch_ts), tz=UTC) if epoch_ts is not None else datetime.now(UTC)).astimezone(
+        _BRT_TZ_OFFSET
+    )
+    wd = dt.weekday()
+    if wd == 5:
+        return False
+    if wd == 6:
+        return sym in ("OTC_AS51", "OTC_N225", "OTC_HSI") and dt.hour >= 20
+    return dt.hour in hours
+
+
+def real_market_vs_otc_status(symbol: str, epoch_ts: float | None = None) -> tuple[bool, bool]:
+    """Retorna (bolsa_real_aberta, deriv_otc_ativo) em Horario de Brasilia."""
+    return is_otc_exchange_open_brt(symbol, epoch_ts), is_deriv_otc_session_open_brt(symbol, epoch_ts)
 
 
 def sym_is_low_barrier(symbol: str, peer: str | None = None) -> bool:

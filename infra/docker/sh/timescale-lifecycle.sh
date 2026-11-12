@@ -67,4 +67,9 @@ docker_ui_ok "atribuicao por modelo"
   'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/009_contract_label_audit_m5.sql >/dev/null'
 
 docker_ui_ok "auditoria Rise/Fall M5"
+
+"${COMPOSE[@]}" exec -T -e PGOPTIONS='-c client_min_messages=warning' aether-core-data-timescaledb sh -c \
+  'psql -q -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -f /docker-scripts/010_m15_observability_lifecycle.sql >/dev/null'
+
+docker_ui_ok "observabilidade M15 e candle_m15"
 docker_ui_nl

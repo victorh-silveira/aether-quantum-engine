@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from src.infrastructure.telemetry.otel_tracer import current_trace_id
+
 
 def _number(payload: dict[str, Any], *keys: str) -> float | None:
     """Extrai o primeiro numero presente sem substituir ausencia por zero."""
@@ -28,6 +30,7 @@ def open_audit_row(
     direction: str,
     request_epoch_ms: int,
     ack_epoch_ms: int,
+    trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Prepara compra confirmada; nao usa spot de proposta como spot de entrada."""
     return {
@@ -46,6 +49,7 @@ def open_audit_row(
         "proposal_id": payload.get("proposal_id"),
         "contract_type": payload.get("contract_type"),
         "barrier": _number(payload, "barrier"),
+        "trace_id": trace_id if trace_id is not None else current_trace_id(),
     }
 
 
@@ -56,6 +60,7 @@ def settlement_audit_row(
     mode: str,
     direction: str,
     signal_prob: float | None = None,
+    trace_id: str | None = None,
 ) -> dict[str, Any]:
     """Prepara settlement; fonte sintetica nunca vira observacao broker."""
     source = str(payload.get("audit_source") or "broker")
@@ -81,4 +86,5 @@ def settlement_audit_row(
         "proposal_id": payload.get("proposal_id"),
         "contract_type": payload.get("contract_type"),
         "barrier": _number(payload, "barrier"),
+        "trace_id": trace_id if trace_id is not None else current_trace_id(),
     }

@@ -172,3 +172,40 @@ async def test_reconcile_after_ws_recovery_active_guard():
     result = await reconcile_after_ws_recovery(orch)
     assert result.settled_count == 0
     assert result.duration_ms == 0.0
+
+
+@pytest.mark.asyncio
+async def test_backfill_inferred_rest_contracts_none_and_happy_path():
+    from src.application.services.orchestrator.settlement_backfill import backfill_inferred_rest_contracts
+
+    orch_none = MagicMock()
+    orch_none.market_writer = None
+    assert await backfill_inferred_rest_contracts(orch_none) == 0
+
+    orch = MagicMock()
+    orch.anchor = "OTC_SSMI"
+    orch.market_writer.fetch_inferred_rest_contract_ids = AsyncMock(return_value=[777, 888])
+    orch.ws = AsyncMock()
+    orch.ws.send = AsyncMock(
+        return_value={
+            "profit_table": {
+                "transactions": [
+                    {
+                        "contract_id": 777,
+                        "profit": 0.95,
+                        "sell_price": 1.95,
+                        "buy_price": 1.0,
+                        "contract_status": "won",
+                        "symbol": "OTC_SSMI",
+                    }
+                ]
+            }
+        }
+    )
+    with patch(
+        "src.application.services.orchestrator.settlement_audit.record_settlement_audit",
+        new=AsyncMock(),
+    ) as audit_mock:
+        updated = await backfill_inferred_rest_contracts(orch, limit=10)
+    assert updated == 1
+    audit_mock.assert_awaited_once()

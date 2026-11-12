@@ -89,3 +89,26 @@ async def test_socket_response_validation(monkeypatch):
     socket.response = {"req_id": 999}
     with pytest.raises(RuntimeError, match="fora de ordem"):
         await client.symbols()
+
+
+@pytest.mark.asyncio
+async def test_public_client_rtt_callback_success_and_failure():
+    events: list[tuple[str, float, bool]] = []
+
+    async def ok_req(payload):
+        return {"active_symbols": []}
+
+    client_ok = PublicDeriv(request=ok_req, on_rtt=lambda m, ms, *, ok=True: events.append((m, ms, ok)))
+    await client_ok.symbols()
+    assert len(events) == 1
+    assert events[0][0] == "active_symbols"
+    assert events[0][2] is True
+
+    async def fail_req(payload):
+        raise RuntimeError("boom")
+
+    client_err = PublicDeriv(request=fail_req, on_rtt=lambda m, ms, *, ok=True: events.append((m, ms, ok)))
+    with pytest.raises(RuntimeError, match="boom"):
+        await client_err.candles("OTC_SSMI", period=900)
+    assert events[-1][0] == "ticks_history"
+    assert events[-1][2] is False

@@ -266,9 +266,11 @@ async def run_indicator(
 ) -> None:
     """Inicializa adapters e encerra recursos ordenadamente."""
     _ = models
-    source = PullbackSource(url)
-    sink = PullbackStore(dsn)
     metrics = Metrics()
+    source = PullbackSource(url)
+    for client in getattr(source, "clients", ()):
+        client._on_rtt = getattr(metrics, "record_deriv_rtt", None)
+    sink = PullbackStore(dsn)
     try:
         for attempt in range(1, START_ATTEMPTS + 1):
             try:

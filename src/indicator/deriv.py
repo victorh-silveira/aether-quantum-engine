@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -17,20 +18,38 @@ class PublicDeriv:
     """Cliente estritamente limitado a catalogo e historico OHLC."""
 
     def __init__(
-        self, url: str = PUBLIC_URL, request: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]] | None = None
+        self,
+        url: str = PUBLIC_URL,
+        request: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]] | None = None,
+        *,
+        on_rtt: Callable[[str, float, bool], None] | None = None,
     ) -> None:
         self.url = url
         self._request_override = request
+        self._on_rtt = on_rtt
         self._socket: Any = None
         self._lock = asyncio.Lock()
         self._request_id = 0
+
+    def _emit_rtt(self, method: str, started_at: float, *, ok: bool) -> None:
+        """Notifica callback opcional de latencia sem propagar erro de metrica."""
+        if self._on_rtt is not None:
+            self._on_rtt(method, max(0.0, (time.monotonic() - started_at) * 1000.0), ok=ok)
 
     async def request(self, payload: dict[str, Any]) -> dict[str, Any]:
         """Envia requisicao publica autorizada com reconexao unica."""
         if set(payload) - {"active_symbols", "ticks_history", "style", "granularity", "count", "end"}:
             raise ValueError("operacao nao permitida no indicador")
+        method = "active_symbols" if "active_symbols" in payload else "ticks_history"
+        started_at = time.monotonic()
         if self._request_override is not None:
-            return await self._request_override(payload)
+            try:
+                res = await self._request_override(payload)
+                self._emit_rtt(method, started_at, ok=True)
+                return res
+            except Exception:
+                self._emit_rtt(method, started_at, ok=False)
+                raise
         async with self._lock:
             for attempt in range(2):
                 try:
@@ -45,10 +64,12 @@ class PublicDeriv:
                         raise RuntimeError(str(response["error"].get("message", response["error"])))
                     if response.get("req_id") not in (None, self._request_id):
                         raise RuntimeError("resposta fora de ordem")
+                    self._emit_rtt(method, started_at, ok=True)
                     return response
                 except (TimeoutError, OSError, websockets.exceptions.ConnectionClosed, asyncio.CancelledError):
                     await self.close()
                     if attempt:
+                        self._emit_rtt(method, started_at, ok=False)
                         raise
             raise RuntimeError("Falha de comunicacao com a Deriv apos retentativas")  # pragma: no cover
 

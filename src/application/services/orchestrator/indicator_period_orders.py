@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import time
 from typing import Any
 
@@ -12,12 +11,13 @@ from src.application.services.orchestrator.indicator_period_filters import (
     build_indicator_metrics,
     closed_candles_slice,
     is_promoted_signal_viable,
+    order_selection_score,
 )
+from src.application.services.pullback_recovery_claim import unreserved_loss
 from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, unit_ev
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
-from src.domain.risk.pullback_stake import pullback_stake
-from src.domain.symbols.drift_symbols import session_liquidity_weight
+from src.domain.risk.pullback_stake import resolve_pullback_prequote_stake
 from src.domain.trading.elastic_regime import classify_market_regime, evaluate_elastic_direction
 from src.infrastructure.handlers.trade_handler_quote_observation import record_indicator_quote
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
@@ -94,10 +94,8 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
         return []
     excluded = set(pb_cfg.get("excluded_symbols") or orch.config.get("strategy", {}).get("excluded_symbols") or [])
     promoted_only = pb_cfg.get("promoted_symbol") or orch.config.get("anchor")
-    dynamic_rotation, period_seconds = (
-        bool(pb_cfg.get("dynamic_rotation", False)),
-        int(pb_cfg.get("period_seconds", 300)),
-    )
+    dynamic_rotation = bool(pb_cfg.get("dynamic_rotation", False))
+    period_seconds = int(pb_cfg.get("period_seconds", 300))
     now_ts = time.time()
     has_promoted_signal = (
         is_promoted_signal_viable(orch, promoted_only, period_seconds, now_ts, signal_epoch_fn=signal_epoch_current)
@@ -185,8 +183,16 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
     allowed_period = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     if period != allowed_period:
         return None
-    stake_min = float(orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
-    stake, _ = pullback_stake(float(orch.state.balance), 0.0, 1.0, stake_min)
+    default_min_rate = 0.68 if str(symbol).startswith("OTC_") else 0.75
+    min_rate = float(orch.config.get("pullback_strategy", {}).get("min_payout_rate", default_min_rate))
+    raw_rates = getattr(orch, "_last_quote_rate_by_symbol", None)
+    rates = raw_rates if isinstance(raw_rates, dict) else {}
+    rm = getattr(orch, "risk_manager", None)
+    unres = unreserved_loss(orch) if callable(getattr(rm, "pending_loss_total", None)) else 0.0
+    last_rt = float(rates.get(symbol, 0.0) or 0.0)
+    stake = resolve_pullback_prequote_stake(
+        orch.config, rm, float(orch.state.balance), min_rate, last_rate=last_rt, unreserved=unres
+    )
     if stake <= 0:
         return None
     params = {"duration": period // 60, "duration_unit": "m"}
@@ -197,10 +203,10 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
     if quote is None or not quote.get("proposal_id") or not signal_epoch_current(orch.config, metrics):
         return None
     rate = float(quote["rate"])
-    default_min_rate = 0.68 if str(symbol).startswith("OTC_") else 0.75
-    min_rate = float(orch.config.get("pullback_strategy", {}).get("min_payout_rate", default_min_rate))
     if rate < min_rate:
         return None
+    rates[symbol] = rate
+    orch._last_quote_rate_by_symbol = rates
     payout_break_even = calculate_payout_breakeven_prob(rate)
     metrics.update(
         {
@@ -210,6 +216,7 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
             "_prequoted_payout": float(quote["payout"]),
             "_prequoted_rate": rate,
             "_prequoted_timestamp": time.time(),
+            **({"_broker_max_payout": float(quote["max_payout"])} if quote.get("max_payout") else {}),
         }
     )
     pilot = bool(metrics.get("indicator_demo_pilot"))
@@ -251,44 +258,7 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
     chosen: dict[str, tuple[tuple, tuple]] = {}
     for order in quoted:
         symbol, _, metrics = order
-        l95, ev_val = metrics.get("indicator_broker_lower_95"), metrics.get("indicator_prequote_ev")
-        rt = float(metrics.get("indicator_quote_rate") or 0.0)
-        t_str = float(metrics.get("trend_strength") or 0.0)
-        pen = -0.06 if getattr(orch, "_last_traded_symbol", None) == symbol else 0.0
-        reason = str(metrics.get("organic_decision_reason") or "")
-        bonus_direct = (
-            0.08
-            if reason
-            in (
-                "TREND_ALIGNED_DIRECT",
-                "TELEMETRY_WIN_DIRECT",
-                "LATERAL_FADE_INVERTED",
-                "ELASTIC_EXHAUSTION_INVERTED",
-            )
-            else 0.0
-        )
-        trend_adj = 0.05 if t_str >= 25.0 else (-0.05 if t_str < 18.0 else 0.0)
-        sess_trk = getattr(orch, "_session_pair_tracker", None)
-        sess_adj = (
-            sess_trk.symbol_rotation_adjustment(symbol)
-            if sess_trk is not None and hasattr(sess_trk, "symbol_rotation_adjustment")
-            else 0.0
-        )
-        liq_w = session_liquidity_weight(symbol, time.time())
-        tier_adj = asset_consistency_adj(symbol)
-        score = (
-            float(l95) if l95 is not None else -math.inf,
-            float(metrics.get("trade_score") or metrics.get("calibrated_prob") or 0.5)
-            + pen
-            + bonus_direct
-            + trend_adj
-            + tier_adj
-            + sess_adj
-            + (0.05 * liq_w),
-            float(ev_val) if ev_val is not None else rt,
-            t_str,
-            rt,
-        )
+        score = order_selection_score(orch, symbol, metrics, asset_consistency_adj(symbol))
         if symbol not in chosen or score > chosen[symbol][0]:
             chosen[symbol] = (score, order)
     multi = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))

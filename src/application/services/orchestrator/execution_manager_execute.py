@@ -35,9 +35,9 @@ from src.application.services.pullback_recovery_claim import (
 from src.application.services.rise_fall_quote_guard import resolve_effective_side_probability
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
-from src.domain.risk.pullback_stake import pullback_stake, resolve_pullback_amort_steps
+from src.domain.risk.payout_observation import apply_broker_payout_cap
+from src.domain.risk.pullback_stake import pullback_stake, resolve_pullback_order_params
 from src.domain.risk.stake_sizing import resolve_stake_conviction
-from src.domain.risk.stop_win_target import resolve_stop_win_target
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
 
 
@@ -78,23 +78,16 @@ async def execute_cluster_orders(
             multi_symbol=multi_symbol,
         )
         setup = metrics.get("direction_origin") == "PULLBACK_SETUP"
-        sst = 0.0
         if setup:
-            pb_cfg = executor.orch.config.get("pullback_strategy", {})
-            if pb_cfg.get("single_strike", False):
-                rm_cfg = executor.orch.config.get("risk_management", {})
-                init_b = float(getattr(executor.orch.risk_manager, "initial_bankroll", 0.0) or bankroll_snapshot)
-                sw = resolve_stop_win_target(rm_cfg, init_b)
-                pnl = float(getattr(executor.orch.risk_manager, "total_session_profit", 0.0) or 0.0)
-                sst = max(0.0, sw - pnl) if sw > 0.0 else 0.0
-            minimum = float(executor.orch.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
             unres_loss = unreserved_loss(executor.orch)
             rate = float(metrics.get("indicator_quote_rate") or 0.0)
-            cap_limit = math.floor(available * 0.05 * 100) / 100
-            steps = (
-                resolve_pullback_amort_steps(unres_loss, rate, cap_limit)
-                if pb_cfg.get("smooth_recovery", False)
-                else int(pb_cfg.get("amort_steps", 1))
+            minimum, sst, steps, cap_limit = resolve_pullback_order_params(
+                executor.orch.config,
+                executor.orch.risk_manager,
+                available,
+                unres_loss,
+                rate,
+                bankroll_snapshot,
             )
             stake, covered = pullback_stake(
                 available,
@@ -104,6 +97,7 @@ async def execute_cluster_orders(
                 single_strike_target=sst,
                 amort_steps=steps,
             )
+            stake, covered = apply_broker_payout_cap(stake, unres_loss, rate, metrics, minimum)
             metrics["_pullback_recovery_amount"] = covered
             metrics["_pullback_stake_cap"] = cap_limit
             metrics["indicator_stake_mode"] = (

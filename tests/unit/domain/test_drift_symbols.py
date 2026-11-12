@@ -96,3 +96,27 @@ def test_session_liquidity_weight():
     wed_afternoon = datetime(2026, 10, 21, 15, 0, tzinfo=brt).timestamp()
     assert session_liquidity_weight("OTC_SSMI", wed_morning) == 1.0
     assert session_liquidity_weight("OTC_SSMI", wed_afternoon) == 0.2
+
+
+def test_deriv_otc_extended_sessions_and_real_status():
+    from datetime import UTC
+
+    from src.domain.symbols.drift_symbols import (
+        is_deriv_otc_session_open_brt,
+        real_market_vs_otc_status,
+    )
+
+    brt = timezone(timedelta(hours=-3))
+    wed_0600 = datetime(2026, 11, 11, 6, 0, tzinfo=brt).astimezone(UTC).timestamp()
+    wed_1500 = datetime(2026, 11, 11, 15, 0, tzinfo=brt).astimezone(UTC).timestamp()
+    sat_1000 = datetime(2026, 11, 14, 10, 0, tzinfo=brt).astimezone(UTC).timestamp()
+    sun_2100 = datetime(2026, 11, 15, 21, 0, tzinfo=brt).astimezone(UTC).timestamp()
+
+    assert is_deriv_otc_session_open_brt("R_25", sat_1000) is True
+    assert is_deriv_otc_session_open_brt("OTC_SPC", wed_0600) is True
+    assert real_market_vs_otc_status("OTC_SPC", wed_0600) == (False, True)
+    assert real_market_vs_otc_status("OTC_SSMI", wed_1500) == (False, True)
+    assert is_deriv_otc_session_open_brt("OTC_SSMI", sat_1000) is False
+    assert is_deriv_otc_session_open_brt("OTC_N225", sun_2100) is True
+    assert is_deriv_otc_session_open_brt("OTC_SPC", sun_2100) is False
+    assert is_deriv_otc_session_open_brt("OTC_CUSTOM", wed_1500) is True

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from typing import Any
 
 from src.domain.symbols.drift_symbols import symbol_display_name
@@ -66,39 +67,51 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     )
     fetch_cfg = parse_history_fetch_config(handler.config)
     total = len(handler.symbols)
-    for index, symbol in enumerate(handler.symbols, start=1):
-        disp_name = symbol_display_name(symbol)
-        sym_label = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
-        sync_log("DATA: %s (%d/%d) iniciando", sym_label, index, total)
-        if macro_count > 0:
-            await handler._fetch_symbol_history(
-                symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
+    sync_started = time.monotonic()
+    max_concurrency = max(1, int(fetch_cfg.get("max_concurrency", 4)))
+    sem = asyncio.Semaphore(max_concurrency)
+    symbol_delay = float(fetch_cfg["symbol_delay"])
+    worker_delay = float(
+        fetch_cfg.get("worker_delay_seconds", min(symbol_delay, 0.25) if max_concurrency > 1 else symbol_delay)
+    )
+
+    async def _sync_symbol(index: int, symbol: str) -> None:
+        """Sincroniza historico OHLC de um ativo sob semaforo de concorrencia."""
+        async with sem:
+            disp_name = symbol_display_name(symbol)
+            sym_label = f"{disp_name} ({symbol})" if disp_name != symbol else symbol
+            sync_log("DATA: %s (%d/%d) iniciando", sym_label, index, total)
+            if macro_count > 0:
+                await handler._fetch_symbol_history(
+                    symbol, macro_count, granularity=handler.macro_granularity, store=handler.macro_candles, quiet=quiet
+                )
+            if micro_count > 0:
+                await handler._fetch_symbol_history(
+                    symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
+                )
+            if macro_count == 0 and handler.macro_granularity == handler.micro_granularity:
+                handler.macro_candles[symbol] = list(handler.micro_candles.get(symbol, []))
+            elif macro_count == 0:
+                handler.macro_candles.setdefault(symbol, [])
+            if mini_count > 0:
+                await handler._fetch_symbol_history(
+                    symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
+                )
+            sync_log(
+                "DATA: %s (%d/%d) | %s:%d %s:%d",
+                sym_label,
+                index,
+                total,
+                granularity_label(handler.macro_granularity),
+                len(handler.macro_candles[symbol]),
+                granularity_label(handler.micro_granularity),
+                len(handler.micro_candles[symbol]),
             )
-        if micro_count > 0:
-            await handler._fetch_symbol_history(
-                symbol, micro_count, granularity=handler.micro_granularity, store=handler.micro_candles, quiet=quiet
-            )
-        if macro_count == 0 and handler.macro_granularity == handler.micro_granularity:
-            handler.macro_candles[symbol] = list(handler.micro_candles.get(symbol, []))
-        elif macro_count == 0:
-            handler.macro_candles.setdefault(symbol, [])
-        if mini_count > 0:
-            await handler._fetch_symbol_history(
-                symbol, mini_count, granularity=handler.mini_granularity, store=handler.mini_candles, quiet=quiet
-            )
-        sync_log(
-            "DATA: %s (%d/%d) | %s:%d %s:%d",
-            sym_label,
-            index,
-            total,
-            granularity_label(handler.macro_granularity),
-            len(handler.macro_candles[symbol]),
-            granularity_label(handler.micro_granularity),
-            len(handler.micro_candles[symbol]),
-        )
-        symbol_delay = float(fetch_cfg["symbol_delay"])
-        if symbol_delay > 0:
-            await asyncio.sleep(symbol_delay)
+            if worker_delay > 0:
+                await asyncio.sleep(worker_delay)
+
+    await asyncio.gather(*(_sync_symbol(index, symbol) for index, symbol in enumerate(handler.symbols, start=1)))
+    handler.last_sync_duration_seconds = max(0.0, time.monotonic() - sync_started)
     if handler.symbols:
         sym0 = handler.symbols[0]
         sync_log(

@@ -764,3 +764,85 @@ async def test_select_period_orders_prioritizes_tier1_over_tier3(monkeypatch):
     chosen = await orders.select_period_orders(orch, [])
     assert len(chosen) >= 1
     assert chosen[0][0] == "OTC_SPC"
+
+
+@pytest.mark.asyncio
+async def test_prequote_records_broker_max_payout_metadata(monkeypatch):
+    orch = _orch("demo")
+    orch.state.balance = 8881.49
+    orch.config["pullback_strategy"] = {"enabled": True, "period_seconds": 900, "version": "pullback-1-v15"}
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    monkeypatch.setattr(orders, "record_indicator_quote", AsyncMock())
+    orch.trade_handler.fetch_proposal_snapshot.return_value = {
+        "proposal_id": "q-cap",
+        "price": 52.23,
+        "payout": 90.08,
+        "rate": 0.7246,
+        "max_payout": 100.0,
+    }
+    order = (
+        "OTC_GDAXI",
+        TradeDirection.CALL,
+        {
+            "indicator_period_seconds": 900,
+            "indicator_model_version": "pullback-1-v15",
+            "indicator_candle_epoch": 900,
+            "indicator_demo_pilot": True,
+            "trade_score": 0.5,
+        },
+    )
+    res = await orders._prequote(orch, order, asyncio.Semaphore(1))
+    assert res is order
+    assert order[2]["_broker_max_payout"] == pytest.approx(100.0)
+
+
+@pytest.mark.asyncio
+async def test_prequote_uses_single_strike_and_caches_last_rate(monkeypatch):
+    orch = _orch("demo")
+    orch.state.balance = 8881.49
+    orch.risk_manager = SimpleNamespace(
+        contract_to_symbol={},
+        initial_bankroll=8881.49,
+        total_session_profit=0.0,
+        pending_loss_total=lambda: 0.0,
+        active_contract_ids=set(),
+    )
+    orch.config["pullback_strategy"] = {
+        "enabled": True,
+        "period_seconds": 900,
+        "version": "pullback-1-v15",
+        "single_strike": True,
+        "min_payout_rate": 0.70,
+    }
+    orch.config["risk_management"] = {
+        "large_account_stop_win_pct": 1.5,
+        "small_account_threshold": 100.0,
+        "params": {"stake_min": 1.0},
+    }
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    monkeypatch.setattr(orders, "record_indicator_quote", AsyncMock())
+    orch.trade_handler.fetch_proposal_snapshot.return_value = {
+        "proposal_id": "q-ss",
+        "price": 183.86,
+        "payout": 317.08,
+        "rate": 0.7246,
+    }
+    order = (
+        "OTC_FCHI",
+        TradeDirection.CALL,
+        {
+            "indicator_period_seconds": 900,
+            "indicator_model_version": "pullback-1-v15",
+            "indicator_candle_epoch": 900,
+            "indicator_demo_pilot": True,
+            "trade_score": 0.5,
+        },
+    )
+    await orders._prequote(orch, order, asyncio.Semaphore(1))
+    first_stake = orch.trade_handler.fetch_proposal_snapshot.await_args_list[0].args[2]
+    assert first_stake == pytest.approx(190.32)
+    assert orch._last_quote_rate_by_symbol["OTC_FCHI"] == pytest.approx(0.7246)
+
+    await orders._prequote(orch, order, asyncio.Semaphore(1))
+    second_stake = orch.trade_handler.fetch_proposal_snapshot.await_args_list[1].args[2]
+    assert second_stake == pytest.approx(183.86)

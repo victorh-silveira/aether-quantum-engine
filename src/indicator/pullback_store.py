@@ -43,19 +43,31 @@ class PullbackStore(SignalStore):
                 ), samples AS (
                     SELECT symbol, period_seconds, setup_version,
                         count(*) AS purchased,
-                        count(*) FILTER (WHERE settlement_source='broker' AND profit IS NOT NULL) AS settled,
-                        avg(profit / buy_price) FILTER (
-                            WHERE settlement_source='broker' AND profit IS NOT NULL) AS mean_return,
-                        stddev_samp(profit / buy_price) FILTER (
-                            WHERE settlement_source='broker' AND profit IS NOT NULL) AS return_sd,
                         count(*) FILTER (
-                            WHERE settlement_source='broker' AND profit > 0) AS wins
+                            WHERE settlement_source IN ('broker', 'profit_table') AND profit IS NOT NULL
+                        ) AS settled,
+                        avg(profit / buy_price) FILTER (
+                            WHERE settlement_source IN ('broker', 'profit_table') AND profit IS NOT NULL
+                        ) AS mean_return,
+                        stddev_samp(profit / buy_price) FILTER (
+                            WHERE settlement_source IN ('broker', 'profit_table') AND profit IS NOT NULL
+                        ) AS return_sd,
+                        count(*) FILTER (
+                            WHERE settlement_source IN ('broker', 'profit_table') AND profit > 0
+                        ) AS wins,
+                        count(*) FILTER (
+                            WHERE settlement_source='inferred_rest' AND profit IS NOT NULL
+                        ) AS inferred_settled
                     FROM ranked WHERE ordinal <= 200
                     GROUP BY symbol, period_seconds, setup_version
                 )
-                SELECT *, CASE WHEN settled >= 2 THEN
-                    mean_return - 1.653 * return_sd / sqrt(settled)
-                END AS lower_95 FROM samples;
+                SELECT symbol, period_seconds, setup_version, purchased, settled,
+                    mean_return, return_sd, wins,
+                    CASE WHEN settled >= 2 THEN
+                        mean_return - 1.653 * return_sd / sqrt(settled)
+                    END AS lower_95,
+                    inferred_settled
+                FROM samples;
             """)
 
     async def register_setups(self, symbols: dict[str, str], version: str = VERSION) -> None:

@@ -214,3 +214,40 @@ async def test_pullback_single_order_break_when_not_multi_symbol():
     assert count == 1
     assert executor._place_order.await_count == 1
     assert executor.orch._last_traded_symbol == "OTC_SPC"
+
+
+@pytest.mark.asyncio
+async def test_pullback_applies_broker_max_payout_cap_in_execution():
+    executor = _executor(100.0)
+    executor.orch.state.balance = 8881.49
+    order = (
+        "OTC_GDAXI",
+        TradeDirection.CALL,
+        {
+            "direction_origin": "PULLBACK_SETUP",
+            "indicator_controls_execution": True,
+            "indicator_quote_rate": 0.7246,
+            "indicator_period_seconds": 900,
+            "indicator_model_version": "pullback-1-v2",
+            "_broker_max_payout": 100.0,
+        },
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.signal_epoch_current", return_value=True
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.claim_indicator_order_once",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "src.application.services.orchestrator.execution_manager_execute.release_unbought_order_claim",
+            new_callable=AsyncMock,
+        ),
+        patch("src.application.services.orchestrator.execution_manager_execute.consensus_enabled", return_value=True),
+    ):
+        await execute_cluster_orders(executor, [order], 0, 8881.49)
+    placed_stake = executor._place_order.await_args.args[2]
+    assert placed_stake == pytest.approx(55.66)
+    assert order[2]["_pullback_recovery_amount"] == pytest.approx(55.66 * 0.7246)

@@ -82,12 +82,16 @@ async def test_service_publishes_once_per_closed_candle_and_isolates_failure(mon
     service.restore([call_sig])
     assert service.last_epoch[("R_25", 900)] == call_sig.candle_epoch
 
-    async def stop(_):
+    sleep_calls: list[float] = []
+
+    async def stop(delay: float):
+        sleep_calls.append(delay)
         raise asyncio.CancelledError
 
     monkeypatch.setattr("indicator.pullback_service.asyncio.sleep", stop)
     with pytest.raises(asyncio.CancelledError):
         await service.run()
+    assert 0.25 <= sleep_calls[0] <= 30.35
 
 
 @pytest.mark.asyncio

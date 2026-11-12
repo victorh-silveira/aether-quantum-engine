@@ -108,7 +108,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 25)",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -975,8 +975,8 @@
     },
     {
       "id": 17,
-      "title": "Trades ativos com consenso CALL/PUT",
-      "description": "Somente contratos confirmados pelo broker e ainda ativos, com consenso M5 aprovado.",
+      "title": "Setups M15 confirmados no ciclo",
+      "description": "Quantidade de setups institucionais confirmados pelo indicador no ciclo mais recente.",
       "type": "stat",
       "gridPos": {
         "h": 5,
@@ -994,7 +994,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_indicator_active_trade_direction",
+          "expr": "aether_indicator_confirmed_setups_count",
           "instant": true,
           "range": false,
           "refId": "A"
@@ -1210,7 +1210,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 25)",
           "instant": false,
           "range": true,
           "interval": "$__interval",

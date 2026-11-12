@@ -228,6 +228,13 @@ def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
         restore_log_context(prev_cid, prev_sym)
 
 
+def mark_boundary_cycle_evaluated(orch: Any) -> None:
+    """Registra a fronteira temporal atual como avaliada para evitar reentrada no cooldown."""
+    if not orch.config.get("pullback_strategy", {}).get("enabled", False):
+        return
+    orch._last_m5_cycle_boundary = m5_boundary_epoch(orch)
+
+
 def check_and_clear_boundary_cooldown(orch: Any) -> bool:
     """Limpa cooldown remanescente se uma nova fronteira temporal tiver iniciado na janela de abertura."""
     if not orch.config.get("pullback_strategy", {}).get("enabled", False):

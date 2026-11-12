@@ -143,3 +143,57 @@ async def test_timescale_ping():
     pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
     with patch.object(writer, "_ensure_pool", AsyncMock(return_value=pool)):
         assert await writer.ping() is True
+
+
+@pytest.mark.asyncio
+async def test_fetch_inferred_rest_and_backfill_paths():
+    from types import SimpleNamespace
+
+    from src.application.services.orchestrator.settlement_backfill import backfill_inferred_rest_contracts
+
+    writer = TimescaleMarketWriter(dsn="postgresql://u:p@localhost/db")
+    conn = AsyncMock()
+    conn.fetch = AsyncMock(return_value=[{"contract_id": 101}, {"contract_id": 202}])
+    pool = MagicMock()
+    pool.acquire.return_value.__aenter__ = AsyncMock(return_value=conn)
+    pool.acquire.return_value.__aexit__ = AsyncMock(return_value=False)
+    with patch.object(writer, "_ensure_pool", AsyncMock(return_value=pool)):
+        assert await writer.fetch_inferred_rest_contract_ids(limit=10) == [101, 202]
+    with patch.object(writer, "_ensure_pool", AsyncMock(side_effect=RuntimeError("db off"))):
+        assert await writer.fetch_inferred_rest_contract_ids(limit=10) == []
+    writer._closed = True
+    assert await writer.fetch_inferred_rest_contract_ids(limit=10) == []
+
+    orch = SimpleNamespace(market_writer=None, ws=AsyncMock(), anchor="OTC_SSMI", config={"trading": {"mode": "demo"}})
+    assert await backfill_inferred_rest_contracts(orch) == 0
+
+    mw = MagicMock()
+    mw.fetch_inferred_rest_contract_ids = AsyncMock(return_value=[])
+    orch.market_writer = mw
+    assert await backfill_inferred_rest_contracts(orch) == 0
+
+    mw.fetch_inferred_rest_contract_ids = AsyncMock(return_value=[101, 202])
+    orch.ws.send = AsyncMock(side_effect=RuntimeError("ws down"))
+    assert await backfill_inferred_rest_contracts(orch) == 0
+
+    orch.ws.send = AsyncMock(return_value={"profit_table": None})
+    assert await backfill_inferred_rest_contracts(orch) == 0
+
+    orch.ws.send = AsyncMock(
+        return_value={
+            "profit_table": {
+                "transactions": [
+                    {"contract_id": 101, "sell_price": 17.2, "buy_price": 10.0, "shortcode": "CALL_OTC_SSMI_10_1_2"}
+                ]
+            }
+        }
+    )
+    with (
+        patch(
+            "src.application.services.orchestrator.settlement_backfill.settlement_payload_from_profit_row",
+            side_effect=[{"proposal_open_contract": {"contract_id": 101, "contract_type": "CALL"}}],
+        ),
+        patch("src.application.services.orchestrator.settlement_audit.record_settlement_audit", AsyncMock()) as rec,
+    ):
+        assert await backfill_inferred_rest_contracts(orch) == 1
+        assert rec.await_count == 1

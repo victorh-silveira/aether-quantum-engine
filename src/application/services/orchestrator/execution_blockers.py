@@ -109,6 +109,13 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 sym_status = "ativo_excluido(baixo_edge)"
             elif (symbol, period_seconds) in statuses:
                 sym_status = statuses[(symbol, period_seconds)]
+                if sym_status in (
+                    "dados_atrasados",
+                    "aguardando_leitura",
+                    "aguardando_leitura_indicador",
+                    "mercado_sem_oscilacao",
+                ) and not is_otc_exchange_open_brt(symbol):
+                    sym_status = "mercado_fechado_brt"
             elif not is_otc_exchange_open_brt(symbol):
                 sym_status = "mercado_fechado_brt"
             else:

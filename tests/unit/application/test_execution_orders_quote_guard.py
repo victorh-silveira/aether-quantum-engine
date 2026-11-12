@@ -294,3 +294,47 @@ def test_attach_quote_guard_rejects_invalid_haircut():
         {"require_quote_edge": True, "quote_probability_haircut": "bad"},
     )
     assert params == {}
+
+
+@pytest.mark.asyncio
+async def test_pullback_order_retries_downward_on_retriable_proposal_error():
+    from types import SimpleNamespace
+
+    executor = MagicMock()
+    executor.orch._active_cycle_id = 2
+    executor.orch.config = {
+        "trading": {"mode": "demo"},
+        "risk_management": {"params": {"stake_min": 1.0}},
+        "pullback_strategy": {"entry_window_seconds": 60},
+        "orchestrator": {"execution": {"proposal_retry_scales": [0.6]}},
+    }
+    executor.orch.risk_manager.initial_bankroll = 1000.0
+    executor.orch.risk_manager.total_session_profit = 0.0
+    executor.orch.risk_manager.pending_loss = {}
+    executor.orch.risk_manager.contract_to_symbol = {}
+    executor.orch.business_instrumentor = None
+    executor.orch.trading_transport = "ws"
+    metrics = {
+        "indicator_controls_execution": True,
+        "indicator_model_version": "pullback-1-v2",
+        "indicator_period_seconds": 900,
+        "allowed_period_seconds": 900,
+        "_pullback_stake_cap": 100.0,
+    }
+    contract = SimpleNamespace(
+        contract_id=99,
+        buy_price=52.8,
+        payout=91.0,
+        symbol="OTC_GDAXI",
+        stake=52.8,
+        entry_spot=100.0,
+        entry_time=1700000000,
+    )
+    executor.orch.trade_handler.buy_with_parameters = AsyncMock(
+        side_effect=[RuntimeError("Erro na proposta: maximum payout of 100.00"), contract]
+    )
+    with patch("src.application.services.orchestrator.execution_orders.subscribe_open_contract", AsyncMock()):
+        res = await place_order(executor, "OTC_GDAXI", TradeDirection.CALL, 88.0, metrics=metrics)
+    assert res is contract
+    assert executor.orch.trade_handler.buy_with_parameters.await_count == 2
+    assert executor.orch.trade_handler.buy_with_parameters.await_args_list[1].args[2] == pytest.approx(52.8)

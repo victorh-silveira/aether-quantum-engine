@@ -7,8 +7,34 @@ import time
 from typing import Any
 
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.payout_observation import contract_profit_rate
+from src.domain.risk.payout_observation import (
+    cap_stake_for_max_payout,
+    contract_profit_rate,
+    parse_max_payout_rejection,
+)
 from src.infrastructure.handlers.trade_handler_requests import build_proposal_request
+
+
+def _parse_quote_snapshot(handler: Any, response: Any, *, max_payout_cap: float | None = None) -> dict[str, Any] | None:
+    """Extrai snapshot estruturado de uma resposta de proposal sem erro."""
+    proposal = response.get("proposal") if isinstance(response, dict) else None
+    if not isinstance(proposal, dict):
+        return None
+    price = float(proposal["ask_price"])
+    payout = float(proposal["payout"])
+    rate = contract_profit_rate(payout, price)
+    if rate is None:
+        return None
+    handler.latest_payout_rate = rate
+    result: dict[str, Any] = {
+        "proposal_id": str(proposal.get("id") or ""),
+        "price": price,
+        "payout": payout,
+        "rate": rate,
+    }
+    if max_payout_cap is not None:
+        result["max_payout"] = max_payout_cap
+    return result
 
 
 async def fetch_proposal_snapshot(
@@ -16,6 +42,7 @@ async def fetch_proposal_snapshot(
 ) -> dict | None:
     """Retorna preco, payout, taxa e ID validos da cotacao observada."""
     config = params if params is not None else handler.config.get("risk_management", {}).get("params", {})
+    stake_min = float(handler.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
     request = build_proposal_request(symbol, direction, stake, config)
     try:
         response = await handler.ws.send(request, timeout=int(handler.ws.request_timeout))
@@ -23,23 +50,34 @@ async def fetch_proposal_snapshot(
             return None
         if "error" in response:
             err = response.get("error", {})
+            msg = str(err.get("message", "erro"))
+            parsed = parse_max_payout_rejection(msg)
+            if parsed is not None:
+                max_payout_cap, cur_payout = parsed
+                scaled = (
+                    cap_stake_for_max_payout(float(stake), max_payout_cap, cur_payout, stake_min)
+                    if cur_payout > max_payout_cap
+                    else cap_stake_for_max_payout(float(stake), max_payout_cap, 1.0, stake_min, is_rate=True)
+                )
+                if scaled > 0.0 and scaled + 1e-9 < float(stake):
+                    logging.getLogger("AETH").info(
+                        "QUOTE: ajustando stake de %s (%.2f -> %.2f) pelo teto de payout %.2f",
+                        symbol,
+                        float(stake),
+                        scaled,
+                        max_payout_cap,
+                    )
+                    retry_req = build_proposal_request(symbol, direction, scaled, config)
+                    retry_resp = await handler.ws.send(retry_req, timeout=int(handler.ws.request_timeout))
+                    return _parse_quote_snapshot(handler, retry_resp, max_payout_cap=max_payout_cap)
             logging.getLogger("AETH").warning(
                 "QUOTE: proposta Deriv recusada para %s: %s (code=%s)",
                 symbol,
-                err.get("message", "erro"),
+                msg,
                 err.get("code", "-"),
             )
             return None
-        proposal = response.get("proposal")
-        if not isinstance(proposal, dict):
-            return None
-        price = float(proposal["ask_price"])
-        payout = float(proposal["payout"])
-        rate = contract_profit_rate(payout, price)
-        if rate is None:
-            return None
-        handler.latest_payout_rate = rate
-        return {"proposal_id": str(proposal.get("id") or ""), "price": price, "payout": payout, "rate": rate}
+        return _parse_quote_snapshot(handler, response)
     except Exception:
         return None
 

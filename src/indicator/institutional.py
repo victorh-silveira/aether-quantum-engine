@@ -9,8 +9,8 @@ from indicator.domain import Candle
 
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))
-# Killzones de alta densidade BRT: London Open (3, 5, 7), NY Overlap (10, 11, 12) e London Fix (15)
-DEFAULT_KILLZONES_BRT = [3, 5, 7, 10, 11, 12, 15]
+# Killzones empiricas BRT acima do breakeven: London Mid (7), Pre-NY (9), NY Overlap (10, 12, 13) e London Fix/Pos-Fix (15, 16)
+DEFAULT_KILLZONES_BRT = [7, 9, 10, 12, 13, 15, 16]
 
 
 def session_price_reference(bars: list[Candle]) -> tuple[float, float, float]:
@@ -71,11 +71,65 @@ def detect_fvg_mitigation(bars: list[Candle], atr: float = 1.0) -> tuple[bool, b
     return bull_mitigated, bear_mitigated
 
 
-def is_within_killzone(epoch: int, optimal_hours: list[int] | None = None) -> bool:
-    """Verifica se o timestamp da vela fechada pertence a Killzone em Horario de Brasilia."""
+def is_within_killzone(
+    epoch: int,
+    optimal_hours: list[int] | None = None,
+    *,
+    period_seconds: int = 0,
+) -> bool:
+    """Verifica se o timestamp da entrada (fechamento = epoch + period_seconds) pertence a Killzone BRT."""
     if optimal_hours is None:
         optimal_hours = DEFAULT_KILLZONES_BRT
     if not optimal_hours:
         return False
-    hour_brt = datetime.fromtimestamp(epoch, tz=BRT_TIMEZONE).hour
+    entry_epoch = int(epoch) + max(0, int(period_seconds))
+    hour_brt = datetime.fromtimestamp(entry_epoch, tz=BRT_TIMEZONE).hour
     return hour_brt in optimal_hours
+
+
+_REAL_CASH_HOURS_BRT: dict[str, tuple[int, ...]] = {
+    "OTC_AS51": (0, 1, 20, 21, 22, 23),
+    "OTC_N225": (0, 1, 2, 3, 21, 22, 23),
+    "OTC_HSI": (0, 1, 2, 3, 4, 22, 23),
+    "OTC_GDAXI": tuple(range(5, 14)),
+    "OTC_FCHI": tuple(range(5, 14)),
+    "OTC_FTSE": tuple(range(5, 14)),
+    "OTC_SX5E": tuple(range(5, 14)),
+    "OTC_AEX": tuple(range(5, 14)),
+    "OTC_SSMI": tuple(range(5, 14)),
+    "OTC_SPC": tuple(range(10, 18)),
+    "OTC_NDX": tuple(range(10, 18)),
+    "OTC_DJI": tuple(range(10, 18)),
+}
+_DERIV_OTC_HOURS_BRT: dict[str, tuple[int, ...]] = {
+    **dict.fromkeys(
+        ("OTC_SPC", "OTC_NDX", "OTC_DJI", "OTC_GDAXI", "OTC_FCHI", "OTC_FTSE", "OTC_SX5E", "OTC_AEX", "OTC_SSMI"),
+        tuple(range(4, 18)),
+    ),
+    "OTC_AS51": tuple(range(0, 16)) + (20, 21, 22, 23),
+    "OTC_N225": tuple(range(0, 17)) + (20, 21, 22, 23),
+    "OTC_HSI": (0, 1, 2, 3, 4, 22, 23),
+}
+
+
+def market_session_status_brt(symbol: str, epoch_ts: float | None = None) -> tuple[bool, bool]:
+    """Retorna (bolsa_real_aberta, deriv_otc_ativo) em BRT sem acoplamento externo."""
+    sym = str(symbol)
+    if not sym.startswith("OTC_"):
+        return True, True
+    dt = (
+        datetime.fromtimestamp(float(epoch_ts), tz=BRT_TIMEZONE)
+        if epoch_ts is not None
+        else datetime.now(tz=BRT_TIMEZONE)
+    )
+    wd = dt.weekday()
+    if wd == 5:
+        return False, False
+    if wd == 6:
+        asia = sym in ("OTC_AS51", "OTC_N225", "OTC_HSI") and dt.hour >= 20
+        return asia, asia
+    real_hours = _REAL_CASH_HOURS_BRT.get(sym)
+    otc_hours = _DERIV_OTC_HOURS_BRT.get(sym)
+    real_open = True if real_hours is None else dt.hour in real_hours
+    otc_open = real_open if otc_hours is None else dt.hour in otc_hours
+    return real_open, otc_open

@@ -378,6 +378,41 @@ async def test_proposal_snapshot_handles_error_and_invalid_response(trade_handle
 
 
 @pytest.mark.asyncio
+async def test_proposal_snapshot_retries_when_maximum_payout_exceeded(trade_handler, mock_ws):
+    mock_ws.send.side_effect = [
+        {
+            "error": {
+                "message": "Minimum stake of 0.50 and maximum payout of 100.00. Current payout is 161.52.",
+                "code": "ContractBuyValidationError",
+            }
+        },
+        {"proposal": {"id": "quote-capped", "ask_price": "52.23", "payout": "90.08"}},
+    ]
+    quote = await trade_handler.fetch_proposal_snapshot(
+        "OTC_GDAXI",
+        TradeDirection.CALL,
+        88.81,
+        params={"duration": 15, "duration_unit": "m"},
+    )
+    assert quote is not None
+    assert quote["proposal_id"] == "quote-capped"
+    assert quote["max_payout"] == pytest.approx(100.0)
+    assert mock_ws.send.await_args_list[1].args[0]["amount"] == pytest.approx(52.23)
+
+    mock_ws.send.side_effect = [
+        {"error": {"message": "Maximum payout of 100.00 exceeded", "code": "ContractBuyValidationError"}},
+        {"proposal": {"id": "quote-half", "ask_price": "48.00", "payout": "82.78"}},
+    ]
+    quote2 = await trade_handler.fetch_proposal_snapshot("OTC_GDAXI", TradeDirection.CALL, 80.0)
+    assert quote2 is not None and quote2["max_payout"] == pytest.approx(100.0)
+
+    mock_ws.send.side_effect = [
+        {"error": {"message": "Maximum payout of 100.00 exceeded", "code": "ContractBuyValidationError"}}
+    ]
+    assert await trade_handler.fetch_proposal_snapshot("OTC_GDAXI", TradeDirection.CALL, 0.80) is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("payout", ["18.00", "0.00"])
 async def test_final_buy_proposal_blocks_lost_quote_edge(trade_handler, mock_ws, payout):
     mock_ws.send.return_value = {"proposal": {"id": "new_quote", "ask_price": "10.00", "payout": payout}}

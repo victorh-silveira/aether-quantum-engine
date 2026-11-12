@@ -44,7 +44,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_balance_usd and (time() - timestamp(aether_session_balance_usd) < 12)",
+          "expr": "aether_session_balance_usd and (time() - timestamp(aether_session_balance_usd) < 25)",
           "instant": false,
           "range": true,
           "interval": "$__interval",
@@ -112,7 +112,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_profit_usd and (time() - timestamp(aether_session_profit_usd) < 12)",
+          "expr": "aether_session_profit_usd and (time() - timestamp(aether_session_profit_usd) < 25)",
           "instant": false,
           "range": true,
           "interval": "$__interval",
@@ -310,7 +310,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 12)",
+          "expr": "aether_session_uptime_seconds and (time() - timestamp(aether_session_uptime_seconds) < 25)",
           "instant": false,
           "range": true,
           "interval": "$__interval",

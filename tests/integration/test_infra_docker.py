@@ -185,6 +185,7 @@ def test_infra_docker_files_organized_by_extension_family():
         "007_contract_executions_resilience.sql",
         "008_contract_model_attribution.sql",
         "009_contract_label_audit_m5.sql",
+        "010_m15_observability_lifecycle.sql",
     ]
     for name in sql_files:
         assert repo_path("infra", "docker", "sql", name).is_file()
