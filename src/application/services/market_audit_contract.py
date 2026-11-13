@@ -6,7 +6,7 @@ import math
 
 
 def broker_price_audit(payload: dict, direction: str | None) -> str | None:
-    """Resume deslocamento real sem inferir outcome a partir da vela M5."""
+    """Resume deslocamento real sem inferir outcome a partir da vela M15."""
     if str(payload.get("audit_source") or "broker") != "broker":
         return None
     raw_entry = (
@@ -41,5 +41,5 @@ def broker_price_audit(payload: dict, direction: str | None) -> str | None:
     except (TypeError, ValueError):
         entry_time = 0
     if entry_time > 0:
-        phase = f" | FASE_M5: {entry_time % 300}s"
+        phase = f" | FASE_M15: {entry_time % 900}s"
     return f"SPOT: {entry:.2f}->{exit_:.2f} ({delta:+.2f}) | REAL: {observed}{phase}"

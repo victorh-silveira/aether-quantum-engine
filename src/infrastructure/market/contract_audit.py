@@ -22,6 +22,15 @@ def _integer(payload: dict[str, Any], *keys: str) -> int | None:
     return int(value) if value is not None else None
 
 
+def _contract_type(payload: dict[str, Any], direction: str) -> str | None:
+    """Normaliza contract_type com fallback para direction CALL/PUT."""
+    raw = str(payload.get("contract_type") or "").strip().upper()
+    if raw:
+        return raw
+    side = str(direction or "").strip().upper()
+    return side if side in {"CALL", "PUT"} else None
+
+
 def open_audit_row(
     payload: dict[str, Any],
     *,
@@ -47,7 +56,7 @@ def open_audit_row(
         "payout": _number(payload, "payout"),
         "settlement_source": "pending",
         "proposal_id": payload.get("proposal_id"),
-        "contract_type": payload.get("contract_type"),
+        "contract_type": _contract_type(payload, direction),
         "barrier": _number(payload, "barrier"),
         "trace_id": trace_id if trace_id is not None else current_trace_id(),
     }
@@ -84,7 +93,7 @@ def settlement_audit_row(
         "status": str(payload["status"]) if payload.get("status") is not None else None,
         "settlement_source": source,
         "proposal_id": payload.get("proposal_id"),
-        "contract_type": payload.get("contract_type"),
+        "contract_type": _contract_type(payload, direction),
         "barrier": _number(payload, "barrier"),
         "trace_id": trace_id if trace_id is not None else current_trace_id(),
     }

@@ -40,13 +40,16 @@ def test_trace_span_hierarchy_context_and_otlp_payload():
         with trace_span("child.order") as child_tid:
             assert child_tid == tid
             assert current_span_id() != sid_root
+        with trace_span("isolated.cycle", new_root=True) as isolated_tid:
+            assert isolated_tid != tid
+            assert current_trace_id() == isolated_tid
 
     assert current_trace_id() is None
     with pytest.raises(ValueError, match="falha"), trace_span("failing.span"):
         raise ValueError("falha")
 
     spans = drain_buffered_spans()
-    assert len(spans) == 3
+    assert len(spans) == 4
     payload = build_otlp_payload(spans)
     assert len(payload["resourceSpans"]) == 1
     assert payload["resourceSpans"][0]["scopeSpans"][0]["spans"][0]["parentSpanId"]

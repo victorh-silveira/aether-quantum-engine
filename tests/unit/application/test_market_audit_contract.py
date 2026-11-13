@@ -5,7 +5,7 @@ from src.application.services.market_audit_contract import broker_price_audit
 
 def test_broker_price_audit_reports_real_direction_and_phase():
     row = {"entry_spot": 4812.45, "exit_spot": 4812.78, "entry_spot_time": 1791167104}
-    assert broker_price_audit(row, "PUT") == "SPOT: 4812.45->4812.78 (+0.33) | REAL: CALL | FASE_M5: 4s"
+    assert broker_price_audit(row, "PUT") == "SPOT: 4812.45->4812.78 (+0.33) | REAL: CALL | FASE_M15: 604s"
 
 
 def test_broker_price_audit_flat_and_missing_phase():

@@ -194,6 +194,7 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
             with trace_span(
                 "trading.cycle",
                 attributes={"cycle.id": int(orch._active_cycle_id), "anchor": str(getattr(orch, "anchor", ""))},
+                new_root=True,
             ):
                 bind_log_context(cycle_id=orch._active_cycle_id, symbol=getattr(orch, "anchor", None))
                 ran = True

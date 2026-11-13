@@ -161,7 +161,7 @@ async def test_process_contract_settlement_lost(orch_ready):
     assert orch._last_loss_symbol == "R_10"
     assert orch._last_loss_direction == "CALL"
     assert len(orch._pending_result_logs) == 1
-    assert "SPOT: 101.00->100.00 (-1.00) | REAL: PUT | FASE_M5: 1s" in orch._pending_result_logs[0]
+    assert "SPOT: 101.00->100.00 (-1.00) | REAL: PUT | FASE_M15: 301s" in orch._pending_result_logs[0]
     assert 456 not in orch.risk_manager.active_contract_ids
     orch.executor.execute_cluster.assert_awaited_once()
     orch.state_store.redis.set.assert_awaited_once_with("quarantine:loss:demo:R_10", "1", ex=900)

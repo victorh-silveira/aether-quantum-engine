@@ -57,10 +57,11 @@ def trace_span(
     *,
     attributes: dict[str, Any] | None = None,
     service_name: str = "aether-engine",
+    new_root: bool = False,
 ) -> Iterator[str]:
     """Cria span hierarquico no ContextVar atual e registra payload OTLP em memoria."""
-    parent_trace = _TRACE_ID.get()
-    parent_span = _SPAN_ID.get()
+    parent_trace = None if new_root else _TRACE_ID.get()
+    parent_span = None if new_root else _SPAN_ID.get()
     trace_id = parent_trace or uuid4().hex
     span_id = uuid4().hex[:16]
     tok_t = _TRACE_ID.set(trace_id)

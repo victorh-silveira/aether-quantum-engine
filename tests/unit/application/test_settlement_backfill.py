@@ -15,11 +15,16 @@ from src.infrastructure.handlers.trade_handler import _contract_duration_seconds
 
 
 def test_settlement_payload_from_profit_row():
-    payload = settlement_payload_from_profit_row(99, {"contract_id": 99, "profit": 1.92, "status": "won"})
+    payload = settlement_payload_from_profit_row(
+        99, {"contract_id": 99, "profit": 1.92, "status": "won", "shortcode": "CALL_OTC_AEX_100"}
+    )
     poc = payload["proposal_open_contract"]
     assert poc["contract_id"] == 99
     assert poc["is_settled"] == 1
     assert poc["profit"] == 1.92
+    assert poc["contract_type"] == "CALL"
+    direct = settlement_payload_from_profit_row(100, {"profit": -1.0, "contract_type": "put"})
+    assert direct["proposal_open_contract"]["contract_type"] == "PUT"
 
 
 @pytest.mark.asyncio

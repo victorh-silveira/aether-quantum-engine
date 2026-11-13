@@ -23,6 +23,7 @@ def test_open_audit_keeps_unknown_spots_null():
     assert row["settlement_source"] == "pending"
     assert "entry_tick" not in row
     assert row["payout"] == 19.5
+    assert row["contract_type"] == "CALL"
 
 
 def test_settlement_audit_prefers_current_spot_keys_and_handles_missing():
@@ -55,13 +56,15 @@ def test_settlement_audit_prefers_current_spot_keys_and_handles_missing():
     assert inferred["entry_tick"] is None
     assert inferred["settlement_source"] == "inferred_rest"
     assert inferred["signal_prob"] is None
+    assert inferred["contract_type"] == "PUT"
     unknown = settlement_audit_row(
-        {"contract_id": 9, "audit_source": "untrusted", "entry_tick": 1, "exit_tick": 2},
+        {"contract_id": 9, "audit_source": "untrusted", "entry_tick": 1, "exit_tick": 2, "contract_type": "call"},
         symbol="1HZ75V",
         mode="demo",
         direction="CALL",
     )
     assert unknown["settlement_source"] == "unknown"
+    assert unknown["contract_type"] == "CALL"
 
 
 @pytest.mark.asyncio

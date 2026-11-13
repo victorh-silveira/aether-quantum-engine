@@ -37,6 +37,19 @@ def _extract_underlying_from_row(row: dict) -> str | None:
     return shortcode if isinstance(shortcode, str) else None
 
 
+def _extract_contract_type_from_row(row: dict) -> str | None:
+    """Extrai CALL/PUT da linha de profit_table ou do prefixo do shortcode."""
+    raw = str(row.get("contract_type") or "").strip().upper()
+    if raw in {"CALL", "PUT"}:
+        return raw
+    shortcode = row.get("shortcode")
+    if isinstance(shortcode, str) and "_" in shortcode:
+        prefix = shortcode.split("_", 1)[0].strip().upper()
+        if prefix in {"CALL", "PUT"}:
+            return prefix
+    return None
+
+
 def settlement_payload_from_profit_row(c_id: int, row: dict) -> dict:
     """Monta payload proposal_open_contract a partir de linha do profit_table."""
     profit = _profit_from_row(row)
@@ -52,6 +65,7 @@ def settlement_payload_from_profit_row(c_id: int, row: dict) -> dict:
             "profit": profit,
             "balance_after": row.get("balance_after"),
             "underlying": _extract_underlying_from_row(row),
+            "contract_type": _extract_contract_type_from_row(row),
         }
     }
 

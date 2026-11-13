@@ -26,10 +26,12 @@ def _contract(cid: int = 1) -> Contract:
 
 
 def test_synthetic_poc_win_and_loss():
-    won = _synthetic_poc(contract_id=1, won=True, buy_price=0.35, payout=0.66)
+    won = _synthetic_poc(contract_id=1, won=True, buy_price=0.35, payout=0.66, contract_type="CALL")
     lost = _synthetic_poc(contract_id=2, won=False, buy_price=0.35, payout=0.66)
     assert won["proposal_open_contract"]["status"] == "won"
+    assert won["proposal_open_contract"]["contract_type"] == "CALL"
     assert lost["proposal_open_contract"]["profit"] == pytest.approx(-0.35)
+    assert lost["proposal_open_contract"]["contract_type"] is None
 
 
 @pytest.mark.asyncio
