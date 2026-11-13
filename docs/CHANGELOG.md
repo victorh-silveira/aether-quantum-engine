@@ -1,3 +1,9 @@
+## [5.1.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.1.0...v5.1.1) (2026-11-13)
+
+### Correcoes de Bug
+
+* **all:** isolar identificador de rastreio por ciclo e corrigir auditoria m15 ([bf9a159](https://github.com/victorh-silveira/aether-quantum-engine/commit/bf9a1594ec9c28f61a5d85573de9bfb2e0ebb44e))
+
 ## [5.1.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.0.3...v5.1.0) (2026-11-12)
 
 ### Funcionalidades
