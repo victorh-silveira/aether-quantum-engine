@@ -1,3 +1,9 @@
+## [5.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.1.1...v5.2.0) (2026-11-13)
+
+### Funcionalidades
+
+* **all:** endurecer filtros institucionais m15 e selecionar ativos otc ([05c70fa](https://github.com/victorh-silveira/aether-quantum-engine/commit/05c70fa4dcad21c4e6371a47b8b1fbaf3a5d99b1))
+
 ## [5.1.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.1.0...v5.1.1) (2026-11-13)
 
 ### Correcoes de Bug
