@@ -88,7 +88,7 @@ def evaluate_senior_institutional(
         and bars[-1].close < bars[-1].open
     )
 
-    trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 8.0
+    trend_strong = (adx == 0.0 and pdi == 0.0 and mdi == 0.0) or adx >= 12.0
     is_high_momentum = trend_strong and adx >= 26.0 and hurst >= 0.50
 
     macd_bull_div = m_hist > 0.0 and m_val > s_val
@@ -119,10 +119,10 @@ def evaluate_senior_institutional(
         or (not is_high_momentum and (rsi <= 32.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.40))
         or (is_high_momentum and (rsi <= 25.0 or pct_b <= -0.05))
     )
-    call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi >= mdi * 0.55
-    put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi >= pdi * 0.55
-    call_macd_ok = (m_hist >= -0.25 * atr) or (m_hist > m_hist_prev and m_hist >= -0.40 * atr)
-    put_macd_ok = (m_hist <= 0.25 * atr) or (m_hist < m_hist_prev and m_hist <= 0.40 * atr)
+    call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi > mdi
+    put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi > pdi
+    call_macd_ok = m_hist >= 0.0
+    put_macd_ok = m_hist <= 0.0
     fast_bear_cross = (
         fast[-1] < slow[-1]
         or fast[-2] < slow[-2]
@@ -139,6 +139,7 @@ def evaluate_senior_institutional(
         and call_macd_ok
         and not is_doji
         and fast_bull_cross
+        and (fast[-1] - slow[-1]) >= 0.20 * atr
         and fast[-1] >= fast[-3] - 0.20 * atr
         and slow[-1] >= slow[-4] - 0.05 * atr
         and confirmation.close > slow[-1]
@@ -149,6 +150,7 @@ def evaluate_senior_institutional(
         and put_macd_ok
         and not is_doji
         and fast_bear_cross
+        and (slow[-1] - fast[-1]) >= 0.20 * atr
         and fast[-1] <= fast[-3] + 0.20 * atr
         and slow[-1] <= slow[-4] + 0.05 * atr
         and confirmation.close < slow[-1]

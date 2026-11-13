@@ -601,8 +601,8 @@ def test_senior_setup_allows_mild_negative_macd_during_pullback(monkeypatch):
 
     hour = datetime.fromtimestamp(base_bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
     res = evaluate(base_bars, period, MIN_BARS * period, variant="senior_institutional", optimal_hours_brt=[hour])
-    assert res.side == "CALL"
-    assert res.reason == "setup_confirmado"
+    assert res.side == "SEM SINAL"
+    assert res.reason == "sem_tendencia_alinhada"
 
 
 def test_senior_setup_high_momentum_uniform_stoch_and_fast_dist(monkeypatch):
