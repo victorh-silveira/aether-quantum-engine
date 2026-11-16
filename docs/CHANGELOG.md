@@ -1,3 +1,9 @@
+## [5.2.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.1...v5.2.2) (2026-11-16)
+
+### Correcoes de Bug
+
+* **all:** propagar endpoint otlp de telemetria na inicializacao ([fb1114a](https://github.com/victorh-silveira/aether-quantum-engine/commit/fb1114aa9d0319b6987f9ff48905272df55f9c66))
+
 ## [5.2.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.0...v5.2.1) (2026-11-16)
 
 ### Correcoes de Bug
