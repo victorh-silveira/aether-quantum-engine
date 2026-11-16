@@ -78,6 +78,7 @@ BEGIN
         ELSE 'TIE'
       END AS m15_expected_direction,
       CASE
+        WHEN c.entry_tick IS NULL OR c.exit_tick IS NULL THEN NULL
         WHEN c.exit_tick > c.entry_tick THEN 'CALL'
         WHEN c.exit_tick < c.entry_tick THEN 'PUT'
         ELSE 'TIE'

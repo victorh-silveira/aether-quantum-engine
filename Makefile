@@ -9,6 +9,8 @@ DOCKER_DIR=infra/docker
 DOCKER_PROFILES ?= core,telemetry,indicator
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
 export AETHER_METRICS_HOST_IP ?= $(shell ip -4 route show default 2>/dev/null | awk 'NR==1 {print $$3}')
+export OTEL_EXPORTER_OTLP_ENDPOINT ?= http://127.0.0.1:4318
+export WSLENV := $(if $(WSLENV),$(WSLENV):,)OTEL_EXPORTER_OTLP_ENDPOINT
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= 200
 DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio aether-market-signal-indicator aether-observe-metrics-prometheus aether-observe-dashboards-grafana

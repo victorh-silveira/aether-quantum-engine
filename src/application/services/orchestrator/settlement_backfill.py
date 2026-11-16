@@ -163,9 +163,27 @@ async def backfill_contract_from_profit_table(orch: Any, contract_id: int) -> bo
         row_id = row.get("contract_id")
         if row_id is None or int(row_id) != c_id:
             continue
-        await process_contract_settlement(orch, settlement_payload_from_profit_row(c_id, row))
+        payload = settlement_payload_from_profit_row(c_id, row)
+        await _enrich_profit_payload_ticks(orch, c_id, payload)
+        await process_contract_settlement(orch, payload)
         return True
     return False
+
+
+async def _enrich_profit_payload_ticks(orch: Any, contract_id: int, payload: dict) -> None:
+    """Completa entry_spot, exit_spot e date_expiry via proposal_open_contract."""
+    poc_out = payload.get("proposal_open_contract")
+    if not isinstance(poc_out, dict):
+        return
+    try:
+        poc = await fetch_open_contract(orch.ws, contract_id, timeout=5.0, subscribe=False)
+    except Exception:
+        return
+    if not isinstance(poc, dict):
+        return
+    for key in ("entry_spot", "entry_spot_time", "exit_spot", "exit_spot_time", "date_expiry", "date_start"):
+        if poc.get(key) is not None and poc_out.get(key) is None:
+            poc_out[key] = poc.get(key)
 
 
 async def backfill_pending_contracts(orch: Any, contract_ids: list[int]) -> int:

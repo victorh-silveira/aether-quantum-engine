@@ -304,3 +304,33 @@ async def test_reconcile_expired_contract_via_rest_edge_branches():
         AsyncMock(side_effect=RuntimeError("err")),
     ):
         assert await _reconcile_expired_contract_via_rest(orch, 3) is False
+
+
+@pytest.mark.asyncio
+async def test_enrich_profit_payload_ticks_branches():
+    from src.application.services.orchestrator.settlement_backfill import _enrich_profit_payload_ticks
+
+    orch = MagicMock()
+    await _enrich_profit_payload_ticks(orch, 1, {})
+
+    payload = {"proposal_open_contract": {"contract_id": 1}}
+    with patch(
+        "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+        AsyncMock(side_effect=RuntimeError("timeout")),
+    ):
+        await _enrich_profit_payload_ticks(orch, 1, payload)
+
+    with patch(
+        "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+        AsyncMock(return_value=None),
+    ):
+        await _enrich_profit_payload_ticks(orch, 1, payload)
+
+    with patch(
+        "src.application.services.orchestrator.settlement_backfill.fetch_open_contract",
+        AsyncMock(return_value={"entry_spot": 7518.8, "exit_spot": 7514.7, "date_expiry": 1794834900}),
+    ):
+        await _enrich_profit_payload_ticks(orch, 1, payload)
+    assert payload["proposal_open_contract"]["entry_spot"] == 7518.8
+    assert payload["proposal_open_contract"]["exit_spot"] == 7514.7
+    assert payload["proposal_open_contract"]["date_expiry"] == 1794834900
