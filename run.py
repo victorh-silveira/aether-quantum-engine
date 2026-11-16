@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import sys
 import types
 
@@ -143,6 +144,9 @@ async def main() -> int:
     """Carrega configuracao, autentica e executa o loop principal do motor."""
     ensure_polars_max_threads()
     config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
+    otlp_endpoint = str((config.get("telemetry") or {}).get("otlp_endpoint") or "").strip()
+    if otlp_endpoint:
+        os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", otlp_endpoint)
     auth = create_authenticated_auth(config, logger)
     if auth is None:
         return 1

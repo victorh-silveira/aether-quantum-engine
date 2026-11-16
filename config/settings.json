@@ -783,7 +783,8 @@
   ],
   "telemetry": {
     "host": "0.0.0.0",
-    "port": 9100
+    "port": 9100,
+    "otlp_endpoint": "http://127.0.0.1:4318"
   },
   "trading": {
     "mode": "demo"
