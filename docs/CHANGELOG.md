@@ -1,3 +1,9 @@
+## [5.2.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.0...v5.2.1) (2026-11-16)
+
+### Correcoes de Bug
+
+* **all:** corrigir exportacao otlp, auditoria m15 e logs de bloqueio ([776c8c7](https://github.com/victorh-silveira/aether-quantum-engine/commit/776c8c753c49cb5ed49dde410521b4bb394dfd7e))
+
 ## [5.2.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.1.1...v5.2.0) (2026-11-13)
 
 ### Funcionalidades
