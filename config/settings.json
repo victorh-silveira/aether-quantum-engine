@@ -34,6 +34,7 @@
     "organic_direction": false,
     "stream_fallback": false,
     "dynamic_rotation": true,
+    "adaptive_trend_regime": "r6",
     "min_payout_rate": 0.7,
     "min_prob_threshold": 0.5,
     "breakeven_floor": 0.5
@@ -814,6 +815,7 @@
         "OTC_GDAXI"
       ],
       "dynamic_rotation": true,
+      "adaptive_trend_regime": "r6",
       "breakeven_floor": 0.58,
       "min_prob_threshold": 0.58
     },

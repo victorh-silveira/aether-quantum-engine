@@ -16,6 +16,7 @@ from indicator.pullback_indicators import (
     calc_stochastic,
     calc_williams_r,
 )
+from indicator.pullback_trend_regime import evaluate_trend_regime
 
 
 def evaluate_senior_institutional(
@@ -26,6 +27,7 @@ def evaluate_senior_institutional(
     atr: float,
     optimal_hours_brt: list[int] | None = None,
     module: Any = None,
+    trend_regime_mode: str = "r6",
 ) -> tuple[str, str]:
     """Avalia setup institucional senior sob confluencia dos 5 pilares."""
     mod = module or sys.modules.get("indicator.pullback")
@@ -215,6 +217,21 @@ def evaluate_senior_institutional(
     call = call_pullback or call_continuation
     put = put_pullback or put_continuation
     side = "CALL" if call else "PUT" if put else "SEM SINAL"
+    if side == "SEM SINAL":
+        trend_side = evaluate_trend_regime(
+            bars,
+            fast,
+            slow,
+            atr,
+            adx=adx,
+            pdi=pdi,
+            mdi=mdi,
+            m_hist=m_hist,
+            hurst=hurst,
+            mode=trend_regime_mode,
+        )
+        if trend_side in {"CALL", "PUT"}:
+            return trend_side, "setup_confirmado"
     if side != "SEM SINAL":
         reason = "setup_confirmado"
     elif (structural_call and call_rejection) or (structural_put and put_rejection):
