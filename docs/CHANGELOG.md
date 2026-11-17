@@ -1,3 +1,9 @@
+## [5.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.2...v5.3.0) (2026-11-17)
+
+### Funcionalidades
+
+* **all:** adicionar regime adaptativo de tendencia m15 ao setup institucional ([a64dc26](https://github.com/victorh-silveira/aether-quantum-engine/commit/a64dc26214e7324d3471d4ed01f90463c5521492))
+
 ## [5.2.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.1...v5.2.2) (2026-11-16)
 
 ### Correcoes de Bug
