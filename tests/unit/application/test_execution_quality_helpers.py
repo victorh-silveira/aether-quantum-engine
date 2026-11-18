@@ -2,10 +2,11 @@
 
 import pytest
 
-from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics, read_risk_session_state
-from src.application.services.execution_quality_gate_margin import (
+from src.application.services.execution_quality import (
+    apply_quality_penalty_to_metrics,
     direction_margin_from_probability,
     ensure_direction_margin,
+    read_risk_session_state,
 )
 
 

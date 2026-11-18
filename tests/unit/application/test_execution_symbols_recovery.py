@@ -1,11 +1,11 @@
 from types import SimpleNamespace
 
+from src.application.services.execution_helpers import recovery_candidate_pool
 from src.application.services.execution_symbols import (
     candidate_execution_score,
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
 )
-from src.application.services.execution_symbols_recovery import recovery_candidate_pool
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ALT_SYMBOL, ANCHOR, PAIR
 

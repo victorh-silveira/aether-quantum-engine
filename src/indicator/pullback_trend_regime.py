@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from indicator.domain import Candle
+from src.indicator.domain import Candle
 
 
 def evaluate_trend_regime(

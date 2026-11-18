@@ -1,4 +1,4 @@
-from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_helpers import contract_payload_is_settled
 
 
 def test_contract_payload_is_settled_flags():

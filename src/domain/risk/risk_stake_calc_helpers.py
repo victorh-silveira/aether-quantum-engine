@@ -19,6 +19,11 @@ from src.domain.risk.stake_target_proximity import apply_session_profit_lock
 from src.domain.risk.super_concordance_kelly import apply_super_concordance_kelly_fraction
 
 
+def _has_metrics(metrics: Any) -> bool:
+    """Indica se o objeto de metricas suporta leitura via .get."""
+    return metrics is not None and hasattr(metrics, "get")
+
+
 _SOFT_SIGNAL_FLAGS = (
     "loss_clf_soft",
     "cal_margin_soft",
@@ -53,7 +58,7 @@ def resolve_f_star_and_kelly_base(
     bankroll: float,
     kelly_f: float,
     sizing_conviction: float,
-    dl_metrics: dict | None,
+    dl_metrics: Any | None,
     order_direction: Any,
     recovery_active: bool,
     recovery_bypass_consensus: bool,
@@ -61,16 +66,10 @@ def resolve_f_star_and_kelly_base(
 ) -> tuple[float, float]:
     """Resolve f* e kelly_base com consensus/scale/floor."""
     f_star = apply_super_concordance_kelly_fraction(
-        kelly_f,
-        rm.kelly_config,
-        dl_metrics if isinstance(dl_metrics, dict) else None,
-        order_direction,
-        recovery_active=recovery_active,
+        kelly_f, rm.kelly_config, dl_metrics, order_direction, recovery_active=recovery_active
     )
     if not recovery_bypass_consensus:
         f_star = apply_consensus_entropy_f_star(rm, f_star, dl_metrics, order_direction, silent=silent)
-    elif isinstance(dl_metrics, dict):
-        dl_metrics["consensus_entropy_retention"] = 1.0
     f_star = apply_kelly_fraction_scale(f_star, dl_metrics)
     stake_min = float(rm.risk_params.get("stake_min", 1.0))
     kelly_base = (
@@ -107,7 +106,7 @@ def cap_final_stake(
     """Aplica safe_cap e max_stake_pct; retorna (stake, safe_cap)."""
     soft_cfg = getattr(rm, "soft_recovery_config", None)
     soft = soft_cfg if isinstance(soft_cfg, dict) else None
-    if isinstance(metrics, dict) and metrics.get("recovery_cap_mode") == "cover_l0":
+    if _has_metrics(metrics) and metrics.get("recovery_cap_mode") == "cover_l0":
         pct = float(configured_max_safe_stake_pct(soft))
         safe_cap = apply_small_account_hard_floor(float(bankroll) * pct, float(bankroll), soft_recovery=soft)
     else:
@@ -142,7 +141,7 @@ def apply_scale_stake_cap(
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
     """Aplica teto max_stake_pct_discord quando ha discordancia ou adaptacao."""
-    if not isinstance(metrics, dict):
+    if not _has_metrics(metrics):
         return float(final_stake)
     if pending_waives_scale_explore(float(pending_total), soft_recovery):
         return float(final_stake)
@@ -169,7 +168,7 @@ def apply_named_soft_stake_cap(
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
     """Teto percentual EXPLORE sob flag soft; waivado com pending material."""
-    if not isinstance(metrics, dict) or not bool(metrics.get(flag)):
+    if not _has_metrics(metrics) or not bool(metrics.get(flag)):
         return float(final_stake)
     if pending_waives_scale_explore(float(pending_total), soft_recovery):
         return float(final_stake)
@@ -214,7 +213,7 @@ def apply_signal_soft_stake_cap(
     soft_recovery: dict[str, Any] | None = None,
 ) -> float:
     """Teto EXPLORE so com soft_signal_max_stake_pct explicito; soft so atenua f*."""
-    if not isinstance(metrics, dict):
+    if not _has_metrics(metrics):
         return float(final_stake)
     if not any(bool(metrics.get(flag)) for flag in _SOFT_SIGNAL_FLAGS):
         return float(final_stake)
@@ -264,19 +263,30 @@ def apply_post_kelly_stake_caps(
     )
 
 
+def cap_provisional_stake_with_flag(
+    final_stake: float,
+    bankroll: float,
+    metrics: Any | None,
+    *,
+    safe_cap: float | None = None,
+) -> tuple[float, bool]:
+    """Impoe teto de checkpoint provisorio sem mutar metricas e indica se aplicou."""
+    if metrics is None or not hasattr(metrics, "get") or not bool(metrics.get("deploy_provisional", False)):
+        return float(final_stake), False
+    pct = checkpoint_stake_cap_pct(metrics)
+    caps = [float(final_stake), float(bankroll) * pct]
+    if safe_cap is not None and float(safe_cap) > 0.0:
+        caps.append(float(safe_cap))
+    return min(caps), True
+
+
 def cap_provisional_stake(
     final_stake: float,
     bankroll: float,
-    metrics: dict[str, Any] | None,
+    metrics: Any | None,
     *,
     safe_cap: float | None = None,
 ) -> float:
     """Impõe teto soberano de checkpoint provisório também no recovery."""
-    if not isinstance(metrics, dict) or not bool(metrics.get("deploy_provisional", False)):
-        return float(final_stake)
-    pct = checkpoint_stake_cap_pct(metrics)
-    metrics["provisional_stake_cap_applied"] = True
-    caps = [float(final_stake), float(bankroll) * pct]
-    if safe_cap is not None and float(safe_cap) > 0.0:
-        caps.append(float(safe_cap))
-    return min(caps)
+    capped, _applied = cap_provisional_stake_with_flag(final_stake, bankroll, metrics, safe_cap=safe_cap)
+    return capped

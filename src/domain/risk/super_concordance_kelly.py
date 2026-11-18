@@ -84,15 +84,15 @@ def resolve_super_concordance_fraction_multiplier(
     return float(cfg.get("super_concordance_booster", 1.5))
 
 
-def apply_super_concordance_kelly_fraction(
+def resolve_super_concordance_kelly_fraction(
     kelly_f: float,
     kelly_config: dict[str, Any],
-    dl_metrics: dict | None,
+    dl_metrics: Any | None,
     order_direction: str | None,
     *,
     recovery_active: bool,
-) -> float:
-    """Calcula f* com fracao Kelly expandida quando super-consenso estiver ativo."""
+) -> tuple[float, float, float]:
+    """Calcula (f*, multiplicador, fracao_efetiva) sem mutar metricas de entrada."""
     base_fraction = resolve_effective_kelly_fraction(kelly_config, recovery_active=recovery_active)
     multiplier = resolve_super_concordance_fraction_multiplier(
         dl_metrics,
@@ -101,8 +101,23 @@ def apply_super_concordance_kelly_fraction(
         recovery_active=recovery_active,
     )
     effective_fraction = base_fraction * multiplier
-    if isinstance(dl_metrics, dict) and multiplier > 1.0:
-        dl_metrics["super_concordance_booster_active"] = True
-        dl_metrics["super_concordance_fraction_multiplier"] = multiplier
-        dl_metrics["kelly_fraction_effective"] = effective_fraction
-    return max(0.0, float(kelly_f) * effective_fraction)
+    return max(0.0, float(kelly_f) * effective_fraction), multiplier, effective_fraction
+
+
+def apply_super_concordance_kelly_fraction(
+    kelly_f: float,
+    kelly_config: dict[str, Any],
+    dl_metrics: Any | None,
+    order_direction: str | None,
+    *,
+    recovery_active: bool,
+) -> float:
+    """Calcula f* com fracao Kelly expandida quando super-consenso estiver ativo."""
+    adjusted, _multiplier, _effective_fraction = resolve_super_concordance_kelly_fraction(
+        kelly_f,
+        kelly_config,
+        dl_metrics,
+        order_direction,
+        recovery_active=recovery_active,
+    )
+    return adjusted

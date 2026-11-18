@@ -192,7 +192,7 @@ def test_assert_production_doctrine_rejects_bad_invariants(mutator, match):
 
 
 def test_invalidate_ema_cache_clears_state():
-    from src.application.services import execution_ema_cache as ema
+    from src.application.services import execution_helpers as ema
 
     ema._STATE["cache"] = {"x": 1}
     ema.invalidate_ema_cache(7)

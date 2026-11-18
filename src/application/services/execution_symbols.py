@@ -1,7 +1,7 @@
 """Simbolos elegiveis e ranking de candidatos para execucao."""
 
+from src.application.services.execution_helpers import pending_recovery_active, recovery_candidate_pool
 from src.application.services.execution_market_rank import market_decision_score
-from src.application.services.execution_symbols_recovery import pending_recovery_active, recovery_candidate_pool
 from src.domain.models.trade import TradeDirection
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.execution_scale_vision import format_scale_ind_token
-from src.application.services.market_audit_gate_tokens import format_gates_audit_line
+from src.application.services.market_audit import format_gates_audit_line
 from src.application.services.market_audit_log_helpers import (
     indicator_snapshot,
     metric_float,

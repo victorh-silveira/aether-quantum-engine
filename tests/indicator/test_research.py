@@ -1,6 +1,6 @@
 """Selecao e calibracao em blocos temporais separados."""
 
-from indicator.research import brier, calibrate, logits, select_and_calibrate
+from src.indicator.research import brier, calibrate, logits, select_and_calibrate
 
 
 def test_candidate_selection_does_not_see_validation_labels():

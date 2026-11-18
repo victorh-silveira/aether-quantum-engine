@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from src.application.services.execution_helpers import pending_recovery_active
 from src.application.services.execution_loss_protection import (
     filter_loss_protection_candidates,
     filter_recovery_hurst_candidates,
@@ -10,7 +11,6 @@ from src.application.services.execution_symbols import (
     select_best_execution_candidate,
     select_mandatory_execution_candidate,
 )
-from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.indicator_consensus import (
     consensus_enabled,
     filter_indicator_candidates,

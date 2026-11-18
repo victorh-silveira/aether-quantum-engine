@@ -4,12 +4,12 @@ import asyncio
 
 import pytest
 
-from indicator.domain import LiveObservation, Signal
-from indicator.metrics import Metrics
+from src.indicator.domain import LiveObservation, Signal
+from src.indicator.metrics import Metrics
 
 
 def test_metrics_emit_only_observed_values(monkeypatch):
-    monkeypatch.setattr("indicator.metrics.time.time", lambda: 1270)
+    monkeypatch.setattr("src.indicator.metrics.time.time", lambda: 1270)
     metrics = Metrics()
     metrics.set_symbols({"R_75": "V75"})
     metrics.update(Signal("R_75", 300, 300, "SEM SINAL", None, None, "modelo_indisponivel", 100))
@@ -28,7 +28,7 @@ def test_metrics_emit_only_observed_values(monkeypatch):
     metrics.update(Signal("R_75", 300, 900, "SEM SINAL", None, None, "modelo_atualizado", 101))
     assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()
     metrics.update(Signal("R_75", 300, 900, "CALL", 0.6, "exp", "experimental", 101))
-    monkeypatch.setattr("indicator.metrics.time.time", lambda: 1400)
+    monkeypatch.setattr("src.indicator.metrics.time.time", lambda: 1400)
     assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()
     metrics.update(Signal("R_75", 300, 1200, "PUT", 0.4, "exp", "experimental", 102))
     assert 'aether_indicator_live_spot{symbol="R_75",period="300"}' not in metrics.render()

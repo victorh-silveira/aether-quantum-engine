@@ -1,22 +1,25 @@
 """Gerenciamento de Risco baseado no Critério de Kelly (Estratégia Profissional)."""
 
-import logging
 from typing import Any
 
+from src.domain.models.signal_evaluation import SignalEvaluation, StakeDecision
 from src.domain.risk.bayesian_win_rate import bayesian_win_rate
 from src.domain.risk.recovery_conviction import recovery_dl_conviction_ok, recovery_dl_entry_allowed
 from src.domain.risk.recovery_hurst_gate import resolve_recovery_signal_floor
-from src.domain.risk.risk_cluster import finalize_risk_cluster
-from src.domain.risk.risk_contract_result import apply_contract_settlement_result
 from src.domain.risk.risk_manager_restore import apply_risk_snapshot, build_risk_state_snapshot
-from src.domain.risk.risk_proposal_skip import ProposalSkipMixin
+from src.domain.risk.risk_models import (
+    NullLogger,
+    ProposalSkipMixin,
+    apply_contract_settlement_result,
+    finalize_risk_cluster,
+)
 from src.domain.risk.risk_recovery_state import (
     cointegration_redirect_armed,
     micro_tail_stake_cap,
     pending_loss_total as sum_pending_loss,
     recovery_financially_active as is_recovery_financially_active,
 )
-from src.domain.risk.risk_stake_calc import calculate_stake_for_manager
+from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
 from src.domain.risk.soft_recovery_policy import cointegration_valve_suppressed, resolve_soft_recovery_config
 from src.domain.risk.stake_target_proximity import apply_target_proximity_damping
 from src.domain.risk.stop_win_target import is_stop_win_reached, persisted_session_target, resolve_stop_win_target
@@ -25,7 +28,7 @@ from src.domain.risk.stop_win_target import is_stop_win_reached, persisted_sessi
 class RiskManager(ProposalSkipMixin):
     """Gerenciador de Risco que utiliza a fórmula de Kelly para dimensionamento de posição."""
 
-    def __init__(self, config: dict[str, Any]):
+    def __init__(self, config: dict[str, Any], *, logger: Any = None):
         """Inicializa o RiskManager com configurações de Kelly."""
         self.config = config
         self.kelly_config = config.get("kelly", {})
@@ -58,7 +61,7 @@ class RiskManager(ProposalSkipMixin):
         self.contract_to_symbol: dict[int, str] = {}
         self.cluster_results: dict[int, float] = {}
         self.expected_cluster_settlements = 0
-        self.logger = logging.getLogger("AETH")
+        self.logger = logger if logger is not None else NullLogger()
 
     def set_initial_bankroll(self, amount: float):
         """Define a banca inicial para rastreamento da sessão."""
@@ -195,9 +198,10 @@ class RiskManager(ProposalSkipMixin):
         if not self.recovery_financially_active():
             return False
         dl_metrics = kwargs.get("dl_metrics")
-        if isinstance(dl_metrics, dict):
+        if isinstance(dl_metrics, (dict, SignalEvaluation)):
+            raw_metrics = dl_metrics.to_dict() if isinstance(dl_metrics, SignalEvaluation) else dl_metrics
             return recovery_dl_entry_allowed(
-                dl_metrics,
+                raw_metrics,
                 self.kelly_config,
                 self.dlambert_config,
                 pending_loss=self.pending_loss,
@@ -217,6 +221,21 @@ class RiskManager(ProposalSkipMixin):
         )
         return apply_target_proximity_damping(kelly_stake_raw, target, self.total_session_profit)
 
+    def calculate_stake_decision(
+        self,
+        bankroll: float,
+        symbol: str,
+        conviction: float = 0.5,
+        *,
+        silent: bool = False,
+        apply_stop_win: bool = True,
+        **_kwargs,
+    ) -> StakeDecision:
+        """Calcula decisao tipada e imutavel de stake usando Kelly e Soft Recovery."""
+        return calculate_stake_decision_for_manager(
+            self, bankroll, symbol, conviction, silent=silent, apply_stop_win=apply_stop_win, kwargs=_kwargs
+        )
+
     def calculate_stake(
         self,
         bankroll: float,
@@ -228,15 +247,9 @@ class RiskManager(ProposalSkipMixin):
         **_kwargs,
     ) -> float:
         """Calcula a stake usando o Critério de Kelly com trava de Stop Win."""
-        return calculate_stake_for_manager(
-            self,
-            bankroll,
-            symbol,
-            conviction,
-            silent=silent,
-            apply_stop_win=apply_stop_win,
-            kwargs=_kwargs,
-        )
+        return self.calculate_stake_decision(
+            bankroll, symbol, conviction, silent=silent, apply_stop_win=apply_stop_win, **_kwargs
+        ).stake
 
     def begin_cluster(self, expected_settlements: int) -> None:
         """Marca inicio de cluster e quantidade de liquidacoes esperadas."""
@@ -258,16 +271,9 @@ class RiskManager(ProposalSkipMixin):
         current_tick: int = 0,
         *,
         direction: str | None = None,
-    ):
+    ) -> None:
         """Registra lucro/prejuízo e atualiza estatísticas."""
-        apply_contract_settlement_result(
-            self,
-            profit,
-            contract_id,
-            symbol,
-            current_tick,
-            direction=direction,
-        )
+        apply_contract_settlement_result(self, profit, contract_id, symbol, current_tick, direction=direction)
 
     def _finalize_cluster(self):
         """Limpeza após ciclo."""

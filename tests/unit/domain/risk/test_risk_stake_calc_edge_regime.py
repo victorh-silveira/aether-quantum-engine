@@ -49,7 +49,9 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
         "put_votes": 6,
         "indicators": {"di_diff": -0.06, "cmo": -0.71},
     }
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         11000.0,
         "R_10",
@@ -58,8 +60,8 @@ def test_calculate_stake_neutral_regime_uses_dynamic_bankroll_base(kelly_config)
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "PUT"},
     )
-    assert stake == pytest.approx(110.0)
-    assert metrics.get("session_base_unit") == pytest.approx(110.0)
+    assert decision.stake == pytest.approx(110.0)
+    assert decision.to_telemetry_updates().get("session_base_unit") == pytest.approx(110.0)
 
 
 def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
@@ -86,7 +88,9 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": dict(base_metrics), "order_direction": "PUT"},
     )
-    stake_turbo = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision_turbo = calculate_stake_decision_for_manager(
         rm,
         11000.0,
         "R_10",
@@ -95,9 +99,10 @@ def test_calculate_stake_turbo_edge_doubles_final_stake(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
+    stake_turbo = decision_turbo.stake
     assert stake_base == pytest.approx(110.0)
     assert stake_turbo == pytest.approx(min(stake_base * 2.0, 11000.0 * 0.035))
-    assert turbo_metrics.get("consensus_turbo_edge_active") is True
+    assert decision_turbo.to_telemetry_updates().get("consensus_turbo_edge_active") is True
 
 
 def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
@@ -139,7 +144,9 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
     cover = 36.72 / 0.72 / float(amort) * float(rm.soft_recovery_config.get("cover_multiple", 1.0))
     floor = bankroll * 0.01
     assert stake_neutral == pytest.approx(max(cover, floor), rel=5e-2)
-    stake_turbo = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision_turbo = calculate_stake_decision_for_manager(
         rm,
         bankroll,
         "R_10",
@@ -148,10 +155,11 @@ def test_calculate_stake_c0007_turbo_on_clean_recovery_base(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": turbo_metrics, "order_direction": "PUT"},
     )
+    stake_turbo = decision_turbo.stake
     soft_pct = float(rm.soft_recovery_config.get("max_safe_stake_pct", 0.05))
     assert stake_turbo >= stake_neutral
     assert stake_turbo <= bankroll * soft_pct + 1e-6
-    assert turbo_metrics.get("consensus_turbo_edge_active") is True
+    assert decision_turbo.to_telemetry_updates().get("consensus_turbo_edge_active") is True
 
 
 def test_calculate_stake_d_squeeze_keeps_floor_not_turbo(kelly_config):

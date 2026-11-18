@@ -7,13 +7,13 @@ from dataclasses import dataclass
 from hashlib import sha256
 from math import isfinite
 
-from indicator.domain import Candle
-from indicator.institutional import (  # noqa: F401
+from src.indicator.domain import Candle
+from src.indicator.institutional import (  # noqa: F401
     detect_fvg_mitigation,
     is_within_killzone,
     session_price_reference,
 )
-from indicator.pullback_indicators import (
+from src.indicator.pullback_indicators import (
     calc_adx,
     calc_atr,
     calc_bollinger_pct_b,
@@ -29,7 +29,7 @@ from indicator.pullback_indicators import (
     calc_williams_r,
     ema_direct,
 )
-from indicator.pullback_senior import evaluate_senior_institutional
+from src.indicator.pullback_senior import evaluate_senior_institutional
 
 
 SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"

@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from src.application.services.execution_quality_gate import read_risk_session_state
+from src.application.services.execution_quality import read_risk_session_state
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.warm_up_buffer_guard import resolve_stream_warm_up_delay_seconds
 

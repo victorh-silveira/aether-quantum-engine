@@ -9,7 +9,7 @@ from typing import Any
 from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
 from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
 from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
-from src.application.services.execution_ema_cache import invalidate_ema_cache
+from src.application.services.execution_helpers import invalidate_ema_cache
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.indicator_consensus import refresh_indicator_consensus
 from src.application.services.orchestrator.cycle_indicators_logger import log_cycle_indicators

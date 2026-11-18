@@ -6,12 +6,12 @@ import pytest
 from test_pullback import call_bars
 from test_storage import Pool
 
-from indicator.domain import Signal
-from indicator.pullback import MIN_BARS, VERSION
-from indicator.pullback_service import PullbackService
-from indicator.pullback_source import PullbackSource
-from indicator.pullback_store import PullbackStore
-from indicator.pullback_training import diagnose_all
+from src.indicator.domain import Signal
+from src.indicator.pullback import MIN_BARS, VERSION
+from src.indicator.pullback_service import PullbackService
+from src.indicator.pullback_source import PullbackSource
+from src.indicator.pullback_store import PullbackStore
+from src.indicator.pullback_training import diagnose_all
 
 
 class Source:
@@ -88,7 +88,7 @@ async def test_service_publishes_once_per_closed_candle_and_isolates_failure(mon
         sleep_calls.append(delay)
         raise asyncio.CancelledError
 
-    monkeypatch.setattr("indicator.pullback_service.asyncio.sleep", stop)
+    monkeypatch.setattr("src.indicator.pullback_service.asyncio.sleep", stop)
     with pytest.raises(asyncio.CancelledError):
         await service.run()
     assert 0.25 <= sleep_calls[0] <= 30.35
@@ -101,7 +101,7 @@ async def test_store_writes_isolated_schema(monkeypatch):
     async def create_pool(*args, **kwargs):
         return pool
 
-    monkeypatch.setattr("indicator.storage.asyncpg.create_pool", create_pool)
+    monkeypatch.setattr("src.indicator.storage.asyncpg.create_pool", create_pool)
     store = PullbackStore("postgresql://local")
     await store.start()
     await store.register_setups({"R_25": "V25"})
@@ -134,7 +134,7 @@ async def test_store_writes_isolated_schema(monkeypatch):
 @pytest.mark.asyncio
 async def test_training_reports_proxy_without_qualifying_contracts(monkeypatch):
     source, sink = Source(), Sink()
-    from indicator.domain import Candle
+    from src.indicator.domain import Candle
 
     bars = [
         Candle(i * 900, 100 + i * 0.1, 100 + i * 0.1 + 0.08, 100 + i * 0.1 - 0.08, 100 + i * 0.1 + 0.04)
@@ -148,7 +148,7 @@ async def test_training_reports_proxy_without_qualifying_contracts(monkeypatch):
         sink.saved = len(candles)
 
     sink.save_candles = save_candles
-    monkeypatch.setattr("indicator.pullback_training.history", history)
+    monkeypatch.setattr("src.indicator.pullback_training.history", history)
     report = await diagnose_all(source, sink, now=5000 * 900)
     assert report["R_25:900"]["estado"] == "PROXY DE VELAS"
     assert report["R_25:900"]["versao"] == VERSION
@@ -158,8 +158,8 @@ async def test_training_reports_proxy_without_qualifying_contracts(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monkeypatch):
-    from indicator.domain import Candle
-    from indicator.pullback import SetupResult
+    from src.indicator.domain import Candle
+    from src.indicator.pullback import SetupResult
 
     source, sink = Source(), Sink()
     bars = [
@@ -188,8 +188,8 @@ async def test_training_proxy_counts_wins_losses_ties_and_handles_failures(monke
         )
 
     sink.save_candles = AsyncSave()
-    monkeypatch.setattr("indicator.pullback_training.history", history)
-    monkeypatch.setattr("indicator.pullback_training.evaluate", setup)
+    monkeypatch.setattr("src.indicator.pullback_training.history", history)
+    monkeypatch.setattr("src.indicator.pullback_training.evaluate", setup)
     report = await diagnose_all(source, sink, now=5000 * 900)
     assert report["R_25:900"]["acertos"] == 1
     assert report["R_25:900"]["erros"] == 1
@@ -238,7 +238,7 @@ async def test_public_source_rotates_four_independent_connections(monkeypatch):
         async def close(self):
             self.closed = True
 
-    monkeypatch.setattr("indicator.pullback_source.PublicDeriv", Client)
+    monkeypatch.setattr("src.indicator.pullback_source.PublicDeriv", Client)
     source = PullbackSource("url")
     assert len(created) == 4
     assert await source.symbols() == [{"underlying_symbol": "R_25"}]
@@ -273,7 +273,7 @@ async def test_service_empty_catalog_and_no_candles():
 
 
 def test_compute_hourly_profile_branches():
-    from indicator.pullback_training import compute_hourly_profile
+    from src.indicator.pullback_training import compute_hourly_profile
 
     by_hour = {10: [5, 1, 0], 11: [4, 2, 0], 12: [1, 4, 0]}
     optimal, window, profile = compute_hourly_profile(by_hour)

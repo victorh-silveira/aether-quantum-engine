@@ -12,11 +12,9 @@ from src.application.services.deep_learning.dl_calibration_fit import (
     fit_calibrator,
     maybe_identity_on_oos_collapse,
 )
-from src.application.services.deep_learning.dl_calibration_sharpen import (
-    maybe_temperature_sharpen_for_export,
-)
-from src.application.services.deep_learning.dl_calibration_variance import (
+from src.application.services.deep_learning.dl_calibration_methods import (
     maybe_identity_on_variance_collapse,
+    maybe_temperature_sharpen_for_export,
 )
 from src.application.services.deep_learning.dl_device import (
     log_device_once,

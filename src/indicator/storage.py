@@ -7,8 +7,8 @@ from typing import Any
 
 import asyncpg
 
-from indicator.domain import Candle, LiveObservation, Signal
-from indicator.storage_ddl import (
+from src.indicator.domain import Candle, LiveObservation, Signal
+from src.indicator.storage_ddl import (
     ACTIVATE_PROMOTED_PILOTS_SQL,
     DEACTIVATE_REPLACED_ACTIVES_SQL,
     INIT_TABLES_SQL,

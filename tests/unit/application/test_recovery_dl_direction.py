@@ -1,5 +1,5 @@
+from src.application.services.execution_helpers import recovery_candidate_pool
 from src.application.services.execution_symbols import select_best_execution_candidate
-from src.application.services.execution_symbols_recovery import recovery_candidate_pool
 from src.domain.models.trade import TradeDirection
 from tests.market_symbols import ANCHOR, HEDGE_PEER_SYMBOL, PAIR
 

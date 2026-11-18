@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.application.services.execution_payout import resolve_execution_payout
+from src.application.services.execution_helpers import resolve_execution_payout
 
 
 def test_resolve_execution_payout_prefers_observed_session_quote():

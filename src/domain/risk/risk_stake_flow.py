@@ -176,6 +176,104 @@ def emit_cycle_stake_log(
     }
 
 
+def emit_stake_decision_logs(
+    rm: Any,
+    *,
+    dl_eval: Any | None,
+    cycle_id: int,
+    silent: bool,
+    mode_tag: str,
+    final_stake: float,
+    f_star: float,
+    p: float,
+    b: float,
+    bankroll: float,
+    loss_to_recover: float,
+    linear_losses: int,
+    symbol: str,
+    rec_info: str,
+    stake_regime: str,
+    safe_cap: float,
+) -> None:
+    """Emite logs diagnosticos e auditoria do ciclo para decisao de stake."""
+    recovery_infeasible = bool(dl_eval is not None and dl_eval.get("recovery_infeasible"))
+    if recovery_infeasible and not silent:
+        rm.logger.debug(
+            "RECOVERY_INFEASIBLE | pending=%.2f | cap=%.2f | linear=%d | mode=%s",
+            float(loss_to_recover),
+            float(safe_cap),
+            int(linear_losses),
+            stake_regime,
+        )
+    live_wr = dl_eval.get("live_wr") if dl_eval is not None else None
+    live_n = int(dl_eval.get("live_n", 0) or 0) if dl_eval is not None else 0
+    if not silent:
+        rm.logger.debug(
+            "KELLY | p=%.4f | live_wr=%s | live_n=%d | f*=%.6f | mode=%s",
+            float(p),
+            f"{float(live_wr):.4f}" if live_wr is not None else "n/a",
+            int(live_n),
+            float(f_star),
+            stake_regime.lower(),
+        )
+    emit_cycle_stake_log(
+        rm,
+        cycle_id=cycle_id,
+        silent=silent,
+        mode_tag=mode_tag,
+        final_stake=final_stake,
+        f_star=f_star,
+        p=p,
+        b=b,
+        bankroll=bankroll,
+        loss_to_recover=loss_to_recover,
+        linear_losses=linear_losses,
+        symbol=symbol,
+        rec_info=rec_info,
+        stake_regime=stake_regime,
+        safe_cap=safe_cap,
+        recovery_infeasible=recovery_infeasible,
+    )
+
+
+def metrics_for_conviction(dl_metrics: Any | None, conviction: float) -> dict:
+    """Monta copia de metricas para resolver conviccao de sizing sem mutar entrada."""
+    if dl_metrics is not None and hasattr(dl_metrics, "get"):
+        merged = dict(dl_metrics.raw) if hasattr(dl_metrics, "raw") else dict(dl_metrics)
+        merged.setdefault("trade_score", conviction)
+        merged.setdefault("conviction", conviction)
+        return merged
+    return {"trade_score": conviction, "conviction": conviction}
+
+
+def mandatory_trade_flag(kwargs: dict, rm: Any) -> bool:
+    """Indica se o ciclo exige entrada obrigatoria independente de conviccao."""
+    orch_exec = rm.config.get("orchestrator", {}).get("execution", {})
+    return bool(
+        kwargs.get("mandatory_weak_cap")
+        or kwargs.get("mandatory_trade_each_cycle")
+        or orch_exec.get("mandatory_trade_each_cycle", False)
+    )
+
+
+def resolve_recovery_flags(
+    rm: Any,
+    symbol: str,
+    conviction: float,
+    loss_to_recover: float,
+    *,
+    squeeze_sovereignty: bool,
+    kwargs: dict,
+) -> tuple[bool, bool, bool, int]:
+    """Resolve flags de recovery e perdas lineares para sizing."""
+    recovery_active = rm._recovery_allowed(symbol, conviction, **kwargs)
+    recovery_financial = bool(loss_to_recover)
+    linear_losses = int(getattr(rm, "consecutive_losses_linear", 0))
+    recovery_stress = (recovery_financial or linear_losses > 0) and not squeeze_sovereignty
+    recovery_bypass_consensus = float(loss_to_recover) > 0.0 and not squeeze_sovereignty
+    return recovery_active, recovery_stress, recovery_bypass_consensus, linear_losses
+
+
 def stop_win_target_reached(rm: Any, *, apply_stop_win: bool) -> bool:
     """Retorna True quando lucro da sessao atingiu o alvo de stop win diario."""
     if not apply_stop_win:

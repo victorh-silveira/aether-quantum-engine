@@ -5,10 +5,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from indicator.model import LOOKBACK, sigmoid
-from indicator.optimizer import fit_logistic
-from indicator.research import calibrate
-from indicator.validation import (
+from src.indicator.model import LOOKBACK, sigmoid
+from src.indicator.optimizer import fit_logistic
+from src.indicator.research import calibrate
+from src.indicator.validation import (
     block_bootstrap_lower,
     brier_predictions,
     expected_calibration_error,

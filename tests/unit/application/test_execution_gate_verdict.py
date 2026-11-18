@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.application.services.execution_gate_verdict import (
+from src.application.services.execution_quality import (
     VERDICT_ALLOW,
     VERDICT_HARD_SKIP,
     VERDICT_SOFT_SIZE,
@@ -257,7 +257,7 @@ def test_apply_stop_win_kelly_boost_soft_early_return_without_boost_flags():
 
 
 def test_metrics_block_execution():
-    from src.application.services.execution_gate_verdict import metrics_block_execution
+    from src.application.services.execution_quality import metrics_block_execution
 
     assert metrics_block_execution(None) is False
     assert metrics_block_execution({"execution_candidate_ready": False}) is True

@@ -6,7 +6,7 @@ from typing import Any
 
 from src.application.services.indicator_order_claims import release_order_symbol_claim
 from src.application.services.log_dedupe import log_warning_if_changed
-from src.application.services.market_audit_contract import broker_price_audit
+from src.application.services.market_audit import broker_price_audit
 from src.application.services.market_audit_log import (
     format_settlement_audit_line,
     pop_contract_audit,
@@ -21,18 +21,19 @@ from src.application.services.orchestrator.session_persistence_barrier import (
     run_linear_reset_persistence_barrier,
 )
 from src.application.services.orchestrator.settlement_audit import record_settlement_audit
-from src.application.services.orchestrator.settlement_cluster_log import log_cluster_summary
-from src.application.services.orchestrator.settlement_dedupe import settlement_lock, settlement_seen
-from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_helpers import (
+    contract_payload_is_settled,
+    emit_contract_settlement_log as _emit_contract_settlement_log,
+    log_cluster_summary,
+    process_settlement_outcome as _process_contract_outcome,
+    settlement_lock,
+    settlement_seen,
+)
 from src.application.services.orchestrator.settlement_loss_quarantine import handle_settlement_loss_quarantine
 from src.application.services.orchestrator.settlement_outcome import (
     check_session_limits_before_post_settlement,
     sync_state_manager_session,
     update_state_manager_and_check_stop_win,
-)
-from src.application.services.orchestrator.settlement_process import (
-    emit_contract_settlement_log as _emit_contract_settlement_log,
-    process_settlement_outcome as _process_contract_outcome,
 )
 from src.application.services.orchestrator.settlement_queue_ops import push_to_redis_priority_queue
 from src.application.services.pullback_recovery_claim import release_recovery

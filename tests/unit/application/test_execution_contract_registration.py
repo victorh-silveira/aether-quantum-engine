@@ -9,7 +9,7 @@ import pytest
 from src.application.services import indicator_consensus
 from src.application.services.orchestrator.execution_contract_registration import register_confirmed_contract
 from src.application.services.orchestrator.execution_manager_execute import execute_cluster_orders
-from src.application.services.orchestrator.settlement_dedupe import settlement_lock
+from src.application.services.orchestrator.settlement_helpers import settlement_lock
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
 from src.infrastructure.state.trading_state import TradingState

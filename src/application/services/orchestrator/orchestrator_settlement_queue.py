@@ -8,20 +8,22 @@ from typing import Any
 
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
 from src.application.services.orchestrator.engine_supervisor import spawn_background
+from src.application.services.orchestrator.settlement_audit import (
+    clear_contract_metadata,
+    prune_orphan_contract_ids,
+)
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
-from src.application.services.orchestrator.settlement_dedupe import settlement_seen
-from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_helpers import (
+    contract_payload_is_settled,
+    fetch_portfolio,
+    settlement_seen,
+)
 from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
 )
 from src.application.services.orchestrator.settlement_queue_ops import (
     process_redis_settlement_queue,
 )
-from src.application.services.orchestrator.settlement_utils import (
-    clear_contract_metadata,
-    prune_orphan_contract_ids,
-)
-from src.application.services.orchestrator.settlement_ws_queries import fetch_portfolio
 
 
 DEFAULT_SETTLEMENT_BACKOFF_INITIAL_SECONDS = 1.0

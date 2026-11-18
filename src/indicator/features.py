@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from indicator.domain import Candle
+from src.indicator.domain import Candle
 
 
 LOOKBACK = 8

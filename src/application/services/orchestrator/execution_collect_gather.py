@@ -1,12 +1,14 @@
 """Coleta de candidatos com boletamento continuo, sem veto de qualidade."""
 
 from src.application.services.deep_learning.dl_conformal_uncertainty import evaluate_conformal_gate
-from src.application.services.execution_direction import build_execution_candidate
-from src.application.services.execution_direction_cross_corr import cached_correlation_matrix
-from src.application.services.execution_gate_verdict import metrics_block_execution, stamp_hard_skip
+from src.application.services.execution_direction import build_execution_candidate, cached_correlation_matrix
+from src.application.services.execution_helpers import apply_volatility_vol_booster
 from src.application.services.execution_loss_protection import apply_loss_protection_penalties
-from src.application.services.execution_quality_gate import apply_quality_penalty_to_metrics
-from src.application.services.execution_volatility_booster import apply_volatility_vol_booster
+from src.application.services.execution_quality import (
+    apply_quality_penalty_to_metrics,
+    metrics_block_execution,
+    stamp_hard_skip,
+)
 from src.application.services.orchestrator.execution_recovery_gate import cluster_entry_eligible
 from src.domain.analytics.regime_ensemble import apply_regime_ensemble_gate
 

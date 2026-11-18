@@ -1,6 +1,6 @@
 """Testes unitarios para formatadores de telemetria de movimento e vela ao vivo."""
 
-from src.application.services.market_audit_movement import (
+from src.application.services.market_audit import (
     format_live_candle_line,
     format_next_movement_line,
 )

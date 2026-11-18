@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from math import isfinite, sqrt
 
-from indicator.domain import Candle
+from src.indicator.domain import Candle
 
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))

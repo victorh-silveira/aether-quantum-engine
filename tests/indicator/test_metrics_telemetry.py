@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from indicator.domain import Signal
-from indicator.institutional import market_session_status_brt
-from indicator.metrics import Metrics
+from src.indicator.domain import Signal
+from src.indicator.institutional import market_session_status_brt
+from src.indicator.metrics import Metrics
 
 
 def test_indicator_metrics_render_runtime_telemetry():
@@ -41,7 +41,7 @@ def test_market_session_status_brt_weekend_and_custom():
 
 
 async def test_pullback_service_tick_records_duration():
-    from indicator.pullback_service import PERIODS, PullbackService
+    from src.indicator.pullback_service import PERIODS, PullbackService
 
     class FakeSink:
         async def promote_setups(self):
@@ -63,7 +63,7 @@ async def test_run_indicator_attaches_rtt_callback(tmp_path, monkeypatch):
     import asyncio
     from types import SimpleNamespace
 
-    import indicator.service as ind_service
+    import src.indicator.service as ind_service
 
     attached: list[object] = []
 

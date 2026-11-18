@@ -99,7 +99,9 @@ def test_recovery_near_stop_keeps_cover_regime_with_pend(kelly_config):
         "amort_cycles_max": 1,
     }
     metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}
-    calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         10000.0,
         "R_10",
@@ -108,9 +110,10 @@ def test_recovery_near_stop_keeps_cover_regime_with_pend(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "cycle_id": 12},
     )
-    assert metrics.get("recovery_force_explore") is not True
-    assert metrics.get("stake_regime") == "RECOVER"
-    assert metrics.get("recovery_cap_mode") == "cover_l0"
+    tele = decision.to_telemetry_updates()
+    assert tele.get("recovery_force_explore") is not True
+    assert decision.stake_regime == "RECOVER"
+    assert tele.get("recovery_cap_mode") == "cover_l0"
 
     rm = _rm(kelly_config)
     rm.pending_loss = {"R_10": 80.0}
@@ -128,7 +131,7 @@ def test_recovery_near_stop_keeps_cover_regime_with_pend(kelly_config):
         "cover_multiple": 1.5,
     }
     metrics = {"execute": True, "trade_score": 0.70, "raw_prob": 0.70}
-    calculate_stake_for_manager(
+    decision = calculate_stake_decision_for_manager(
         rm,
         90.0,
         "R_10",
@@ -137,11 +140,12 @@ def test_recovery_near_stop_keeps_cover_regime_with_pend(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "cycle_id": 11},
     )
+    tele = decision.to_telemetry_updates()
     logged = " ".join(str(c) for c in rm.logger.debug.call_args_list + rm.logger.info.call_args_list)
-    assert "RECOVERY_INFEASIBLE" in logged or metrics.get("recovery_infeasible") is True
-    assert metrics.get("recovery_force_explore") is False
-    assert metrics.get("recovery_infeasible_cap_stake") is True
-    assert metrics.get("stake_regime") == "RECOVER"
+    assert "RECOVERY_INFEASIBLE" in logged or tele.get("recovery_infeasible") is True
+    assert tele.get("recovery_force_explore") is False
+    assert tele.get("recovery_infeasible_cap_stake") is True
+    assert decision.stake_regime == "RECOVER"
 
 
 def test_cross_veto_waiver_and_mandatory_weak_zero_pct_residual():

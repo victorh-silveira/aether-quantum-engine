@@ -1,4 +1,4 @@
-from src.domain.risk.risk_policy import load_risk_policy, validate_engine_risk_config
+from src.domain.risk.risk_models import load_risk_policy, validate_engine_risk_config
 
 
 def test_load_risk_policy_reads_nested_defaults():

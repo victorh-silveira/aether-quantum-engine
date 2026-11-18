@@ -97,7 +97,9 @@ def test_calculate_stake_consensus_uses_neutral_floor_when_kelly_tiny(kelly_conf
         "put_votes": 6,
         "indicators": {"di_diff": -0.90, "cmo": -0.90, "rsi": 0.15},
     }
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         11800.0,
         "R_10",
@@ -106,8 +108,10 @@ def test_calculate_stake_consensus_uses_neutral_floor_when_kelly_tiny(kelly_conf
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == pytest.approx(11800.0 * float(rm.kelly_config["neutral_bankroll_pct"]))
-    assert metrics.get("session_base_unit") == pytest.approx(11800.0 * float(rm.kelly_config["neutral_bankroll_pct"]))
+    assert decision.stake == pytest.approx(11800.0 * float(rm.kelly_config["neutral_bankroll_pct"]))
+    assert decision.to_telemetry_updates().get("session_base_unit") == pytest.approx(
+        11800.0 * float(rm.kelly_config["neutral_bankroll_pct"])
+    )
 
 
 def test_calculate_stake_consensus_penalty_logs_retention(kelly_config):
@@ -190,7 +194,9 @@ def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_c
         "put_votes": 5,
         "indicators": {"di_diff": 0.01, "cmo": -0.18},
     }
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         11800.0,
         "R_10",
@@ -199,10 +205,11 @@ def test_calculate_stake_d_squeeze_preserves_recovery_stake_with_pending(kelly_c
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake > 50.0
-    assert stake <= max_safe_stake_cap(11800.0, consecutive_losses_linear=3) + 1e-9
-    assert metrics.get("d_squeeze_floor_waived_for_recovery") is True
-    assert metrics.get("d_squeeze_recovery_waiver_revoked") is not True
+    tele = decision.to_telemetry_updates()
+    assert decision.stake > 50.0
+    assert decision.stake <= max_safe_stake_cap(11800.0, consecutive_losses_linear=3) + 1e-9
+    assert tele.get("d_squeeze_floor_waived_for_recovery") is True
+    assert tele.get("d_squeeze_recovery_waiver_revoked") is not True
 
 
 def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config):
@@ -236,7 +243,9 @@ def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config
         "put_votes": 5,
         "indicators": {"di_diff": 0.01, "cmo": -0.18},
     }
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         11800.0,
         "R_10",
@@ -245,6 +254,7 @@ def test_calculate_stake_d_squeeze_revokes_recovery_waiver_at_floor(kelly_config
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake == pytest.approx(118.0)
-    assert metrics.get("d_squeeze_recovery_waiver_revoked") is True
-    assert metrics.get("consensus_penalty_recovery_waived") is not True
+    tele = decision.to_telemetry_updates()
+    assert decision.stake == pytest.approx(118.0)
+    assert tele.get("d_squeeze_recovery_waiver_revoked") is True
+    assert tele.get("consensus_penalty_recovery_waived") is not True

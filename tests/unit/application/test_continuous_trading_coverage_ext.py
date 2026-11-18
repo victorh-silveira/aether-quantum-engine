@@ -5,7 +5,7 @@ import pytest
 
 from src.application.services.deep_learning.dl_model_types import FeatureNormStats
 from src.application.services.deep_learning.dl_predict_async import predict_symbol_decision_async
-from src.application.services.execution_direction_cross_corr import (
+from src.application.services.execution_direction import (
     adjust_dl_weight_with_correlation,
     cached_correlation_matrix,
 )

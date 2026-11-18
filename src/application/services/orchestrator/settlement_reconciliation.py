@@ -6,17 +6,17 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from src.application.services.orchestrator.settlement_audit import is_transient_broker_error, mark_ws_offline
 from src.application.services.orchestrator.settlement_backfill import (
     backfill_inferred_rest_contracts,
     reconcile_single_contract,
     settlement_payload_from_profit_row,
 )
+from src.application.services.orchestrator.settlement_helpers import fetch_portfolio, fetch_profit_table
 from src.application.services.orchestrator.settlement_logic import (
     process_contract_settlement,
     process_late_settlement_from_payload,
 )
-from src.application.services.orchestrator.settlement_utils import is_transient_broker_error, mark_ws_offline
-from src.application.services.orchestrator.settlement_ws_queries import fetch_portfolio, fetch_profit_table
 
 
 @dataclass

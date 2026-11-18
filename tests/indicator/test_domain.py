@@ -1,6 +1,6 @@
 """Contratos de dominio para catalogo e velas."""
 
-from indicator.domain import (
+from src.indicator.domain import (
     Candle,
     Signal,
     aggregate,

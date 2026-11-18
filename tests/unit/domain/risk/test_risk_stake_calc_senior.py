@@ -46,7 +46,9 @@ def test_thin_edge_still_sizes_via_kelly_p_floor(kelly_config):
     rm.effective_win_rate = MagicMock(side_effect=lambda _s, conviction, metrics=None: float(conviction))
     metrics = {"execute": True, "calibrated_prob": 0.51, "trade_score": 0.51}
     bankroll = 10000.0
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         bankroll,
         "R_10",
@@ -55,9 +57,9 @@ def test_thin_edge_still_sizes_via_kelly_p_floor(kelly_config):
         apply_stop_win=True,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert stake > 0.0
-    assert stake >= bankroll * 0.01 - 1e-6
-    assert float(metrics.get("kelly_side_p", 0.0)) >= 0.55
+    assert decision.stake > 0.0
+    assert decision.stake >= bankroll * 0.01 - 1e-6
+    assert float(decision.to_telemetry_updates().get("kelly_side_p", 0.0)) >= 0.55
 
 
 def test_soft_veto_still_blocks_without_senior(kelly_config):

@@ -101,9 +101,11 @@ def test_calculate_stake_neutral_without_super_concordance(kelly_config):
 
 
 def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_config):
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
     rm = _risk_manager(kelly_config)
     aligned_metrics = _hyper_aligned_metrics()
-    calculate_stake_for_manager(
+    aligned_dec = calculate_stake_decision_for_manager(
         rm,
         10000.0,
         "R_10",
@@ -112,7 +114,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
         apply_stop_win=False,
         kwargs={"dl_metrics": aligned_metrics, "order_direction": "CALL"},
     )
-    assert aligned_metrics.get("super_concordance_booster_active") is True
+    assert aligned_dec.super_concordance_booster_active is True
 
     baseline_rm = _risk_manager(kelly_config)
     baseline_rm.kelly_config["super_concordance_enabled"] = False
@@ -128,7 +130,7 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
 
     diverged_rm = _risk_manager(kelly_config)
     diverged_metrics = _diverged_metrics()
-    diverged_stake = calculate_stake_for_manager(
+    diverged_dec = calculate_stake_decision_for_manager(
         diverged_rm,
         10000.0,
         "R_10",
@@ -137,15 +139,17 @@ def test_calculate_stake_divergence_blocks_booster_and_applies_consensus(kelly_c
         apply_stop_win=False,
         kwargs={"dl_metrics": diverged_metrics, "order_direction": "CALL"},
     )
-    assert diverged_metrics.get("super_concordance_booster_active") is not True
-    assert diverged_metrics.get("consensus_entropy_retention", 1.0) < 1.0
-    assert diverged_stake <= baseline_stake
+    assert diverged_dec.super_concordance_booster_active is not True
+    assert diverged_dec.consensus_entropy_retention < 1.0
+    assert diverged_dec.stake <= baseline_stake
 
 
 def test_calculate_stake_super_concordance_expands_fraction(kelly_config):
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
     rm = _risk_manager(kelly_config)
     metrics = _hyper_aligned_metrics()
-    stake = calculate_stake_for_manager(
+    decision = calculate_stake_decision_for_manager(
         rm,
         10000.0,
         "R_10",
@@ -154,6 +158,6 @@ def test_calculate_stake_super_concordance_expands_fraction(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "order_direction": "CALL"},
     )
-    assert metrics.get("super_concordance_booster_active") is True
-    assert metrics.get("kelly_fraction_effective") == pytest.approx(0.105)
-    assert stake == pytest.approx(350.0)
+    assert decision.super_concordance_booster_active is True
+    assert decision.kelly_fraction_effective == pytest.approx(0.105)
+    assert decision.stake == pytest.approx(350.0)

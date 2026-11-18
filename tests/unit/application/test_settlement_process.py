@@ -1,8 +1,8 @@
-"""Testes unitários para o módulo settlement_process."""
+"""Testes unitários para o módulo settlement_helpers."""
 
 from unittest.mock import MagicMock, patch
 
-from src.application.services.orchestrator.settlement_process import (
+from src.application.services.orchestrator.settlement_helpers import (
     emit_contract_settlement_log,
     process_settlement_outcome,
 )
@@ -37,6 +37,6 @@ def test_emit_contract_settlement_log_buffered():
 def test_process_settlement_outcome_delegates():
     orch = MagicMock()
     c = {"contract_id": 100}
-    with patch("src.application.services.orchestrator.settlement_process.process_contract_outcome") as mock_outcome:
+    with patch("src.application.services.orchestrator.settlement_helpers.process_contract_outcome") as mock_outcome:
         process_settlement_outcome(orch, c, None, 100, 10.5, audit_direction="CALL", audit_raw_prob=0.6)
         mock_outcome.assert_called_once()

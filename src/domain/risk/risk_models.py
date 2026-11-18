@@ -1,9 +1,70 @@
-"""Politica unica de pisos e flags de risco/execucao lida da config."""
+"""Modelos, politica de risco, cooldown de proposta e finalizacao de cluster."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
+
+from src.domain.risk.executed_stake_reconciliation import apply_contract_settlement_result
+from src.domain.risk.risk_recovery_state import apply_cluster_profit_to_recovery_state
+
+
+__all__ = (
+    "NullLogger",
+    "ProposalSkipMixin",
+    "RiskPolicy",
+    "apply_contract_settlement_result",
+    "finalize_risk_cluster",
+    "load_risk_policy",
+    "validate_engine_risk_config",
+)
+
+
+class NullLogger:
+    """Logger noop de dominio quando nenhum adaptador externo e injetado."""
+
+    def debug(self, *_args: Any, **_kwargs: Any) -> None:
+        """Ignora mensagens debug no dominio puro."""
+
+    def info(self, *_args: Any, **_kwargs: Any) -> None:
+        """Ignora mensagens info no dominio puro."""
+
+
+def finalize_risk_cluster(risk_manager: Any) -> None:
+    """Atualiza perdas consecutivas e limpa estado do cluster."""
+    cluster_profit = sum(risk_manager.cluster_results.values())
+    apply_cluster_profit_to_recovery_state(risk_manager, cluster_profit)
+    risk_manager.active_contract_ids = []
+    risk_manager.contract_to_symbol = {}
+    risk_manager.cluster_results = {}
+    risk_manager.expected_cluster_settlements = 0
+
+
+class ProposalSkipMixin:
+    """Mixin com controle de skip temporario por simbolo."""
+
+    proposal_skip_cycles: dict[str, int]
+
+    def register_proposal_failure(self, symbol: str, *, cycles: int = 6) -> None:
+        """Marca simbolo para pular selecao apos falha de proposta na Deriv."""
+        hold = max(int(cycles), int(self.proposal_skip_cycles.get(str(symbol), 0)))
+        self.proposal_skip_cycles[str(symbol)] = hold
+
+    def decay_proposal_skip_cycles(self) -> None:
+        """Reduz cooldown de simbolos com proposta rejeitada."""
+        expired: list[str] = []
+        for symbol, remaining in self.proposal_skip_cycles.items():
+            left = int(remaining) - 1
+            if left <= 0:
+                expired.append(symbol)
+            else:
+                self.proposal_skip_cycles[symbol] = left
+        for symbol in expired:
+            self.proposal_skip_cycles.pop(symbol, None)
+
+    def proposal_skip_symbols(self) -> frozenset[str]:
+        """Simbolos temporariamente excluidos apos falha de proposta."""
+        return frozenset(s for s, n in self.proposal_skip_cycles.items() if int(n) > 0)
 
 
 @dataclass(frozen=True)

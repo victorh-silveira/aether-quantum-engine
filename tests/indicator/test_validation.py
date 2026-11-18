@@ -2,7 +2,7 @@
 
 import pytest
 
-from indicator.validation import (
+from src.indicator.validation import (
     block_bootstrap_lower,
     brier_predictions,
     expected_calibration_error,

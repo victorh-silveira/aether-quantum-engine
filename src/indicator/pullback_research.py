@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from indicator.domain import Candle
-from indicator.pullback import MIN_BARS, evaluate
+from src.indicator.domain import Candle
+from src.indicator.pullback import MIN_BARS, evaluate
 
 
 VARIANTS = (

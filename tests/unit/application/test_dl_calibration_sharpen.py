@@ -1,6 +1,6 @@
 """Testes de sharpening termico nos logits contra colapso de variancia."""
 
-from src.application.services.deep_learning.dl_calibration_sharpen import (
+from src.application.services.deep_learning.dl_calibration_methods import (
     apply_dynamic_temperature_sharpening,
     logit,
     resolve_sharpening_tau,

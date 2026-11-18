@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from indicator.domain import Candle
-from indicator.institutional import BRT_TIMEZONE
-from indicator.pullback_senior import evaluate_senior_institutional
-from indicator.pullback_trend_regime import evaluate_trend_regime
+from src.indicator.domain import Candle
+from src.indicator.institutional import BRT_TIMEZONE
+from src.indicator.pullback_senior import evaluate_senior_institutional
+from src.indicator.pullback_trend_regime import evaluate_trend_regime
 
 
 def _trend_bars(count: int = 10, *, bull: bool = True) -> list[Candle]:
@@ -104,16 +104,17 @@ def test_senior_institutional_uses_adaptive_trend_fallback(monkeypatch):
     hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
 
     monkeypatch.setattr(
-        "indicator.pullback_senior.session_price_reference", lambda b: (closes[-1], closes[-1] + 5.0, closes[-1] - 5.0)
+        "src.indicator.pullback_senior.session_price_reference",
+        lambda b: (closes[-1], closes[-1] + 5.0, closes[-1] - 5.0),
     )
-    monkeypatch.setattr("indicator.pullback_senior.detect_fvg_mitigation", lambda b, a: (False, False))
-    monkeypatch.setattr("indicator.pullback_senior.calc_adx", lambda b, p: (35.0, 28.0, 10.0))
-    monkeypatch.setattr("indicator.pullback_senior.calc_macd", lambda c, f, s, sig: (1.0, 0.5, 0.4))
-    monkeypatch.setattr("indicator.pullback_senior.calc_hurst_exponent", lambda c, p: 0.65)
-    monkeypatch.setattr("indicator.pullback_senior.calc_rsi", lambda c, p: 58.0)
-    monkeypatch.setattr("indicator.pullback_senior.calc_stochastic", lambda b, k, d: (65.0, 60.0))
-    monkeypatch.setattr("indicator.pullback_senior.calc_bollinger_pct_b", lambda c, p: 0.65)
-    monkeypatch.setattr("indicator.pullback_senior.calc_williams_r", lambda b, p: -30.0)
+    monkeypatch.setattr("src.indicator.pullback_senior.detect_fvg_mitigation", lambda b, a: (False, False))
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_adx", lambda b, p: (35.0, 28.0, 10.0))
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_macd", lambda c, f, s, sig: (1.0, 0.5, 0.4))
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_hurst_exponent", lambda c, p: 0.65)
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_rsi", lambda c, p: 58.0)
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_stochastic", lambda b, k, d: (65.0, 60.0))
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_bollinger_pct_b", lambda c, p: 0.65)
+    monkeypatch.setattr("src.indicator.pullback_senior.calc_williams_r", lambda b, p: -30.0)
 
     side, reason = evaluate_senior_institutional(bars, closes, fast, slow, 1.0, optimal_hours_brt=[hour])
     assert (side, reason) == ("CALL", "setup_confirmado")

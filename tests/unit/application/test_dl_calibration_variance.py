@@ -1,7 +1,7 @@
 """Guarda de variancia do calibrador → identity."""
 
 from src.application.services.deep_learning.dl_calibration import CalibratorState
-from src.application.services.deep_learning.dl_calibration_variance import (
+from src.application.services.deep_learning.dl_calibration_methods import (
     maybe_identity_on_variance_collapse,
 )
 

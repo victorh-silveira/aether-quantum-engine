@@ -3,8 +3,8 @@
 import asyncio
 import logging
 
+from src.application.services.execution_helpers import pending_recovery_active
 from src.application.services.execution_symbols import symbols_eligible_for_execution
-from src.application.services.execution_symbols_recovery import pending_recovery_active
 from src.application.services.force_trade_mode import force_trade_from_orch
 from src.application.services.indicator_consensus import consensus_enabled
 from src.application.services.log_dedupe import clear_log_channel, log_info_if_changed
@@ -13,6 +13,7 @@ from src.application.services.recovery_hurst_store import (
     prepare_recovery_skip_counter,
     reset_recovery_skip_counter_for_orch,
 )
+from src.domain.models.signal_evaluation import SignalEvaluation
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.domain.risk.stop_win_target import resolve_stop_win_target
@@ -80,7 +81,7 @@ class ExecutionManager:
             symbol,
             conviction=conviction,
             cycle_id=int(self.orch._active_cycle_id),
-            dl_metrics=metrics,
+            dl_metrics=SignalEvaluation.from_metrics(metrics),
             order_direction=direction.name,
             max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
             mandatory_trade_each_cycle=self._mandatory_trade_each_cycle(),

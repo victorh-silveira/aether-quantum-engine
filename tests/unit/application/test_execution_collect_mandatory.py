@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
+from src.application.services.execution_helpers import recovery_blocked_symbols
 from src.application.services.orchestrator.execution_collect import collect_cluster_orders
 from src.application.services.orchestrator.execution_collect_helpers import (
     mandatory_fallback_candidates,

@@ -18,9 +18,9 @@ from src.application.services.orchestrator.orchestrator_settlement_queue import 
 )
 from src.application.services.orchestrator.post_settlement_resilience import clear_post_settlement_polling_state
 from src.application.services.orchestrator.session_target_bootstrap import clear_current_session_redis_keys
+from src.application.services.orchestrator.settlement_audit import clear_contract_metadata, prune_orphan_contract_ids
 from src.application.services.orchestrator.settlement_logic import check_session_limits_before_post_settlement
 from src.application.services.orchestrator.settlement_queue_ops import get_redis_client
-from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, prune_orphan_contract_ids
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed
 from src.presentation.terminal.log_context import clear_log_context
 from src.presentation.terminal.settle_log import SETTLE_TOLERANCE

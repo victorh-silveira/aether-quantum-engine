@@ -5,8 +5,8 @@ import asyncio
 from src.application.services.execution_direction import build_execution_candidate
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_entropy_fallback import pick_entropy_fallback_candidate
+from src.application.services.execution_helpers import recovery_blocked_symbols
 from src.application.services.execution_mandatory_pick import pick_absolute_mandatory_candidate
-from src.application.services.execution_symbols_recovery import recovery_blocked_symbols
 from src.application.services.force_trade_mode import force_trade_from_orch, synthesize_force_trade_candidate
 from src.application.services.market_audit_log import (
     emit_audit_info,

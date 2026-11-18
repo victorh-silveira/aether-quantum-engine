@@ -168,8 +168,8 @@ def test_dl_calibration_bounds_missing_key(monkeypatch):
         mod._calib_bounds()
 
 
-def test_dl_calibration_tolerance_missing_key(monkeypatch):
-    from src.application.services.deep_learning import dl_calibration_tolerance as mod
+def test_dl_calibration_methods_missing_key(monkeypatch):
+    from src.application.services.deep_learning import dl_calibration_methods as mod
 
     monkeypatch.setattr(
         mod,

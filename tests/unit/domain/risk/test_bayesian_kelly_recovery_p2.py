@@ -72,7 +72,9 @@ def test_recover_weak_score_does_not_force_mandatory_min(kelly_config):
 def test_explore_emits_stake_regime_on_metrics(kelly_config):
     rm = _rm(kelly_config)
     metrics = {"execute": True, "trade_score": 0.62, "raw_prob": 0.62}
-    calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         120.0,
         "R_10",
@@ -81,7 +83,7 @@ def test_explore_emits_stake_regime_on_metrics(kelly_config):
         apply_stop_win=False,
         kwargs={"dl_metrics": metrics, "cycle_id": 3},
     )
-    assert metrics.get("stake_regime") == "EXPLORE"
+    assert decision.stake_regime == "EXPLORE"
     assert rm._last_stake_audit["mode_tag"].startswith("EXPLORE_")
 
 

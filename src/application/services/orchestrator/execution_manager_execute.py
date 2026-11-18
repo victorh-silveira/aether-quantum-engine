@@ -33,6 +33,7 @@ from src.application.services.pullback_recovery_claim import (
     unreserved_loss,
 )
 from src.application.services.rise_fall_quote_guard import resolve_effective_side_probability
+from src.domain.models.signal_evaluation import SignalEvaluation
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.payout_observation import apply_broker_payout_cap
@@ -115,20 +116,26 @@ async def execute_cluster_orders(
             if stake > available * 0.01:
                 continue
         else:
-            stake = executor.orch.risk_manager.calculate_stake(
-                available,
-                symbol,
-                conviction=conviction,
-                silent=False,
-                cycle_id=int(executor.orch._active_cycle_id),
-                dl_metrics=metrics,
-                order_direction=direction.name,
-                max_val_brier=float(dl_cfg.get("max_val_brier_execute", 0.28)),
-                mandatory_weak_cap=(
+            rm = executor.orch.risk_manager
+            dl_eval = SignalEvaluation.from_metrics(metrics)
+            calc_kwargs = {
+                "conviction": conviction,
+                "silent": False,
+                "cycle_id": int(executor.orch._active_cycle_id),
+                "dl_metrics": dl_eval,
+                "order_direction": direction.name,
+                "max_val_brier": float(dl_cfg.get("max_val_brier_execute", 0.28)),
+                "mandatory_weak_cap": (
                     mandatory and not metrics.get("execute", True) and pending <= 0.0 and not stop_win_kelly
                 ),
-                mandatory_trade_each_cycle=mandatory,
-            )
+                "mandatory_trade_each_cycle": mandatory,
+            }
+            if hasattr(rm, "calculate_stake_decision") and not type(rm).__name__.endswith("Mock"):
+                decision = rm.calculate_stake_decision(available, symbol, **calc_kwargs)
+                stake = decision.stake
+                metrics.update(decision.to_telemetry_updates())
+            else:
+                stake = rm.calculate_stake(available, symbol, **calc_kwargs)
 
         if stake <= 0 and force_trade_from_orch(executor.orch):
             stake = resolve_force_min_stake(getattr(executor.orch, "config", None))

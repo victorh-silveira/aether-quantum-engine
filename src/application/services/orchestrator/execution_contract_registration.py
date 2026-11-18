@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from src.application.services.orchestrator.settlement_dedupe import settlement_lock, settlement_seen
+from src.application.services.orchestrator.settlement_helpers import settlement_lock, settlement_seen
 
 
 async def register_confirmed_contract(orch: Any, contract: Any, symbol: str, stake: float) -> bool:

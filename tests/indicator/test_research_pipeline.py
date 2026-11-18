@@ -2,7 +2,7 @@
 
 import pytest
 
-from indicator.research_pipeline import SPECS, fit_candidate, run_research
+from src.indicator.research_pipeline import SPECS, fit_candidate, run_research
 
 
 def dataset(n=300):

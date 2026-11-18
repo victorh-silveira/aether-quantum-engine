@@ -5,7 +5,7 @@ import json
 
 import pytest
 
-from indicator.deriv import PublicDeriv
+from src.indicator.deriv import PublicDeriv
 
 
 @pytest.mark.asyncio
@@ -50,7 +50,7 @@ async def test_socket_reconnect_and_error(monkeypatch):
     async def connect(*args, **kwargs):
         return socket
 
-    monkeypatch.setattr("indicator.deriv.websockets.connect", connect)
+    monkeypatch.setattr("src.indicator.deriv.websockets.connect", connect)
     client = PublicDeriv()
     assert await client.symbols() == []
     await client.close()
@@ -59,7 +59,7 @@ async def test_socket_reconnect_and_error(monkeypatch):
     async def timeout(*args, **kwargs):
         raise TimeoutError
 
-    monkeypatch.setattr("indicator.deriv.websockets.connect", timeout)
+    monkeypatch.setattr("src.indicator.deriv.websockets.connect", timeout)
     with pytest.raises(asyncio.TimeoutError):
         await client.symbols()
 
@@ -81,7 +81,7 @@ async def test_socket_response_validation(monkeypatch):
     async def connect(*args, **kwargs):
         return socket
 
-    monkeypatch.setattr("indicator.deriv.websockets.connect", connect)
+    monkeypatch.setattr("src.indicator.deriv.websockets.connect", connect)
     client = PublicDeriv()
     socket.response = {"error": {"message": "rejected"}}
     with pytest.raises(RuntimeError, match="rejected"):

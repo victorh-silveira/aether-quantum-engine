@@ -81,7 +81,7 @@ def test_settlement_timed_out_true():
     exec_mgr.orch.risk_manager.active_contract_ids = []
     with (
         patch("src.application.services.orchestrator.execution_settlement.time.time", return_value=999),
-        patch("src.application.services.orchestrator.execution_settlement.settlement_utils"),
+        patch("src.application.services.orchestrator.execution_settlement.settlement_audit"),
     ):
         result = _settlement_timed_out(exec_mgr, start_time=0, timeout=10)
     assert result is True
@@ -190,7 +190,7 @@ def test_recovery_infeasible_log():
 
 
 def test_horizon_gap_bars():
-    from src.application.services.deep_learning.dl_calibration_tolerance import _horizon_gap_bars
+    from src.application.services.deep_learning.dl_calibration_methods import _horizon_gap_bars
 
     result = _horizon_gap_bars()
     assert isinstance(result, int)

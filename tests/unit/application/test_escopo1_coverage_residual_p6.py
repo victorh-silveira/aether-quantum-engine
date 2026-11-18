@@ -12,7 +12,7 @@ import pytest
 
 from src.application.services.execution_direction_fallback import build_mandatory_fallback_candidate
 from src.application.services.execution_market_rank import market_decision_score
-from src.application.services.execution_quality_gate import read_risk_session_state
+from src.application.services.execution_quality import read_risk_session_state
 from src.application.services.execution_runtime_config import (
     reset_execution_runtime_cache,
     resolve_loss_protection_config,

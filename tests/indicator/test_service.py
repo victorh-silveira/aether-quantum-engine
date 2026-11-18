@@ -5,11 +5,11 @@ import logging
 
 import pytest
 
-from indicator.domain import Candle, Signal
-from indicator.metrics import Metrics
-from indicator.model import Model, TrainingResult, load, save
-from indicator.service import IndicatorService
-from indicator.training import _train_asset, history, train_all
+from src.indicator.domain import Candle, Signal
+from src.indicator.metrics import Metrics
+from src.indicator.model import Model, TrainingResult, load, save
+from src.indicator.service import IndicatorService
+from src.indicator.training import _train_asset, history, train_all
 
 
 class Source:
@@ -273,14 +273,14 @@ async def test_stale_short_history_catalog_refresh_and_isolated_error(tmp_path):
 
 @pytest.mark.asyncio
 async def test_history_and_training_report(tmp_path, monkeypatch, caplog):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 400)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 400)
     caplog.set_level(logging.INFO)
     source = Source(rows=candles(600, period=900))
     assert len(await history(source, "R_75", 540000, pages=1, period=900)) == 600
     source.rows = []
     assert await history(source, "R_75", 540000, period=900) == []
     source.rows = candles(600, period=900)
-    monkeypatch.setattr("indicator.training.history", fake_history)
+    monkeypatch.setattr("src.indicator.training.history", fake_history)
     report = await train_all(source, tmp_path, now=540000)
     assert len(report) == 3
     assert all("SEM SINAL" in value or "OK" in value or "EXPERIMENTAL" in value for value in report.values())
@@ -317,19 +317,19 @@ async def test_training_requires_five_thousand_recent_candles(tmp_path, monkeypa
     async def short_history(source, symbol, now, period=900):
         return [Candle(index * period, 1, 2, 1, 2) for index in range(4999)]
 
-    monkeypatch.setattr("indicator.training.history", short_history)
+    monkeypatch.setattr("src.indicator.training.history", short_history)
     report = await train_all(Source(), tmp_path, now=5000 * 900)
     assert all("historico_continuo_insuficiente" in value for value in report.values())
 
 
 @pytest.mark.asyncio
 async def test_training_persists_direct_candles(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 2)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 2)
 
     async def short_history(source, symbol, now, period=900):
         return [Candle(index * period, 1, 2, 1, 2) for index in range(3)]
 
-    monkeypatch.setattr("indicator.training.history", short_history)
+    monkeypatch.setattr("src.indicator.training.history", short_history)
 
     class Store:
         def __init__(self):
@@ -349,7 +349,7 @@ async def test_training_persists_direct_candles(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_training_rejects_discordant_direct_ohlc(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 2)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 2)
 
     async def direct_history(source, symbol, now, period=900):
         if period == 900:
@@ -358,7 +358,7 @@ async def test_training_rejects_discordant_direct_ohlc(tmp_path, monkeypatch):
             return [Candle(index * 3600, 1, 3, 1, 2) for index in range(2)]
         return []
 
-    monkeypatch.setattr("indicator.training.history", direct_history)
+    monkeypatch.setattr("src.indicator.training.history", direct_history)
     report = await train_all(Source(), tmp_path, now=7200)
     assert report["R_75:3600"] == "SEM SINAL: divergencia OHLC M15 (2 velas)"
 
@@ -383,7 +383,7 @@ async def test_training_continues_other_symbols_on_failure(tmp_path, monkeypatch
             raise OSError("offline")
         return await fake_history(source, symbol, now, period)
 
-    monkeypatch.setattr("indicator.training.history", failing_history)
+    monkeypatch.setattr("src.indicator.training.history", failing_history)
     report = await train_all(source, tmp_path, now=540000)
     assert report["R_10:900"].startswith("SEM SINAL")
     assert "R_25:900" in report
@@ -391,7 +391,7 @@ async def test_training_continues_other_symbols_on_failure(tmp_path, monkeypatch
 
 @pytest.mark.asyncio
 async def test_training_write_failure_isolated_to_one_period(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 300)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 300)
     source = Source(rows=candles(600, period=900))
 
     async def longer_history(source, symbol, now, period=900):
@@ -400,16 +400,16 @@ async def test_training_write_failure_isolated_to_one_period(tmp_path, monkeypat
         count = 1200 if period == 900 else 400
         return [Candle(index * period, 100 + index, 100 + index, 100 + index, 100 + index) for index in range(count)]
 
-    monkeypatch.setattr("indicator.training.history", longer_history)
-    monkeypatch.setattr("indicator.training.aggregate", lambda *_: [])
-    from indicator.model import save as save_model
+    monkeypatch.setattr("src.indicator.training.history", longer_history)
+    monkeypatch.setattr("src.indicator.training.aggregate", lambda *_: [])
+    from src.indicator.model import save as save_model
 
     def save_with_locked_m15(model, directory):
         if model.period == 900:
             raise PermissionError("arquivo em uso")
         return save_model(model, directory)
 
-    monkeypatch.setattr("indicator.training.save", save_with_locked_m15)
+    monkeypatch.setattr("src.indicator.training.save", save_with_locked_m15)
     report = await train_all(source, tmp_path, now=540000)
     assert report["R_75:900"].startswith("SEM SINAL: falha ao gravar modelo")
     assert report["R_75:3600"].startswith("EXPERIMENTAL")
@@ -418,7 +418,7 @@ async def test_training_write_failure_isolated_to_one_period(tmp_path, monkeypat
 
 @pytest.mark.asyncio
 async def test_retraining_preserves_active_demo_pilot_version(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 500)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 500)
     previous = Model("R_75", 900, (0.0,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "pilot-v1", 0.6, 0.5, 0.2, 0.25)
     challenger = Model("R_75", 900, (0.1,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "challenger-v2", 0.61, 0.5, 0.19, 0.25)
     save(previous, tmp_path)
@@ -428,9 +428,9 @@ async def test_retraining_preserves_active_demo_pilot_version(tmp_path, monkeypa
             return []
         return [Candle(index * 900, 100.0, 101.0, 99.0, 100.0) for index in range(600)]
 
-    monkeypatch.setattr("indicator.training.history", enough_history)
+    monkeypatch.setattr("src.indicator.training.history", enough_history)
     monkeypatch.setattr(
-        "indicator.training.assess",
+        "src.indicator.training.assess",
         lambda symbol, period, candles: (
             TrainingResult(challenger, 500, 100, 0.61, 0.5, 0.19, 0.25)
             if period == 900
@@ -461,13 +461,13 @@ async def test_retraining_preserves_active_demo_pilot_version(tmp_path, monkeypa
 async def test_run_loop_can_be_cancelled(tmp_path, monkeypatch):
     source, sink, metrics = Source(rows=candles()), Sink(), Metrics()
     service = IndicatorService(source, sink, metrics, tmp_path)
-    monkeypatch.setattr("indicator.service.time.time", lambda: 18000)
+    monkeypatch.setattr("src.indicator.service.time.time", lambda: 18000)
 
     async def stop(delay):
         assert delay == 32
         raise asyncio.CancelledError
 
-    monkeypatch.setattr("indicator.service.asyncio.sleep", stop)
+    monkeypatch.setattr("src.indicator.service.asyncio.sleep", stop)
     with pytest.raises(asyncio.CancelledError):
         await service.run()
 
@@ -511,16 +511,16 @@ async def test_run_indicator_starts_and_closes_all_adapters(tmp_path, monkeypatc
         events.append("running")
         raise asyncio.CancelledError
 
-    monkeypatch.setattr("indicator.service.PullbackSource", Public)
-    monkeypatch.setattr("indicator.service.PullbackStore", Database)
-    monkeypatch.setattr("indicator.service.Metrics", Telemetry)
-    monkeypatch.setattr("indicator.service.PullbackService.run", run)
+    monkeypatch.setattr("src.indicator.service.PullbackSource", Public)
+    monkeypatch.setattr("src.indicator.service.PullbackStore", Database)
+    monkeypatch.setattr("src.indicator.service.Metrics", Telemetry)
+    monkeypatch.setattr("src.indicator.service.PullbackService.run", run)
 
     async def sleep(seconds):
         assert seconds == 2
 
-    monkeypatch.setattr("indicator.service.asyncio.sleep", sleep)
-    from indicator.service import run_indicator
+    monkeypatch.setattr("src.indicator.service.asyncio.sleep", sleep)
+    from src.indicator.service import run_indicator
 
     with pytest.raises(asyncio.CancelledError):
         await run_indicator("dsn", tmp_path, "url", 9101)
@@ -540,14 +540,14 @@ async def test_run_indicator_starts_and_closes_all_adapters(tmp_path, monkeypatc
 
 @pytest.mark.asyncio
 async def test_training_exports_accepted_model(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 500)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 500)
     source = Source(rows=candles(600, period=900))
-    monkeypatch.setattr("indicator.training.history", fake_history)
+    monkeypatch.setattr("src.indicator.training.history", fake_history)
     model = Model("R_75", 900, (0.0,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "v2", 0.6, 0.5, 0.2, 0.25)
-    from indicator.model import TrainingResult
+    from src.indicator.model import TrainingResult
 
     monkeypatch.setattr(
-        "indicator.training.assess",
+        "src.indicator.training.assess",
         lambda symbol, period, rows: TrainingResult(model, 900, 90, 0.6, 0.5, 0.2, 0.25),
     )
 
@@ -570,11 +570,11 @@ async def test_training_exports_accepted_model(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_training_rejection_archives_previous_checkpoint(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 500)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 500)
     source = Source(rows=candles(600, period=900))
-    monkeypatch.setattr("indicator.training.history", fake_history)
+    monkeypatch.setattr("src.indicator.training.history", fake_history)
     model = Model("R_75", 900, (0.0,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "old", 0.6, 0.5, 0.2, 0.25)
-    from indicator.model import load, save
+    from src.indicator.model import load, save
 
     save(model, tmp_path)
     report = await train_all(source, tmp_path, now=540000)
@@ -586,14 +586,14 @@ async def test_training_rejection_archives_previous_checkpoint(tmp_path, monkeyp
 
 @pytest.mark.asyncio
 async def test_training_without_new_model_archives_and_removes_old_checkpoint(tmp_path, monkeypatch):
-    monkeypatch.setattr("indicator.training.MIN_CONTIGUOUS_BARS", 500)
+    monkeypatch.setattr("src.indicator.training.MIN_CONTIGUOUS_BARS", 500)
     source = Source(rows=candles(600, period=900))
-    monkeypatch.setattr("indicator.training.history", fake_history)
+    monkeypatch.setattr("src.indicator.training.history", fake_history)
     old = Model("R_75", 900, (0.0,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "old", 0.6, 0.5, 0.2, 0.25)
     save(old, tmp_path)
-    from indicator.model import TrainingResult
+    from src.indicator.model import TrainingResult
 
-    monkeypatch.setattr("indicator.training.assess", lambda *_: TrainingResult(None, 100))
+    monkeypatch.setattr("src.indicator.training.assess", lambda *_: TrainingResult(None, 100))
     report = await train_all(source, tmp_path, now=540000)
     assert report["R_75:900"].startswith("SEM SINAL")
     assert not (tmp_path / "R_75_900.json").exists()
@@ -603,7 +603,7 @@ async def test_training_without_new_model_archives_and_removes_old_checkpoint(tm
 @pytest.mark.asyncio
 async def test_training_total_deadline_reports_no_signal(tmp_path, monkeypatch):
     source = Source()
-    monkeypatch.setattr("indicator.training.TRAIN_TIMEOUT", -1)
+    monkeypatch.setattr("src.indicator.training.TRAIN_TIMEOUT", -1)
     result = await train_all(source, tmp_path, now=180000)
     assert all(value == "SEM SINAL: tempo total do treino esgotado" for value in result.values())
 
@@ -616,7 +616,7 @@ async def test_training_asset_timeout_continues(tmp_path, monkeypatch):
             {"market": "synthetic_index", "underlying_symbol": "R_25"},
         ]
     )
-    monkeypatch.setattr("indicator.training.ASSET_TIMEOUT", 0)
+    monkeypatch.setattr("src.indicator.training.ASSET_TIMEOUT", 0)
     result = await train_all(source, tmp_path, now=180000)
     assert len(result) == 6
     assert all(value == "SEM SINAL: tempo limite por ativo" for value in result.values())
@@ -651,12 +651,12 @@ async def test_run_indicator_retries_database_and_closes_on_terminal_failure(tmp
     async def sleep(seconds):
         events.append(("sleep", seconds))
 
-    monkeypatch.setattr("indicator.service.PullbackStore", Database)
-    monkeypatch.setattr("indicator.service.PullbackSource", Public)
-    monkeypatch.setattr("indicator.service.Metrics", Telemetry)
-    monkeypatch.setattr("indicator.service.START_ATTEMPTS", 2)
-    monkeypatch.setattr("indicator.service.asyncio.sleep", sleep)
-    from indicator.service import run_indicator
+    monkeypatch.setattr("src.indicator.service.PullbackStore", Database)
+    monkeypatch.setattr("src.indicator.service.PullbackSource", Public)
+    monkeypatch.setattr("src.indicator.service.Metrics", Telemetry)
+    monkeypatch.setattr("src.indicator.service.START_ATTEMPTS", 2)
+    monkeypatch.setattr("src.indicator.service.asyncio.sleep", sleep)
+    from src.indicator.service import run_indicator
 
     with pytest.raises(OSError, match="database unavailable"):
         await run_indicator("dsn", tmp_path, "url")

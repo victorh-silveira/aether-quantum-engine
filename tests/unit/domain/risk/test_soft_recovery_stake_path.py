@@ -236,7 +236,9 @@ def test_calculate_stake_recover_residual_pend_respects_min_stake_pct(kelly_conf
         pending_loss={"1HZ75V": pending},
         initial_bankroll=bankroll,
     )
-    stake = calculate_stake_for_manager(
+    from src.domain.risk.risk_stake_calc import calculate_stake_decision_for_manager
+
+    decision = calculate_stake_decision_for_manager(
         rm,
         bankroll=bankroll,
         symbol="1HZ75V",
@@ -245,14 +247,16 @@ def test_calculate_stake_recover_residual_pend_respects_min_stake_pct(kelly_conf
         apply_stop_win=False,
         kwargs={"cycle_id": 11, "dl_metrics": metrics},
     )
+    stake = decision.stake
+    tele = decision.to_telemetry_updates()
     floor = bankroll * float(rm.kelly_config["min_stake_pct"])
     cap = max_safe_stake_cap(bankroll, consecutive_losses_linear=1, soft_recovery=soft)
     cover = pending / 0.72 / 2.0
     assert cover + 1e-6 < floor
     assert stake >= floor - 1e-6
     assert stake <= cap + 1e-6
-    assert metrics.get("min_stake_pct_floor_applied") is True
-    assert metrics.get("min_stake_pct_floor") == pytest.approx(floor)
+    assert tele.get("min_stake_pct_floor_applied") is True
+    assert tele.get("min_stake_pct_floor") == pytest.approx(floor)
     assert rm._last_stake_audit["stake_regime"] == "RECOVER"
 
 

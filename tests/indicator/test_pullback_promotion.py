@@ -4,8 +4,8 @@ import asyncio
 
 import pytest
 
-from indicator.pullback_promotion import format_ranking_table, rank_m5_pairs
-from indicator.training import _fetch_candles, history
+from src.indicator.pullback_promotion import format_ranking_table, rank_m5_pairs
+from src.indicator.training import _fetch_candles, history
 
 
 def test_rank_m5_pairs_orders_by_ev_and_win_rate():
@@ -119,7 +119,7 @@ def test_historico_repete_limite_sem_engolir_erro(monkeypatch):
     async def sleep(delay):
         delays.append(delay)
 
-    monkeypatch.setattr("indicator.training.asyncio.sleep", sleep)
+    monkeypatch.setattr("src.indicator.training.asyncio.sleep", sleep)
     assert asyncio.run(_fetch_candles(Source(), "OTC_SSMI", 1000, "latest", 900)) == [{"epoch": 900}]
     assert calls == 3
     assert delays == [2, 5]

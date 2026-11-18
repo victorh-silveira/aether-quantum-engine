@@ -1,8 +1,8 @@
 """Pesquisa cronologica sem selecionar parametros pelo mesmo teste."""
 
-from indicator.domain import Candle
-from indicator.pullback import MIN_BARS, SetupResult
-from indicator.pullback_research import VARIANTS, compare_variants
+from src.indicator.domain import Candle
+from src.indicator.pullback import MIN_BARS, SetupResult
+from src.indicator.pullback_research import VARIANTS, compare_variants
 
 
 def test_comparison_requires_history_and_keeps_holdout(monkeypatch):
@@ -14,7 +14,7 @@ def test_comparison_requires_history_and_keeps_holdout(monkeypatch):
         seen.append((now, variant))
         return SetupResult("CALL" if variant == "base" else "SEM SINAL", "teste")
 
-    monkeypatch.setattr("indicator.pullback_research.evaluate", setup)
+    monkeypatch.setattr("src.indicator.pullback_research.evaluate", setup)
     report = compare_variants(bars, 300)
     assert set(report) == set(VARIANTS)
     assert len(report["base"]["janelas"]) == 4

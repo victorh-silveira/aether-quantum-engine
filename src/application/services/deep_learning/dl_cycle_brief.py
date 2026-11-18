@@ -1,7 +1,7 @@
 """Formatacao compacta de linhas curtas do ciclo Deep Learning."""
 
 from src.application.services.execution_direction_resolver import infer_dl_direction, is_technically_blocked
-from src.application.services.execution_quality_gate import direction_margin_from_probability
+from src.application.services.execution_quality import direction_margin_from_probability
 from src.domain.risk.stake_sizing import metric_float
 
 

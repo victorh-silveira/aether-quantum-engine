@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import time
 
-from indicator.domain import LiveObservation, Signal
-from indicator.institutional import market_session_status_brt
+from src.indicator.domain import LiveObservation, Signal
+from src.indicator.institutional import market_session_status_brt
 
 
 class Metrics:

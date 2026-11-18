@@ -18,7 +18,7 @@ from src.application.services.deep_learning.dl_calibration import (
     raw_to_logit,
     temperature_bounds,
 )
-from src.application.services.deep_learning.dl_calibration_isotonic import fit_isotonic
+from src.application.services.deep_learning.dl_calibration_methods import fit_isotonic
 from src.application.services.deep_learning.dl_sharpness import mean_sharpness, resolve_calibration_sharpness_cfg
 from src.domain.math.probability_entropy import binary_entropy, entropy_penalty_factor
 

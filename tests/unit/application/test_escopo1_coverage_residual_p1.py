@@ -9,8 +9,11 @@ from unittest.mock import patch
 
 import pytest
 
-from src.application.services.execution_quality_gate import read_risk_session_state
-from src.application.services.execution_quality_gate_margin import stamp_edge_without_direction, sync_direction_margin
+from src.application.services.execution_quality import (
+    read_risk_session_state,
+    stamp_edge_without_direction,
+    sync_direction_margin,
+)
 from src.application.services.execution_runtime_config import (
     reset_execution_runtime_cache,
     resolve_loss_protection_config,

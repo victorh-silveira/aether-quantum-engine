@@ -5,9 +5,9 @@ import math
 
 import pytest
 
-from indicator.domain import Candle
-from indicator.model import LOOKBACK, Model, assess, examples, features, load, ohlc_features, save, sigmoid, train
-from indicator.optimizer import fit_logistic
+from src.indicator.domain import Candle
+from src.indicator.model import LOOKBACK, Model, assess, examples, features, load, ohlc_features, save, sigmoid, train
+from src.indicator.optimizer import fit_logistic
 
 
 def series(n=600):
@@ -89,7 +89,7 @@ def test_save_retries_transient_windows_lock_and_cleans_temporary(tmp_path, monk
         return original(source, destination)
 
     monkeypatch.setattr(type(tmp_path), "replace", locked_then_ready)
-    monkeypatch.setattr("indicator.model.time.sleep", lambda _: None)
+    monkeypatch.setattr("src.indicator.model.time.sleep", lambda _: None)
     assert save(model, tmp_path).is_file()
     assert attempts == 3
     assert not list(tmp_path.glob("*.tmp"))
@@ -99,7 +99,7 @@ def test_save_preserves_previous_model_when_lock_persists(tmp_path, monkeypatch)
     old = Model("R_75", 300, (0.0,) * 8, 0.0, (0.0,) * 8, (1.0,) * 8, "old", 0.6, 0.5, 0.2, 0.25)
     save(old, tmp_path)
     monkeypatch.setattr(type(tmp_path), "replace", lambda *_: (_ for _ in ()).throw(PermissionError("em uso")))
-    monkeypatch.setattr("indicator.model.time.sleep", lambda _: None)
+    monkeypatch.setattr("src.indicator.model.time.sleep", lambda _: None)
     with pytest.raises(PermissionError, match="em uso"):
         save(old, tmp_path)
     assert load(tmp_path, "R_75", 300) == old

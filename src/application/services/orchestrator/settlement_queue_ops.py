@@ -10,8 +10,7 @@ from typing import Any
 import redis.asyncio as aioredis
 
 from src.application.services.orchestrator.engine_supervisor import shield_critical
-from src.application.services.orchestrator.settlement_dedupe import settlement_seen
-from src.application.services.orchestrator.settlement_ws_queries import fetch_profit_table
+from src.application.services.orchestrator.settlement_helpers import fetch_profit_table, settlement_seen
 from src.application.services.settle_log_dedupe import log_settle_info_if_changed, log_settle_warning_if_changed
 from src.presentation.terminal.settle_log import (
     SETTLE_CONFIRM,

@@ -1,7 +1,6 @@
 import pytest
 
 from src.domain.risk.super_concordance_kelly import (
-    apply_super_concordance_kelly_fraction,
     is_unanimous_vote_alignment,
     resolve_order_side_probability,
     resolve_super_concordance_fraction_multiplier,
@@ -89,9 +88,11 @@ def test_resolve_super_concordance_fraction_multiplier_prob_below_min():
 
 
 def test_apply_super_concordance_kelly_fraction_sets_metrics_flag():
+    from src.domain.risk.super_concordance_kelly import resolve_super_concordance_kelly_fraction
+
     metrics = _hyper_aligned_metrics()
     cfg = {"fraction": 0.10, "super_concordance_booster": 1.5}
-    f_star = apply_super_concordance_kelly_fraction(
+    f_star, mult, eff_frac = resolve_super_concordance_kelly_fraction(
         0.20,
         cfg,
         metrics,
@@ -99,5 +100,6 @@ def test_apply_super_concordance_kelly_fraction_sets_metrics_flag():
         recovery_active=False,
     )
     assert f_star == pytest.approx(0.20 * 0.10 * 0.70 * 1.5)
-    assert metrics["super_concordance_booster_active"] is True
-    assert metrics["kelly_fraction_effective"] == pytest.approx(0.105)
+    assert mult > 1.0
+    assert eff_frac == pytest.approx(0.105)
+    assert "super_concordance_booster_active" not in metrics

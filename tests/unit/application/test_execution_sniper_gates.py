@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.application.services.execution_sniper_gates import resolve_calibration_neutral_band
+from src.application.services.execution_helpers import resolve_calibration_neutral_band
 
 
 def test_resolve_calibration_neutral_band_from_half_width():

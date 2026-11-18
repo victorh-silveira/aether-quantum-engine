@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from math import log
 
-from indicator.domain import Candle
+from src.indicator.domain import Candle
 
 
 def ema_direct(values: list[float], span: int) -> list[float]:

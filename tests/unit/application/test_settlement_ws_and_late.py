@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from src.application.services.orchestrator.settlement_helpers import fetch_portfolio, fetch_profit_table
 from src.application.services.orchestrator.settlement_logic import process_late_settlement_from_payload
-from src.application.services.orchestrator.settlement_ws_queries import fetch_portfolio, fetch_profit_table
 from src.application.services.orchestrator.trading_cycle_entry import trading_cycle_entry_allowed
 
 

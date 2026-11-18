@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from src.infrastructure.handlers.disruptor_ring_buffer import DisruptorRingBuffer
+from src.infrastructure.native.rust_bridge import DisruptorRingBuffer
 
 
 def test_disruptor_ring_buffer_invalid_capacity():

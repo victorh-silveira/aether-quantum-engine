@@ -10,8 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import uuid4
 
-from indicator.domain import Candle
-from indicator.features import LOOKBACK, features, ohlc_features
+from src.indicator.domain import Candle
+from src.indicator.features import LOOKBACK, features, ohlc_features
 
 
 REFERENCE_PAYOUT_RATE = 0.78
@@ -136,7 +136,7 @@ def train(symbol: str, period: int, candles: list[Candle]) -> Model | None:
 
 def assess(symbol: str, period: int, candles: list[Candle]) -> TrainingResult:
     """Avalia o modelo e expoe as medidas mesmo quando ele e reprovado."""
-    from indicator.research_pipeline import run_research  # noqa: PLC0415
+    from src.indicator.research_pipeline import run_research  # noqa: PLC0415
 
     inputs, labels = examples(candles, period)
     if len(labels) < 200:

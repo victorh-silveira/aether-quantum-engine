@@ -8,7 +8,7 @@ from src.application.services.deep_learning.dl_calibration_fit import (
     _select_best_calibrator,
     fit_calibrator,
 )
-from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic, fit_isotonic
+from src.application.services.deep_learning.dl_calibration_methods import apply_isotonic, fit_isotonic
 from src.application.services.execution_volatility_threshold import (
     _median_tail,
     _vol_component,

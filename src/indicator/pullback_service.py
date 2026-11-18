@@ -6,8 +6,8 @@ import asyncio
 import logging
 import time
 
-from indicator.domain import PERIODS, Signal, closed_candles, synthetic_symbols
-from indicator.pullback import evaluate, version_for_variant
+from src.indicator.domain import PERIODS, Signal, closed_candles, synthetic_symbols
+from src.indicator.pullback import evaluate, version_for_variant
 
 
 logger = logging.getLogger(__name__)

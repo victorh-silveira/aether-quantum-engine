@@ -4,7 +4,7 @@ import pytest
 
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.execution_settlement import reconcile_contracts
-from src.application.services.orchestrator.settlement_utils import is_transient_broker_error, mark_ws_offline
+from src.application.services.orchestrator.settlement_audit import is_transient_broker_error, mark_ws_offline
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
 from tests.unit.application.post_settlement_helpers import (

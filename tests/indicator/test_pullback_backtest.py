@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from indicator.pullback_backtest import format_daily_backtest
+from src.indicator.pullback_backtest import format_daily_backtest
 
 
 def test_backtest_distingue_hoje_sem_dados_e_ultima_sessao():

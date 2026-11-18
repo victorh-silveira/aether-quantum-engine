@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from indicator.model import sigmoid
-from indicator.optimizer import fit_logistic
+from src.indicator.model import sigmoid
+from src.indicator.optimizer import fit_logistic
 
 
 REGULARIZATIONS = (0.001, 0.05)

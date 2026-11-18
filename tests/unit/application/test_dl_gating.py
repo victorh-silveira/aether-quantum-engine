@@ -1,6 +1,6 @@
 import pytest
 
-from src.application.services.deep_learning.dl_calibration_tolerance import (
+from src.application.services.deep_learning.dl_calibration_methods import (
     infer_direction_from_prob as direction_from_raw_prob,
 )
 from src.application.services.deep_learning.dl_gating import (

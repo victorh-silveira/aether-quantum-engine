@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from indicator.deriv import PublicDeriv
+from src.indicator.deriv import PublicDeriv
 
 
 class PullbackSource:

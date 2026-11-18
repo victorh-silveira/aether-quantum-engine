@@ -1,6 +1,6 @@
 """Atribuicao de direcao pelo resultado confirmado do contrato."""
 
-from src.application.services.market_audit_contract import broker_price_audit
+from src.application.services.market_audit import broker_price_audit
 
 
 def test_broker_price_audit_reports_real_direction_and_phase():

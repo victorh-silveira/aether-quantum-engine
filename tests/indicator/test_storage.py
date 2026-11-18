@@ -2,8 +2,8 @@
 
 import pytest
 
-from indicator.domain import Candle, LiveObservation, Signal
-from indicator.storage import SignalStore
+from src.indicator.domain import Candle, LiveObservation, Signal
+from src.indicator.storage import SignalStore
 
 
 class Context:
@@ -66,7 +66,7 @@ async def test_store_lifecycle_catalog_and_settlement(monkeypatch):
         assert args == ("postgresql://local",)
         return pool
 
-    monkeypatch.setattr("indicator.storage.asyncpg.create_pool", create_pool)
+    monkeypatch.setattr("src.indicator.storage.asyncpg.create_pool", create_pool)
     store = SignalStore("postgresql://local")
     await store.start()
     await store.set_symbols({"R_75": "V75"})
@@ -136,7 +136,7 @@ async def test_store_closes_pool_when_schema_initialization_fails(monkeypatch):
     async def create_pool(*args, **kwargs):
         return pool
 
-    monkeypatch.setattr("indicator.storage.asyncpg.create_pool", create_pool)
+    monkeypatch.setattr("src.indicator.storage.asyncpg.create_pool", create_pool)
     store = SignalStore("postgresql://local")
     with pytest.raises(RuntimeError, match="schema failed"):
         await store.start()

@@ -255,7 +255,7 @@ def test_guard_sharpness_keeps_better_of_collapsed_pair(monkeypatch):
 
 def test_maybe_temperature_sharpen_raises_soft_probs():
     from src.application.services.deep_learning.dl_calibration import CalibratorState
-    from src.application.services.deep_learning.dl_calibration_sharpen import (
+    from src.application.services.deep_learning.dl_calibration_methods import (
         maybe_temperature_sharpen_for_export,
     )
 

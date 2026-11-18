@@ -7,13 +7,16 @@ from src.domain.risk.risk_stake_calc_helpers import (
     apply_post_kelly_stake_caps,
     apply_signal_soft_stake_cap,
     cap_provisional_stake,
+    cap_provisional_stake_with_flag,
 )
 
 
 def test_provisional_cap_nao_tem_waiver_por_recovery():
     metrics = {"deploy_provisional": True, "provisional_max_stake_pct": 0.01}
-    assert cap_provisional_stake(500.0, 10000.0, metrics) == pytest.approx(100.0)
-    assert metrics["provisional_stake_cap_applied"] is True
+    capped, applied = cap_provisional_stake_with_flag(500.0, 10000.0, metrics)
+    assert capped == pytest.approx(100.0)
+    assert applied is True
+    assert "provisional_stake_cap_applied" not in metrics
 
 
 def test_provisional_cap_remains_one_percent_under_cover_l0():

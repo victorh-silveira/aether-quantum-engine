@@ -5,9 +5,9 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from indicator.domain import Candle
-from indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_price_reference
-from indicator.pullback_indicators import (
+from src.indicator.domain import Candle
+from src.indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_price_reference
+from src.indicator.pullback_indicators import (
     calc_adx,
     calc_bollinger_pct_b,
     calc_hurst_exponent,
@@ -16,7 +16,7 @@ from indicator.pullback_indicators import (
     calc_stochastic,
     calc_williams_r,
 )
-from indicator.pullback_trend_regime import evaluate_trend_regime
+from src.indicator.pullback_trend_regime import evaluate_trend_regime
 
 
 def evaluate_senior_institutional(
@@ -30,7 +30,7 @@ def evaluate_senior_institutional(
     trend_regime_mode: str = "r6",
 ) -> tuple[str, str]:
     """Avalia setup institucional senior sob confluencia dos 5 pilares."""
-    mod = module or sys.modules.get("indicator.pullback")
+    mod = module or sys.modules.get("src.indicator.pullback") or sys.modules.get("indicator.pullback")
 
     def _get(name: str, fallback: Any) -> Any:
         """Obtem funcao injetada dinamicamente com fallback estatico."""

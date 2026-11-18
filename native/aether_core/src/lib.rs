@@ -38,6 +38,16 @@ impl RustRingBuffer {
         seq
     }
 
+    #[getter]
+    pub fn capacity(&self) -> usize {
+        self.capacity
+    }
+
+    #[getter]
+    pub fn sequence(&self) -> usize {
+        self.sequence
+    }
+
     pub fn count(&self) -> usize {
         std::cmp::min(self.sequence, self.capacity)
     }
@@ -49,6 +59,38 @@ impl RustRingBuffer {
             let slot = (self.sequence - 1) & self.mask;
             Some((self.epochs[slot], self.prices[slot]))
         }
+    }
+
+    pub fn latest_window(&self, n: usize) -> (Vec<i64>, Vec<f64>) {
+        let avail = self.count();
+        if n == 0 || avail == 0 {
+            return (Vec::new(), Vec::new());
+        }
+        let target_n = std::cmp::min(n, avail);
+        let start_seq = self.sequence - target_n;
+        let mut out_epochs = Vec::with_capacity(target_n);
+        let mut out_prices = Vec::with_capacity(target_n);
+        for seq in start_seq..self.sequence {
+            let slot = seq & self.mask;
+            out_epochs.push(self.epochs[slot]);
+            out_prices.push(self.prices[slot]);
+        }
+        (out_epochs, out_prices)
+    }
+
+    pub fn get_prices_array(&self, n: usize) -> Vec<f64> {
+        let avail = self.count();
+        if n == 0 || avail == 0 {
+            return Vec::new();
+        }
+        let target_n = std::cmp::min(n, avail);
+        let start_seq = self.sequence - target_n;
+        let mut out_prices = Vec::with_capacity(target_n);
+        for seq in start_seq..self.sequence {
+            let slot = seq & self.mask;
+            out_prices.push(self.prices[slot]);
+        }
+        out_prices
     }
 
     pub fn clear(&mut self) {
@@ -107,9 +149,23 @@ mod tests {
         assert_eq!(buf.count(), 2);
         assert_eq!(buf.latest_tick(), Some((2000, 11.0)));
 
+        buf.push_tick(3000, 12.0);
+        buf.push_tick(4000, 13.0);
+        buf.push_tick(5000, 14.0);
+        assert_eq!(buf.count(), 4);
+        assert_eq!(buf.sequence(), 5);
+        assert_eq!(buf.capacity(), 4);
+        assert_eq!(buf.latest_window(0), (vec![], vec![]));
+        assert_eq!(
+            buf.latest_window(3),
+            (vec![3000, 4000, 5000], vec![12.0, 13.0, 14.0])
+        );
+        assert_eq!(buf.get_prices_array(10), vec![11.0, 12.0, 13.0, 14.0]);
+
         buf.clear();
         assert_eq!(buf.count(), 0);
         assert_eq!(buf.latest_tick(), None);
+        assert_eq!(buf.get_prices_array(2), Vec::<f64>::new());
     }
 
     #[test]

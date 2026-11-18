@@ -1,4 +1,4 @@
-from src.application.services.execution_volatility_booster import (
+from src.application.services.execution_helpers import (
     apply_volatility_vol_booster,
     volatility_burst_active,
 )

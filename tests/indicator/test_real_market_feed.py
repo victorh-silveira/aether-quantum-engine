@@ -5,11 +5,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from test_pullback import call_bars
 
-from indicator.domain import Candle, synthetic_symbols
-from indicator.pullback import MIN_BARS, evaluate
-from indicator.pullback_training import diagnose_all
-from indicator.real_market_feed import fetch_real_candles, resolve_ticker
-from indicator.training import history
+from src.indicator.domain import Candle, synthetic_symbols
+from src.indicator.pullback import MIN_BARS, evaluate
+from src.indicator.pullback_training import diagnose_all
+from src.indicator.real_market_feed import fetch_real_candles, resolve_ticker
+from src.indicator.training import history
 
 
 def test_resolve_ticker():
@@ -136,9 +136,9 @@ def test_pullback_improved_tie_breakers():
     now = MIN_BARS * 300
 
     with (
-        patch("indicator.pullback._rsi", return_value=10.0),
-        patch("indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
-        patch("indicator.pullback._stochastic", return_value=(5.0, 5.0)),
+        patch("src.indicator.pullback._rsi", return_value=10.0),
+        patch("src.indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(5.0, 5.0)),
     ):
         res = evaluate(bars, 300, now, "improved")
         assert res.side in ("CALL", "PUT")
@@ -147,10 +147,10 @@ def test_pullback_improved_tie_breakers():
     c_down = Candle(last.epoch, last.open, last.open + 0.1, last.open - 2.0, last.open - 1.0)
     bars_down = list(bars[:-1]) + [c_down]
     with (
-        patch("indicator.pullback._rsi", return_value=10.0),
-        patch("indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
-        patch("indicator.pullback._stochastic", return_value=(5.0, 5.0)),
-        patch("indicator.pullback._ema", return_value=[last.open + 10.0] * MIN_BARS),
+        patch("src.indicator.pullback._rsi", return_value=10.0),
+        patch("src.indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(5.0, 5.0)),
+        patch("src.indicator.pullback._ema", return_value=[last.open + 10.0] * MIN_BARS),
     ):
         res_down = evaluate(bars_down, 300, now, "improved")
         assert res_down.side in ("CALL", "PUT")
@@ -158,13 +158,13 @@ def test_pullback_improved_tie_breakers():
     c_above = Candle(last.epoch, 104.0, 106.0, 103.0, 105.0)
     bars_above = list(bars[:-1]) + [c_above]
     with (
-        patch("indicator.pullback._rsi", return_value=0.0),
-        patch("indicator.pullback._cmo", return_value=-50.0),
-        patch("indicator.pullback._williams_r", return_value=0.0),
-        patch("indicator.pullback._bollinger_pct_b", return_value=0.0),
-        patch("indicator.pullback._adx", return_value=(0.0, 0.0, 0.0)),
-        patch("indicator.pullback._stochastic", return_value=(0.0, 0.0)),
-        patch("indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
+        patch("src.indicator.pullback._rsi", return_value=0.0),
+        patch("src.indicator.pullback._cmo", return_value=-50.0),
+        patch("src.indicator.pullback._williams_r", return_value=0.0),
+        patch("src.indicator.pullback._bollinger_pct_b", return_value=0.0),
+        patch("src.indicator.pullback._adx", return_value=(0.0, 0.0, 0.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(0.0, 0.0)),
+        patch("src.indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
     ):
         res_above = evaluate(bars_above, 300, now, "improved")
         assert res_above.side == "CALL"
@@ -172,13 +172,13 @@ def test_pullback_improved_tie_breakers():
     c_below = Candle(last.epoch, 96.0, 97.0, 94.0, 95.0)
     bars_below = list(bars[:-1]) + [c_below]
     with (
-        patch("indicator.pullback._rsi", return_value=0.0),
-        patch("indicator.pullback._cmo", return_value=-50.0),
-        patch("indicator.pullback._williams_r", return_value=0.0),
-        patch("indicator.pullback._bollinger_pct_b", return_value=0.0),
-        patch("indicator.pullback._adx", return_value=(0.0, 0.0, 0.0)),
-        patch("indicator.pullback._stochastic", return_value=(0.0, 0.0)),
-        patch("indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
+        patch("src.indicator.pullback._rsi", return_value=0.0),
+        patch("src.indicator.pullback._cmo", return_value=-50.0),
+        patch("src.indicator.pullback._williams_r", return_value=0.0),
+        patch("src.indicator.pullback._bollinger_pct_b", return_value=0.0),
+        patch("src.indicator.pullback._adx", return_value=(0.0, 0.0, 0.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(0.0, 0.0)),
+        patch("src.indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
     ):
         res_below = evaluate(bars_below, 300, now, "improved")
         assert res_below.side == "PUT"
@@ -187,10 +187,10 @@ def test_pullback_improved_tie_breakers():
 
     bars_flat1 = list(bars[:-1]) + [c_flat1]
     with (
-        patch("indicator.pullback._rsi", return_value=10.0),
-        patch("indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
-        patch("indicator.pullback._stochastic", return_value=(5.0, 5.0)),
-        patch("indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
+        patch("src.indicator.pullback._rsi", return_value=10.0),
+        patch("src.indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(5.0, 5.0)),
+        patch("src.indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
     ):
         res_flat1 = evaluate(bars_flat1, 300, now, "improved")
         assert res_flat1.side in ("CALL", "PUT")
@@ -198,10 +198,10 @@ def test_pullback_improved_tie_breakers():
     c_flat2 = Candle(last.epoch, 100.5, 101.0, 99.0, 100.0)
     bars_flat2 = list(bars[:-1]) + [c_flat2]
     with (
-        patch("indicator.pullback._rsi", return_value=10.0),
-        patch("indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
-        patch("indicator.pullback._stochastic", return_value=(5.0, 5.0)),
-        patch("indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
+        patch("src.indicator.pullback._rsi", return_value=10.0),
+        patch("src.indicator.pullback._adx", return_value=(5.0, 5.0, 5.0)),
+        patch("src.indicator.pullback._stochastic", return_value=(5.0, 5.0)),
+        patch("src.indicator.pullback._ema", return_value=[100.0] * MIN_BARS),
     ):
         res_flat2 = evaluate(bars_flat2, 300, now, "improved")
         assert res_flat2.side in ("CALL", "PUT")
@@ -231,6 +231,6 @@ async def test_diagnose_stock_gap():
     store.register_setups = AsyncMock()
     store.save_candles = AsyncMock()
 
-    with patch("indicator.pullback_training.history", AsyncMock(return_value=[Candle(**c) for c in candles])):
+    with patch("src.indicator.pullback_training.history", AsyncMock(return_value=[Candle(**c) for c in candles])):
         report = await diagnose_all(source, store, scope="stock_indices", now=1700000000 + 260 * period)
         assert report is not None

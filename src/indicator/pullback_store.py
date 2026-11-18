@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from indicator.domain import PERIODS, Signal
-from indicator.pullback import VERSION
-from indicator.storage import SignalStore
+from src.indicator.domain import PERIODS, Signal
+from src.indicator.pullback import VERSION
+from src.indicator.storage import SignalStore
 
 
 class PullbackStore(SignalStore):

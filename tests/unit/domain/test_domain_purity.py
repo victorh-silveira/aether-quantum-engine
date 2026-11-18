@@ -22,6 +22,7 @@ _BANNED = frozenset(
         "pandas",
         "minio",
         "joblib",
+        "logging",
         "lightgbm",
         "optuna",
         "sklearn",

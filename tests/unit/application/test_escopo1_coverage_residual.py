@@ -8,8 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from src.application.services.execution_market_rank import market_decision_score
-from src.application.services.execution_quality_gate import read_risk_session_state
-from src.application.services.execution_quality_gate_margin import stamp_edge_without_direction
+from src.application.services.execution_quality import read_risk_session_state, stamp_edge_without_direction
 from src.application.services.force_trade_mode import synthesize_force_direction, synthesize_force_trade_candidate
 from src.application.services.live_signal_metrics import (
     apply_live_calib_drift_soft,

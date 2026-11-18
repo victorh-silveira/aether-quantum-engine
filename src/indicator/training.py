@@ -10,9 +10,9 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from indicator.deriv import PublicDeriv
-from indicator.domain import PERIODS, aggregate, closed_candles, latest_contiguous, synthetic_symbols
-from indicator.model import assess, load, save
+from src.indicator.deriv import PublicDeriv
+from src.indicator.domain import PERIODS, aggregate, closed_candles, latest_contiguous, synthetic_symbols
+from src.indicator.model import assess, load, save
 
 
 logger = logging.getLogger(__name__)

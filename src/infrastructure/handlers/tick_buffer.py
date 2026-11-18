@@ -5,10 +5,11 @@ from __future__ import annotations
 import asyncio
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 
-from src.infrastructure.handlers.disruptor_ring_buffer import DisruptorRingBuffer
+from src.infrastructure.native.rust_bridge import create_native_ring_buffer
 
 
 @dataclass(frozen=True)
@@ -39,7 +40,7 @@ class TickBuffer:
         self._max_bars = max(64, int(max_bars))
         self.symbols = list(symbols)
         self._live: dict[str, deque[tuple[int, float]]] = {s: deque(maxlen=self._max_ticks) for s in symbols}
-        self._ring_buffers: dict[str, DisruptorRingBuffer] = {s: DisruptorRingBuffer(capacity=4096) for s in symbols}
+        self._ring_buffers: dict[str, Any] = {s: create_native_ring_buffer(capacity=4096) for s in symbols}
         self._bar_stats: dict[str, deque[BarMicrostructure]] = {s: deque(maxlen=self._max_bars) for s in symbols}
         self._current_epoch: dict[str, int | None] = dict.fromkeys(symbols)
         self._last_tick_monotonic: float = 0.0
@@ -91,7 +92,7 @@ class TickBuffer:
         ticks = self._live.get(str(symbol))
         return int(len(ticks)) if ticks is not None else 0
 
-    def get_ring_buffer(self, symbol: str) -> DisruptorRingBuffer | None:
+    def get_ring_buffer(self, symbol: str) -> Any | None:
         """Retorna a instancia do buffer disruptor contiguo para o simbolo."""
         return self._ring_buffers.get(str(symbol))
 

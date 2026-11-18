@@ -2,9 +2,9 @@
 
 import json
 import math
+from bisect import bisect_right
 from dataclasses import dataclass, field
 
-from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic
 from src.domain.math.logit_sharpen import sharpen_logit_temperature
 from src.shared.paths import repo_path
 
@@ -100,6 +100,25 @@ def shrink_toward_fifty(prob: float, val_accuracy: float) -> float:
     return 0.5 + (float(prob) - 0.5) * trust
 
 
+def apply_isotonic(prob: float, xs: tuple[float, ...], ys: tuple[float, ...]) -> float:
+    """Interpola probabilidade calibrada na curva isotonica."""
+    if not xs or not ys:
+        return float(prob)
+    p = float(prob)
+    if len(xs) == 1 or p < xs[0]:
+        return max(0.0, min(1.0, float(ys[0])))
+    if p > xs[-1]:
+        return max(0.0, min(1.0, float(ys[-1])))
+    idx = max(0, min(len(xs) - 2, bisect_right(xs, p) - 1))
+    lo_x, hi_x = xs[idx], xs[idx + 1]
+    val = (
+        float(ys[idx])
+        if abs(hi_x - lo_x) < 1e-12
+        else float(ys[idx] + ((p - lo_x) / (hi_x - lo_x)) * (ys[idx + 1] - ys[idx]))
+    )
+    return max(0.0, min(1.0, val))
+
+
 def apply_platt(prob: float, calibrator: CalibratorState) -> float:
     """Aplica scaling Platt sobre logit da probabilidade."""
     logit = raw_to_logit(prob) * float(calibrator.platt_a) + float(calibrator.platt_b)
@@ -149,12 +168,9 @@ def apply_calibrator_stable(
     method = str(calibrator.method or "")
     if method == _METHOD_ISOTONIC and calibrator.isotonic_x:
         xs = calibrator.isotonic_x
-        below = raw + 1e-12 < float(xs[0])
-        above = raw - 1e-12 > float(xs[-1])
-        if below or above:
+        if raw + 1e-12 < float(xs[0]) or raw - 1e-12 > float(xs[-1]):
             return raw
-        side_flip = (raw - 0.5) * (calibrated - 0.5) < 0.0
-        if side_flip and abs(calibrated - raw) > 0.02:
+        if (raw - 0.5) * (calibrated - 0.5) < 0.0 and abs(calibrated - raw) > 0.02:
             return raw
     floor = float(margin_floor) if margin_floor is not None else _margin_floor_from_settings()
     raw_margin = abs(raw - 0.5)
@@ -172,8 +188,7 @@ def apply_calibrator_stable(
 
 def raw_side_conviction(raw_prob: float) -> float:
     """Conviccao bruta do lado escolhido (max(p, 1-p))."""
-    p = float(raw_prob)
-    return max(p, 1.0 - p)
+    return max(float(raw_prob), 1.0 - float(raw_prob))
 
 
 def cap_calibrated_to_raw_band(raw_prob: float, score: float, max_gap: float) -> float:
@@ -247,14 +262,12 @@ def expected_calibration_error(probs: list[float], labels: list[float], *, bins:
     total = float(len(probs))
     ece = 0.0
     for bucket in range(bins):
-        lo = bucket / bins
-        hi = (bucket + 1) / bins
+        lo, hi = bucket / bins, (bucket + 1) / bins
         idx = [i for i, p in enumerate(probs) if (lo <= float(p) < hi or (hi == 1.0 and float(p) == 1.0))]
-        if not idx:
-            continue
-        avg_conf = sum(float(probs[i]) for i in idx) / len(idx)
-        avg_label = sum(float(labels[i]) for i in idx) / len(idx)
-        ece += abs(avg_conf - avg_label) * (len(idx) / total)
+        if idx:
+            avg_conf = sum(float(probs[i]) for i in idx) / len(idx)
+            avg_label = sum(float(labels[i]) for i in idx) / len(idx)
+            ece += abs(avg_conf - avg_label) * (len(idx) / total)
     return ece
 
 
@@ -262,13 +275,13 @@ def calibrator_from_dict(data: dict | None) -> CalibratorState:
     """Reconstrui calibrador a partir de payload de checkpoint."""
     if not data:
         return CalibratorState()
-    iso_x = data.get("isotonic_x") or ()
-    iso_y = data.get("isotonic_y") or ()
+    iso_x, iso_y = data.get("isotonic_x") or (), data.get("isotonic_y") or ()
+    bounds = _calib_bounds()
     return CalibratorState(
         method=str(data.get("method", _METHOD_TEMPERATURE_PLATT)),
-        temperature=float(data.get("temperature", _calib_bounds()["temperature_default"])),
-        platt_a=float(data.get("platt_a", _calib_bounds()["platt_a_default"])),
-        platt_b=float(data.get("platt_b", _calib_bounds()["platt_b_default"])),
+        temperature=float(data.get("temperature", bounds["temperature_default"])),
+        platt_a=float(data.get("platt_a", bounds["platt_a_default"])),
+        platt_b=float(data.get("platt_b", bounds["platt_b_default"])),
         isotonic_x=tuple(float(v) for v in iso_x),
         isotonic_y=tuple(float(v) for v in iso_y),
     )

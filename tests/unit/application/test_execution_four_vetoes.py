@@ -11,7 +11,7 @@ from src.application.services.execution_senior_skips import (
     apply_senior_execution_skips,
     should_skip_tcn_noise_discord,
 )
-from src.application.services.market_audit_gate_tokens import format_gates_audit_line
+from src.application.services.market_audit import format_gates_audit_line
 from src.application.services.orchestrator.execution_blockers import _candidate_block_reason
 from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection as Side

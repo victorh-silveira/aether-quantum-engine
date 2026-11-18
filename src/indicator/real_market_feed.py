@@ -6,7 +6,7 @@ import logging
 
 import httpx
 
-from indicator.domain import Candle
+from src.indicator.domain import Candle
 
 
 logger = logging.getLogger(__name__)

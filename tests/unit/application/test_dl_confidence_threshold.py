@@ -1,4 +1,4 @@
-from src.application.services.deep_learning.dl_calibration_tolerance import (
+from src.application.services.deep_learning.dl_calibration_methods import (
     apply_calibration_neutral_tolerance,
     infer_direction_from_prob as direction_from_raw_prob,
 )

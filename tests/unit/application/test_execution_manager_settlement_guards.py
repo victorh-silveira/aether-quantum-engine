@@ -9,7 +9,7 @@ from src.application.services.orchestrator.execution_settlement import (
     _next_stagnant_poll_count,
     _settlement_grace_period,
 )
-from src.application.services.orchestrator.settlement_utils import clear_contract_metadata, clear_contract_tracking
+from src.application.services.orchestrator.settlement_audit import clear_contract_metadata, clear_contract_tracking
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
 from src.infrastructure.state.trading_state import TradingState
 from tests.unit.application.post_settlement_helpers import (
@@ -29,11 +29,11 @@ def test_settlement_grace_period_uses_max_of_dynamic_and_static():
     execution_cfg = {"settlement_post_expiry_slack_seconds": 2.0}
     with (
         patch(
-            "src.application.services.orchestrator.execution_settlement.settlement_utils.min_elapsed_before_stagnant_polls",
+            "src.application.services.orchestrator.execution_settlement.settlement_audit.min_elapsed_before_stagnant_polls",
             return_value=302.0,
         ),
         patch(
-            "src.application.services.orchestrator.execution_settlement.settlement_utils.calculate_cluster_grace_period",
+            "src.application.services.orchestrator.execution_settlement.settlement_audit.calculate_cluster_grace_period",
             return_value=21.0,
         ),
     ):

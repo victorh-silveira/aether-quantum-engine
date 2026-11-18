@@ -6,10 +6,10 @@ import inspect
 import time
 from typing import Any
 
-from src.application.services.orchestrator.settlement_detect import contract_payload_is_settled
+from src.application.services.orchestrator.settlement_audit import is_transient_broker_error, mark_ws_offline
+from src.application.services.orchestrator.settlement_helpers import contract_payload_is_settled
 from src.application.services.orchestrator.settlement_logic import process_contract_settlement
 from src.application.services.orchestrator.settlement_rest import settle_rest_contract_when_due
-from src.application.services.orchestrator.settlement_utils import is_transient_broker_error, mark_ws_offline
 
 
 def _profit_from_row(row: dict) -> float:

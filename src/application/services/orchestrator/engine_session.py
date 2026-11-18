@@ -10,7 +10,7 @@ from src.application.services.orchestrator.engine_mode import (
     ENGINE_MODE_EXECUTE,
     apply_engine_mode,
 )
-from src.domain.risk.risk_policy import validate_engine_risk_config
+from src.domain.risk.risk_models import validate_engine_risk_config
 from src.presentation.terminal.logger import setup_logger
 from src.presentation.terminal.logging_config import resolve_logging_config
 from src.shared.paths import REPO_ROOT, repo_path

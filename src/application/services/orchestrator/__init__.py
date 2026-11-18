@@ -77,7 +77,7 @@ class Orchestrator:
         self.trade_handler = TradeHandler(self.ws, config, auth=self.auth, market_writer=self.market_writer)
         self.trading_transport = "ws"
         self.deriv_account_id = ""
-        self.risk_manager = RiskManager(config["risk_management"])
+        self.risk_manager = RiskManager(config["risk_management"], logger=logging.getLogger("AETH"))
         gran = int(data_cfg.get("micro_granularity", 120))
         self.risk_manager.set_candle_interval_seconds(gran)
         self.state = TradingState()

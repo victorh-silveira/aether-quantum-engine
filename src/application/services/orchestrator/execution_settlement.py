@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from src.application.services.log_dedupe import clear_log_channel, log_warning_if_changed
 from src.presentation.terminal.log_context import clear_log_context
 
-from . import settlement_utils
+from . import settlement_audit
 from .settlement_backfill import backfill_pending_contracts, reconcile_single_contract
 
 
@@ -23,11 +23,11 @@ async def _settlement_poll_delay(seconds: float) -> None:
 
 def _settlement_grace_period(exec_mgr: "ExecutionManager", execution_cfg: dict, start_time: float) -> float:
     """Calcula periodo de carencia antes de contar polls estagnados."""
-    static = settlement_utils.min_elapsed_before_stagnant_polls(
+    static = settlement_audit.min_elapsed_before_stagnant_polls(
         exec_mgr.orch.config.get("risk_management", {}).get("params"),
         execution_cfg,
     )
-    dynamic = settlement_utils.calculate_cluster_grace_period(
+    dynamic = settlement_audit.calculate_cluster_grace_period(
         exec_mgr.orch.state.active_contracts, execution_cfg, start_time
     )
     if dynamic <= 0:
@@ -47,10 +47,10 @@ def _settlement_timed_out(exec_mgr: "ExecutionManager", start_time: float, timeo
 def _prune_orphan_settlement_ids(exec_mgr: "ExecutionManager") -> bool:
     """Remove ids orfaos e indica se o loop de liquidacao deve encerrar."""
     active_ids = list(exec_mgr.orch.risk_manager.active_contract_ids)
-    kept_ids, orphan_ids = settlement_utils.prune_orphan_contract_ids(active_ids, exec_mgr.orch.state.active_contracts)
+    kept_ids, orphan_ids = settlement_audit.prune_orphan_contract_ids(active_ids, exec_mgr.orch.state.active_contracts)
     if orphan_ids:
         exec_mgr.orch.risk_manager.active_contract_ids = kept_ids
-        settlement_utils.clear_contract_metadata(orphan_ids, exec_mgr.orch.risk_manager)
+        settlement_audit.clear_contract_metadata(orphan_ids, exec_mgr.orch.risk_manager)
     return not exec_mgr.orch.risk_manager.active_contract_ids
 
 
@@ -182,8 +182,8 @@ async def reconcile_contracts(exec_mgr: "ExecutionManager") -> bool:
             await reconcile_single_contract(exec_mgr.orch, int(c_id))
             await asyncio.sleep(0.2)
         except Exception as e:
-            if settlement_utils.is_transient_broker_error(e):
-                settlement_utils.mark_ws_offline(ws)
+            if settlement_audit.is_transient_broker_error(e):
+                settlement_audit.mark_ws_offline(ws)
                 logger.warning("RECONCILE: broker indisponivel cid=%s: %s", c_id, e)
                 return False
             logger.warning("RECONCILE: cid=%s falhou: %s", c_id, e)

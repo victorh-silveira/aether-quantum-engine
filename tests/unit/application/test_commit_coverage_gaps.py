@@ -12,7 +12,7 @@ from src.application.services.deep_learning.dl_bridge_helpers import guard_infer
 from src.application.services.deep_learning.dl_params import resolve_inference_history_bars
 from src.application.services.deep_learning.dl_symbol_runtime import candle_epoch
 from src.application.services.execution_direction_resolver import _finalize_execution_metrics
-from src.application.services.execution_gate_verdict import metrics_block_execution
+from src.application.services.execution_quality import metrics_block_execution
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.stake_sizing import finalize_stake_with_min
 
