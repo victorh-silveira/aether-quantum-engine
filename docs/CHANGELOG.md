@@ -1,3 +1,14 @@
+## [5.3.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.0...v5.3.1) (2026-11-18)
+
+### Correcoes de Bug
+
+* **infra:** fixar runner ubuntu-24.04 no pipeline ci para python 3.13.12 ([ea8cff3](https://github.com/victorh-silveira/aether-quantum-engine/commit/ea8cff323f7566014865095a70aa5c3357988e74))
+
+### Refatoracoes Tecnicas
+
+* **all:** consolidar modulos internos, imutabilidade de risco e imports do indicador ([eca6a6b](https://github.com/victorh-silveira/aether-quantum-engine/commit/eca6a6bda73254cc617b83a3521acc49271ed688))
+* **all:** mover modulos da raiz para src e unificar pyproject ([f1e97cb](https://github.com/victorh-silveira/aether-quantum-engine/commit/f1e97cb14446ca790764beb4257e130391b6849a))
+
 ## [5.3.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.2.2...v5.3.0) (2026-11-17)
 
 ### Funcionalidades
