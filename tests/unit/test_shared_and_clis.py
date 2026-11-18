@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.application.services.orchestrator import train_cli
-from src.shared import paths, settings_io
+from src.shared import asyncio_runner, paths, settings_io
 
 
 def test_shared_paths_and_settings_io(tmp_path, monkeypatch):
@@ -50,3 +50,12 @@ async def test_train_cli_main_paths(monkeypatch):
 
     orch.run_training = AsyncMock(side_effect=asyncio.CancelledError())
     assert await train_cli.main() == 130
+
+
+def test_asyncio_runner_windows_policy_branch(monkeypatch):
+    called = []
+    monkeypatch.setattr(asyncio_runner.os, "name", "nt")
+    monkeypatch.setattr(asyncio_runner.asyncio, "WindowsSelectorEventLoopPolicy", lambda: "win_policy", raising=False)
+    monkeypatch.setattr(asyncio_runner.asyncio, "set_event_loop_policy", called.append)
+    asyncio_runner.silence_asyncio_debug()
+    assert called == ["win_policy"]
