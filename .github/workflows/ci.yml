@@ -47,7 +47,7 @@ jobs:
   commitlint:
     name: CI - Commitlint
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Obter codigo fonte
@@ -70,7 +70,7 @@ jobs:
   python:
     name: CI - Python
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Obter codigo fonte
@@ -127,7 +127,7 @@ jobs:
   docker:
     name: CI - Docker
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Obter codigo fonte
@@ -165,7 +165,7 @@ jobs:
   shell:
     name: CI - Shell
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Obter codigo fonte
@@ -199,7 +199,7 @@ jobs:
   rust:
     name: CI - Rust
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       PYO3_USE_ABI3_FORWARD_COMPATIBILITY: "1"
@@ -237,7 +237,7 @@ jobs:
   workflows:
     name: CI - Workflows
     if: ${{ github.event_name != 'push' || (github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/')) }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Obter codigo fonte
@@ -249,7 +249,7 @@ jobs:
     name: CI - Publicação
     needs: [commitlint, python, docker, shell, rust, workflows]
     if: ${{ (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit != null && !contains(github.event.head_commit.message, 'Merge branch') && !contains(github.event.head_commit.message, 'merge origin/'))) && github.ref == 'refs/heads/main' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: write
@@ -311,7 +311,7 @@ jobs:
     name: CI - Resumo
     needs: [commitlint, python, docker, shell, rust, workflows, release]
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Obter codigo fonte
