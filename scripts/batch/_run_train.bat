@@ -25,7 +25,7 @@ if not exist "%PYTHON_EXE%" (
 )
 cd /d "%REPO_ROOT%"
 echo [AETHER] Treino DL - conda=%ENV_NAME% python=%PYTHON_EXE% dir=%CD%
-"%PYTHON_EXE%" train.py
+"%PYTHON_EXE%" -m src.application.services.orchestrator.train_cli
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" (
     echo.

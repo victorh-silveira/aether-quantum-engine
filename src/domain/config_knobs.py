@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-import settings_io
+from src.shared import settings_io
 
 
 def load_settings_json() -> dict[str, Any]:

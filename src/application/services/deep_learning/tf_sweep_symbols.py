@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from aether_paths import REPO_ROOT
+from src.shared.paths import REPO_ROOT
 
 
 DEFAULT_SWEEP_SYMBOLS: tuple[str, ...] = ("1HZ75V",)

@@ -31,7 +31,7 @@ echo [AETHER] launch-train Rise/Fall - TCN M5
 "%PYTHON_EXE%" -u app/scripts/operations/sanitize_fresh_run.py
 if errorlevel 1 exit /b 1
 
-"%PYTHON_EXE%" -u app/train.py
+"%PYTHON_EXE%" -u -m src.application.services.orchestrator.train_cli
 if errorlevel 1 exit /b 1
 
 "%PYTHON_EXE%" -u app/scripts/operations/check_dl_checkpoint.py

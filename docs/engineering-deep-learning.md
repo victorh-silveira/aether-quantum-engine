@@ -66,7 +66,7 @@ Para coletar ticks públicos sem abrir trades, use `python scripts/operations/co
 ## Operação
 
 ```bash
-python train.py
+python -m src.application.services.orchestrator.train_cli
 python scripts/operations/check_dl_checkpoint.py
 python run.py
 ```

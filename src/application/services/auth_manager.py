@@ -6,7 +6,6 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from aether_paths import APP_ROOT, REPO_ROOT
 from src.infrastructure.api.deriv_credentials import is_legacy_deriv_app_id, resolve_deriv_app_id
 from src.infrastructure.api.deriv_pat_binding import parse_deriv_pat
 from src.infrastructure.api.deriv_rest_client import (
@@ -15,6 +14,7 @@ from src.infrastructure.api.deriv_rest_client import (
     DerivTradingSession,
     select_account,
 )
+from src.shared.paths import APP_ROOT, REPO_ROOT
 
 
 class AuthManager:

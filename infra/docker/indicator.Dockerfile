@@ -53,12 +53,10 @@ COPY --from=builder --chown=aether:aether /opt/venv /opt/venv
 # Copia apenas os artefatos de aplicacao e configuracao necessarios
 COPY --chown=aether:aether src /opt/aether/src
 COPY --chown=aether:aether config /opt/aether/config
-COPY --chown=aether:aether aether_paths.py /opt/aether/aether_paths.py
-COPY --chown=aether:aether run_indicator.py /opt/aether/run_indicator.py
 
 USER aether:aether
 
 EXPOSE 9101
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["python", "run_indicator.py"]
+CMD ["python", "-m", "src.indicator"]

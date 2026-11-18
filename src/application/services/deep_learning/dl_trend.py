@@ -4,9 +4,9 @@ import json
 
 import numpy as np
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
 from src.domain.models.trade import TradeDirection
+from src.shared.paths import repo_path
 
 
 def _safe_last(series: dict, key: str) -> float | None:

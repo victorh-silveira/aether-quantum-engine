@@ -1,4 +1,4 @@
-"""Sessao dedicada de treino DL acionada por train.py."""
+"""Sessao dedicada de treino DL acionada por train_cli.py."""
 
 from src.application.services.deep_learning.dl_bootstrap_train import run_dl_training_session
 from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars

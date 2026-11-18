@@ -18,7 +18,7 @@ Falsos positivos tipicos: metodos de `typing.Protocol`, hooks FastAPI lifespan, 
 
 - Allowlist versionada: [`app/.vulture_whitelist.py`](../app/.vulture_whitelist.py)
 - Pipeline: `vulture <paths> .vulture_whitelist.py --min-confidence 100` (via `clean_workspace` / pre-commit)
-- Regenerar apos auditar falsos positivos: `cd app && python -m vulture src run.py train.py scripts aether_paths.py --min-confidence 100 --make-whitelist >> .vulture_whitelist.py`
+- Regenerar apos auditar falsos positivos: `python -m vulture src run.py scripts --min-confidence 100 --make-whitelist >> .vulture_whitelist.py`
 - Item na allowlist que **nao** for porta Protocol / hook registrado → apagar ou refatorar (tolerancia zero a morto novo)
 
 ### Ruff (AST estrito)
@@ -31,7 +31,7 @@ Ja selecionado em [`app/pyproject.toml`](../app/pyproject.toml):
 | F841 | local atribuido e nao lido |
 | ERA001 | codigo comentado versionado (proibido; use git) |
 | ARG | argumento de funcao nao usado |
-| T20 / T201 | `print()` no motor — falha; scripts/`run.py`/`train.py` podem ignorar T201 |
+| T20 / T201 | `print()` no motor — falha; `scripts/`/`run.py`/`src/application/services/orchestrator/train_cli.py`/`src/indicator/__main__.py` podem ignorar T201 |
 
 Proibido `print()` / `rich.print` no hot path de ticks (I/O sync no loop).
 

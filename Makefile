@@ -157,7 +157,7 @@ app-train:
 	@$(MAKE) --no-print-directory indicator-train
 
 app-research-ml:
-	$(PYTHON) train.py
+	$(PYTHON) -m src.application.services.orchestrator.train_cli
 	$(PYTHON) scripts/operations/check_dl_checkpoint.py
 	@$(PYTHON) scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel.'
 
@@ -168,10 +168,10 @@ indicator-down: docker-down
 indicator-train:
 	@if [ "$$($(INDICATOR_PYTHON) -c 'import sys; print(sys.platform)')" = linux ] && command -v prlimit >/dev/null 2>&1; then \
 		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		prlimit --as=$$(( $(INDICATOR_TRAIN_MEMORY_MB) * 1024 * 1024 )) -- $(INDICATOR_PYTHON) run_indicator.py; \
+		prlimit --as=$$(( $(INDICATOR_TRAIN_MEMORY_MB) * 1024 * 1024 )) -- $(INDICATOR_PYTHON) -m src.indicator; \
 	else \
 		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		$(INDICATOR_PYTHON) run_indicator.py; \
+		$(INDICATOR_PYTHON) -m src.indicator; \
 	fi
 
 indicator-test:

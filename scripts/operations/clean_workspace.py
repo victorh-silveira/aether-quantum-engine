@@ -359,9 +359,7 @@ def stage_lint() -> None:
         [
             "src",
             "run.py",
-            "train.py",
             "scripts",
-            "aether_paths.py",
             ".vulture_whitelist.py",
             "--min-confidence",
             "100",
@@ -390,9 +388,7 @@ def _run_indicator_lint() -> None:
                 "src",
                 "tests",
                 "run.py",
-                "train.py",
                 "../run.py",
-                "../train.py",
             ],
             cwd=str(ind_app),
             check=True,
@@ -410,9 +406,7 @@ def _run_indicator_lint() -> None:
                 "src",
                 "tests",
                 "run.py",
-                "train.py",
                 "../run.py",
-                "../train.py",
             ],
             cwd=str(ind_app),
             check=True,
@@ -426,7 +420,7 @@ def _run_indicator_security() -> None:
     if ind_app.is_dir():
         print("\n>>> Executando: Indicador Security Scan")
         subprocess.run(
-            [sys.executable, "-m", "ruff", "check", "--select", "S", "--ignore", "S104", "src", "run.py", "train.py"],
+            [sys.executable, "-m", "ruff", "check", "--select", "S", "--ignore", "S104", "src", "run.py"],
             cwd=str(ind_app),
             check=True,
             text=True,

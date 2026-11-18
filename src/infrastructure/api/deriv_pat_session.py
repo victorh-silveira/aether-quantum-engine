@@ -8,7 +8,6 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any
 
-from aether_paths import REPO_ROOT
 from src.infrastructure.api.deriv_http import read_http_response
 from src.infrastructure.api.deriv_pat_binding import (
     DerivPatBindingError,
@@ -22,6 +21,7 @@ from src.infrastructure.api.deriv_rest_client import (
     select_account,
 )
 from src.infrastructure.api.websocket_manager import WebSocketManager
+from src.shared.paths import REPO_ROOT
 
 
 _TRANSIENT_HTTP = frozenset({502, 503, 504})

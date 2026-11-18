@@ -11,7 +11,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from aether_paths import repo_path
+from src.shared.paths import repo_path
 
 
 _PERMISSION_OS_ERRORS = (PermissionError, OSError)

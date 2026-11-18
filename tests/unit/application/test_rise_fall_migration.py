@@ -43,7 +43,7 @@ def test_rise_fall_launchers_train_tcn_and_meta_without_candidate_promotion():
     launchers = [p if p.is_file() else (root / "scripts" / p.relative_to(root / "app" / "scripts")) for p in launchers]
     for path in launchers:
         script = path.read_text(encoding="utf-8")
-        assert "train.py" in script
+        assert "train_cli" in script
         assert "check_dl_checkpoint.py" in script
         assert "train_touch_classifier.py" not in script
         assert "meta_candidate.joblib" not in script

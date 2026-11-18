@@ -9,7 +9,6 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration import CalibratorState
 from src.application.services.deep_learning.dl_device import log_device_once, place_model, resolve_torch_device
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
@@ -19,6 +18,7 @@ from src.application.services.deep_learning.model import (
     fit_norm_stats,
     load_model_checkpoint,
 )
+from src.shared.paths import repo_path
 
 
 logger = logging.getLogger("AETH")

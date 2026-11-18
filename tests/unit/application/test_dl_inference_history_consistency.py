@@ -4,10 +4,10 @@ import json
 
 import numpy as np
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_feature_matrix import build_sequence_tensor
 from src.application.services.deep_learning.dl_params import parse_dl_params
 from src.application.services.deep_learning.dl_training_gate import min_dl_inference_len
+from src.shared.paths import repo_path
 
 
 def test_runtime_inference_history_preserves_training_features():

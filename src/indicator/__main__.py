@@ -6,16 +6,14 @@ import asyncio
 import json
 import logging
 import os
-from pathlib import Path
 
-import aether_paths  # noqa: F401
-from indicator.service import run_indicator
+from src.indicator.service import run_indicator
+from src.shared.paths import REPO_ROOT
 
 
 def main() -> None:
     """Carrega configuracao do indicador e inicia observacao publica."""
-    repo = Path(__file__).resolve().parent
-    cfg_path = repo / "config" / "settings.json"
+    cfg_path = REPO_ROOT / "config" / "settings.json"
     full_cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
     config = full_cfg.get("indicator", full_cfg)
 
@@ -28,7 +26,7 @@ def main() -> None:
         "AETHER_TIMESCALE_DSN", config.get("timescale_dsn", "postgresql://aether:aether@127.0.0.1:5432/aether")
     )
     variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "senior_institutional"))
-    models_dir = repo / config.get("models_dir", "data/indicator-models")
+    models_dir = REPO_ROOT / config.get("models_dir", "data/indicator-models")
     public_ws_url = config.get("public_ws_url", "wss://api.derivws.com/trading/v1/options/ws/public")
     metrics_port = int(config.get("metrics_port", 9101))
 

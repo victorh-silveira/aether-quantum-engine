@@ -8,8 +8,8 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from aether_paths import repo_path
 from src.infrastructure.state.persistence_manager import PersistenceManager
+from src.shared.paths import repo_path
 
 
 class SessionState:

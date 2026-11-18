@@ -6,7 +6,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-from aether_paths import repo_path
 from src.domain.risk.dlambert_sizing import (
     REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
     REDIS_DLAMBERT_UNIT_KEY,
@@ -17,6 +16,7 @@ from src.domain.risk.stop_win_target import (
     REDIS_SESSION_TARGET_WIN_KEY,
 )
 from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
+from src.shared.paths import repo_path
 
 
 class JsonStateStore:

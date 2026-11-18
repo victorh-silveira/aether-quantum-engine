@@ -8,8 +8,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from aether_paths import repo_path
 from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact_async
+from src.shared.paths import repo_path
 
 
 logger = logging.getLogger("AETH")

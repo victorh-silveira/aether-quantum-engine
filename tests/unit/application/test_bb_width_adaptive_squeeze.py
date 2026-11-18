@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-from aether_paths import repo_path
 from src.application.services.bb_width_adaptive_squeeze import (
     anomalous_bb_compression,
     bb_width_buffer_snapshot,
@@ -12,6 +11,7 @@ from src.application.services.bb_width_adaptive_squeeze import (
     reset_bb_width_buffer,
 )
 from src.application.services.deep_learning.dl_indicator_config import load_indicator_config_from_settings
+from src.shared.paths import repo_path
 
 
 @pytest.fixture(autouse=True)

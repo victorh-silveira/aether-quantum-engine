@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-import settings_io
 from src.domain.config_knobs import require_float, require_int, require_keys
+from src.shared import settings_io
 
 
 _RECOVERY_STATE_KEYS = (

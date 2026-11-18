@@ -8,7 +8,7 @@ from pathlib import Path
 
 def test_active_code_has_no_buy_or_authorization_route():
     root = Path(__file__).resolve().parents[2]
-    active = [root / "run_indicator.py", *sorted((root / "src" / "indicator").glob("*.py"))]
+    active = sorted((root / "src" / "indicator").glob("*.py"))
     banned = {"buy", "proposal", "authorize", "sell", "portfolio", "balance", "contract_update"}
     for path in active:
         tree = ast.parse(path.read_text(encoding="utf-8"))
@@ -87,7 +87,7 @@ def test_root_make_starts_unified_stack_and_trains_in_order():
     assert "docker-up" in training
     assert "train_loss_classifier" not in training
     research = makefile.split("\napp-research-ml:\n", 1)[1].split("\nindicator-up:", 1)[0]
-    assert "train.py" in research
+    assert "train_cli" in research
     assert "app-train-all: app-train" in makefile
     assert "lint: app-lint" in makefile
     assert "test: app-test" in makefile

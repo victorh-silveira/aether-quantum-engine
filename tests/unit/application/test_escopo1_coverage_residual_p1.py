@@ -53,13 +53,13 @@ def test_config_knobs_fail_closed_and_merge(monkeypatch):
     assert merged["a"]["b"] == 1
     assert merged["a"]["c"] == 2
     monkeypatch.setattr(
-        "settings_io.load_settings_json",
+        "src.shared.settings_io.load_settings_json",
         lambda: [1, 2],
     )
     with pytest.raises(ValueError, match="invalido"):
         load_settings_json()
     monkeypatch.setattr(
-        "settings_io.load_settings_json",
+        "src.shared.settings_io.load_settings_json",
         lambda: {"orchestrator": {}},
     )
     with pytest.raises(ValueError, match="execution"):

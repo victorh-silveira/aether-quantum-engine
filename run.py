@@ -6,8 +6,6 @@ import os
 import sys
 import types
 
-from aether_asyncio import run_async, silence_asyncio_debug
-from aether_paths import REPO_ROOT
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.engine_mode import ENGINE_MODE_EXECUTE
 from src.application.services.orchestrator.engine_session import (
@@ -15,6 +13,8 @@ from src.application.services.orchestrator.engine_session import (
     load_engine_config,
 )
 from src.application.services.polars_runtime import ensure_polars_max_threads
+from src.shared.asyncio_runner import run_async, silence_asyncio_debug
+from src.shared.paths import REPO_ROOT
 
 
 _SHUTDOWN_EXC_MARKERS = (

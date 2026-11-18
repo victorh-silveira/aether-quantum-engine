@@ -16,7 +16,7 @@ _APP = Path(__file__).resolve().parents[2]
 if str(_APP) not in sys.path:
     sys.path.insert(0, str(_APP))
 
-from aether_paths import REPO_ROOT
+from src.shared.paths import REPO_ROOT
 
 
 DL_GLOBS = ("*.pth", "*_ts.pt", "*.pt")

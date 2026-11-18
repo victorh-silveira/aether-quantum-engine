@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from aether_paths import repo_path
+from src.shared.paths import repo_path
 
 
 _RULE_RE = re.compile(r"`([a-z0-9_-]+\.mdc)`")

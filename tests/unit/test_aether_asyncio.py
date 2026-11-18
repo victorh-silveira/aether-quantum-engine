@@ -1,7 +1,7 @@
 import logging
 import os
 
-from aether_asyncio import run_async, silence_asyncio_debug
+from src.shared.asyncio_runner import run_async, silence_asyncio_debug
 
 
 def test_silence_asyncio_debug_clears_env_and_logger():

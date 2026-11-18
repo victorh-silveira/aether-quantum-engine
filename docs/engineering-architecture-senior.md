@@ -4,7 +4,7 @@ Doutrina de engenharia do **Aether Quantum Engine**. Runtime operacional (símbo
 
 ## 1. Princípio de implantação
 
-O motor (`app/run.py` / `train.py`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13.12**, build **com GIL**) para:
+O motor (`run.py` / `python -m src.application.services.orchestrator.train_cli`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13.12**, build **com GIL**) para:
 
 - evitar sobrecarga de virtualização de rede no hot path;
 - acesso direto a drivers **NVIDIA/CUDA** no host;
@@ -61,7 +61,7 @@ Sidecars (Redis, TimescaleDB, MinIO, meta `:8005`, loss `:8006`) ficam em Docker
 - Preferir `torch.inference_mode()` / `no_grad`, tensores pré-alocados; avaliar `torch.compile(mode="reduce-overhead")` e `pin_memory()` sem travar o runtime.
 - Estruturar tarefas com `asyncio.TaskGroup`, tratamento estrito de `CancelledError` e shutdown gracioso de conexões WS/HTTP.
 - Circuit-breakers de processo: latência/SLA ou taxa de perdas acima do limiar → modo defensivo (rejeitar novas posições; drenar existentes). Stop-win / `EXEC_PAUSE` e gates de execução são a válvula operacional SSOT.
-- SSOT JSON: I/O em [`settings_io.py`](../settings_io.py); parsers fail-closed em `domain/config_knobs.py` (sem `path.open` no domínio).
+- SSOT JSON: I/O em [`src/shared/settings_io.py`](../src/shared/settings_io.py); parsers fail-closed em `domain/config_knobs.py` (sem `path.open` no domínio).
 
 ## 4. Host / WSL / CUDA (DevOps)
 

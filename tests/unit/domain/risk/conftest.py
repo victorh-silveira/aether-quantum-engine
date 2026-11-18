@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from aether_paths import repo_path
+from src.shared.paths import repo_path
 
 
 def _full_soft_recovery() -> dict:

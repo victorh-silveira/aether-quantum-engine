@@ -13,8 +13,8 @@ _APP = Path(__file__).resolve().parents[2]
 if str(_APP) not in sys.path:
     sys.path.insert(0, str(_APP))
 
-from aether_asyncio import run_async, silence_asyncio_debug
-from aether_paths import REPO_ROOT
+from src.shared.asyncio_runner import run_async, silence_asyncio_debug
+from src.shared.paths import REPO_ROOT
 from scripts.operations.timescale_seed_policy import (
     MIN_BARS_MICRO,
     resolve_seed_bars_for_granularity,

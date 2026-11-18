@@ -14,7 +14,7 @@ _APP = Path(__file__).resolve().parents[2]
 if str(_APP) not in sys.path:
     sys.path.insert(0, str(_APP))
 
-from aether_paths import REPO_ROOT
+from src.shared.paths import REPO_ROOT
 from src.application.services.deep_learning.dl_features import FEATURE_DIM
 from src.application.services.deep_learning.dl_model_checkpoint import load_model_checkpoint
 from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols

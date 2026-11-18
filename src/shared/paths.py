@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-REPO_ROOT = Path(__file__).resolve().parent
+REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_ROOT = REPO_ROOT
 SRC_ROOT = REPO_ROOT / "src"
 

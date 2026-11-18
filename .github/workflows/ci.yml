@@ -17,9 +17,7 @@ on:
       - "src/**"
       - "tests/**"
       - "scripts/**"
-      - "run_indicator.py"
       - "run.py"
-      - "train.py"
   pull_request:
     branches: [main]
     paths:
@@ -35,9 +33,7 @@ on:
       - "src/**"
       - "tests/**"
       - "scripts/**"
-      - "run_indicator.py"
       - "run.py"
-      - "train.py"
   workflow_dispatch:
 
 concurrency:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import json
 
-from aether_paths import repo_path
 from src.domain.models.trade import TradeDirection
+from src.shared.paths import repo_path
 
 
 def _tol() -> dict[str, float]:

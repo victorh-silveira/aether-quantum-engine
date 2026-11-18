@@ -9,8 +9,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_device import tensor_from_numpy
+from src.shared.paths import repo_path
 
 
 __all__ = (

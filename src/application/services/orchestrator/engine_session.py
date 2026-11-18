@@ -1,11 +1,10 @@
-"""Bootstrap compartilhado de configuracao e autenticacao para run.py e train.py."""
+"""Bootstrap compartilhado de configuracao e autenticacao para run.py e train_cli.py."""
 
 import json
 import logging
 import os
 from typing import Any
 
-from aether_paths import REPO_ROOT, repo_path
 from src.application.services.auth_manager import AuthManager
 from src.application.services.orchestrator.engine_mode import (
     ENGINE_MODE_EXECUTE,
@@ -14,6 +13,7 @@ from src.application.services.orchestrator.engine_mode import (
 from src.domain.risk.risk_policy import validate_engine_risk_config
 from src.presentation.terminal.logger import setup_logger
 from src.presentation.terminal.logging_config import resolve_logging_config
+from src.shared.paths import REPO_ROOT, repo_path
 
 
 def load_engine_config(*, engine_mode: str = ENGINE_MODE_EXECUTE) -> tuple[dict[str, Any], logging.Logger]:

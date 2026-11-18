@@ -11,6 +11,6 @@ exec > >(tee "$LOG") 2>&1
 
 echo "[AETHER] launch-train Rise/Fall | TCN M5 | python=$PY"
 "$PY" -u app/scripts/operations/sanitize_fresh_run.py
-"$PY" -u app/train.py
+"$PY" -u -m src.application.services.orchestrator.train_cli
 "$PY" -u app/scripts/operations/check_dl_checkpoint.py
 echo "[AETHER] Treino concluido; checkpoint TCN compativel sob teto de 1% da banca."

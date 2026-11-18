@@ -12,7 +12,7 @@ sys.path.insert(0, str(_APP))
 
 from dotenv import load_dotenv
 
-from aether_paths import REPO_ROOT
+from src.shared.paths import REPO_ROOT
 from src.application.services.auth_manager import AuthManager
 from src.infrastructure.api.deriv_rest_client import DerivRestError, select_account
 

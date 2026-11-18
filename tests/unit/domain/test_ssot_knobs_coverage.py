@@ -95,7 +95,7 @@ def test_recovery_state_resolve_reset_and_missing(monkeypatch):
     reset_recovery_state_config_cache()
     assert rec_state_mod._CACHE["recovery_state"] is None
     monkeypatch.setattr(
-        "settings_io.load_settings_json",
+        "src.shared.settings_io.load_settings_json",
         lambda: {"risk_management": {}},
     )
     with pytest.raises(ValueError, match="recovery_state"):

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from aether_paths import repo_path
+from src.shared.paths import repo_path
 
 
 _REQ_LINE = re.compile(r"^\s*([A-Za-z0-9_.\-]+)")

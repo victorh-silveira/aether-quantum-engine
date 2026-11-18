@@ -13,7 +13,7 @@ sys.path.insert(0, str(_APP))
 
 from dotenv import load_dotenv
 
-from aether_paths import REPO_ROOT
+from src.shared.paths import REPO_ROOT
 from src.infrastructure.api.deriv_pat_binding import (
     DerivPatBindingError,
     discover_app_id_for_pat,

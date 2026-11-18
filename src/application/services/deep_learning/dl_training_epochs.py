@@ -7,7 +7,6 @@ import numpy as np
 import torch
 from torch import optim
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_training_checkpoint import (
     checkpoint_if_improved,
     prefer_sharp_checkpoint,
@@ -16,6 +15,7 @@ from src.application.services.deep_learning.dl_training_checkpoint import (
 from src.application.services.deep_learning.dl_training_loss import (
     calculate_masked_loss as _masked_loss,
 )
+from src.shared.paths import repo_path
 
 
 def _aux_regression_weight() -> float:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from aether_paths import repo_path
+from src.shared.paths import repo_path
 
 
 _WINDOW_KEYS = (

@@ -96,7 +96,7 @@ presentation → application → domain
 ```
 
 - **`domain/`**: sem `asyncio`, `torch`, `polars`, `httpx`, drivers DB/Redis, I/O de arquivo/rede.
-- Settings: leitura via `settings_io.py`; parsers puros em `domain/config_knobs.py`.
+- Settings: leitura via `src/shared/settings_io.py`; parsers puros em `domain/config_knobs.py`.
 - Application orquestra; infrastructure adapta.
 
 ## Anti-padrões

@@ -1,9 +1,21 @@
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "aether-quantum-engine"
 version = "0.0.0"
 description = "Motor quantitativo institucional assincrono (Python 3.13): estrategia M15 institucional (5 pilares: EMA/FVG/Killzones), gestao de risco amortizada 1/1, DDD/Hexagonal, Polars e execucao na Deriv."
 readme = "README.md"
 requires-python = ">=3.13.12,<3.13.13"
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+optional-dependencies = {dev = {file = ["requirements-dev.txt"]}}
+
+[tool.setuptools.packages.find]
+include = ["src*"]
 
 [tool.ruff]
 line-length = 120
@@ -78,8 +90,8 @@ convention = "google"
 [tool.ruff.lint.per-file-ignores]
 "scripts/**/*.py" = ["T201", "E402", "S603", "S607", "S101", "I001"]
 "run.py" = ["T201", "S101"]
-"run_indicator.py" = ["T201", "S101"]
-"train.py" = ["T201", "S101"]
+"src/indicator/__main__.py" = ["T201", "S101"]
+"src/application/services/orchestrator/train_cli.py" = ["T201", "S101"]
 "src/infrastructure/api/deriv_http.py" = ["S310"]
 "src/infrastructure/api/deriv_rest_client.py" = ["S310"]
 "src/infrastructure/api/deriv_pat_binding.py" = ["S310"]
@@ -164,4 +176,4 @@ exclude = []
 ignore_decorators = []
 ignore_names = []
 min_confidence = 100
-paths = ["src", "run.py", "run_indicator.py", "train.py", "scripts", "aether_paths.py", ".vulture_whitelist.py"]
+paths = ["src", "run.py", "scripts", ".vulture_whitelist.py"]

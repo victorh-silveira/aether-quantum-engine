@@ -4,9 +4,9 @@ import json
 import math
 from dataclasses import dataclass, field
 
-from aether_paths import repo_path
 from src.application.services.deep_learning.dl_calibration_isotonic import apply_isotonic
 from src.domain.math.logit_sharpen import sharpen_logit_temperature
+from src.shared.paths import repo_path
 
 
 def _calib_bounds() -> dict[str, float]:

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from aether_paths import repo_path
 from src.domain.config_knobs import require_float, require_int, require_keys
+from src.shared.paths import repo_path
 
 
 _LIVE_KEYS = (
