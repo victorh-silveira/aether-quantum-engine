@@ -1,3 +1,9 @@
+## [5.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.2...v5.4.0) (2026-11-19)
+
+### Funcionalidades
+
+* **all:** exigir aceleracao macd no r6, teto 2.30 atr e liberar 12 ativos otc ([5ae8b76](https://github.com/victorh-silveira/aether-quantum-engine/commit/5ae8b76d6fef594db4b572c8e82c846740f8c32e))
+
 ## [5.3.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.1...v5.3.2) (2026-11-19)
 
 ### Correcoes de Bug
