@@ -1,3 +1,9 @@
+## [5.3.2](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.1...v5.3.2) (2026-11-19)
+
+### Correcoes de Bug
+
+* **engine:** endurecer filtro doji/macd e calibrar sinais em tendencia m15 ([44dcfa1](https://github.com/victorh-silveira/aether-quantum-engine/commit/44dcfa1d7f732b31ef977d4a29020f6dff2bd100))
+
 ## [5.3.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.0...v5.3.1) (2026-11-18)
 
 ### Correcoes de Bug
