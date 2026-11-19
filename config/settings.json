@@ -18,16 +18,7 @@
     "reversal_on_loss": false,
     "elastic_regime_enabled": false,
     "smooth_recovery": true,
-    "excluded_symbols": [
-      "OTC_NDX",
-      "OTC_DJI",
-      "OTC_N225",
-      "OTC_AEX",
-      "OTC_HSI",
-      "OTC_FTSE",
-      "OTC_FCHI",
-      "OTC_GDAXI"
-    ],
+    "excluded_symbols": [],
     "promoted_symbol": "OTC_SSMI",
     "single_strike": true,
     "invert_signal": false,
@@ -804,16 +795,7 @@
     "metrics_port": 9101,
     "pullback_variant": "senior_institutional",
     "pullback_strategy": {
-      "excluded_symbols": [
-        "OTC_NDX",
-        "OTC_DJI",
-        "OTC_N225",
-        "OTC_AEX",
-        "OTC_HSI",
-        "OTC_FTSE",
-        "OTC_FCHI",
-        "OTC_GDAXI"
-      ],
+      "excluded_symbols": [],
       "dynamic_rotation": true,
       "adaptive_trend_regime": "r6",
       "breakeven_floor": 0.58,
@@ -824,7 +806,15 @@
       "OTC_SSMI",
       "OTC_SPC",
       "OTC_SX5E",
-      "OTC_AS51"
+      "OTC_AS51",
+      "OTC_GDAXI",
+      "OTC_FCHI",
+      "OTC_FTSE",
+      "OTC_AEX",
+      "OTC_NDX",
+      "OTC_DJI",
+      "OTC_N225",
+      "OTC_HSI"
     ]
   },
   "orchestrator_timing_config": {

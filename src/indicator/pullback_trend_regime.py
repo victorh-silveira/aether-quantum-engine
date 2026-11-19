@@ -15,6 +15,7 @@ def evaluate_trend_regime(
     pdi: float,
     mdi: float,
     m_hist: float,
+    m_hist_prev: float | None = None,
     hurst: float,
     mode: str = "r6",
 ) -> str | None:
@@ -28,7 +29,7 @@ def evaluate_trend_regime(
     if body < 0.10 * atr or body < 0.15 * candle_range:
         return None
     spread = (fast[-1] - slow[-1]) / atr
-    max_dist = 2.50 if (adx >= 35.0 and hurst >= 0.62) else 1.50
+    max_dist = 2.30 if (adx >= 35.0 and hurst >= 0.62) else 1.50
     if abs(conf.close - fast[-1]) / atr > max_dist:
         return None
     min_adx = 35.0 if norm == "r4" else 30.0
@@ -45,11 +46,14 @@ def evaluate_trend_regime(
     lower_wick = min(conf.open, conf.close) - conf.low
     up_count = sum(1 for bar in bars[-8:] if bar.close > bar.open)
     dn_count = sum(1 for bar in bars[-8:] if bar.close < bar.open)
+    macd_call_accel = m_hist_prev is None or m_hist >= m_hist_prev
+    macd_put_accel = m_hist_prev is None or m_hist <= m_hist_prev
     if (
         up_count >= 5
         and spread >= 0.80
         and pdi > mdi
         and m_hist > 0.0
+        and macd_call_accel
         and conf.close > conf.open
         and upper_wick < 0.50 * candle_range
     ):
@@ -59,6 +63,7 @@ def evaluate_trend_regime(
         and spread <= -0.80
         and mdi > pdi
         and m_hist < 0.0
+        and macd_put_accel
         and conf.close < conf.open
         and lower_wick < 0.50 * candle_range
     ):

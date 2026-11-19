@@ -237,6 +237,7 @@ def evaluate_senior_institutional(
             pdi=pdi,
             mdi=mdi,
             m_hist=m_hist,
+            m_hist_prev=m_hist_prev,
             hurst=hurst,
             mode=trend_regime_mode,
         )

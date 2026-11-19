@@ -110,6 +110,7 @@ def test_senior_institutional_uses_adaptive_trend_fallback(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback_senior.detect_fvg_mitigation", lambda b, a: (False, False))
     monkeypatch.setattr("src.indicator.pullback_senior.calc_adx", lambda b, p: (35.0, 28.0, 10.0))
     monkeypatch.setattr("src.indicator.pullback_senior.calc_macd", lambda c, f, s, sig: (1.0, 0.5, 0.4))
+    monkeypatch.setattr("src.indicator.pullback._macd", lambda c, f, s, sig: (1.0, 0.5, 0.4))
     monkeypatch.setattr("src.indicator.pullback_senior.calc_hurst_exponent", lambda c, p: 0.65)
     monkeypatch.setattr("src.indicator.pullback_senior.calc_rsi", lambda c, p: 58.0)
     monkeypatch.setattr("src.indicator.pullback_senior.calc_stochastic", lambda b, k, d: (65.0, 60.0))
@@ -128,9 +129,53 @@ def test_trend_regime_blocks_doji_and_allows_strong_trend_up_to_25_atr():
     slow_s = [bear[-1].close + 3.0] * 10
     assert (
         evaluate_trend_regime(
-            bear, fast_s, slow_s, 1.0, adx=45.0, pdi=10.0, mdi=32.0, m_hist=-0.5, hurst=0.66, mode="r6"
+            bear,
+            fast_s,
+            slow_s,
+            1.0,
+            adx=45.0,
+            pdi=10.0,
+            mdi=32.0,
+            m_hist=-0.5,
+            m_hist_prev=-0.3,
+            hurst=0.66,
+            mode="r6",
         )
         == "PUT"
+    )
+    assert (
+        evaluate_trend_regime(
+            bear,
+            fast_s,
+            slow_s,
+            1.0,
+            adx=45.0,
+            pdi=10.0,
+            mdi=32.0,
+            m_hist=-0.5,
+            m_hist_prev=-0.8,
+            hurst=0.66,
+            mode="r6",
+        )
+        is None
+    )
+    stretched_fast = [bear[-1].close + 2.35] * 10
+    stretched_slow = [bear[-1].close + 3.35] * 10
+    assert (
+        evaluate_trend_regime(
+            bear,
+            stretched_fast,
+            stretched_slow,
+            1.0,
+            adx=45.0,
+            pdi=10.0,
+            mdi=32.0,
+            m_hist=-0.5,
+            m_hist_prev=-0.3,
+            hurst=0.66,
+            mode="r6",
+        )
+        is None
     )
 
     doji_bear = list(bear)
