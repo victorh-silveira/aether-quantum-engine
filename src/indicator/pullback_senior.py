@@ -59,7 +59,7 @@ def evaluate_senior_institutional(
     body = abs(confirmation.close - confirmation.open)
     candle_range = max(1e-10, confirmation.high - confirmation.low)
     bounded = body <= 2.5 * atr and candle_range <= 2.60 * atr
-    is_doji = body < 0.025 * atr
+    is_doji = body < 0.10 * atr or body < 0.15 * candle_range
     adx, pdi, mdi = fn_adx(bars, 14)
     m_val, s_val, m_hist = fn_macd(closes, 7, 14, 5)
     _, _, m_hist_prev = fn_macd(closes[:-1], 7, 14, 5)
@@ -96,8 +96,16 @@ def evaluate_senior_institutional(
     macd_bull_div = m_hist > 0.0 and m_val > s_val
     macd_bear_div = m_hist < 0.0 and m_val < s_val
 
-    climax_call = stoch_k >= 90.0 or williams >= -8.0 or (macd_bear_div and confirmation.close > fast[-1] + 0.80 * atr)
-    climax_put = stoch_k <= 10.0 or williams <= -92.0 or (macd_bull_div and confirmation.close < fast[-1] - 0.80 * atr)
+    climax_call = (
+        stoch_k >= 95.0 or (macd_bear_div and confirmation.close > fast[-1] + 0.80 * atr)
+        if is_high_momentum
+        else stoch_k >= 90.0 or williams >= -8.0 or (macd_bear_div and confirmation.close > fast[-1] + 0.80 * atr)
+    )
+    climax_put = (
+        stoch_k <= 5.0 or (macd_bull_div and confirmation.close < fast[-1] - 0.80 * atr)
+        if is_high_momentum
+        else stoch_k <= 10.0 or williams <= -92.0 or (macd_bull_div and confirmation.close < fast[-1] - 0.80 * atr)
+    )
     rsi_bear_div = confirmation.close > pullback.close and rsi < rsi_prev - 3.5
     rsi_bull_div = confirmation.close < pullback.close and rsi > rsi_prev + 3.5
 
@@ -106,25 +114,27 @@ def evaluate_senior_institutional(
         or hurst < 0.38
         or climax_call
         or rsi_bear_div
-        or rsi >= 75.0
-        or stoch_k >= 82.0
-        or (not is_high_momentum and (rsi >= 68.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.40))
-        or (is_high_momentum and (rsi >= 75.0 or pct_b >= 1.05))
+        or (
+            not is_high_momentum
+            and (rsi >= 68.0 or stoch_k >= 82.0 or pct_b >= 0.88 or williams >= -12.0 or streak_bull or hurst < 0.40)
+        )
+        or (is_high_momentum and (rsi >= 80.0 or stoch_k >= 92.0 or pct_b >= 1.05))
     )
     put_exhaustion = has_variance and (
         put_rejection
         or hurst < 0.38
         or climax_put
         or rsi_bull_div
-        or rsi <= 25.0
-        or stoch_k <= 18.0
-        or (not is_high_momentum and (rsi <= 32.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.40))
-        or (is_high_momentum and (rsi <= 25.0 or pct_b <= -0.05))
+        or (
+            not is_high_momentum
+            and (rsi <= 32.0 or stoch_k <= 18.0 or pct_b <= 0.12 or williams <= -88.0 or streak_bear or hurst < 0.40)
+        )
+        or (is_high_momentum and (rsi <= 20.0 or stoch_k <= 8.0 or pct_b <= -0.05))
     )
     call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi > mdi
     put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi > pdi
-    call_macd_ok = m_hist >= 0.0
-    put_macd_ok = m_hist <= 0.0
+    call_macd_ok = m_hist > 0.0 and (m_hist >= m_hist_prev or (is_high_momentum and m_hist >= 0.5 * m_hist_prev))
+    put_macd_ok = m_hist < 0.0 and (m_hist <= m_hist_prev or (is_high_momentum and m_hist <= 0.5 * m_hist_prev))
     fast_bear_cross = (
         fast[-1] < slow[-1]
         or fast[-2] < slow[-2]

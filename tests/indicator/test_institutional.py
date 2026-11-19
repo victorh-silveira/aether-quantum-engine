@@ -364,7 +364,7 @@ def test_senior_setup_institutional_guards(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (6.0, 8.0))
     monkeypatch.setattr("src.indicator.pullback._williams_r", lambda b, p: -95.0)
     assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
-    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (50.0, 50.0))
+    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (4.0, 8.0))
     assert evaluate(mirrored_bars, period, MIN_BARS * period, **kwargs).side == "SEM SINAL"
     monkeypatch.setattr("src.indicator.pullback._williams_r", lambda b, p: -55.0)
     monkeypatch.setattr("src.indicator.pullback._macd", lambda c, f, s, sig: (-1.0, -1.5, 0.5))
@@ -635,7 +635,7 @@ def test_senior_setup_high_momentum_uniform_stoch_and_fast_dist(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (81.1, 79.0))
     assert evaluate(base_bars, period, MIN_BARS * period, **kwargs).side == "CALL"
 
-    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (83.0, 80.0))
+    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (93.0, 88.0))
     res_stoch = evaluate(base_bars, period, MIN_BARS * period, **kwargs)
     assert res_stoch.side == "SEM SINAL"
     assert res_stoch.reason == "climax_exaustao"
@@ -676,7 +676,7 @@ def test_senior_setup_high_momentum_uniform_stoch_and_fast_dist(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback._bollinger_pct_b", lambda c, p: 0.20)
     monkeypatch.setattr("src.indicator.pullback._williams_r", lambda b, p: -80.0)
     monkeypatch.setattr("src.indicator.pullback._macd", lambda c, f, s, sig: (-5.0, -4.0, -1.0))
-    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (17.0, 20.0))
+    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (7.0, 12.0))
     res_put_stoch = evaluate(mirrored, period, MIN_BARS * period, **kwargs)
     assert res_put_stoch.side == "SEM SINAL"
     assert res_put_stoch.reason == "climax_exaustao"
