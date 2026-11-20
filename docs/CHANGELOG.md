@@ -1,3 +1,9 @@
+## [5.5.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.5.0...v5.5.1) (2026-11-20)
+
+### Correcoes de Bug
+
+* **engine:** exigir aceleracao macd no setup senior e alinhar telemetria otc ([70f85f6](https://github.com/victorh-silveira/aether-quantum-engine/commit/70f85f6cef318c2b6d33facdc91079834b4cc812))
+
 ## [5.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.4.0...v5.5.0) (2026-11-20)
 
 ### Funcionalidades
