@@ -95,6 +95,11 @@ def test_pullback_empty_cycle_reports_observed_setup_reason():
         logger.reset_mock()
         log_execution_blockers(executor, {})
         assert "mercado_fechado_brt" in str(logger.info.call_args)
+        orch.config["pullback_strategy"]["allow_closed_markets"] = True
+        logger.reset_mock()
+        log_execution_blockers(executor, {})
+        assert "dados_atrasados" in str(logger.info.call_args)
+        assert "mercado_fechado_brt" not in str(logger.info.call_args)
 
 
 def test_log_execution_blockers_groups_training_symbols(orch_config):

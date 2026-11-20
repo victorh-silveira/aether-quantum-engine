@@ -128,8 +128,8 @@ def evaluate_senior_institutional(
     )
     call_dmi_ok = (pdi == 0.0 and mdi == 0.0) or pdi > mdi
     put_dmi_ok = (pdi == 0.0 and mdi == 0.0) or mdi > pdi
-    call_macd_ok = m_hist > 0.0 and (m_hist >= m_hist_prev or (is_high_momentum and m_hist >= 0.5 * m_hist_prev))
-    put_macd_ok = m_hist < 0.0 and (m_hist <= m_hist_prev or (is_high_momentum and m_hist <= 0.5 * m_hist_prev))
+    call_macd_ok = m_hist > 0.0 and m_hist >= m_hist_prev
+    put_macd_ok = m_hist < 0.0 and m_hist <= m_hist_prev
     fast_bear_cross = (
         fast[-1] < slow[-1]
         or fast[-2] < slow[-2]

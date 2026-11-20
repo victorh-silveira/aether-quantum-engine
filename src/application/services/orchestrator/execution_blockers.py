@@ -97,10 +97,10 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
             if not m_statuses
             else ("sem_sinal_m5" if period_seconds == 300 else f"sem_sinal_{tf_label}")
         )
+        pb_cfg = executor.orch.config.get("pullback_strategy", {})
+        allow_closed = bool(pb_cfg.get("allow_closed_markets", False))
         excluded = set(
-            executor.orch.config.get("pullback_strategy", {}).get("excluded_symbols")
-            or executor.orch.config.get("strategy", {}).get("excluded_symbols")
-            or []
+            pb_cfg.get("excluded_symbols") or executor.orch.config.get("strategy", {}).get("excluded_symbols") or []
         )
         details = []
         sym_statuses = {}
@@ -109,14 +109,19 @@ def log_execution_blockers(executor, decisions: dict, *, pending: float = 0.0) -
                 sym_status = "ativo_excluido(baixo_edge)"
             elif (symbol, period_seconds) in statuses:
                 sym_status = statuses[(symbol, period_seconds)]
-                if sym_status in (
-                    "dados_atrasados",
-                    "aguardando_leitura",
-                    "aguardando_leitura_indicador",
-                    "mercado_sem_oscilacao",
-                ) and not is_otc_exchange_open_brt(symbol):
+                if (
+                    not allow_closed
+                    and sym_status
+                    in (
+                        "dados_atrasados",
+                        "aguardando_leitura",
+                        "aguardando_leitura_indicador",
+                        "mercado_sem_oscilacao",
+                    )
+                    and not is_otc_exchange_open_brt(symbol)
+                ):
                     sym_status = "mercado_fechado_brt"
-            elif not is_otc_exchange_open_brt(symbol):
+            elif not allow_closed and not is_otc_exchange_open_brt(symbol):
                 sym_status = "mercado_fechado_brt"
             else:
                 sym_status = default_status

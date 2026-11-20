@@ -601,3 +601,34 @@ def test_senior_setup_high_momentum_uniform_stoch_and_fast_dist(monkeypatch):
     res_put_stoch = evaluate(mirrored, period, MIN_BARS * period, **kwargs)
     assert res_put_stoch.side == "SEM SINAL"
     assert res_put_stoch.reason == "climax_exaustao"
+
+
+def test_senior_setup_rejects_decelerating_macd_in_high_momentum(monkeypatch):
+    """Veta PUT/CALL com MACD desacelerando mesmo sob is_high_momentum (caso OTC_FTSE 15:15)."""
+    period = 900
+    base_bars = [Candle(i * period, 100.0 + (i % 3) * 0.1, 100.5, 99.5, 100.0 + (i % 3) * 0.1) for i in range(MIN_BARS)]
+    base_bars[-2] = Candle((MIN_BARS - 2) * period, 102.0, 102.1, 101.75, 101.8)
+    base_bars[-1] = Candle((MIN_BARS - 1) * period, 101.8, 102.3, 101.7, 102.2)
+    fast = [101.0] * (MIN_BARS - 4) + [101.5, 101.6, 101.8, 102.0]
+    slow = [100.0] * (MIN_BARS - 5) + [100.0, 100.1, 100.2, 100.3, 100.4]
+
+    mirrored = [Candle(b.epoch, 300 - b.open, 300 - b.low, 300 - b.high, 300 - b.close) for b in base_bars]
+    monkeypatch.setattr(
+        "src.indicator.pullback._ema", lambda values, span: [300 - x for x in (fast if span == 20 else slow)]
+    )
+    monkeypatch.setattr("src.indicator.pullback._atr", lambda values: 1.0)
+    monkeypatch.setattr("src.indicator.pullback.session_price_reference", lambda values: (198.5, 200.0, 195.0))
+    monkeypatch.setattr("src.indicator.pullback.detect_fvg_mitigation", lambda values, atr: (False, True))
+    monkeypatch.setattr("src.indicator.pullback._adx", lambda b, p: (72.5, 5.4, 33.9))
+    monkeypatch.setattr("src.indicator.pullback._hurst_exponent", lambda c, p: 0.68)
+    monkeypatch.setattr("src.indicator.pullback._rsi", lambda c, p: 31.6)
+    monkeypatch.setattr("src.indicator.pullback._stochastic", lambda b, k, d: (11.2, 9.3))
+    monkeypatch.setattr("src.indicator.pullback._bollinger_pct_b", lambda c, p: 0.22)
+    monkeypatch.setattr("src.indicator.pullback._williams_r", lambda b, p: -88.8)
+    monkeypatch.setattr(
+        "src.indicator.pullback._macd",
+        lambda c, f, s, sig: (-13.01, -11.43, -1.58) if len(c) == len(mirrored) else (-13.9, -11.4, -2.53),
+    )
+    res_put = evaluate(mirrored, period, MIN_BARS * period, variant="senior_institutional")
+    assert res_put.side == "SEM SINAL"
+    assert res_put.reason == "sem_tendencia_alinhada"
