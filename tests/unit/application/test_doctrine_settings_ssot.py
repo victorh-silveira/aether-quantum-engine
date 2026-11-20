@@ -135,7 +135,7 @@ def test_production_runtime_execution_ssot():
     assert "fusion_enabled" not in scale
     assert "adapt_direction_enabled" not in scale
     assert bool(settings["orchestrator"]["execution"]["mandatory_trade_each_cycle"]) is False
-    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(1.5)
+    assert float(settings["risk_management"]["large_account_stop_win_pct"]) == pytest.approx(4.0)
     data = settings["data_handler"]
     assert int(data["micro_granularity"]) == 300
     assert int(data["micro_history_bars"]) == 25000

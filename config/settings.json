@@ -20,7 +20,7 @@
     "smooth_recovery": true,
     "excluded_symbols": [],
     "promoted_symbol": "OTC_SSMI",
-    "single_strike": true,
+    "single_strike": false,
     "invert_signal": false,
     "organic_direction": false,
     "stream_fallback": false,
@@ -706,7 +706,7 @@
       "enabled": true,
       "default_payout": 0.85
     },
-    "large_account_stop_win_pct": 1.5,
+    "large_account_stop_win_pct": 4.0,
     "min_validation_accuracy_gate": 0.53,
     "params": {
       "compounding_enabled": true,
