@@ -14,7 +14,7 @@ description: Depuracao de ciclo do orquestrador, warmup de buffers, assinaturas 
 2. **Inspeção de Assinaturas de Ciclo:**
    - Monitore a geracao de assinaturas (epoch + symbol) para verificar se algum ciclo foi pulado ou executado em duplicidade.
 3. **Depuração de EXEC_EMPTY:**
-   - Se o motor emitir EXEC_EMPTY sistemico, rastreie qual dos 5 pilares do setup institucional ou gate de Killzone esta rejeitando a entrada.
+   - Se o motor emitir EXEC_EMPTY sistemico, rastreie qual dos 4 pilares estruturais do setup institucional esta rejeitando a entrada.
 4. **Auditoria de Watchdog:**
    - Inspecione se o watchdog esta registrando batimentos regulares (heartbeats) e se nao ha deadlocks assincronos.
 

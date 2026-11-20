@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from src.indicator.domain import Candle
-from src.indicator.institutional import BRT_TIMEZONE
 from src.indicator.pullback_senior import evaluate_senior_institutional
 from src.indicator.pullback_trend_regime import evaluate_trend_regime
 
@@ -101,7 +98,6 @@ def test_senior_institutional_uses_adaptive_trend_fallback(monkeypatch):
     closes = [b.close for b in bars]
     fast = [c - 0.1 for c in closes]
     slow = [c - 1.5 for c in closes]
-    hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
 
     monkeypatch.setattr(
         "src.indicator.pullback_senior.session_price_reference",
@@ -117,7 +113,7 @@ def test_senior_institutional_uses_adaptive_trend_fallback(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback_senior.calc_bollinger_pct_b", lambda c, p: 0.65)
     monkeypatch.setattr("src.indicator.pullback_senior.calc_williams_r", lambda b, p: -30.0)
 
-    side, reason = evaluate_senior_institutional(bars, closes, fast, slow, 1.0, optimal_hours_brt=[hour])
+    side, reason = evaluate_senior_institutional(bars, closes, fast, slow, 1.0)
     assert (side, reason) == ("CALL", "setup_confirmado")
 
 
@@ -197,7 +193,6 @@ def test_senior_setup_rejects_as51_doji_and_reversing_macd(monkeypatch):
     closes = [b.close for b in bars]
     fast = [c + 0.5 for c in closes]
     slow = [c + 2.0 for c in closes]
-    hour = datetime.fromtimestamp(bars[-1].epoch + period, tz=BRT_TIMEZONE).hour
 
     monkeypatch.setattr(
         "src.indicator.pullback_senior.session_price_reference",
@@ -212,6 +207,6 @@ def test_senior_setup_rejects_as51_doji_and_reversing_macd(monkeypatch):
     monkeypatch.setattr("src.indicator.pullback_senior.calc_bollinger_pct_b", lambda c, p: 0.27)
     monkeypatch.setattr("src.indicator.pullback_senior.calc_williams_r", lambda b, p: -73.2)
 
-    side, reason = evaluate_senior_institutional(bars, closes, fast, slow, 1.0, optimal_hours_brt=[hour])
+    side, reason = evaluate_senior_institutional(bars, closes, fast, slow, 1.0)
     assert side == "SEM SINAL"
     assert reason == "sem_tendencia_alinhada"

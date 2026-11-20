@@ -10,7 +10,6 @@ from math import isfinite
 from src.indicator.domain import Candle
 from src.indicator.institutional import (  # noqa: F401
     detect_fvg_mitigation,
-    is_within_killzone,
     session_price_reference,
 )
 from src.indicator.pullback_indicators import (
@@ -234,7 +233,6 @@ def evaluate(
     period: int,
     now: int,
     variant: str = "base",
-    optimal_hours_brt: list[int] | None = None,
     allow_session_gaps: bool = False,  # noqa: FBT001, FBT002
 ) -> SetupResult:
     """Avalia o ultimo recuo e a ultima confirmacao sem usar vela corrente."""
@@ -274,9 +272,7 @@ def evaluate(
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
     if variant == "senior_institutional":
-        side, reason = evaluate_senior_institutional(
-            bars, closes, fast, slow, atr, optimal_hours_brt, module=sys.modules[__name__]
-        )
+        side, reason = evaluate_senior_institutional(bars, closes, fast, slow, atr, module=sys.modules[__name__])
         return SetupResult(side, reason, version=version)
     body = abs(confirmation.close - confirmation.open)
     if variant == "base" and not (0.02 * atr <= body <= 2.5 * atr):

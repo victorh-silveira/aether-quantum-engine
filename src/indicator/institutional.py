@@ -1,4 +1,4 @@
-"""Modulo de analise institucional (referencia OHLC, FVG e killzones BRT)."""
+"""Modulo de analise institucional (referencia OHLC, FVG e sessoes de mercado BRT)."""
 
 from __future__ import annotations
 
@@ -9,8 +9,6 @@ from src.indicator.domain import Candle
 
 
 BRT_TIMEZONE = timezone(timedelta(hours=-3))
-# Killzones empiricas BRT acima do breakeven: London Mid (7), Pre-NY (9), NY Overlap (10, 12, 13) e London Fix/Pos-Fix (15, 16)
-DEFAULT_KILLZONES_BRT = [7, 9, 10, 12, 13, 15, 16]
 
 
 def session_price_reference(bars: list[Candle]) -> tuple[float, float, float]:
@@ -69,22 +67,6 @@ def detect_fvg_mitigation(bars: list[Candle], atr: float = 1.0) -> tuple[bool, b
                 bear_mitigated = True
 
     return bull_mitigated, bear_mitigated
-
-
-def is_within_killzone(
-    epoch: int,
-    optimal_hours: list[int] | None = None,
-    *,
-    period_seconds: int = 0,
-) -> bool:
-    """Verifica se o timestamp da entrada (fechamento = epoch + period_seconds) pertence a Killzone BRT."""
-    if optimal_hours is None:
-        optimal_hours = DEFAULT_KILLZONES_BRT
-    if not optimal_hours:
-        return False
-    entry_epoch = int(epoch) + max(0, int(period_seconds))
-    hour_brt = datetime.fromtimestamp(entry_epoch, tz=BRT_TIMEZONE).hour
-    return hour_brt in optimal_hours
 
 
 _REAL_CASH_HOURS_BRT: dict[str, tuple[int, ...]] = {

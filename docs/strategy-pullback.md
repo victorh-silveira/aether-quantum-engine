@@ -32,12 +32,8 @@ Uma oportunidade de compra (CALL ou PUT) só é validada quando atende **concomi
 - Identificação de desequilíbrio estrutural (imbalance) entre as velas $t-2$ e $t$.
 - O recuo deve mitigar (penetrar e testar) a faixa de preço do FVG, confirmando o preenchimento de liquidez antes da continuação do movimento.
 
-### Pilar 5: Hard Gate de Killzones no Horário de Brasília (BRT / UTC-3)
-A entrada só é autorizada se a abertura da vela de confirmação fechada estiver contida estritamente nas janelas BRT validadas acima do break-even (`[7, 9, 10, 12, 13, 15, 16]`):
-1. **London Mid & Pre-NY:** horas `7` (07h00–08h00) e `9` (09h00–10h00) BRT
-2. **New York Overlap:** horas `10`, `12` e `13` BRT
-3. **London Fix e Pós-Fix:** horas `15` e `16` BRT
-Qualquer vela fora desses intervalos recebe veto sumário (`SEM SINAL: Fora da Killzone`).
+### Operação Contínua 24h (Sem Gate de Killzone)
+- O antigo veto horário `fora_da_killzone_brt` foi removido por completo após validação em backtest, permitindo avaliação contínua em todas as velas M15 fechadas nos 12 índices OTC.
 
 ---
 

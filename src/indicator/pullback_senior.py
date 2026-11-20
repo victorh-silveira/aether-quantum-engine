@@ -1,4 +1,4 @@
-"""Avaliacao institucional senior de tendencia, recuo, FVG e killzones."""
+"""Avaliacao institucional senior de tendencia, recuo e FVG sem restricao horaria."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import sys
 from typing import Any
 
 from src.indicator.domain import Candle
-from src.indicator.institutional import detect_fvg_mitigation, is_within_killzone, session_price_reference
+from src.indicator.institutional import detect_fvg_mitigation, session_price_reference
 from src.indicator.pullback_indicators import (
     calc_adx,
     calc_bollinger_pct_b,
@@ -25,11 +25,10 @@ def evaluate_senior_institutional(
     fast: list[float],
     slow: list[float],
     atr: float,
-    optimal_hours_brt: list[int] | None = None,
     module: Any = None,
     trend_regime_mode: str = "r6",
 ) -> tuple[str, str]:
-    """Avalia setup institucional senior sob confluencia dos 5 pilares."""
+    """Avalia setup institucional senior sob confluencia dos 4 pilares estruturais."""
     mod = module or sys.modules.get("src.indicator.pullback") or sys.modules.get("indicator.pullback")
 
     def _get(name: str, fallback: Any) -> Any:
@@ -39,10 +38,6 @@ def evaluate_senior_institutional(
     pullback, confirmation = bars[-2:]
     if any(bar.high == bar.low for bar in bars[-3:]):
         return "SEM SINAL", "mercado_sem_oscilacao"
-    bar_period = confirmation.epoch - pullback.epoch
-    killzone_period = bar_period if bar_period in (300, 900, 3600, 86400) else 0
-    if not is_within_killzone(confirmation.epoch, optimal_hours_brt, period_seconds=killzone_period):
-        return "SEM SINAL", "fora_da_killzone_brt"
 
     fn_ref = _get("session_price_reference", session_price_reference)
     fn_fvg = _get("detect_fvg_mitigation", detect_fvg_mitigation)

@@ -13,8 +13,8 @@ description: Auditoria do setup institucional senior de tendencia/recuo (senior_
    - Confirme que EMA20, EMA50, ATR14, referencia OHLC da sessao UTC e FVG usem exclusivamente velas M15 fechadas, sem lacunas intradiarias.
 2. **Auditoria de Versão do Setup:**
    - Verifique se a versao exata (`senior_institutional`) coincide no sinal, no registro de cotacao e na proposta.
-3. **Verificação de Killzones:**
-   - Assegure que entradas ocorram estritamente em: London Open (03h-08h), New York Overlap (10h-13h) ou London Fix (14h-16h) no Horario de Brasilia.
+3. **Operação Contínua 24h:**
+   - Confirme ausencia de veto horario de Killzone e operacao ativa nos 12 ativos OTC (`allow_closed_markets=true`).
 
 ## 3. Comandos de Verificação
 ```bash

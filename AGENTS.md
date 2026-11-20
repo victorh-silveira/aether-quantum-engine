@@ -34,17 +34,12 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 - **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="senior_institutional"`.
 - **Janela de Abertura:** A entrada deve ocorrer em ate 60 segundos apos a abertura da vela M15, exclusivamente sob vela anterior fechada e sem gaps.
 
-### A Matriz dos 5 Pilares Institucionais:
+### A Matriz dos 4 Pilares Institucionais (Operacao 24h):
 1. **Tendencia Estrutural:** Alinhamento de medias moveis exponenciais EMA20 e EMA50.
-2. **Recuo Tecnico:** Recuo da vela anterior ate no maximo 0,5 ATR14 da EMA20.
+2. **Recuo Tecnico:** Recuo da vela anterior controlado pela distancia em ATR14 da EMA20.
 3. **Preco de Referencia de Sessao:** Cotacao contida dentro das bandas de +/- 1,5 desvio padrao em relacao a referencia OHLC da sessao UTC (sem volume, referencia OHLC pura).
 4. **Mitigacao de Desequilibrio (FVG):** Confirmacao de mitigacao de Fair Value Gap entre as velas $t-2$ e $t$.
-5. **Hard Gate de Killzones no Horario de Brasilia (BRT / UTC-3):**
-   - **London Mid:** 07h00 as 08h00 BRT (hora `7`)
-   - **Pre-NY Open:** 09h00 as 10h00 BRT (hora `9`)
-   - **New York Overlap:** 10h00 as 11h00 e 12h00 as 14h00 BRT (horas `10, 12, 13`)
-   - **London Fix / Pos-Fix:** 15h00 as 17h00 BRT (horas `15, 16`)
-   - Qualquer vela fora dessas janelas horarias (`[7, 9, 10, 12, 13, 15, 16]`) e sumariamente rejeitada pelo gate.
+- Operacao continua sem veto horario de Killzone (`fora_da_killzone_brt` removido) e com `allow_closed_markets=true` para os 12 indices OTC.
 
 ### Gestao de Capital e Dimensionamento:
 - **Stake Base:** 1% do saldo disponivel da banca.

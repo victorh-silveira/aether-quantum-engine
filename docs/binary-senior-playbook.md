@@ -14,21 +14,17 @@
 Antes de disparar a ordem, o motor valida a seguinte árvore de decisão:
 
 ```
-[1] KILLZONE BRT ATIVA?
-    ├── 03h-08h | 10h-13h | 14h-16h BRT
-    └── SE NÃO ──> VETO (SKIP: Fora da Killzone)
-
-[2] TENDÊNCIA ESTRUTURAL M15 ALINHADA?
+[1] TENDÊNCIA ESTRUTURAL M15 ALINHADA?
     ├── CALL: EMA20 > EMA50 (ascendentes)
     ├── PUT:  EMA20 < EMA50 (descendentes)
     └── SE NÃO ──> VETO (SKIP: Mercado sem Tendencia)
 
-[3] RETRAÇÃO DE VOLATILIDADE SAUDÁVEL?
-    ├── Recuo anterior <= 0.5 ATR14 da EMA20
+[2] RETRAÇÃO DE VOLATILIDADE SAUDÁVEL?
+    ├── Recuo anterior controlado pela EMA20
     ├── Sem fechar além da EMA50
     └── SE NÃO ──> VETO (SKIP: Recuo Fora do Padrao)
 
-[4] PREÇO DA SESSÃO UTC DENTRO DE BANDAS?
+[3] PREÇO DA SESSÃO UTC DENTRO DE BANDAS?
     ├── Fechamento favorável à média de preço típico
     ├── Contido em +/- 1.5 desvios padrão da sessão
     └── SE NÃO ──> VETO (SKIP: Exaustao Estatistica)

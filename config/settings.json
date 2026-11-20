@@ -10,7 +10,7 @@
     "duration": 15,
     "duration_unit": "m",
     "never_skip": false,
-    "allow_closed_markets": false,
+    "allow_closed_markets": true,
     "operate_all_signals": false,
     "max_fallback_candidates": 3,
     "loss_cooldown_candles": 1,

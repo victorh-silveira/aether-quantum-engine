@@ -2,11 +2,10 @@
 
 ## 1. Politica Vigente: Matriz Institucional Senior (senior_institutional)
 
-Quando `pullback_strategy.enabled=true` e `pullback_strategy.variant="senior_institutional"`, o indicador exige cinco condicoes no M15. Falhas de padrao retornam `padrao_incompleto`; o horario retorna `fora_da_killzone_brt`. A referencia da sessao e baseada em OHLC sem volume, nao e VWAP:
+Quando `pullback_strategy.enabled=true` e `pullback_strategy.variant="senior_institutional"`, o indicador exige os pilares estruturais no M15 em operacao continua 24h (sem veto horario de Killzone). Falhas de padrao retornam `padrao_incompleto`. A referencia da sessao e baseada em OHLC sem volume, nao e VWAP:
 
 | Gate Institucional | Regra de Validacao | Acao em Falha |
 |---|---|---|
-| `gate_killzone_brt` | Timestamp M15 deve estar dentro de uma das janelas de liquidez global convertidas para o Horário de Brasília (UTC-3): London Open (03h–08h), New York Overlap (10h–13h) ou London Fix (14h–16h). | Emite `SEM SINAL` com motivo `fora_da_killzone_brt`. |
 | `gate_session_vwap_trend` | Fechamento da confirmacao deve estar a favor da referencia OHLC da sessao diaria (00:00 UTC): $Close \ge referencia da sessao$ para CALL e $Close \le referencia da sessao$ para PUT. | Emite `SEM SINAL` com motivo `Fechamento contra a referencia OHLC da sessao`. |
 | `gate_session_vwap_band` | Fechamento contido no canal de dispersao de $\pm 1.5\sigma$: $Close \le referencia da sessao + 1.5\sigma$ para CALL e $Close \ge referencia da sessao - 1.5\sigma$ para PUT. | Emite `SEM SINAL` com motivo `Exaustao alem da banda de dispersao referencia da sessao 1.5 sigma`. |
 | `gate_fvg_mitigation` | Identifica Fair Value Gap entre velas $t-2$ e $t$ e exige que a vela de recuo tenha penetrado a regiao de desequilibrio antes da expansao. | Emite `SEM SINAL` com motivo `Padrao incompleto: FVG nao mitigado`. |
@@ -33,8 +32,7 @@ Sem sinal institucional atual, o motor nao cria lado. Os quatro vetos abaixo per
 ## 3. Hot Path Operacional Sênior
 
 1. **SKIP Tecnico**: Falha de conexao WSS, dados insuficientes de historico (< 128 velas fechadas), descontinuidade ou pausa operacional.
-2. **Avaliacao Institucional M15**:
-   - Validacao de Killzone BRT (03h-08h, 10h-13h, 14h-16h).
+2. **Avaliacao Institucional M15 (24h)**:
    - Validacao de Tendencia e Inclinacao (EMA20 > EMA50).
    - Validacao de Retracao (recuo ate 0,5 ATR14).
    - Validacao de preco tipico OHLC e Dispersao (Referencia de preco da sessao $\pm 1.5\sigma$).

@@ -10,7 +10,7 @@ description: Revisao de sessoes de trading, auditoria de logs, dimensionamento d
 
 ## 2. Procedimento Operacional Passo a Passo
 1. **Auditoria de Execuções:**
-   - Inspecione os logs da sessao procurando por anomalias de conexao, rejeicoes de proposta ou violacoes de horario de Killzone.
+   - Inspecione os logs da sessao procurando por anomalias de conexao, rejeicoes de proposta ou vetos estruturais de exaustao.
 2. **Auditoria de Sizing e Payout:**
    - Verifique se cada ordem respeitou estritamente a stake base de 1% e o teto de 5% na recuperacao.
    - Confirme se todas as ordens em REAL possuíam EV positivo comprovado no momento da cotacao.
