@@ -1,3 +1,9 @@
+## [5.5.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.4.0...v5.5.0) (2026-11-20)
+
+### Funcionalidades
+
+* **engine:** remover bloqueio horario de killzone e liberar mercados fechados otc ([e327541](https://github.com/victorh-silveira/aether-quantum-engine/commit/e3275418f66d15658e9b8a863db114482d08d61d))
+
 ## [5.4.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.3.2...v5.4.0) (2026-11-19)
 
 ### Funcionalidades
