@@ -1,3 +1,9 @@
+## [5.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.6.0...v5.7.0) (2026-11-20)
+
+### Funcionalidades
+
+* **risk:** calibrar meta diaria para 4 porcento e desativar tiro unico ([be18c20](https://github.com/victorh-silveira/aether-quantum-engine/commit/be18c20fe04f08433f09445794bed82cf377e445))
+
 ## [5.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.5.1...v5.6.0) (2026-11-20)
 
 ### Funcionalidades
