@@ -25,7 +25,7 @@ def main() -> None:
     dsn = os.environ.get(
         "AETHER_TIMESCALE_DSN", config.get("timescale_dsn", "postgresql://aether:aether@127.0.0.1:5432/aether")
     )
-    variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "senior_institutional"))
+    variant = os.environ.get("PULLBACK_VARIANT", config.get("pullback_variant", "dual_sniper"))
     models_dir = REPO_ROOT / config.get("models_dir", "data/indicator-models")
     public_ws_url = config.get("public_ws_url", "wss://api.derivws.com/trading/v1/options/ws/public")
     metrics_port = int(config.get("metrics_port", 9101))

@@ -1,6 +1,6 @@
 # Configuracao operacional SSOT
 
-`config/settings.json` define a rota de compras. O bloco `pullback_strategy` deve ter `enabled=true`, `variant=senior_institutional`, `period_seconds=900`, `duration=15`, `entry_window_seconds=60` e a versao produzida por `version_for_variant`. A ancora configurada e `OTC_SSMI`. O stream micro/MINI do motor ainda usa 300 s para pesquisa legada; ele nao fornece direcao operacional.
+`config/settings.json` define a rota de compras. O bloco `pullback_strategy` deve ter `enabled=true`, `variant=dual_sniper` (ou `senior_institutional` em rollback), `period_seconds=900`, `duration=15`, `entry_window_seconds=60` e a versao produzida por `version_for_variant`. A ancora configurada e `OTC_SSMI`. O stream micro/MINI do motor ainda usa 300 s para pesquisa legada; ele nao fornece direcao operacional.
 
 `never_skip`, `organic_direction`, `stream_fallback` e `invert_signal` ficam desativados (`max_fallback_candidates=3`, `allow_closed_markets=true` para os 12 ativos OTC). Com `dynamic_rotation=true`, o motor avalia todos os sinais M15 institucionais validados pelo indicador nos 12 indices mundiais OTC, rotacionando dinamicamente quando a ancora nao apresentar sinal valido. A rota pullback exige a ultima vela M15 fechada, a janela de entrada, a versao exata do setup e o lado publicado. H1 e D1 nao geram contratos.
 

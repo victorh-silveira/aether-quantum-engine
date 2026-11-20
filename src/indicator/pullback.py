@@ -12,6 +12,7 @@ from src.indicator.institutional import (  # noqa: F401
     detect_fvg_mitigation,
     session_price_reference,
 )
+from src.indicator.pullback_dual_sniper import evaluate_dual_sniper
 from src.indicator.pullback_indicators import (
     calc_adx,
     calc_atr,
@@ -43,6 +44,7 @@ VARIANTS = (
     "pool_rsi_bb",
     "momentum_burst",
     "senior_institutional",
+    "dual_sniper",
 )
 
 # Compatibilidade retroativa para testes e consumidores internos
@@ -51,21 +53,24 @@ _adx, _macd, _stochastic, _cci, _cmo = calc_adx, calc_macd, calc_stochastic, cal
 _williams_r, _roc, _keltner_pct_b, _hurst_exponent = calc_williams_r, calc_roc, calc_keltner_pct_b, calc_hurst_exponent
 
 
+_VARIANT_SPECS: dict[str, tuple[str, str]] = {
+    "improved": ("pullback-1-", "ema20_50:warmup128:atr14:recuo1.8:dist1.4:rsi_bb_di_v3:m5"),
+    "pool_rsi_bb": ("pullback-1-", "ema20_50:warmup128:atr14:recuo1.8:dist1.4:rsi_bb_di_v3:m5"),
+    "momentum_burst": ("momentum-1-", "momentum_burst:score4_conviction:hurst0.45:adx18:v1"),
+    "senior_institutional": (
+        "pullback-1-",
+        "senior_institutional:m15:strict_ema_retrace:session_proxy:fvg:killzone:v2",
+    ),
+    "dual_sniper": ("pullback-1-", "dual_sniper:m15:t18_pb0922_h1_adx25:c08_comp075_ret12_eu_as:v1"),
+}
+
+
 def version_for_variant(variant: str = "base") -> str:
     """Calcula a versao imutavel do setup para a variante especificada."""
     if variant == "base":
         return VERSION
-    if variant in ("improved", "pool_rsi_bb"):
-        spec = "ema20_50:warmup128:atr14:recuo1.8:dist1.4:rsi_bb_di_v3:m5"
-        return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
-    if variant == "momentum_burst":
-        spec = "momentum_burst:score4_conviction:hurst0.45:adx18:v1"
-        return "momentum-1-" + sha256(spec.encode()).hexdigest()[:12]
-    if variant == "senior_institutional":
-        spec = "senior_institutional:m15:strict_ema_retrace:session_proxy:fvg:killzone:v2"
-        return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
-    spec = f"{SPEC}:{variant}"
-    return "pullback-1-" + sha256(spec.encode()).hexdigest()[:12]
+    prefix, spec = _VARIANT_SPECS.get(variant, ("pullback-1-", f"{SPEC}:{variant}"))
+    return prefix + sha256(spec.encode()).hexdigest()[:12]
 
 
 @dataclass(frozen=True)
@@ -111,9 +116,8 @@ def _evaluate_standard_variants(
     if variant == "countertrend_retrace":
         return (call and pullback.close < pullback.open), (put and pullback.close > pullback.open)
     if variant == "entry_distance":
-        return (call and abs(confirmation.close - fast[-1]) <= 1.40 * atr), (
-            put and abs(confirmation.close - fast[-1]) <= 1.40 * atr
-        )
+        ok = abs(confirmation.close - fast[-1]) <= 1.40 * atr
+        return (call and ok), (put and ok)
     if variant in ("improved", "pool_rsi_bb", "momentum_burst"):
         return _evaluate_pool_variants(variant, bars, closes, fast, slow, atr, pullback, confirmation)
     return call, put
@@ -216,10 +220,8 @@ def _evaluate_pool_variants(
         call = score_call >= min_momentum_score and score_call >= score_put + 2 and not call_rejection and not is_doji
         put = score_put >= min_momentum_score and score_put >= score_call + 2 and not put_rejection and not is_doji
         return call, put
-    if score_call > score_put:
-        return True, False
-    if score_put > score_call:
-        return False, True
+    if score_call != score_put:
+        return (score_call > score_put), (score_put > score_call)
     if t_up or confirmation.close > fast[-1]:
         return True, False
     if t_down or confirmation.close < fast[-1]:
@@ -234,21 +236,28 @@ def evaluate(
     now: int,
     variant: str = "base",
     allow_session_gaps: bool = False,  # noqa: FBT001, FBT002
+    symbol: str = "",
+    peer_bars: dict[str, list[Candle]] | None = None,
 ) -> SetupResult:
     """Avalia o ultimo recuo e a ultima confirmacao sem usar vela corrente."""
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
     if period not in (300, 900, 3600, 86400):
         return SetupResult("SEM SINAL", "periodo_invalido", version=version)
-    min_required = 64 if variant == "senior_institutional" else MIN_BARS
+    min_required = 51 if variant == "dual_sniper" else (64 if variant == "senior_institutional" else MIN_BARS)
     if len(candles) < min_required:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)
-    bars = candles[-MIN_BARS:] if len(candles) >= MIN_BARS else candles[-min_required:]
+    bars = (
+        candles[-500:]
+        if variant == "dual_sniper"
+        else (candles[-MIN_BARS:] if len(candles) >= MIN_BARS else candles[-min_required:])
+    )
+    check_bars = bars[-2:] if variant == "dual_sniper" else bars
     if any(
         candle.epoch % period
         or candle.high < max(candle.open, candle.close)
         or candle.low > min(candle.open, candle.close)
         or not all(isfinite(v) for v in (candle.open, candle.high, candle.low, candle.close))
-        for candle in bars
+        for candle in check_bars
     ):
         return SetupResult("SEM SINAL", "vela_invalida", version=version)
 
@@ -256,8 +265,9 @@ def evaluate(
         """Determina se a diferenca entre velas constitui lacuna nao autorizada."""
         return diff != period and not (allow_session_gaps and period < diff <= 120 * 3600)
 
+    gap_bars = bars[-2:] if variant == "dual_sniper" else bars
     if _is_gap(bars[-1].epoch - bars[-2].epoch) or any(
-        _is_gap(right.epoch - left.epoch) for left, right in zip(bars, bars[1:], strict=False)
+        _is_gap(right.epoch - left.epoch) for left, right in zip(gap_bars, gap_bars[1:], strict=False)
     ):
         return SetupResult("SEM SINAL", "lacuna", version=version)
     if bars[-1].epoch + period > now:
@@ -271,9 +281,13 @@ def evaluate(
     atr = _atr(bars[:-1])
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
+    if variant == "dual_sniper":
+        return SetupResult(*evaluate_dual_sniper(bars, closes, symbol=symbol, peer_bars=peer_bars), version=version)
     if variant == "senior_institutional":
-        side, reason = evaluate_senior_institutional(bars, closes, fast, slow, atr, module=sys.modules[__name__])
-        return SetupResult(side, reason, version=version)
+        return SetupResult(
+            *evaluate_senior_institutional(bars, closes, fast, slow, atr, module=sys.modules[__name__]),
+            version=version,
+        )
     body = abs(confirmation.close - confirmation.open)
     if variant == "base" and not (0.02 * atr <= body <= 2.5 * atr):
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)
@@ -281,8 +295,5 @@ def evaluate(
         return SetupResult("SEM SINAL", "variante_invalida", version=version)
 
     call, put = _evaluate_standard_variants(variant, bars, closes, fast, slow, atr, pullback, confirmation)
-    if call:
-        return SetupResult("CALL", "setup_confirmado", version=version)
-    if put:
-        return SetupResult("PUT", "setup_confirmado", version=version)
-    return SetupResult("SEM SINAL", "padrao_incompleto", version=version)
+    side = "CALL" if call else ("PUT" if put else "SEM SINAL")
+    return SetupResult(side, "setup_confirmado" if side != "SEM SINAL" else "padrao_incompleto", version=version)

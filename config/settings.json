@@ -2,8 +2,8 @@
   "anchor": "OTC_SSMI",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-7e822bfe97dc",
-    "variant": "senior_institutional",
+    "version": "pullback-1-807d765723ab",
+    "variant": "dual_sniper",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 60,
     "period_seconds": 900,
@@ -793,7 +793,7 @@
     "models_dir": "data/indicator-models",
     "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
     "metrics_port": 9101,
-    "pullback_variant": "senior_institutional",
+    "pullback_variant": "dual_sniper",
     "pullback_strategy": {
       "excluded_symbols": [],
       "dynamic_rotation": true,

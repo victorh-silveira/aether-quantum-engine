@@ -6,7 +6,7 @@ alwaysApply: true
 # Setup Institucional Sênior (Senior Institutional)
 
 ## 1. Contexto e Escopo
-A rota operacional ativa do Aether adota a variante senior_institutional no timeframe M15 para contratos Rise/Fall de 15 minutos, operando nos 12 ativos OTC com ancora OTC_SSMI.
+A rota operacional ativa do Aether adota a variante bimodal `dual_sniper` (`pullback-1-807d765723ab`, Ramo `T18` micro-pullback M15+H1 + Ramo `C08` compressao cross-asset Europa/Asia-Pac) no timeframe M15 para contratos Rise/Fall de 15 minutos, operando nos 12 ativos OTC com ancora `OTC_SSMI`. A variante `senior_institutional` permanece mantida como fallback/rollback.
 
 ## 2. Os 4 Pilares Inegociáveis (Operacao 24h)
 1. **Tendência Estrutural:** Medias moveis exponenciais EMA20 e EMA50 alinhadas na direcao do sinal (EMA20 > EMA50 para CALL; EMA20 < EMA50 para PUT).

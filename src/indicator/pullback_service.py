@@ -56,7 +56,7 @@ class PullbackService:
             except Exception as exc:
                 logger.warning("PROMOTE_SETUPS falhou: %s", exc)
             ordered_symbols = sorted(self.symbols, key=lambda s: 0 if s == "OTC_SSMI" else 1)
-            tasks_m15 = []
+            m15_pending: list[str] = []
             tasks_macro = []
             for symbol in ordered_symbols:
                 for period in PERIODS:
@@ -64,31 +64,74 @@ class PullbackService:
                     expected = now // period * period - period
                     if self.last_epoch.get(key) == expected:
                         continue
-                    task = self._observe(symbol, period, now)
                     if period == 900:
-                        tasks_m15.append(task)
+                        m15_pending.append(symbol)
                     else:
-                        tasks_macro.append(task)
-            if tasks_m15:
-                await asyncio.gather(*tasks_m15, return_exceptions=True)
+                        tasks_macro.append(self._observe(symbol, period, now))
+            if m15_pending:
+                fetched_list = await asyncio.gather(
+                    *(self._fetch_candles(sym, 900, now) for sym in m15_pending),
+                    return_exceptions=True,
+                )
+                peer_bars = {
+                    sym: bars
+                    for sym, bars in zip(m15_pending, fetched_list, strict=True)
+                    if isinstance(bars, list) and bars
+                }
+                await asyncio.gather(
+                    *(
+                        self._observe(sym, 900, now, prefetched=peer_bars.get(sym), peer_bars=peer_bars)
+                        for sym in m15_pending
+                        if sym in peer_bars
+                    ),
+                    return_exceptions=True,
+                )
             if tasks_macro:
                 await asyncio.gather(*tasks_macro, return_exceptions=True)
         finally:
             if hasattr(self.metrics, "record_tick_duration"):
                 self.metrics.record_tick_duration(time.monotonic() - started_at)
 
-    async def _observe(self, symbol: str, period: int, now: int) -> None:
-        """Isola erro de um periodo sem atrasar os demais ativos."""
+    async def _fetch_candles(self, symbol: str, period: int, now: int) -> list:
+        """Busca e sanitiza velas fechadas de um simbolo sem propagar erro aos demais."""
         try:
             rows = await asyncio.wait_for(self.source.candles(symbol, count=500, period=period), 25)
-            candles = closed_candles(rows, now, period)
+            return closed_candles(rows, now, period)
+        except Exception as exc:
+            logger.warning("SETUP %s %ds indisponivel: %s", symbol, period, exc)
+            return []
+
+    async def _observe(
+        self,
+        symbol: str,
+        period: int,
+        now: int,
+        *,
+        prefetched: list | None = None,
+        peer_bars: dict[str, list] | None = None,
+    ) -> None:
+        """Isola erro de um periodo sem atrasar os demais ativos."""
+        try:
+            if prefetched is not None:
+                candles = prefetched
+            else:
+                rows = await asyncio.wait_for(self.source.candles(symbol, count=500, period=period), 25)
+                candles = closed_candles(rows, now, period)
             if not candles:
                 return
             latest = candles[-1]
             key = (symbol, period)
             if self.last_epoch.get(key) == latest.epoch:
                 return
-            result = evaluate(candles, period, now, variant=self.variant, allow_session_gaps=symbol.startswith("OTC_"))
+            result = evaluate(
+                candles,
+                period,
+                now,
+                variant=self.variant,
+                allow_session_gaps=symbol.startswith("OTC_"),
+                symbol=symbol,
+                peer_bars=peer_bars,
+            )
             signal = Signal(
                 symbol, period, latest.epoch, result.side, None, result.version, result.reason, latest.close
             )
