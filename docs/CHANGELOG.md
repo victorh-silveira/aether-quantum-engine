@@ -1,3 +1,9 @@
+## [5.6.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.5.1...v5.6.0) (2026-11-20)
+
+### Funcionalidades
+
+* **engine:** adicionar variante bimodal dual_sniper m15 e contexto cross-asset ([4bcf145](https://github.com/victorh-silveira/aether-quantum-engine/commit/4bcf14565bb52e8615b47539ddb5a329eb3cc401))
+
 ## [5.5.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.5.0...v5.5.1) (2026-11-20)
 
 ### Correcoes de Bug
