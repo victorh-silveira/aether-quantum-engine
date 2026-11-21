@@ -6,7 +6,7 @@ alwaysApply: true
 # Runtime CPython 3.13 e Asyncio
 
 ## 1. Contexto e Escopo
-O motor Aether foi projetado e validado especificamente para CPython 3.13.12 no host. Toda a pilha tira proveito das otimizacoes de especializacao de interpretador, melhorias de Garbage Collection e TaskGroups assincronos.
+O motor Aether foi projetado e validado especificamente para CPython 3.13.18 no host. Toda a pilha tira proveito das otimizacoes de especializacao de interpretador, melhorias de Garbage Collection e TaskGroups assincronos.
 
 ## 2. Hard Gates Inegociáveis
 - **Sem Starvation do Event Loop:** Nenhuma operacao bloqueante de CPU (ex: calculo de tensores pesados, serializacao massiva) pode rodar diretamente na thread do event loop. Use asyncio.to_thread.

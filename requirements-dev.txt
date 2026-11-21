@@ -6,7 +6,7 @@
 pre-commit==4.7.0              # Gerenciador de ganchos (hooks) do Git para rodar validações antes de cada commit
 
 # ---- LINT & QUALIDADE (hook lint + make app-lint) ----
-ruff==0.17.4                  # Linter e formatador de código Python extremamente rápido (substitui Black, Flake8, Isort)
+ruff==0.17.6                  # Linter e formatador de código Python extremamente rápido (substitui Black, Flake8, Isort)
 interrogate==1.7.0             # Verifica a cobertura de docstrings em módulos, classes e funções
 vulture==2.16                  # Identifica código morto (variáveis, funções e classes que não são utilizadas)
 
@@ -16,9 +16,9 @@ pip-audit==2.10.1              # Escaneia as dependências do projeto para encon
 
 # ---- TESTES & COBERTURA (hook test + make app-test) ----
 pytest==9.2.0                  # Framework principal para criação, organização e execução de testes automatizados
-pytest-asyncio==1.4.1.post1    # Extensão do Pytest para dar suporte ao teste de código assíncrono (async/await)
+pytest-asyncio==1.5.0          # Extensão do Pytest para dar suporte ao teste de código assíncrono (async/await)
 pytest-mock==3.17.0            # Wrapper simplificado em cima do unittest.mock para facilitar o uso de mocks nos testes
 pytest-timeout==2.4.0          # Define um tempo limite máximo para a execução de testes, evitando que travem no CI
 pytest-xdist==3.8.0            # Executa testes em paralelo aproveitando múltiplos núcleos da CPU para acelerar a suite
 pytest-cov==7.1.0              # Agrega cobertura entre workers do pytest-xdist (traz coverage como transitivo)
-hypothesis==6.170.15           # Property-based: invariantes de dominio (Kelly / p_eff FLIP); so dev
+hypothesis==6.170.17           # Property-based: invariantes de dominio (Kelly / p_eff FLIP); so dev

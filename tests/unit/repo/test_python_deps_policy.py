@@ -25,7 +25,7 @@ _SCAN_ROOTS = ("src", "infra/docker")
 _HOST_PIN_MARKERS = (
     "websockets==17.4",
     "httpx==0.28.1",
-    "numpy==2.5.4",
+    "numpy==2.5.5",
     "polars==2.1.0",
     "torch>=2.6.0",
 )

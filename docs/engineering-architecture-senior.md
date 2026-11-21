@@ -4,7 +4,7 @@ Doutrina de engenharia do **Aether Quantum Engine**. Runtime operacional (símbo
 
 ## 1. Princípio de implantação
 
-O motor (`run.py` / `python -m src.application.services.orchestrator.train_cli`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13.12**, build **com GIL**) para:
+O motor (`run.py` / `python -m src.application.services.orchestrator.train_cli`) roda **direto no host** (WSL Linux / Conda `deriv-api`, Python **3.13.18**, build **com GIL**) para:
 
 - evitar sobrecarga de virtualização de rede no hot path;
 - acesso direto a drivers **NVIDIA/CUDA** no host;

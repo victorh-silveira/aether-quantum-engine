@@ -16,7 +16,7 @@ Ponto de entrada unico e soberano para agentes autonomos de IA e desenvolvedores
 
 - **Idioma oficial:** Todas as respostas, documentacoes tecnicas e mensagens de commit devem ser escritas em **PT-BR**.
 - **Terminal e Scripts:** Todas as operacoes devem ser executadas no ambiente **WSL Linux (Bash)**. Nunca utilize comandos nativos do Windows CMD ou PowerShell.
-- **Runtime:** Motor executado no host com **CPython 3.13.12** e **asyncio** (ambiente Conda `deriv-api`).
+- **Runtime:** Motor executado no host com **CPython 3.13.18** e **asyncio** (ambiente Conda `deriv-api`).
 - **Arquitetura de Software:** **DDD (Domain-Driven Design) e Hexagonal (Ports & Adapters)**. O dominio deve permanecer puro, sem imports de infraestrutura ou frameworks.
 - **DataFrames e Series:** O **Polars** e o unico padrao para manipulacao colunar de alta performance (`LazyFrame`, `DataFrame`, zero-copy com Apache Arrow). O uso de pandas e estritamente proibido.
 - **Integridade Visual:** Sem emojis em codigo-fonte, logs de sistema ou documentacoes tecnicas.

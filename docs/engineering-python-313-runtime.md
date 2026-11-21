@@ -8,7 +8,7 @@ Rule: `aether-python-313-runtime.mdc`. Skills: `aether-python-313-runtime`, `aet
 
 | Item | Contrato |
 |------|----------|
-| Interpretador | **CPython 3.13.12** (build padrão **com GIL**) |
+| Interpretador | **CPython 3.13.18** (build padrão **com GIL**) |
 | Host | **WSL** Linux + Conda env `deriv-api` |
 | Motor | asyncio no host; Docker só sidecars `core,ml` |
 | Free-threaded (`--disable-gil`) | **Somente documentação / experimento**; **não** produção |

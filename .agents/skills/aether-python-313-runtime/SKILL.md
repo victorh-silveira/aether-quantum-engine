@@ -10,7 +10,7 @@ description: Auditoria de runtime CPython 3.13, GIL, otimizacoes de interpretado
 
 ## 2. Procedimento Operacional Passo a Passo
 1. **Auditoria de Interpretador:**
-   - Confirme a versao oficial: `python --version` deve reportar Python 3.13.12.
+   - Confirme a versao oficial: `python --version` deve reportar Python 3.13.18.
 2. **Inspeção de Alocações no Hot-Path:**
    - Evite instanciacao repetitiva de objetos e dicionarios dentro do callback de ticks. Reutilize buffers estruturados.
 3. **Uso de Slots e Imutabilidade:**

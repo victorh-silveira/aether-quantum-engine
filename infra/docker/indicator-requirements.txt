@@ -2,7 +2,7 @@
 websockets==17.4
 asyncpg==0.32.0
 httpx==0.28.1
-numpy==2.5.4
+numpy==2.5.5
 polars==2.1.0
 python-dotenv==1.2.4
 rich==15.0.0

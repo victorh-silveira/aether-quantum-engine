@@ -7,7 +7,7 @@ description: Audita e orienta mudancas na arquitetura senior Aether (host Python
 
 ## 1. Contexto e Pré-requisitos
 - Leia `AGENTS.md`, `docs/engineering-architecture-senior.md` e `docs/arquitetura.md`.
-- Certifique-se de que o ambiente esta configurado com CPython 3.13.12 no host via Conda `deriv-api`.
+- Certifique-se de que o ambiente esta configurado com CPython 3.13.18 no host via Conda `deriv-api`.
 
 ## 2. Procedimento Operacional Passo a Passo
 1. **Auditoria de Dependências de Camada:**

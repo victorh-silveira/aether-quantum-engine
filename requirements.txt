@@ -6,7 +6,7 @@ httpx==0.28.1                  # Cliente HTTP moderno com suporte a requisiçõe
 python-dotenv==1.2.4           # Carrega variáveis de ambiente a partir de um arquivo .env
 
 # ---- PROCESSAMENTO DE DADOS ----
-numpy==2.5.4                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
+numpy==2.5.5                   # Computação numérica de alta performance e manipulação de arrays multidimensionais
 polars==2.1.0                  # Unica lib de DataFrame SSOT (features DL + meta tabular); pandas proibido
 
 # ---- INTERFACE & UI ----
@@ -20,5 +20,5 @@ minio>=7.2                     # SDK para integração com armazenamento de obje
 # ---- DEEP LEARNING & INFERENCIA ----
 torch>=2.6.0                   # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
 scikit-learn==1.9.1            # Metricas e baselines lineares de pre-flight (sklearn.dummy, LogisticRegression)
-optuna==5.0.0                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
+optuna==5.1.0                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
 joblib==1.6.0                  # Serializacao explicita e execucao paralela
