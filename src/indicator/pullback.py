@@ -238,6 +238,7 @@ def evaluate(
     allow_session_gaps: bool = False,  # noqa: FBT001, FBT002
     symbol: str = "",
     peer_bars: dict[str, list[Candle]] | None = None,
+    h1_bars: list[Candle] | None = None,
 ) -> SetupResult:
     """Avalia o ultimo recuo e a ultima confirmacao sem usar vela corrente."""
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
@@ -246,11 +247,8 @@ def evaluate(
     min_required = 51 if variant == "dual_sniper" else (64 if variant == "senior_institutional" else MIN_BARS)
     if len(candles) < min_required:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)
-    bars = (
-        candles[-500:]
-        if variant == "dual_sniper"
-        else (candles[-MIN_BARS:] if len(candles) >= MIN_BARS else candles[-min_required:])
-    )
+    cut = 500 if variant == "dual_sniper" else (MIN_BARS if len(candles) >= MIN_BARS else min_required)
+    bars = candles[-cut:]
     check_bars = bars[-2:] if variant == "dual_sniper" else bars
     if any(
         candle.epoch % period
@@ -282,12 +280,11 @@ def evaluate(
     if not isfinite(atr) or atr <= 0:
         return SetupResult("SEM SINAL", "atr_invalido", version=version)
     if variant == "dual_sniper":
-        return SetupResult(*evaluate_dual_sniper(bars, closes, symbol=symbol, peer_bars=peer_bars), version=version)
+        res_pair = evaluate_dual_sniper(bars, closes, symbol=symbol, peer_bars=peer_bars, h1_bars=h1_bars)
+        return SetupResult(*res_pair, version=version)
     if variant == "senior_institutional":
-        return SetupResult(
-            *evaluate_senior_institutional(bars, closes, fast, slow, atr, module=sys.modules[__name__]),
-            version=version,
-        )
+        res_pair = evaluate_senior_institutional(bars, closes, fast, slow, atr, module=sys.modules[__name__])
+        return SetupResult(*res_pair, version=version)
     body = abs(confirmation.close - confirmation.open)
     if variant == "base" and not (0.02 * atr <= body <= 2.5 * atr):
         return SetupResult("SEM SINAL", "corpo_fora_faixa", version=version)

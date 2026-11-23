@@ -181,7 +181,7 @@ def test_c08_compression_put_call_and_guards(monkeypatch):
     # Conflito bimodal, sem setup e mercado sem oscilacao
     assert evaluate_dual_sniper(bars[:10], [b.close for b in bars[:10]]) == ("SEM SINAL", "mercado_sem_oscilacao")
     assert evaluate_dual_sniper(bars, [b.close for b in bars], "OTC_SPC", None) == ("SEM SINAL", "sem_setup_sniper")
-    monkeypatch.setattr("src.indicator.pullback_dual_sniper._evaluate_t18_trend", lambda b, c: "CALL")
+    monkeypatch.setattr("src.indicator.pullback_dual_sniper._evaluate_t18_trend", lambda b, c, h1_bars=None: "CALL")
     monkeypatch.setattr("src.indicator.pullback_dual_sniper._evaluate_c08_compression", lambda b, s, p: "PUT")
     assert evaluate_dual_sniper(bars, [b.close for b in bars], "OTC_GDAXI", peers_up) == (
         "SEM SINAL",
@@ -189,7 +189,46 @@ def test_c08_compression_put_call_and_guards(monkeypatch):
     )
 
     # T18 com H1 nao alinhado retorna None
-    monkeypatch.setattr("src.indicator.pullback_dual_sniper._closed_h1_trend", lambda b: -1)
+    monkeypatch.setattr("src.indicator.pullback_dual_sniper._closed_h1_trend", lambda b, h1_bars=None: -1)
     monkeypatch.setattr("src.indicator.pullback_dual_sniper._wilder_atr_adx", lambda b, p=14: (1.0, 30.0))
     monkeypatch.setattr("src.indicator.pullback_dual_sniper._evaluate_pb09_pb22", lambda *a: "CALL")
     assert _evaluate_t18_trend(bars, [b.close for b in bars]) is None
+
+
+def test_direct_h1_bars_unlock_t18_and_service_h1_cache():
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from src.indicator.pullback_service import PullbackService
+
+    # Apenas 80 velas M15 (< 51 H1 agregadas), mas 65 barras H1 diretas fechadas
+    short_m15 = _make_trend_m15(80, bull=True)
+    assert _closed_h1_trend(short_m15) == 0
+
+    end_ts = short_m15[-1].epoch + 900
+    h1_start = ((end_ts // 3600) - 65) * 3600
+    h1_bull = [Candle(h1_start + i * 3600, 1000.0 + i, 1002.0 + i, 999.0 + i, 1001.0 + i) for i in range(66)]
+    assert _closed_h1_trend(short_m15, h1_bars=h1_bull) == 1
+
+    # Valida PullbackService aquecendo _h1_cache automaticamente em dual_sniper
+    class _FakeSource:
+        async def symbols(self):
+            return [{"symbol": "OTC_SSMI", "display_name": "Swiss 20", "market": "indices", "exchange_is_open": 1}]
+
+        async def candles(self, symbol, count=500, period=900):
+            base = (1700000000 // period) * period - 60 * period
+            return [
+                {"epoch": base + i * period, "open": 100.0, "high": 101.0, "low": 99.0, "close": 100.5}
+                for i in range(60)
+            ]
+
+    sink = MagicMock()
+    sink.set_symbols = AsyncMock()
+    sink.register_setups = AsyncMock()
+    sink.promote_setups = AsyncMock()
+    sink.save_setup = AsyncMock()
+    metrics = MagicMock()
+    svc = PullbackService(_FakeSource(), sink, metrics, variant="dual_sniper", scope="stock_indices")
+    asyncio.run(svc.tick(1700000000 + 3600))
+    assert "OTC_SSMI" in svc._h1_cache
+    assert len(svc._h1_cache["OTC_SSMI"]) > 0

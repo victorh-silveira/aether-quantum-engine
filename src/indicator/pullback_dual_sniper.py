@@ -34,27 +34,28 @@ def _sma_tr(bars: list[Candle], period: int) -> float:
     return sum(trs) / len(trs) if trs else 0.0
 
 
-def _closed_h1_trend(bars: list[Candle]) -> int:
-    """Agrega velas M15 em velas H1 estritamente fechadas e retorna +1, -1 ou 0."""
+def _closed_h1_trend(bars: list[Candle], h1_bars: list[Candle] | None = None) -> int:
+    """Agrega velas M15 ou usa H1 diretas estritamente fechadas e retorna +1, -1 ou 0."""
     if not bars:
         return 0
     curr_close_ts = bars[-1].epoch + 900
     h1_closes: list[float] = []
-    cur_h1_epoch = -1
-    cur_close = 0.0
-
-    for bar in bars:
-        h_ep = (bar.epoch // 3600) * 3600
-        if h_ep != cur_h1_epoch:
-            if cur_h1_epoch >= 0 and cur_h1_epoch + 3600 <= curr_close_ts:
-                h1_closes.append(cur_close)
-            cur_h1_epoch = h_ep
-            cur_close = bar.close
-        else:
-            cur_close = bar.close
-
-    if cur_h1_epoch >= 0 and cur_h1_epoch + 3600 <= curr_close_ts:
-        h1_closes.append(cur_close)
+    if h1_bars:
+        h1_closes = [b.close for b in h1_bars if b.epoch + 3600 <= curr_close_ts]
+    else:
+        cur_h1_epoch = -1
+        cur_close = 0.0
+        for bar in bars:
+            h_ep = (bar.epoch // 3600) * 3600
+            if h_ep != cur_h1_epoch:
+                if cur_h1_epoch >= 0 and cur_h1_epoch + 3600 <= curr_close_ts:
+                    h1_closes.append(cur_close)
+                cur_h1_epoch = h_ep
+                cur_close = bar.close
+            else:
+                cur_close = bar.close
+        if cur_h1_epoch >= 0 and cur_h1_epoch + 3600 <= curr_close_ts:
+            h1_closes.append(cur_close)
 
     if len(h1_closes) < 51:
         return 0
@@ -136,7 +137,11 @@ def _wilder_atr_adx(bars: list[Candle], period: int = 14) -> tuple[float, float]
     return atr_val, adx_val
 
 
-def _evaluate_t18_trend(bars: list[Candle], closes: list[float]) -> str | None:
+def _evaluate_t18_trend(
+    bars: list[Candle],
+    closes: list[float],
+    h1_bars: list[Candle] | None = None,
+) -> str | None:
     """Ramo 1 (T18): PB09|PB22 filtrado por ADX14 Wilder >= 25 e tendencia H1 fechada."""
     atr14, adx14 = _wilder_atr_adx(bars, 14)
     if adx14 < 25.0 or atr14 <= 0.0:
@@ -147,7 +152,7 @@ def _evaluate_t18_trend(bars: list[Candle], closes: list[float]) -> str | None:
     side = _evaluate_pb09_pb22(bars, ema9, ema20, ema50, atr14)
     if side is None:
         return None
-    h1_dir = _closed_h1_trend(bars)
+    h1_dir = _closed_h1_trend(bars, h1_bars=h1_bars)
     if (side == "CALL" and h1_dir == 1) or (side == "PUT" and h1_dir == -1):
         return side
     return None
@@ -216,11 +221,12 @@ def evaluate_dual_sniper(
     closes: list[float],
     symbol: str = "",
     peer_bars: dict[str, list[Candle]] | None = None,
+    h1_bars: list[Candle] | None = None,
 ) -> tuple[str, str]:
     """Combina Ramo 1 (T18 Tendencia MTF) e Ramo 2 (C08 Compressao Cross-Asset)."""
     if len(bars) < 51 or any(bar.high == bar.low for bar in bars[-3:]):
         return "SEM SINAL", "mercado_sem_oscilacao"
-    t18 = _evaluate_t18_trend(bars, closes)
+    t18 = _evaluate_t18_trend(bars, closes, h1_bars=h1_bars)
     c08 = _evaluate_c08_compression(bars, symbol, peer_bars)
     if t18 and c08 and t18 != c08:
         return "SEM SINAL", "conflito_bimodal"

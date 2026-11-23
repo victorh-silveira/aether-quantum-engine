@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tini \
     ca-certificates \
     curl \
+    tzdata \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Principio do Menor Privilegio (Non-Root)

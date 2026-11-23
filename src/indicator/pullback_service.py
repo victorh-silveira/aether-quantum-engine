@@ -26,6 +26,7 @@ class PullbackService:
         self.symbols: dict[str, str] = {}
         self.last_catalog = 0
         self.last_epoch: dict[tuple[str, int], int] = {}
+        self._h1_cache: dict[str, list] = {}
 
     def restore(self, signals: list[Signal]) -> None:
         """Restaura apenas sinais da versao atual."""
@@ -78,9 +79,26 @@ class PullbackService:
                     for sym, bars in zip(m15_pending, fetched_list, strict=True)
                     if isinstance(bars, list) and bars
                 }
+                if self.variant == "dual_sniper":
+                    missing_h1 = [sym for sym in peer_bars if sym not in self._h1_cache]
+                    if missing_h1:
+                        h1_list = await asyncio.gather(
+                            *(self._fetch_candles(sym, 3600, now) for sym in missing_h1),
+                            return_exceptions=True,
+                        )
+                        for sym, h1_bars in zip(missing_h1, h1_list, strict=True):
+                            if isinstance(h1_bars, list) and h1_bars:
+                                self._h1_cache[sym] = h1_bars
                 await asyncio.gather(
                     *(
-                        self._observe(sym, 900, now, prefetched=peer_bars.get(sym), peer_bars=peer_bars)
+                        self._observe(
+                            sym,
+                            900,
+                            now,
+                            prefetched=peer_bars.get(sym),
+                            peer_bars=peer_bars,
+                            h1_bars=self._h1_cache.get(sym),
+                        )
                         for sym in m15_pending
                         if sym in peer_bars
                     ),
@@ -109,6 +127,7 @@ class PullbackService:
         *,
         prefetched: list | None = None,
         peer_bars: dict[str, list] | None = None,
+        h1_bars: list | None = None,
     ) -> None:
         """Isola erro de um periodo sem atrasar os demais ativos."""
         try:
@@ -119,6 +138,8 @@ class PullbackService:
                 candles = closed_candles(rows, now, period)
             if not candles:
                 return
+            if period == 3600:
+                self._h1_cache[symbol] = candles
             latest = candles[-1]
             key = (symbol, period)
             if self.last_epoch.get(key) == latest.epoch:
@@ -131,6 +152,7 @@ class PullbackService:
                 allow_session_gaps=symbol.startswith("OTC_"),
                 symbol=symbol,
                 peer_bars=peer_bars,
+                h1_bars=h1_bars,
             )
             signal = Signal(
                 symbol, period, latest.epoch, result.side, None, result.version, result.reason, latest.close
