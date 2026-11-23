@@ -1,3 +1,9 @@
+## [5.7.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.7.0...v5.7.1) (2026-11-23)
+
+### Correcoes de Bug
+
+* **engine:** alimentar tendencia h1 direta no dual_sniper e alinhar fuso brt ([ac77e51](https://github.com/victorh-silveira/aether-quantum-engine/commit/ac77e515a6bf10c9636f543635d0e0946ef24e2b))
+
 ## [5.7.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.6.0...v5.7.0) (2026-11-20)
 
 ### Funcionalidades
