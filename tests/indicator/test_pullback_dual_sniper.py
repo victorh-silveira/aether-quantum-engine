@@ -173,6 +173,9 @@ def test_c08_compression_put_call_and_guards(monkeypatch):
     small_body = list(bars)
     small_body[-1] = Candle(last_ep, 100.0, 108.0, 92.0, 104.0)
     assert _evaluate_c08_compression(small_body, "OTC_GDAXI", peers_up) is None
+    no_uwick = list(bars)
+    no_uwick[-1] = Candle(last_ep, 100.0, 104.05, 99.8, 104.0)
+    assert _evaluate_c08_compression(no_uwick, "OTC_GDAXI", peers_up) is None
     small_ret = list(bars)
     small_ret[-1] = Candle(last_ep, 100.0, 101.0, 99.9, 100.9)
     assert _evaluate_c08_compression(small_ret, "OTC_GDAXI", peers_up) is None

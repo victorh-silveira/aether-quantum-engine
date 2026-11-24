@@ -193,6 +193,8 @@ def _evaluate_c08_compression(
         return None
     body_signed = curr.close - curr.open
     rng = max(1e-10, curr.high - curr.low)
+    if (curr.high - max(curr.open, curr.close)) / rng <= 0.023:
+        return None
     if (abs(body_signed) / rng) <= 0.55:
         return None
     ret_atr = body_signed / atr14
