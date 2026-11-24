@@ -1,3 +1,9 @@
+## [5.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.8.0...v5.9.0) (2026-11-24)
+
+### Funcionalidades
+
+* **engine:** vetar velas sem pavio superior na compressao ([58bf027](https://github.com/victorh-silveira/aether-quantum-engine/commit/58bf02767a94e226bb3c20a30d90e38fbc4faaff))
+
 ## [5.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.7.1...v5.8.0) (2026-11-24)
 
 ### Funcionalidades
