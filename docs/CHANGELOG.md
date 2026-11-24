@@ -1,3 +1,9 @@
+## [5.8.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.7.1...v5.8.0) (2026-11-24)
+
+### Funcionalidades
+
+* **engine:** expandir frequencia operacional, unificar piso e sincronizar manuais ([e449a8e](https://github.com/victorh-silveira/aether-quantum-engine/commit/e449a8e480e2ec510b7a98c65e4cb26b07fabe24))
+
 ## [5.7.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.7.0...v5.7.1) (2026-11-23)
 
 ### Correcoes de Bug
