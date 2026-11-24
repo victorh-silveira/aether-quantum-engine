@@ -11,10 +11,10 @@
     "duration_unit": "m",
     "never_skip": false,
     "allow_closed_markets": true,
-    "operate_all_signals": false,
+    "operate_all_signals": true,
     "max_fallback_candidates": 3,
-    "loss_cooldown_candles": 1,
-    "consecutive_loss_cooldown_candles": 2,
+    "loss_cooldown_candles": 0,
+    "consecutive_loss_cooldown_candles": 0,
     "reversal_on_loss": false,
     "elastic_regime_enabled": false,
     "smooth_recovery": true,
@@ -27,8 +27,8 @@
     "dynamic_rotation": true,
     "adaptive_trend_regime": "r6",
     "min_payout_rate": 0.7,
-    "min_prob_threshold": 0.5,
-    "breakeven_floor": 0.5
+    "min_prob_threshold": 0.55,
+    "breakeven_floor": 0.55
   },
   "indicator_consensus": {
     "enabled": true,
@@ -236,7 +236,7 @@
       "hidden_size": 64,
       "num_layers": 2
     },
-    "min_edge_execute": -0.03,
+    "min_edge_execute": 0.0,
     "min_val_accuracy": 0.5,
     "model_path_template": "data/dl/{symbol}.pth",
     "online_training": false,
@@ -798,8 +798,8 @@
       "excluded_symbols": [],
       "dynamic_rotation": true,
       "adaptive_trend_regime": "r6",
-      "breakeven_floor": 0.58,
-      "min_prob_threshold": 0.58
+      "breakeven_floor": 0.55,
+      "min_prob_threshold": 0.55
     },
     "anchor": "OTC_SSMI",
     "symbols": [

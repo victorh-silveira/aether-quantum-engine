@@ -14,7 +14,7 @@ from src.application.services.orchestrator.indicator_period_filters import (
     order_selection_score,
 )
 from src.application.services.pullback_recovery_claim import unreserved_loss
-from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, unit_ev
+from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, is_quote_edge_acceptable
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
 from src.domain.risk.pullback_stake import resolve_pullback_prequote_stake
@@ -224,12 +224,20 @@ async def _prequote(orch: Any, order: tuple, semaphore: asyncio.Semaphore) -> tu
         await _record_quote(orch, symbol, direction.name, metrics, period, quote, rate)
         metrics["indicator_prequote_ev"] = None
         return order
-    haircut = float(orch.config.get("orchestrator", {}).get("execution", {}).get("quote_probability_haircut", 0.0))
-    probability = float(metrics["trade_score"]) - haircut
-    edge = unit_ev(probability, rate)
+    exec_cfg = orch.config.get("orchestrator", {}).get("execution", {})
+    haircut = float(exec_cfg.get("quote_probability_haircut", 0.0) or 0.0)
+    raw_prob = float(metrics["trade_score"])
+    probability = raw_prob - haircut
+    confirmatory, edge, _ = is_quote_edge_acceptable(
+        {"calibrated_prob": raw_prob},
+        "CALL",
+        rate,
+        min_edge=float(exec_cfg.get("min_edge_execute", 0.0) or 0.0),
+        safety_margin=float(exec_cfg.get("quote_safety_margin", 0.01) or 0.01),
+        probability_haircut=haircut,
+    )
     if edge is None or payout_break_even is None:
         return None
-    confirmatory = edge > 0 and probability >= payout_break_even + 0.01
     await _record_quote(orch, symbol, direction.name, metrics, period, quote, rate, prob=probability)
     mode = str(orch.config.get("trading", {}).get("mode", "demo")).lower()
     if mode == "demo" and not pilot:

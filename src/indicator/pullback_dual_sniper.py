@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from src.indicator.domain import Candle
-from src.indicator.institutional import BRT_TIMEZONE
 from src.indicator.pullback_indicators import calc_ema
 
 
@@ -18,7 +15,7 @@ BLOCKS_BY_SYMBOL: dict[str, frozenset[str]] = {
     **dict.fromkeys(ASIA_PAC_BLOCK, ASIA_PAC_BLOCK),
     **dict.fromkeys(US_BLOCK, US_BLOCK),
 }
-C08_ELIGIBLE_SYMBOLS = EUROPE_BLOCK | ASIA_PAC_BLOCK
+C08_ELIGIBLE_SYMBOLS = EUROPE_BLOCK | ASIA_PAC_BLOCK | US_BLOCK
 
 
 def _sma_tr(bars: list[Candle], period: int) -> float:
@@ -142,9 +139,9 @@ def _evaluate_t18_trend(
     closes: list[float],
     h1_bars: list[Candle] | None = None,
 ) -> str | None:
-    """Ramo 1 (T18): PB09|PB22 filtrado por ADX14 Wilder >= 25 e tendencia H1 fechada."""
+    """Ramo 1 (T18): PB09|PB22 filtrado por ADX14 Wilder >= 20 e tendencia H1 fechada."""
     atr14, adx14 = _wilder_atr_adx(bars, 14)
-    if adx14 < 25.0 or atr14 <= 0.0:
+    if adx14 < 20.0 or atr14 <= 0.0:
         return None
     ema9 = calc_ema(closes, 9)[-1]
     ema20 = calc_ema(closes, 20)[-1]
@@ -184,18 +181,15 @@ def _evaluate_c08_compression(
     symbol: str,
     peer_bars: dict[str, list[Candle]] | None,
 ) -> str | None:
-    """Ramo 2 (C08): reversao de barra forte em compressao de volatilidade (Europa/Asia-Pac)."""
+    """Ramo 2 (C08): reversao de barra forte em compressao de volatilidade (Europa/Asia-Pac/US)."""
     if symbol not in C08_ELIGIBLE_SYMBOLS or len(bars) < 51:
         return None
     curr = bars[-1]
-    hour_brt = datetime.fromtimestamp(curr.epoch, tz=BRT_TIMEZONE).hour
-    if hour_brt in (11, 12):
-        return None
     atr14 = _sma_tr(bars, 14)
     atr50 = _sma_tr(bars, 50)
     if atr14 <= 0.0 or atr50 <= 0.0:
         return None
-    if (atr14 / atr50) >= 0.75:
+    if (atr14 / atr50) >= 0.90:
         return None
     body_signed = curr.close - curr.open
     rng = max(1e-10, curr.high - curr.low)

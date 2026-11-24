@@ -31,7 +31,7 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 
 - **Contrato Operacional:** Rise/Fall (CALL/PUT) com duracao fixa de **15 minutos** (900 segundos).
 - **Ativo Ancora Configurado:** **OTC_SSMI** (Swiss Market Index 20 / EWL - Deriv OTC).
-- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="dual_sniper"` (`pullback-1-807d765723ab`, Perfil C Sniper bimodal: Ramo 1 `T18` micro-pullback `PB09|PB22` + `ADX14 Wilder >= 25` + `H1 fechado` + Ramo 2 `C08` reversao de barra forte em compressao `ATR14/ATR50 < 0.75` com consenso de bloco regional Europa/Asia-Pac `>= 75%`). A variante `senior_institutional` permanece disponivel para retrocompatibilidade e rollback.
+- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="dual_sniper"` (`pullback-1-807d765723ab`, Perfil C Sniper bimodal: Ramo 1 `T18` micro-pullback `PB09|PB22` + `ADX14 Wilder >= 20` + `H1 fechado` + Ramo 2 `C08` reversao de barra forte em compressao `ATR14/ATR50 < 0.90` com consenso de bloco regional Europa/Asia-Pac/US `>= 75%`, sem veto horario). A variante `senior_institutional` permanece disponivel para retrocompatibilidade e rollback.
 - **Janela de Abertura:** A entrada deve ocorrer em ate 60 segundos apos a abertura da vela M15, exclusivamente sob vela anterior fechada e sem gaps.
 
 ### A Matriz dos 4 Pilares Institucionais (Operacao 24h):

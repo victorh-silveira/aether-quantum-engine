@@ -452,7 +452,9 @@ async def test_prequote_edge_none_or_break_even_none(monkeypatch):
         "indicator_demo_pilot": False,
     }
     order = ("R_10", TradeDirection.CALL, metrics)
-    monkeypatch.setattr(orders, "unit_ev", lambda prob, rate: None)
+    monkeypatch.setattr(
+        orders, "is_quote_edge_acceptable", lambda *args, **kwargs: (False, None, "insufficient_evidence")
+    )
     res = await orders._prequote(orch, order, asyncio.Semaphore(1))
     assert res is None
 

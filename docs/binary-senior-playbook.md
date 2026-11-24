@@ -52,4 +52,4 @@ Antes de disparar a ordem, o motor valida a seguinte árvore de decisão:
 - **Recuperação Linear (RECOVER):**
   $$	ext{Stake} = \min\left(rac{	ext{Prejuízo Pendente}}{	ext{Payout Cotado}}, 0,05 	imes 	ext{Saldo Disponível}ight)$$
 - **Cap de Proteção:** Teto máximo de 5% por ordem.
-- **Cooldown Pós-Loss:** Aguardo de 1 vela M15 (`loss_cooldown_candles=1`), estendendo para 2 velas em perdas consecutivas, liberando exatamente na abertura da próxima vela qualificada.
+- **Cooldown Pós-Loss e Sinais Simultâneos:** Sem cooldown pós-loss (`loss_cooldown_candles=0`, `consecutive_loss_cooldown_candles=0`), com `operate_all_signals=true` para operar todos os sinais elegíveis do ciclo M15.

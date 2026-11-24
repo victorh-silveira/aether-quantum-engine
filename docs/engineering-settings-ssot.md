@@ -8,6 +8,6 @@ O indicador usa apenas OHLC publico da Deriv para a serie do setup. A referencia
 
 `make app-train` registra o proxy de velas e seu ranking, sem escrever em `config/settings.json` ou promover `pullback_registry`. O servico do indicador cria novas versoes como `piloto` e a promocao para `ativo` depende de 200 compras e liquidacoes DEMO unicas, atribuidas a ativo, periodo e versao, com limite inferior unilateral de 95% positivo. A rota REAL verifica essa evidencia novamente e exige EV positivo com margem de 0,01 na proposta final.
 
-A stake base e 1% da banca disponivel. A recuperacao usa o payout liquido cotado com amortizacao suave em etapas e teto de 5% por ordem (`loss_cooldown_candles=1`, `consecutive_loss_cooldown_candles=2` alinhados a fronteira da vela M15). Nao ha stop loss nem teto acumulado de perda. TCN, meta e loss-classifier nao alteram o lado nem a stake desta rota.
+A stake base e 1% da banca disponivel. A recuperacao usa o payout liquido cotado com amortizacao suave em etapas e teto de 5% por ordem (`loss_cooldown_candles=0`, `consecutive_loss_cooldown_candles=0`, `operate_all_signals=true`, `breakeven_floor=0.55`, `min_prob_threshold=0.55`). Nao ha stop loss nem teto acumulado de perda. TCN, meta e loss-classifier nao alteram o lado nem a stake desta rota.
 
 Para alterar um parametro operacional, atualize parser/consumidor, testes, este documento, regras e skills. Consulte [setup](strategy-pullback.md) e [arquitetura](arquitetura.md).

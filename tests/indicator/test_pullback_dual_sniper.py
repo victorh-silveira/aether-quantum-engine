@@ -152,11 +152,18 @@ def test_c08_compression_put_call_and_guards(monkeypatch):
     peers_dn = {k: [Candle(last_ep, 104, 105, 100, 101)] for k in peers_up}
     assert _evaluate_c08_compression(bars_dn, "OTC_GDAXI", peers_dn) == "CALL"
 
-    # Guardas do C08: bloco US inelegivel, horario 11h/12h BRT, vol_ratio >= 0.75, body_ratio <= 0.55, ret_atr <= 1.2, <3 pares, consenso < 75%
-    assert _evaluate_c08_compression(bars, "OTC_SPC", peers_up) is None
+    # Guardas do C08: simbolo fora dos blocos, vol_ratio >= 0.90, body_ratio <= 0.55, ret_atr <= 1.2, <3 pares, consenso < 75%
+    assert _evaluate_c08_compression(bars, "R_100", peers_up) is None
+    us_peers = {
+        "OTC_SPC": [Candle(last_ep, 100, 104, 99, 103)],
+        "OTC_NDX": [Candle(last_ep, 100, 104, 99, 103)],
+        "OTC_DJI": [Candle(last_ep, 100, 104, 99, 103)],
+    }
+    assert _evaluate_c08_compression(bars, "OTC_SPC", us_peers) == "PUT"
     ny_ep = int(datetime(2026, 11, 10, 11, 15, tzinfo=BRT_TIMEZONE).timestamp())
     bars_ny = [Candle(ny_ep - (54 - i) * 900, b.open, b.high, b.low, b.close) for i, b in enumerate(bars)]
-    assert _evaluate_c08_compression(bars_ny, "OTC_GDAXI", peers_up) is None
+    peers_ny = {k: [Candle(ny_ep, 100, 104, 99, 103)] for k in peers_up}
+    assert _evaluate_c08_compression(bars_ny, "OTC_GDAXI", peers_ny) == "PUT"
     assert (
         _evaluate_c08_compression([Candle(i * 900, 100, 100, 100, 100) for i in range(55)], "OTC_GDAXI", peers_up)
         is None
