@@ -1,3 +1,9 @@
+## [5.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.10.1...v5.11.0) (2026-11-25)
+
+### Funcionalidades
+
+* **engine:** integrar gate de calendario economico e cap de correlacao regional ([a4f8c39](https://github.com/victorh-silveira/aether-quantum-engine/commit/a4f8c392a7572883c842c8af846de406e4179757))
+
 ## [5.10.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.10.0...v5.10.1) (2026-11-25)
 
 ### Correcoes de Bug
