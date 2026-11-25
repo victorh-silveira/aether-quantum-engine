@@ -1,3 +1,9 @@
+## [5.13.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.12.0...v5.13.0) (2026-11-25)
+
+### Funcionalidades
+
+* **scripts:** adicione pesquisa causal de frequencia M15 ([192bb2d](https://github.com/victorh-silveira/aether-quantum-engine/commit/192bb2d45b4fb0e82ec9ba45cbccd05d3a6c1fd7))
+
 ## [5.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.11.0...v5.12.0) (2026-11-25)
 
 ### Funcionalidades
