@@ -1,3 +1,9 @@
+## [5.12.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.11.0...v5.12.0) (2026-11-25)
+
+### Funcionalidades
+
+* **engine:** migrar estrategia para persistent_trend_v3 e cluster risk budget ([fe2e458](https://github.com/victorh-silveira/aether-quantum-engine/commit/fe2e458a47b92ca06e0d895b9dd6be0f1148b151))
+
 ## [5.11.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.10.1...v5.11.0) (2026-11-25)
 
 ### Funcionalidades
