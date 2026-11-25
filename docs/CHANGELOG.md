@@ -1,3 +1,9 @@
+## [5.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.9.0...v5.10.0) (2026-11-25)
+
+### Funcionalidades
+
+* **engine:** ativar portfolio multi-regime de alta frequencia e porta grafana ([1d35eff](https://github.com/victorh-silveira/aether-quantum-engine/commit/1d35effffb1c33e66123b94bcdb43c59a72f49fe))
+
 ## [5.9.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.8.0...v5.9.0) (2026-11-24)
 
 ### Funcionalidades
