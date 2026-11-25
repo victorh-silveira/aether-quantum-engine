@@ -80,8 +80,15 @@ class PullbackService:
                     if isinstance(bars, list) and bars
                 }
                 if self.variant in ("dual_sniper", "persistent_trend_v3"):
-                    missing_h1 = [sym for sym in peer_bars if sym not in self._h1_cache]
+                    expected_h1 = now // 3600 * 3600 - 3600
+                    missing_h1 = [
+                        sym
+                        for sym in peer_bars
+                        if not self._h1_cache.get(sym) or self._h1_cache[sym][-1].epoch < expected_h1
+                    ]
                     if missing_h1:
+                        for sym in missing_h1:
+                            self._h1_cache.pop(sym, None)
                         h1_list = await asyncio.gather(
                             *(self._fetch_candles(sym, 3600, now) for sym in missing_h1),
                             return_exceptions=True,

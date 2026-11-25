@@ -17,17 +17,17 @@ description: Protocolo obrigatorio de sincronizacao de superficie (docs, rules, 
 3. **Validação Automatizada:**
    - Execute o teste de rastreabilidade de superficie:
      ```bash
-     /mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/repo/test_agent_coverage_matrix.py -v
+     /mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest tests/unit/repo/test_agent_coverage_matrix.py -v
      ```
 4. **Fechamento via Commit Padronizado:**
    - Execute o commit oficial em PT-BR:
      ```bash
-     make app-commit MSG="docs(repo): sincronizacao de superficie de agentes"
+     make app-commit ARGS='docs repo "sincroniza superficie de agentes" "Alinha documentacao, regras e habilidades ao contrato vigente."'
      ```
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/repo/test_agent_coverage_matrix.py -v
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest tests/unit/repo/test_agent_coverage_matrix.py -v
 make app-lint
 ```
 

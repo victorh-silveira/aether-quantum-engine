@@ -1,5 +1,5 @@
 ---
-description: Dimensionamento de capital institucional, stake base de 1%, cap 5% e amortizacao 1/1
+description: Dimensionamento institucional, stake base de 1,5%, orcamento de ciclo de 4% e cap por ordem de 5%
 alwaysApply: true
 ---
 
@@ -9,16 +9,16 @@ alwaysApply: true
 A preservacao de capital e o imperativo supremo do motor. O dimensionamento e governado pelo modelo de risco institucional senior em src/domain/risk/.
 
 ## 2. Hard Gates Inegociáveis
-- **Stake Base:** A stake base de qualquer contrato e fixada em exatamente **1% da banca disponivel** no momento da proposta.
-- **Cap Máximo de Recuperação:** O teto maximo absoluto de qualquer ordem de recuperacao e estritamente limitado a **5% da banca disponivel**.
-- **Amortização Linear 1/1:** Recuperacao baseada no payout liquido cotado (min(max(PEND / payout, 1%), 5%)), amortizando perdas sem multiplicadores exponenciais ou geometricos.
+- **Stake Base:** A configuracao vigente utiliza `base_stake_pct=0.015`, com piso de **1%** e teto absoluto de **5% por ordem**, respeitando saldo disponivel e arredondamento do broker.
+- **Cluster Risk Budget:** `cycle_risk_budget_pct=0.04` divide o orcamento entre as ordens simultaneas selecionadas, com `max_orders_per_cycle=4`. Reutilize o dimensionamento de producao e contabilize reservas a cada compra confirmada.
+- **Sem Recuperacao Operacional:** `smooth_recovery=false` e `amort_steps=0`; perdas anteriores nao aumentam a stake. Recuperacao agressiva 1/1 permanece desligada.
 - **Banimento de Martingale e D'Alembert:** Metodos de progressao geometrica (Martingale, Fibonacci acelerado, D'Alembert) estao terminantemente proibidos no codigo.
 - **Gate de EV Positivo em REAL:** Ordens em conta REAL exigem cotacao com EV positivo e margem de seguranca minima de 0,01 acima do break-even apos corte de haircut.
 
 ## 3. Padrões de Implementação
 - **Consulta de Saldo Dinâmico:** O saldo da banca e verificado diretamente na resposta da conta antes da requisicao de proposta de contrato.
 - **Isolamento de Payout:** Payout cotado nulo, zero ou ausente na resposta da corretora aborta a negociacao imediatamente.
-- **Stop-Win Institucional:** Meta de ganho diario com travamento automatico de novas entradas apos atingimento de meta de sessao.
+- **Sem Stop-Win Curto:** A configuracao vigente nao utiliza stop-win diario curto assimetrico. Nao introduza limites financeiros arbitrarios sem mandato do operador.
 
 ## 4. Proibições Estritas
 - Proibido qualquer aumento discricionario de stake apos uma sequencia de perdas.
