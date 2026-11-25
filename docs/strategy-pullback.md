@@ -2,18 +2,18 @@
 
 ## 1. Visão Geral da Estratégia
 
-O Aether Quantum Engine adota como variante ativa o **Portfolio Multi-Regime de Alta Frequência (`multi_regime_hf`, versão `pullback-1-4c9986919dfb`)** operando contratos Rise/Fall de 15 minutos (900 segundos) na corretora Deriv, preservando `dual_sniper` e `senior_institutional` para retrocompatibilidade e rollback.
+O Aether Quantum Engine adota como variante ativa o **Persistent Trend v3 (`persistent_trend_v3`, versão `pullback-1-876b50614185`)** operando contratos Rise/Fall de 15 minutos (900 segundos) na corretora Deriv, preservando `multi_regime_hf`, `dual_sniper` e `senior_institutional` para retrocompatibilidade e rollback.
 
-O universo operacional abrange os **12 ativos mundiais de ações OTC** (Europa: `OTC_GDAXI`, `OTC_FCHI`, `OTC_FTSE`, `OTC_SX5E`, `OTC_AEX`, `OTC_SSMI`; EUA: `OTC_SPC`, `OTC_NDX`, `OTC_DJI`; Ásia-Pacífico: `OTC_N225`, `OTC_AS51`, `OTC_HSI`), com análise 100% causal em velas M15 fechadas e execução multi-ordem controlada (`multi_symbol_orders=true`, `max_orders_per_cycle=4`).
+O universo operacional abrange os **12 ativos mundiais de ações OTC** (âncora `OTC_FTSE`; Europa: `OTC_GDAXI`, `OTC_FCHI`, `OTC_FTSE`, `OTC_SX5E`, `OTC_AEX`, `OTC_SSMI`; EUA: `OTC_SPC`, `OTC_NDX`, `OTC_DJI`; Ásia-Pacífico: `OTC_N225`, `OTC_AS51`, `OTC_HSI`), com análise 100% causal em velas M15/H1 fechadas e execução multi-ordem controlada (`multi_symbol_orders=true`, `max_orders_per_cycle=4`, `cycle_risk_budget_pct=0.04`).
 
-### Ramos Ortogonais do `multi_regime_hf` (Combinados com `veto_conflito`)
-1. **Ramo 1A — Climax Global em Compressão (`setup_climax_global`):** fade de expansão de True Range (`TR / ATR14_Wilder > 1.5`) quando a compressão média do bloco regional é `< 0.95` e o consenso global na mesma direção é `>= 65%` (exceto hora 20 UTC).
-2. **Ramo 1B — Exaustão de Fechamento de Hora (`setup_q2_cci14`):** na vela `:30` (`min_of_hour == 30`, exceto hora 20 UTC), reversão por `CCI(14) <= -120` (CALL) ou `>= +120` (PUT) com `ATR14/ATR50 < 1.0` e consenso regional `>= 66%`.
-3. **Ramo 2 — Momentum Wilder Rápido + Pullback (`setup_di5_pullback`):** fora da virada `:45`, entrada a favor da pressão direcional `DI+(5) - DI-(5)` (`> +50` para CALL em vela de recuo negativa; `< -50` para PUT em vela de recuo positiva).
-4. **Ramo 3 — Compressão Regional Profunda (`setup_comp_fade`):** fade de barra forte (`|body|/ATR14 >= 0.80`, `range/ATR14 >= 0.25`) sob compressão profunda (`ATR14/ATR50 < 0.85`) e consenso regional `>= 75%` (mínimo 3 pares, exceto hora 20 UTC).
-- **Resolução de Conflitos:** se dois ramos dispararem lados opostos no mesmo `(symbol, epoch)`, o sinal é vetado (`conflito_multi_regime`).
-- **Gate de Calendário Econômico (`economic_calendar`):** veto cirúrgico pré-release e overlap de contrato (`pre_minutes=15`, `post_minutes=0`, impactos `High`, `USD` global e demais moedas por bloco regional) via feed semanal com cache local de 6h e `fail_open=true`, preservando intacta a reversão pós-choque na vela seguinte (`+15m`).
-- **Controle de Correlação Regional:** limite `max_orders_per_block_per_cycle=2` (dentro de `max_orders_per_cycle=4`) evitando concentração simultânea no mesmo bloco (Europa, EUA ou Ásia-Pacífico).
+### Ramos Causais do `persistent_trend_v3` (Validados em H1 e H2 de 2026)
+1. **Ramo B1 (`h1_di24_40`):** alinhamento `H1 EMA20/50` com `DI(24) > +40` (CALL) ou `< -40` (PUT).
+2. **Ramo B2 (`h1_di14_45`):** alinhamento `H1 EMA20/50` com `DI(14) > +45` (CALL) ou `< -45` (PUT).
+3. **Ramo B3 (`di14_pb45`):** `|DI(14)| > 45` com recuo de 1 vela contra a tendência (pullback).
+4. **Ramo B4 (`di28_cont38`):** `|DI(28)| > 38` com continuação de 1 vela a favor da tendência.
+5. **Ramo B5 (`di20_adx35_40`):** força estrutural `ADX(20) >= 35` combinada com `|DI(20)| > 40`.
+- **Guardas de Qualidade & Resolução de Conflitos:** exclusão de horas estruturalmente tóxicas (`03h, 06h, 19h UTC`), `veto_conflito` se dois ramos dispararem lados opostos no mesmo `(symbol, epoch)` e contrato canônico `reason="setup_confirmado"`.
+- **Gate de Calendário Econômico (`economic_calendar`):** veto cirúrgico pré-release e overlap de contrato (`pre_minutes=15`, `post_minutes=0`, impactos `High`, `USD` global e demais moedas por bloco regional) via feed semanal com cache local de 6h e `fail_open=true`.
 
 ---
 
@@ -59,9 +59,8 @@ Uma oportunidade de compra (CALL ou PUT) só é validada quando atende **concomi
 
 ## 4. Gestão de Risco e Dimensionamento
 
-- **Stake Base:** Exatamente **1% do saldo disponível da banca**.
-- **Amortização Linear 1/1:** Em caso de perda, a recuperação busca recompor o prejuízo acumulado de forma linear:
-  $$	ext{Stake}_{	ext{rec}} = \min\left(\max\left(rac{	ext{Prejuízo}}{	ext{Payout}}, 1\% 	imes 	ext{Banca}ight), 5\% 	imes 	ext{Banca}ight)$$
+- **Stake Base e Cluster Risk Budget:** `base_stake_pct = 1,5%` (piso `1%`, teto absoluto `5%` por ordem) com orçamento total por ciclo `cycle_risk_budget_pct = 4%` dividido entre as `k` ordens simultâneas do ciclo (`max_orders_per_cycle = 4`).
+- **Desativação da Recuperação 1/1 e do `stop_win` Curto:** `smooth_recovery = false`, `amort_steps = 0` e `compounding_enabled = false`, evitando amplificação de drawdown em regimes adversos e decapitação assimétrica de dias positivos.
 - **Teto Inviolável:** Nenhuma ordem pode ultrapassar **5% da banca disponível**.
 - **Banimento Estrito:** Martingale, D'Alembert e Kelly exponencial estão terminantemente proibidos da rota operacional.
 

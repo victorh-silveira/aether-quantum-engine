@@ -56,7 +56,7 @@ class PullbackService:
                 await self.sink.promote_setups()
             except Exception as exc:
                 logger.warning("PROMOTE_SETUPS falhou: %s", exc)
-            ordered_symbols = sorted(self.symbols, key=lambda s: 0 if s == "OTC_SSMI" else 1)
+            ordered_symbols = sorted(self.symbols, key=lambda s: 0 if s == "OTC_FTSE" else 1)
             m15_pending: list[str] = []
             tasks_macro = []
             for symbol in ordered_symbols:
@@ -79,7 +79,7 @@ class PullbackService:
                     for sym, bars in zip(m15_pending, fetched_list, strict=True)
                     if isinstance(bars, list) and bars
                 }
-                if self.variant == "dual_sniper":
+                if self.variant in ("dual_sniper", "persistent_trend_v3"):
                     missing_h1 = [sym for sym in peer_bars if sym not in self._h1_cache]
                     if missing_h1:
                         h1_list = await asyncio.gather(

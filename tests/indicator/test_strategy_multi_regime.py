@@ -1,4 +1,4 @@
-"""Testes unitarios completos (100% cobertura) para strategy_multi_regime e paridade de treino."""
+"""Testes unitarios completos (100% cobertura) para strategy_multi_regime v2 e paridade de treino."""
 
 from __future__ import annotations
 
@@ -13,9 +13,10 @@ from src.indicator.pullback_training import _causal_peer_slice, diagnose_all
 from src.indicator.strategy_multi_regime import (
     _candle_dir,
     _eval_climax_global,
-    _eval_comp_fade_regional,
     _eval_di5_pullback,
     _eval_q2_cci14,
+    _is_marubozu,
+    _is_ny_premarket_entry,
     _peer_snapshot,
     _wilder_atr,
     calc_wilder_di_diff,
@@ -37,9 +38,9 @@ def _compressed_bars(end_hour: int = 10, end_minute: int = 0, *, bull_last: bool
         elif idx < 54:
             bars.append(Candle(ep, 100.0, 101.0, 99.0, 100.2))
         elif bull_last:
-            bars.append(Candle(ep, 100.0, 109.5, 99.8, 109.0))
+            bars.append(Candle(ep, 100.0, 112.0, 99.0, 109.0))
         else:
-            bars.append(Candle(ep, 100.0, 100.2, 90.5, 91.0))
+            bars.append(Candle(ep, 100.0, 101.0, 88.0, 91.0))
     return bars
 
 
@@ -53,6 +54,12 @@ def test_helpers_and_edge_cases():
     assert _candle_dir(Candle(0, 10, 11, 9, 10.5)) == 1
     assert _candle_dir(Candle(0, 10, 11, 9, 9.5)) == -1
     assert _candle_dir(Candle(0, 10, 11, 9, 10.0)) == 0
+    assert _is_ny_premarket_entry(_epoch(10, 30)) is True
+    assert _is_ny_premarket_entry(_epoch(11, 30)) is True
+    assert _is_ny_premarket_entry(_epoch(10, 0)) is False
+    assert _is_marubozu(Candle(0, 100.0, 105.0, 100.0, 104.8)) is True
+    assert _is_marubozu(Candle(0, 100.0, 100.0, 100.0, 100.0)) is True
+    assert _is_marubozu(Candle(0, 100.0, 105.0, 98.0, 104.0)) is False
     assert _peer_snapshot("OTC_GDAXI", 900, None) == ([], [], [])
     assert _peer_snapshot("OTC_GDAXI", 900, {"OTC_GDAXI": [], "OTC_FCHI": [Candle(1800, 1, 2, 0.5, 1.5)]}) == (
         [],
@@ -74,9 +81,12 @@ def test_climax_global_call_put_and_guards():
     bars_dn = _compressed_bars(10, 0, bull_last=False)
     assert _eval_climax_global(bars_dn, atr14, atr50, [-1, -1, -1, 1], []) == "CALL"
 
-    # Guardas: hora 20 UTC, doji, tr_atr <= 1.5, blk_mean_atrr >= 0.95, <3 pares, consenso < 0.65
-    bars_h20 = _compressed_bars(20, 0, bull_last=True)
-    assert _eval_climax_global(bars_h20, atr14, atr50, [1, 1, 1], [0.5]) is None
+    # Guardas: hora 20 UTC, pre-mercado NY, marubozu, doji, tr_atr <= 1.5, blk_mean_atrr >= 0.95, <3 pares, consenso < 0.65
+    assert _eval_climax_global(_compressed_bars(20, 0, bull_last=True), atr14, atr50, [1, 1, 1], [0.5]) is None
+    assert _eval_climax_global(_compressed_bars(11, 30, bull_last=True), atr14, atr50, [1, 1, 1], [0.5]) is None
+    bars_maru = list(bars_up)
+    bars_maru[-1] = Candle(bars_up[-1].epoch, 100.0, 109.2, 99.9, 109.0)
+    assert _eval_climax_global(bars_maru, atr14, atr50, [1, 1, 1], [0.5]) is None
     bars_doji = list(bars_up)
     bars_doji[-1] = Candle(bars_up[-1].epoch, 100.0, 105.0, 95.0, 100.0)
     assert _eval_climax_global(bars_doji, atr14, atr50, [1, 1, 1], [0.5]) is None
@@ -89,16 +99,17 @@ def test_climax_global_call_put_and_guards():
 
 
 def test_q2_cci14_call_put_and_guards():
-    bars_dn = _compressed_bars(10, 30, bull_last=False)
+    bars_dn = _compressed_bars(9, 30, bull_last=False)
     atr14, atr50 = _wilder_atr(bars_dn, 14), _wilder_atr(bars_dn, 50)
     assert _eval_q2_cci14(bars_dn, atr14, atr50, [-1, -1, 1]) == "CALL"
 
-    bars_up = _compressed_bars(10, 30, bull_last=True)
+    bars_up = _compressed_bars(9, 30, bull_last=True)
     assert _eval_q2_cci14(bars_up, atr14, atr50, [1, 1, -1]) == "PUT"
 
-    # Guardas: hora 20, minuto != 30, atr_ratio >= 1.0, <2 pares, consenso baixo, CCI neutro
+    # Guardas: hora 20, pre-mercado NY, marubozu, minuto != 30, atr_ratio >= 1.0, <2 pares, consenso baixo, CCI neutro
     assert _eval_q2_cci14(_compressed_bars(20, 30, bull_last=False), atr14, atr50, [-1, -1]) is None
-    assert _eval_q2_cci14(_compressed_bars(10, 15, bull_last=False), atr14, atr50, [-1, -1]) is None
+    assert _eval_q2_cci14(_compressed_bars(11, 30, bull_last=False), atr14, atr50, [-1, -1]) is None
+    assert _eval_q2_cci14(_compressed_bars(9, 15, bull_last=False), atr14, atr50, [-1, -1]) is None
     assert _eval_q2_cci14(bars_dn, 10.0, 8.0, [-1, -1]) is None
     assert _eval_q2_cci14(bars_dn, atr14, atr50, [-1]) is None
     assert _eval_q2_cci14(bars_dn, atr14, atr50, [1, 1]) is None
@@ -109,8 +120,7 @@ def test_q2_cci14_call_put_and_guards():
 
 
 def test_di5_pullback_call_put_and_guards():
-    # Forte tendencia de alta seguida de pequena vela negativa em minuto 15 -> CALL
-    end_ep = _epoch(11, 15)
+    end_ep = _epoch(13, 15)
     bull: list[Candle] = []
     price = 100.0
     for idx in range(60):
@@ -122,7 +132,6 @@ def test_di5_pullback_call_put_and_guards():
             bull.append(Candle(ep, price, price + 0.1, price - 0.4, price - 0.3))
     assert _eval_di5_pullback(bull) == "CALL"
 
-    # Espelho PUT (tendencia de baixa + pequena vela positiva)
     bear: list[Candle] = []
     price = 200.0
     for idx in range(60):
@@ -134,10 +143,6 @@ def test_di5_pullback_call_put_and_guards():
             bear.append(Candle(ep, price, price + 0.4, price - 0.1, price + 0.3))
     assert _eval_di5_pullback(bear) == "PUT"
 
-    # Guardas: minuto 45, doji, sem pullback
-    m45 = list(bull)
-    m45[-1] = Candle(_epoch(11, 45), m45[-1].open, m45[-1].high, m45[-1].low, m45[-1].close)
-    assert _eval_di5_pullback(m45) is None
     last_o = bull[-1].open
     doji = list(bull)
     doji[-1] = Candle(bull[-1].epoch, last_o, last_o + 0.2, last_o - 0.2, last_o)
@@ -145,28 +150,6 @@ def test_di5_pullback_call_put_and_guards():
     no_pb = list(bull)
     no_pb[-1] = Candle(bull[-1].epoch, last_o, last_o + 2.0, last_o - 0.1, last_o + 1.5)
     assert _eval_di5_pullback(no_pb) is None
-
-
-def test_comp_fade_regional_call_put_and_guards():
-    bars_up = _compressed_bars(10, 0, bull_last=True)
-    atr14, atr50 = _wilder_atr(bars_up, 14), _wilder_atr(bars_up, 50)
-    assert _eval_comp_fade_regional(bars_up, atr14, atr50, [1, 1, 1, 1]) == "PUT"
-
-    bars_dn = _compressed_bars(10, 0, bull_last=False)
-    assert _eval_comp_fade_regional(bars_dn, atr14, atr50, [-1, -1, -1, -1]) == "CALL"
-
-    # Guardas
-    assert _eval_comp_fade_regional(_compressed_bars(20, 0, bull_last=True), atr14, atr50, [1, 1, 1]) is None
-    doji = list(bars_up)
-    doji[-1] = Candle(bars_up[-1].epoch, 100.0, 105.0, 95.0, 100.0)
-    assert _eval_comp_fade_regional(doji, atr14, atr50, [1, 1, 1]) is None
-    tiny = list(bars_up)
-    tiny[-1] = Candle(bars_up[-1].epoch, 100.0, 100.1, 100.0, 100.05)
-    assert _eval_comp_fade_regional(tiny, atr14, atr50, [1, 1, 1]) is None
-    assert _eval_comp_fade_regional(bars_up, 9.0, 10.0, [1, 1, 1]) is None
-    assert _eval_comp_fade_regional(bars_up, atr14, atr50, [1, 1]) is None
-    assert _eval_comp_fade_regional(bars_up, atr14, atr50, [1, 1, -1, -1]) is None
-    assert _eval_comp_fade_regional(bars_up, atr14, atr50, [-1, -1, -1, -1]) is None
 
 
 def test_evaluate_multi_regime_hf_integration_and_conflict(monkeypatch):
@@ -205,8 +188,9 @@ def test_evaluate_multi_regime_hf_integration_and_conflict(monkeypatch):
     assert approved.side == "PUT"
     assert approved.model_version == res.version
 
-    # Guardas: poucas velas, vela sem oscilacao, ATR invalido, sem sinal, conflito
+    # Guardas: poucas velas, virada :45, ATR invalido, sem sinal, conflito
     assert evaluate_multi_regime_hf(bars_up[:10]) == ("SEM SINAL", "mercado_sem_oscilacao")
+    assert evaluate_multi_regime_hf(_compressed_bars(10, 45, bull_last=True)) == ("SEM SINAL", "virada_de_hora")
     monkeypatch.setattr("src.indicator.strategy_multi_regime._wilder_atr", lambda _b, _p: 0.0)
     assert evaluate_multi_regime_hf(bars_up) == ("SEM SINAL", "mercado_sem_oscilacao")
     monkeypatch.undo()
@@ -217,7 +201,6 @@ def test_evaluate_multi_regime_hf_integration_and_conflict(monkeypatch):
     monkeypatch.setattr("src.indicator.strategy_multi_regime._eval_climax_global", lambda *a: "PUT")
     monkeypatch.setattr("src.indicator.strategy_multi_regime._eval_di5_pullback", lambda *a: "CALL")
     monkeypatch.setattr("src.indicator.strategy_multi_regime._eval_q2_cci14", lambda *a: None)
-    monkeypatch.setattr("src.indicator.strategy_multi_regime._eval_comp_fade_regional", lambda *a: None)
     assert evaluate_multi_regime_hf(bars_up, "OTC_GDAXI", peers) == ("SEM SINAL", "conflito_multi_regime")
 
 

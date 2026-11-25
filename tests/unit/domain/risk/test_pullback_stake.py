@@ -11,6 +11,7 @@ from src.domain.risk.pullback_stake import (
     resolve_pullback_order_params,
     resolve_pullback_prequote_stake,
     resolve_pullback_single_strike_target,
+    resolve_pullback_sizing_policy,
 )
 
 
@@ -77,3 +78,33 @@ def test_resolve_pullback_order_params_and_prequote_stake():
     s_cached = resolve_pullback_prequote_stake(cfg, rm, 8881.49, 0.70, last_rate=0.7246, unreserved=0.0)
     assert s_first == pytest.approx(190.32)
     assert s_cached == pytest.approx(183.86)
+
+
+def test_cluster_risk_budget_and_no_recovery_mode():
+    assert resolve_pullback_sizing_policy({}) == (0.01, 0.0)
+    assert resolve_pullback_sizing_policy(
+        {"pullback_strategy": {"base_stake_pct": 0.015, "cycle_risk_budget_pct": 0.04}}
+    ) == (0.015, 0.04)
+    assert resolve_pullback_sizing_policy(
+        {"pullback_strategy": {"base_stake_pct": 0.2, "cycle_risk_budget_pct": 0.2}}
+    ) == (0.05, 0.05)
+    assert resolve_pullback_sizing_policy(
+        {"pullback_strategy": {"base_stake_pct": math.nan, "cycle_risk_budget_pct": "bad"}}
+    ) == (0.01, 0.0)
+
+    # Sem recuperacao (amort_steps=0): ignora pending e usa base_stake_pct=1.5%
+    assert pullback_stake(1000, 100, 0.8, 1, amort_steps=0, base_stake_pct=0.015) == (15.0, 0.0)
+    # Cluster Risk Budget 4% dividido por k ordens (piso 1%, teto base 1.5%)
+    assert pullback_stake(
+        1000, 100, 0.8, 1, amort_steps=0, base_stake_pct=0.015, cycle_risk_budget_pct=0.04, cycle_order_count=1
+    ) == (15.0, 0.0)
+    assert pullback_stake(
+        1000, 100, 0.8, 1, amort_steps=0, base_stake_pct=0.015, cycle_risk_budget_pct=0.04, cycle_order_count=2
+    ) == (15.0, 0.0)
+    assert pullback_stake(
+        1000, 100, 0.8, 1, amort_steps=0, base_stake_pct=0.015, cycle_risk_budget_pct=0.04, cycle_order_count=3
+    ) == (13.33, 0.0)
+    assert pullback_stake(
+        1000, 100, 0.8, 1, amort_steps=0, base_stake_pct=0.015, cycle_risk_budget_pct=0.04, cycle_order_count=4
+    ) == (10.0, 0.0)
+    assert pullback_stake(1000, 0, 0.8, 1, base_stake_pct=math.nan) == (0.0, 0.0)

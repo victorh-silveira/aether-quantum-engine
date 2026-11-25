@@ -30,8 +30,8 @@ Ponto de entrada unico e soberano para agentes autonomos de IA e desenvolvedores
 A autoridade operacional de mercado e governada pelo setup institucional de recuo em 15 minutos:
 
 - **Contrato Operacional:** Rise/Fall (CALL/PUT) com duracao fixa de **15 minutos** (900 segundos).
-- **Ativo Ancora Configurado:** **OTC_SSMI** (Swiss Market Index 20 / EWL - Deriv OTC).
-- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="multi_regime_hf"` (`pullback-1-4c9986919dfb`, Portfolio Multi-Regime de Alta Frequencia P1 Pareto em M15 puro nos 12 ativos OTC: Ramo 1A Climax Global em Compressao `TR/ATR14 > 1.5` + `blk_atr_ratio < 0.95` + consenso global `>= 65%`; Ramo 1B Exaustao `:30` `CCI(14) <= -120 / >= +120` + compressao + consenso regional `>= 66%`; Ramo 2 Momentum Wilder `DI(5) > 50 / < -50` + pullback 1 vela fora da virada `:45`; Ramo 3 Compressao Regional Profunda `ATR14/ATR50 < 0.85` + `|body|/ATR14 >= 0.80` + consenso regional `>= 75%`, combinados com `veto_conflito` e filtro anti-empate na hora 20 UTC). As variantes `dual_sniper` e `senior_institutional` permanecem disponiveis para retrocompatibilidade e rollback.
+- **Ativo Ancora Configurado:** **OTC_FTSE** (FTSE 100 / UK - Deriv OTC).
+- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="persistent_trend_v3"` (`pullback-1-876b50614185`, Persistencia Direcional Wilder DI + H1 EMA20/50 validada em H1 e H2 de 2026 nos 12 ativos OTC: Ramo B1 `H1 EMA20/50 + |DI(24)| > 40`; Ramo B2 `H1 EMA20/50 + |DI(14)| > 45`; Ramo B3 `|DI(14)| > 45` + pullback 1 vela; Ramo B4 `|DI(28)| > 38` + continuacao 1 vela; Ramo B5 `ADX(20) >= 35` + `|DI(20)| > 40`; combinados com `veto_conflito`, filtro de horas toxicas UTC `03h/06h/19h` e `EconomicCalendarGate` pre-release/overlap). As variantes `multi_regime_hf`, `dual_sniper` e `senior_institutional` permanecem disponiveis para retrocompatibilidade e rollback.
 - **Janela de Abertura:** A entrada deve ocorrer em ate 60 segundos apos a abertura da vela M15, exclusivamente sob vela anterior fechada e sem gaps.
 
 ### A Matriz dos 4 Pilares Institucionais (Operacao 24h):
@@ -42,8 +42,7 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 - Operacao continua sem veto horario de Killzone (`fora_da_killzone_brt` removido) e com `allow_closed_markets=true` para os 12 indices OTC.
 
 ### Gestao de Capital e Dimensionamento:
-- **Stake Base:** 1% do saldo disponivel da banca.
-- **Recuperacao Institucional:** Amortizacao linear 1/1 baseada no payout liquido cotado, com teto maximo absoluto de **5% por ordem**, sem multiplicadores geometricos (Martingale, Kelly e D'Alembert estao terminantemente banidos da rota operacional).
+- **Stake Base & Cluster Risk Budget:** `base_stake_pct=1,5%` (piso `1%`, teto absoluto inviolavel de **5% por ordem**), com `cycle_risk_budget_pct=4%` dividido proporcionalmente pelas `k` ordens simultaneas do ciclo (`max_orders_per_cycle=4`) e `smooth_recovery=false` (`amort_steps=0`, sem recuperacao agressiva 1/1 e sem `stop_win` diario curto assimetrico). Multiplicadores geometricos (Martingale, Kelly e D'Alembert) estao terminantemente banidos da rota operacional.
 - **Gate de Cotacao Real:** Abertura de contratos em conta REAL exige valor esperado (EV) estritamente positivo com margem minima de 0,01 acima do break-even apos corte de haircut. Payout ausente, invalido ou nulo bloqueia a proposta imediatamente.
 - **Isolamento de Pesquisa:** Modelos legados de aprendizado profundo (TCN, meta-classificador LightGBM e loss-classifier) residem exclusivamente no modulo de pesquisa experimental (`make app-research-ml`) e estao totalmente desligados do fluxo de decisao operacional.
 

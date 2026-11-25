@@ -52,6 +52,18 @@ def resolve_pullback_order_params(
     return minimum, sst, steps, cap_limit
 
 
+def resolve_pullback_sizing_policy(config: dict) -> tuple[float, float]:
+    """Resolve percentual base de stake e orcamento de risco por ciclo (Cluster Risk Budget)."""
+    pb_cfg = config.get("pullback_strategy", {})
+    raw_base = pb_cfg.get("base_stake_pct", 0.01)
+    raw_budget = pb_cfg.get("cycle_risk_budget_pct", 0.0)
+    base_pct = float(raw_base) if isinstance(raw_base, (int, float)) and math.isfinite(float(raw_base)) else 0.01
+    budget_pct = float(raw_budget) if isinstance(raw_budget, (int, float)) and math.isfinite(float(raw_budget)) else 0.0
+    base_pct = min(0.05, max(0.01, base_pct))
+    budget_pct = min(0.05, max(0.0, budget_pct))
+    return base_pct, budget_pct
+
+
 def resolve_pullback_prequote_stake(
     config: dict,
     risk_manager: Any,
@@ -61,10 +73,13 @@ def resolve_pullback_prequote_stake(
     last_rate: float = 0.0,
     unreserved: float = 0.0,
 ) -> float:
-    """Estima o stake alvo de prequote alinhado a single_strike e recuperacao."""
+    """Estima o stake alvo de prequote alinhado a single_strike, base_stake_pct e recuperacao."""
     est_rate = last_rate if last_rate > 0 else max(min_rate, 0.01)
     minimum, sst, steps, _ = resolve_pullback_order_params(config, risk_manager, balance, unreserved, est_rate, balance)
-    stake, _ = pullback_stake(balance, unreserved, est_rate, minimum, single_strike_target=sst, amort_steps=steps)
+    base_pct, _ = resolve_pullback_sizing_policy(config)
+    stake, _ = pullback_stake(
+        balance, unreserved, est_rate, minimum, single_strike_target=sst, amort_steps=steps, base_stake_pct=base_pct
+    )
     return stake
 
 
@@ -75,23 +90,34 @@ def pullback_stake(
     stake_min: float,
     single_strike_target: float = 0.0,
     amort_steps: int = 1,
+    *,
+    base_stake_pct: float = 0.01,
+    cycle_risk_budget_pct: float = 0.0,
+    cycle_order_count: int = 1,
 ) -> tuple[float, float]:
     """Devolve stake e parcela da perda que uma vitoria poderia amortizar."""
-    if not all(math.isfinite(value) for value in (available, pending, payout_rate, stake_min, single_strike_target)):
+    values = (available, pending, payout_rate, stake_min, single_strike_target, base_stake_pct, cycle_risk_budget_pct)
+    if not all(math.isfinite(value) for value in values):
         return 0.0, 0.0
     if available <= 0 or payout_rate <= 0 or stake_min <= 0:
         return 0.0, 0.0
     cap = math.floor(min(available, available * 0.05) * 100) / 100
     if cap + 1e-9 < stake_min:
         return 0.0, 0.0
-    base = math.floor(available * 0.01 * 100) / 100
-    if pending > 0:
-        steps = max(1, int(amort_steps))
+    eff_pct = min(0.05, max(0.01, base_stake_pct))
+    orders_n = max(1, int(cycle_order_count))
+    if cycle_risk_budget_pct > 0.0 and orders_n > 1:
+        budget_per_order = min(0.05, cycle_risk_budget_pct / orders_n)
+        eff_pct = max(0.01, min(eff_pct, budget_per_order))
+    base = math.floor(available * eff_pct * 100) / 100
+    steps = int(amort_steps)
+    recovery_active = pending > 0 and steps > 0
+    if recovery_active:
         target = max(base, stake_min, (pending / steps) / payout_rate)
     elif single_strike_target > 0:
         target = max(base, stake_min, single_strike_target / payout_rate)
     else:
         target = max(base, stake_min)
     stake = min(cap, math.ceil(target * 100 - 1e-9) / 100)
-    covered = min(max(0.0, pending), stake * payout_rate)
+    covered = min(max(0.0, pending), stake * payout_rate) if recovery_active else 0.0
     return stake, covered

@@ -102,7 +102,7 @@ async def diagnose_all(
                     m15_by_symbol[symbol] = candles
             except (OSError, RuntimeError, ValueError, KeyError, TimeoutError) as exc:
                 report[key] = {"estado": "COLETA INDISPONIVEL", "motivo": str(exc) or "tempo limite"}
-    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf")
+    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf", "persistent_trend_v3")
     for symbol in symbols:
         is_stock = scope == "stock_indices" or symbol.startswith("OTC_")
         for period in PERIODS:

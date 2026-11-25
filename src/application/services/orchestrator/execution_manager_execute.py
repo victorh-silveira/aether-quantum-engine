@@ -37,7 +37,11 @@ from src.domain.models.signal_evaluation import SignalEvaluation
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
 from src.domain.risk.payout_observation import apply_broker_payout_cap
-from src.domain.risk.pullback_stake import pullback_stake, resolve_pullback_order_params
+from src.domain.risk.pullback_stake import (
+    pullback_stake,
+    resolve_pullback_order_params,
+    resolve_pullback_sizing_policy,
+)
 from src.domain.risk.stake_sizing import resolve_stake_conviction
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
 
@@ -83,13 +87,9 @@ async def execute_cluster_orders(
             unres_loss = unreserved_loss(executor.orch)
             rate = float(metrics.get("indicator_quote_rate") or 0.0)
             minimum, sst, steps, cap_limit = resolve_pullback_order_params(
-                executor.orch.config,
-                executor.orch.risk_manager,
-                available,
-                unres_loss,
-                rate,
-                bankroll_snapshot,
+                executor.orch.config, executor.orch.risk_manager, available, unres_loss, rate, bankroll_snapshot
             )
+            base_pct, budget_pct = resolve_pullback_sizing_policy(executor.orch.config)
             stake, covered = pullback_stake(
                 available,
                 unres_loss,
@@ -97,6 +97,9 @@ async def execute_cluster_orders(
                 minimum,
                 single_strike_target=sst,
                 amort_steps=steps,
+                base_stake_pct=base_pct,
+                cycle_risk_budget_pct=budget_pct,
+                cycle_order_count=len(orders),
             )
             stake, covered = apply_broker_payout_cap(stake, unres_loss, rate, metrics, minimum)
             metrics["_pullback_recovery_amount"] = covered

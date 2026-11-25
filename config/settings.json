@@ -1,9 +1,9 @@
 {
-  "anchor": "OTC_SSMI",
+  "anchor": "OTC_FTSE",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-4c9986919dfb",
-    "variant": "multi_regime_hf",
+    "version": "pullback-1-876b50614185",
+    "variant": "persistent_trend_v3",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 60,
     "period_seconds": 900,
@@ -17,9 +17,12 @@
     "consecutive_loss_cooldown_candles": 0,
     "reversal_on_loss": false,
     "elastic_regime_enabled": false,
-    "smooth_recovery": true,
+    "smooth_recovery": false,
+    "amort_steps": 0,
+    "base_stake_pct": 0.015,
+    "cycle_risk_budget_pct": 0.04,
     "excluded_symbols": [],
-    "promoted_symbol": "OTC_SSMI",
+    "promoted_symbol": "OTC_FTSE",
     "single_strike": false,
     "invert_signal": false,
     "organic_direction": false,
@@ -453,7 +456,7 @@
       "inter_symbol_delay": 0.05,
       "multi_symbol_orders": true,
       "max_orders_per_cycle": 4,
-      "max_orders_per_block_per_cycle": 2,
+      "max_orders_per_block_per_cycle": 0,
       "loss_protection": {
         "disconnect": {
           "block_threshold": 0.18,
@@ -710,7 +713,7 @@
     "large_account_stop_win_pct": 4.0,
     "min_validation_accuracy_gate": 0.53,
     "params": {
-      "compounding_enabled": true,
+      "compounding_enabled": false,
       "compounding_rate_daily": 0.015,
       "contract_type": "CALL",
       "duration": 5,
@@ -772,7 +775,7 @@
     }
   },
   "symbols": [
-    "OTC_SSMI"
+    "OTC_FTSE"
   ],
   "telemetry": {
     "host": "0.0.0.0",
@@ -808,7 +811,7 @@
     "models_dir": "data/indicator-models",
     "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
     "metrics_port": 9101,
-    "pullback_variant": "multi_regime_hf",
+    "pullback_variant": "persistent_trend_v3",
     "pullback_strategy": {
       "excluded_symbols": [],
       "dynamic_rotation": true,
@@ -816,7 +819,7 @@
       "breakeven_floor": 0.55,
       "min_prob_threshold": 0.55
     },
-    "anchor": "OTC_SSMI",
+    "anchor": "OTC_FTSE",
     "symbols": [
       "OTC_SSMI",
       "OTC_SPC",

@@ -31,24 +31,12 @@ from src.indicator.pullback_indicators import (
 )
 from src.indicator.pullback_senior import evaluate_senior_institutional
 from src.indicator.strategy_multi_regime import evaluate_multi_regime_hf
+from src.indicator.strategy_persistent_trend import evaluate_persistent_trend_v3
 
 
 SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"
 VERSION = "pullback-1-" + sha256(SPEC.encode()).hexdigest()[:12]
 MIN_BARS = 128
-VARIANTS = (
-    "base",
-    "ema50_slope",
-    "countertrend_retrace",
-    "entry_distance",
-    "improved",
-    "pool_rsi_bb",
-    "momentum_burst",
-    "senior_institutional",
-    "dual_sniper",
-    "multi_regime_hf",
-)
-
 _ema_direct, _ema, _atr, _rsi, _bollinger_pct_b = ema_direct, calc_ema, calc_atr, calc_rsi, calc_bollinger_pct_b
 _adx, _macd, _stochastic, _cci, _cmo = calc_adx, calc_macd, calc_stochastic, calc_cci, calc_cmo
 _williams_r, _roc, _keltner_pct_b, _hurst_exponent = calc_williams_r, calc_roc, calc_keltner_pct_b, calc_hurst_exponent
@@ -62,8 +50,10 @@ _VARIANT_SPECS: dict[str, tuple[str, str]] = {
         "senior_institutional:m15:strict_ema_retrace:session_proxy:fvg:killzone:v2",
     ),
     "dual_sniper": ("pullback-1-", "dual_sniper:m15:t18_pb0922_h1_adx25:c08_comp075_ret12_eu_as:v1"),
-    "multi_regime_hf": ("pullback-1-", "multi_regime_hf:m15:climax_glb15:q2_cci120:di5_pb50:comp_reg75:v1"),
+    "multi_regime_hf": ("pullback-1-", "multi_regime_hf:m15:climax_glb15:q2_cci120:di5_pb50:no45:nonypre:nomaru80:v2"),
+    "persistent_trend_v3": ("pullback-1-", "persistent_trend_v3:m15:h1ema20_50:di14_20_24_28:adx20_35:notox3_6_19:v3"),
 }
+VARIANTS = ("base", "ema50_slope", "countertrend_retrace", "entry_distance", *_VARIANT_SPECS)
 
 
 def version_for_variant(variant: str = "base") -> str:
@@ -245,7 +235,7 @@ def evaluate(
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
     if period not in (300, 900, 3600, 86400):
         return SetupResult("SEM SINAL", "periodo_invalido", version=version)
-    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf")
+    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf", "persistent_trend_v3")
     min_required = 51 if is_cross_asset else (64 if variant == "senior_institutional" else MIN_BARS)
     if len(candles) < min_required:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)
@@ -276,6 +266,8 @@ def evaluate(
         return SetupResult("SEM SINAL", "dados_atrasados", version=version)
     if variant == "multi_regime_hf":
         return SetupResult(*evaluate_multi_regime_hf(bars, symbol=symbol, peer_bars=peer_bars), version=version)
+    if variant == "persistent_trend_v3":
+        return SetupResult(*evaluate_persistent_trend_v3(bars, h1_bars=h1_bars), version=version)
     closes = [bar.close for bar in bars]
     fast = _ema(closes, 20)
     slow = _ema(closes, 50)

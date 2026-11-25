@@ -1,4 +1,4 @@
-"""Portfolio Multi-Regime de Alta Frequencia (P1 Pareto) 100% causal em M15."""
+"""Portfolio Multi-Regime de Alta Frequencia v2 (anti-cluster) 100% causal em M15."""
 
 from __future__ import annotations
 
@@ -60,6 +60,18 @@ def _candle_dir(bar: Candle) -> int:
     return 0
 
 
+def _is_ny_premarket_entry(sig_epoch: int) -> bool:
+    """Identifica entradas na janela pre-mercado NY (10:45-12:15 UTC / 07:45-09:15 BRT)."""
+    entry_mod = ((sig_epoch + 900) % 86400) // 60
+    return 645 <= entry_mod <= 735
+
+
+def _is_marubozu(bar: Candle) -> bool:
+    """Identifica vela seca de corpo cheio (> 80% do range) caracteristica de breakout."""
+    rng = bar.high - bar.low
+    return rng <= 0.0 or (abs(bar.close - bar.open) / rng) > 0.80
+
+
 def _peer_snapshot(
     symbol: str,
     target_epoch: int,
@@ -104,7 +116,7 @@ def _eval_climax_global(
 ) -> str | None:
     """Ramo 1A: fade de expansao de True Range sob compressao regional e consenso global."""
     curr = bars[-1]
-    if (curr.epoch // 3600) % 24 == 20:
+    if (curr.epoch // 3600) % 24 == 20 or _is_ny_premarket_entry(curr.epoch) or _is_marubozu(curr):
         return None
     dir0 = _candle_dir(curr)
     if dir0 == 0:
@@ -128,7 +140,12 @@ def _eval_q2_cci14(
 ) -> str | None:
     """Ramo 1B: exaustao CCI(14) na vela :30 sob compressao e consenso regional."""
     curr = bars[-1]
-    if (curr.epoch // 3600) % 24 == 20 or (curr.epoch % 3600) // 60 != 30:
+    if (
+        (curr.epoch // 3600) % 24 == 20
+        or (curr.epoch % 3600) // 60 != 30
+        or _is_ny_premarket_entry(curr.epoch)
+        or _is_marubozu(curr)
+    ):
         return None
     if (atr14 / atr50) >= 1.0 or len(blk_dirs) < 2:
         return None
@@ -144,8 +161,6 @@ def _eval_q2_cci14(
 def _eval_di5_pullback(bars: list[Candle]) -> str | None:
     """Ramo 2: pullback de 1 vela contra pressao direcional Wilder DI(5) fora da virada :45."""
     curr = bars[-1]
-    if (curr.epoch % 3600) // 60 == 45:
-        return None
     body = curr.close - curr.open
     if body == 0.0:
         return None
@@ -157,39 +172,16 @@ def _eval_di5_pullback(bars: list[Candle]) -> str | None:
     return None
 
 
-def _eval_comp_fade_regional(
-    bars: list[Candle],
-    atr14: float,
-    atr50: float,
-    blk_dirs: list[int],
-) -> str | None:
-    """Ramo 3: fade de barra forte em compressao profunda com consenso regional >= 75%."""
-    curr = bars[-1]
-    if (curr.epoch // 3600) % 24 == 20:
-        return None
-    dir0 = _candle_dir(curr)
-    if dir0 == 0:
-        return None
-    if ((curr.high - curr.low) / atr14) < 0.25:
-        return None
-    if (atr14 / atr50) >= 0.85 or (abs(curr.close - curr.open) / atr14) < 0.80:
-        return None
-    if len(blk_dirs) < 3:
-        return None
-    cs_reg_dir = sum(blk_dirs) / len(blk_dirs)
-    if abs(cs_reg_dir) < 0.75 or (cs_reg_dir > 0) != (dir0 > 0):
-        return None
-    return "PUT" if dir0 > 0 else "CALL"
-
-
 def evaluate_multi_regime_hf(
     bars: list[Candle],
     symbol: str = "",
     peer_bars: dict[str, list[Candle]] | None = None,
 ) -> tuple[str, str]:
-    """Avalia o portfolio multi-regime de alta frequencia com veto de conflito entre ramos."""
+    """Avalia o portfolio multi-regime v2 com filtros anti-cluster e veto de conflito."""
     if len(bars) < 51 or any(bar.high == bar.low for bar in bars[-2:]):
         return "SEM SINAL", "mercado_sem_oscilacao"
+    if (bars[-1].epoch % 3600) // 60 == 45:
+        return "SEM SINAL", "virada_de_hora"
     atr14 = _wilder_atr(bars, 14)
     atr50 = _wilder_atr(bars, 50)
     if atr14 <= 0.0 or atr50 <= 0.0:
@@ -199,7 +191,6 @@ def evaluate_multi_regime_hf(
         _eval_climax_global(bars, atr14, atr50, glb_dirs, blk_ratios),
         _eval_q2_cci14(bars, atr14, atr50, blk_dirs),
         _eval_di5_pullback(bars),
-        _eval_comp_fade_regional(bars, atr14, atr50, blk_dirs),
     )
     hits = [side for side in candidates if side is not None]
     if not hits:
