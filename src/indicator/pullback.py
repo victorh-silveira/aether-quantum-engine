@@ -30,6 +30,7 @@ from src.indicator.pullback_indicators import (
     ema_direct,
 )
 from src.indicator.pullback_senior import evaluate_senior_institutional
+from src.indicator.strategy_multi_regime import evaluate_multi_regime_hf
 
 
 SPEC = "ema20_50:warmup128:atr14:incl3:recuo0.5:corpo0.03_1.5:confirmacao1:m5"
@@ -45,13 +46,12 @@ VARIANTS = (
     "momentum_burst",
     "senior_institutional",
     "dual_sniper",
+    "multi_regime_hf",
 )
 
-# Compatibilidade retroativa para testes e consumidores internos
 _ema_direct, _ema, _atr, _rsi, _bollinger_pct_b = ema_direct, calc_ema, calc_atr, calc_rsi, calc_bollinger_pct_b
 _adx, _macd, _stochastic, _cci, _cmo = calc_adx, calc_macd, calc_stochastic, calc_cci, calc_cmo
 _williams_r, _roc, _keltner_pct_b, _hurst_exponent = calc_williams_r, calc_roc, calc_keltner_pct_b, calc_hurst_exponent
-
 
 _VARIANT_SPECS: dict[str, tuple[str, str]] = {
     "improved": ("pullback-1-", "ema20_50:warmup128:atr14:recuo1.8:dist1.4:rsi_bb_di_v3:m5"),
@@ -62,6 +62,7 @@ _VARIANT_SPECS: dict[str, tuple[str, str]] = {
         "senior_institutional:m15:strict_ema_retrace:session_proxy:fvg:killzone:v2",
     ),
     "dual_sniper": ("pullback-1-", "dual_sniper:m15:t18_pb0922_h1_adx25:c08_comp075_ret12_eu_as:v1"),
+    "multi_regime_hf": ("pullback-1-", "multi_regime_hf:m15:climax_glb15:q2_cci120:di5_pb50:comp_reg75:v1"),
 }
 
 
@@ -244,12 +245,13 @@ def evaluate(
     version = version_for_variant(variant) if variant in VARIANTS else VERSION
     if period not in (300, 900, 3600, 86400):
         return SetupResult("SEM SINAL", "periodo_invalido", version=version)
-    min_required = 51 if variant == "dual_sniper" else (64 if variant == "senior_institutional" else MIN_BARS)
+    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf")
+    min_required = 51 if is_cross_asset else (64 if variant == "senior_institutional" else MIN_BARS)
     if len(candles) < min_required:
         return SetupResult("SEM SINAL", "historico_insuficiente", version=version)
-    cut = 500 if variant == "dual_sniper" else (MIN_BARS if len(candles) >= MIN_BARS else min_required)
+    cut = 500 if is_cross_asset else (MIN_BARS if len(candles) >= MIN_BARS else min_required)
     bars = candles[-cut:]
-    check_bars = bars[-2:] if variant == "dual_sniper" else bars
+    check_bars = bars[-2:] if is_cross_asset else bars
     if any(
         candle.epoch % period
         or candle.high < max(candle.open, candle.close)
@@ -263,7 +265,7 @@ def evaluate(
         """Determina se a diferenca entre velas constitui lacuna nao autorizada."""
         return diff != period and not (allow_session_gaps and period < diff <= 120 * 3600)
 
-    gap_bars = bars[-2:] if variant == "dual_sniper" else bars
+    gap_bars = bars[-2:] if is_cross_asset else bars
     if _is_gap(bars[-1].epoch - bars[-2].epoch) or any(
         _is_gap(right.epoch - left.epoch) for left, right in zip(gap_bars, gap_bars[1:], strict=False)
     ):
@@ -272,6 +274,8 @@ def evaluate(
         return SetupResult("SEM SINAL", "vela_em_formacao", version=version)
     if bars[-1].epoch + 2 * period <= now:
         return SetupResult("SEM SINAL", "dados_atrasados", version=version)
+    if variant == "multi_regime_hf":
+        return SetupResult(*evaluate_multi_regime_hf(bars, symbol=symbol, peer_bars=peer_bars), version=version)
     closes = [bar.close for bar in bars]
     fast = _ema(closes, 20)
     slow = _ema(closes, 50)

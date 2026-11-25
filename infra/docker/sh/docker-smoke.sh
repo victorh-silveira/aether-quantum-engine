@@ -103,7 +103,9 @@ if profile_active telemetry; then
   require_service aether-observe-dashboards-grafana Grafana || true
   if service_running aether-observe-dashboards-grafana; then
     checked=$((checked + 1))
-    if ! curl -sf "http://127.0.0.1:3000/api/health" >/dev/null 2>&1; then
+    GRAFANA_PORT="$(awk -F= '/^GRAFANA_PORT=/{print $2; exit}' .env | tr -d '\r" ' || true)"
+    GRAFANA_PORT="${GRAFANA_PORT:-3000}"
+    if ! curl -sf "http://127.0.0.1:${GRAFANA_PORT}/api/health" >/dev/null 2>&1; then
       smoke_fail "Grafana" "/api/health"
     else
       docker_ui_ok "Grafana"

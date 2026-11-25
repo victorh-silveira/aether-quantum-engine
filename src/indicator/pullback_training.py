@@ -53,6 +53,24 @@ def compute_hourly_profile(
     return optimal_hours, best_window, profile
 
 
+def _causal_peer_slice(
+    m15_by_symbol: dict[str, list],
+    peer_cursors: dict[str, int],
+    target_epoch: int,
+) -> dict[str, list]:
+    """Avanca cursores por simbolo e retorna janela causal de pares ate target_epoch."""
+    sliced: dict[str, list] = {}
+    for peer_sym, series in m15_by_symbol.items():
+        cur = peer_cursors.get(peer_sym, 0)
+        n = len(series)
+        while cur + 1 < n and series[cur + 1].epoch <= target_epoch:
+            cur += 1
+        peer_cursors[peer_sym] = cur
+        if cur < n and series[cur].epoch == target_epoch:
+            sliced[peer_sym] = series[max(0, cur - 499) : cur + 1]
+    return sliced
+
+
 async def diagnose_all(
     source, store, now: int | None = None, variant: str = "base", scope: str = "all"
 ) -> dict[str, dict]:
@@ -68,6 +86,8 @@ async def diagnose_all(
     except TypeError:
         await store.register_setups(symbols)
     report: dict[str, dict] = {}
+    fetched: dict[tuple[str, int], list] = {}
+    m15_by_symbol: dict[str, list] = {}
     for symbol in symbols:
         for period in PERIODS:
             key = f"{symbol}:{period}"
@@ -77,30 +97,72 @@ async def diagnose_all(
                 candles = raw_candles if is_stock else latest_contiguous(raw_candles, period)
                 if candles:
                     await store.save_candles(symbol, period, candles)
-                min_candles = 60 if (is_stock and period >= 86400) else (200 if is_stock else 5000)
-                if len(candles) < min_candles:
-                    report[key] = {
-                        "estado": "SEM SINAL",
-                        "motivo": "historico_insuficiente",
-                        "velas": len(candles),
-                    }
-                    continue
+                fetched[(symbol, period)] = candles
+                if period == 900 and candles:
+                    m15_by_symbol[symbol] = candles
+            except (OSError, RuntimeError, ValueError, KeyError, TimeoutError) as exc:
+                report[key] = {"estado": "COLETA INDISPONIVEL", "motivo": str(exc) or "tempo limite"}
+    is_cross_asset = variant in ("dual_sniper", "multi_regime_hf")
+    for symbol in symbols:
+        is_stock = scope == "stock_indices" or symbol.startswith("OTC_")
+        for period in PERIODS:
+            key = f"{symbol}:{period}"
+            if key in report:
+                result = report[key]
+                logger.info(
+                    "TREINO SETUP %s %ds estado=%s velas=%d setups=%d acertos_proxy=%d erros_proxy=%d max_losses=%d motivo=%s",
+                    symbol,
+                    period,
+                    result["estado"],
+                    result.get("velas", 0),
+                    result.get("setups", 0),
+                    result.get("acertos", 0),
+                    result.get("erros", 0),
+                    result.get("max_losses_consecutivos", 0),
+                    result.get("motivo", "-"),
+                )
+                continue
+            candles = fetched.get((symbol, period), [])
+            min_candles = 60 if (is_stock and period >= 86400) else (200 if is_stock else 5000)
+            if len(candles) < min_candles:
+                report[key] = {
+                    "estado": "SEM SINAL",
+                    "motivo": "historico_insuficiente",
+                    "velas": len(candles),
+                }
+            else:
                 wins = losses = ties = 0
                 current_consecutive_losses = 0
                 max_consecutive_losses = 0
                 by_side = {"CALL": [0, 0], "PUT": [0, 0]}
                 by_hour_brt: dict[int, list[int]] = {}
                 by_day_brt: dict[str, list[int]] = {}
-                for index in range(MIN_BARS - 1, len(candles) - 1):
+                peer_cursors: dict[str, int] = {}
+                start_idx = 51 if is_cross_asset else (MIN_BARS - 1)
+                for index in range(start_idx, len(candles) - 1):
                     if is_stock and candles[index + 1].epoch - candles[index].epoch > period:
                         continue
-                    result = evaluate(
-                        candles[index - MIN_BARS + 1 : index + 1],
-                        period,
-                        candles[index].epoch + period,
-                        variant,
-                        allow_session_gaps=is_stock,
-                    )
+                    win_size = 500 if is_cross_asset else MIN_BARS
+                    win_bars = candles[max(0, index - win_size + 1) : index + 1]
+                    if is_cross_asset and period == 900:
+                        peers = _causal_peer_slice(m15_by_symbol, peer_cursors, candles[index].epoch)
+                        result = evaluate(
+                            win_bars,
+                            period,
+                            candles[index].epoch + period,
+                            variant,
+                            allow_session_gaps=is_stock,
+                            symbol=symbol,
+                            peer_bars=peers,
+                        )
+                    else:
+                        result = evaluate(
+                            win_bars,
+                            period,
+                            candles[index].epoch + period,
+                            variant,
+                            allow_session_gaps=is_stock,
+                        )
                     if result.side not in by_side:
                         continue
                     next_candle = candles[index + 1]
@@ -151,8 +213,6 @@ async def diagnose_all(
                     "hourly_profile_brt": hourly_profile,
                     "variantes": compare_variants(candles, period) if period == 900 else {},
                 }
-            except (OSError, RuntimeError, ValueError, KeyError, TimeoutError) as exc:
-                report[key] = {"estado": "COLETA INDISPONIVEL", "motivo": str(exc) or "tempo limite"}
             result = report[key]
             logger.info(
                 "TREINO SETUP %s %ds estado=%s velas=%d setups=%d acertos_proxy=%d erros_proxy=%d max_losses=%d motivo=%s",

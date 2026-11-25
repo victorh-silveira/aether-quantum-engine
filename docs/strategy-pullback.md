@@ -2,9 +2,16 @@
 
 ## 1. Visão Geral da Estratégia
 
-O Aether Quantum Engine adota a estratégia quantitativa de recuo institucional (`senior_institutional`) operando contratos Rise/Fall de 15 minutos (900 segundos) na corretora Deriv.
+O Aether Quantum Engine adota como variante ativa o **Portfolio Multi-Regime de Alta Frequência (`multi_regime_hf`, versão `pullback-1-4c9986919dfb`)** operando contratos Rise/Fall de 15 minutos (900 segundos) na corretora Deriv, preservando `dual_sniper` e `senior_institutional` para retrocompatibilidade e rollback.
 
-O ativo âncora soberano é o **`OTC_SSMI`** (Swiss Market Index 20 / Deriv OTC). O universo de candidatos avaliados em pesquisa pelo subsistema `indicator/` abrange 12 ativos mundiais de ações OTC (OTC_SPC, OTC_NDX, OTC_DJI, OTC_GDAXI, OTC_FTSE, OTC_N225, OTC_SX5E, OTC_SSMI, OTC_FCHI, OTC_AEX, OTC_HSI e OTC_AS51).
+O universo operacional abrange os **12 ativos mundiais de ações OTC** (Europa: `OTC_GDAXI`, `OTC_FCHI`, `OTC_FTSE`, `OTC_SX5E`, `OTC_AEX`, `OTC_SSMI`; EUA: `OTC_SPC`, `OTC_NDX`, `OTC_DJI`; Ásia-Pacífico: `OTC_N225`, `OTC_AS51`, `OTC_HSI`), com análise 100% causal em velas M15 fechadas e execução multi-ordem controlada (`multi_symbol_orders=true`, `max_orders_per_cycle=4`).
+
+### Ramos Ortogonais do `multi_regime_hf` (Combinados com `veto_conflito`)
+1. **Ramo 1A — Climax Global em Compressão (`setup_climax_global`):** fade de expansão de True Range (`TR / ATR14_Wilder > 1.5`) quando a compressão média do bloco regional é `< 0.95` e o consenso global na mesma direção é `>= 65%` (exceto hora 20 UTC).
+2. **Ramo 1B — Exaustão de Fechamento de Hora (`setup_q2_cci14`):** na vela `:30` (`min_of_hour == 30`, exceto hora 20 UTC), reversão por `CCI(14) <= -120` (CALL) ou `>= +120` (PUT) com `ATR14/ATR50 < 1.0` e consenso regional `>= 66%`.
+3. **Ramo 2 — Momentum Wilder Rápido + Pullback (`setup_di5_pullback`):** fora da virada `:45`, entrada a favor da pressão direcional `DI+(5) - DI-(5)` (`> +50` para CALL em vela de recuo negativa; `< -50` para PUT em vela de recuo positiva).
+4. **Ramo 3 — Compressão Regional Profunda (`setup_comp_fade`):** fade de barra forte (`|body|/ATR14 >= 0.80`, `range/ATR14 >= 0.25`) sob compressão profunda (`ATR14/ATR50 < 0.85`) e consenso regional `>= 75%` (mínimo 3 pares, exceto hora 20 UTC).
+- **Resolução de Conflitos:** se dois ramos dispararem lados opostos no mesmo `(symbol, epoch)`, o sinal é vetado (`conflito_multi_regime`).
 
 ---
 

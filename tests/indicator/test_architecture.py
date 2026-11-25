@@ -77,7 +77,7 @@ def test_compose_scrapes_running_indicator_service():
     assert "aether-market-signal-indicator:9101" in prometheus
     assert "host.docker.internal:9100" in prometheus
     assert "  aether-observe-dashboards-grafana:\n" in compose
-    assert "127.0.0.1:3000:3000" in compose
+    assert "127.0.0.1:${GRAFANA_PORT:-3000}:3000" in compose
 
 
 def test_root_make_starts_unified_stack_and_trains_in_order():

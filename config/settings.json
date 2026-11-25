@@ -2,8 +2,8 @@
   "anchor": "OTC_SSMI",
   "pullback_strategy": {
     "enabled": true,
-    "version": "pullback-1-807d765723ab",
-    "variant": "dual_sniper",
+    "version": "pullback-1-4c9986919dfb",
+    "variant": "multi_regime_hf",
     "demo_pilot_contracts": 200,
     "entry_window_seconds": 60,
     "period_seconds": 900,
@@ -451,8 +451,8 @@
       "fractional_lot_stagger_jitter_us": 50.0,
       "include_anchor_trades": true,
       "inter_symbol_delay": 0.05,
-      "multi_symbol_orders": false,
-      "max_orders_per_cycle": 1,
+      "multi_symbol_orders": true,
+      "max_orders_per_cycle": 4,
       "loss_protection": {
         "disconnect": {
           "block_threshold": 0.18,
@@ -793,7 +793,7 @@
     "models_dir": "data/indicator-models",
     "timescale_dsn": "postgresql://aether:aether@127.0.0.1:5432/aether",
     "metrics_port": 9101,
-    "pullback_variant": "dual_sniper",
+    "pullback_variant": "multi_regime_hf",
     "pullback_strategy": {
       "excluded_symbols": [],
       "dynamic_rotation": true,

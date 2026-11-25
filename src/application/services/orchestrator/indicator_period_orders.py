@@ -23,8 +23,8 @@ from src.infrastructure.handlers.trade_handler_quote_observation import record_i
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 
 
-TIER_1_SYMBOLS = {"OTC_SSMI", "OTC_SPC", "OTC_AS51"}
-TIER_3_SYMBOLS = {"OTC_FTSE", "OTC_N225", "OTC_DJI", "OTC_NDX", "OTC_GDAXI"}
+TIER_1_SYMBOLS = {"OTC_FCHI", "OTC_GDAXI", "OTC_AEX", "OTC_SX5E", "OTC_N225", "OTC_SSMI"}
+TIER_3_SYMBOLS = {"OTC_AS51", "OTC_HSI"}
 
 
 def asset_consistency_adj(sym: str) -> float:

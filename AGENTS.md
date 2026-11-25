@@ -31,7 +31,7 @@ A autoridade operacional de mercado e governada pelo setup institucional de recu
 
 - **Contrato Operacional:** Rise/Fall (CALL/PUT) com duracao fixa de **15 minutos** (900 segundos).
 - **Ativo Ancora Configurado:** **OTC_SSMI** (Swiss Market Index 20 / EWL - Deriv OTC).
-- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="dual_sniper"` (`pullback-1-807d765723ab`, Perfil C Sniper bimodal: Ramo 1 `T18` micro-pullback `PB09|PB22` + `ADX14 Wilder >= 20` + `H1 fechado` + Ramo 2 `C08` reversao de barra forte em compressao `ATR14/ATR50 < 0.90` com consenso de bloco regional Europa/Asia-Pac/US `>= 75%`, sem veto horario). A variante `senior_institutional` permanece disponivel para retrocompatibilidade e rollback.
+- **Estrategia Ativa:** `pullback_strategy.enabled=true` com `pullback_strategy.variant="multi_regime_hf"` (`pullback-1-4c9986919dfb`, Portfolio Multi-Regime de Alta Frequencia P1 Pareto em M15 puro nos 12 ativos OTC: Ramo 1A Climax Global em Compressao `TR/ATR14 > 1.5` + `blk_atr_ratio < 0.95` + consenso global `>= 65%`; Ramo 1B Exaustao `:30` `CCI(14) <= -120 / >= +120` + compressao + consenso regional `>= 66%`; Ramo 2 Momentum Wilder `DI(5) > 50 / < -50` + pullback 1 vela fora da virada `:45`; Ramo 3 Compressao Regional Profunda `ATR14/ATR50 < 0.85` + `|body|/ATR14 >= 0.80` + consenso regional `>= 75%`, combinados com `veto_conflito` e filtro anti-empate na hora 20 UTC). As variantes `dual_sniper` e `senior_institutional` permanecem disponiveis para retrocompatibilidade e rollback.
 - **Janela de Abertura:** A entrada deve ocorrer em ate 60 segundos apos a abertura da vela M15, exclusivamente sob vela anterior fechada e sem gaps.
 
 ### A Matriz dos 4 Pilares Institucionais (Operacao 24h):

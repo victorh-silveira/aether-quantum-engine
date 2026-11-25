@@ -709,18 +709,17 @@ async def test_select_period_orders_prioritizes_telemetry_direct_over_climax(mon
 
 def test_asset_consistency_adj_tiering():
     """Testa os fatores de ajuste por consistencia empirica dos ativos."""
+    assert orders.asset_consistency_adj("OTC_FCHI") == 0.04
+    assert orders.asset_consistency_adj("OTC_GDAXI") == 0.04
     assert orders.asset_consistency_adj("OTC_SSMI") == 0.04
-    assert orders.asset_consistency_adj("OTC_SPC") == 0.04
-    assert orders.asset_consistency_adj("OTC_AS51") == 0.04
-    assert orders.asset_consistency_adj("OTC_DJI") == -0.04
-    assert orders.asset_consistency_adj("OTC_NDX") == -0.04
-    assert orders.asset_consistency_adj("OTC_FTSE") == -0.04
-    assert orders.asset_consistency_adj("OTC_AEX") == 0.0
+    assert orders.asset_consistency_adj("OTC_AS51") == -0.04
+    assert orders.asset_consistency_adj("OTC_HSI") == -0.04
+    assert orders.asset_consistency_adj("OTC_SPC") == 0.0
 
 
 @pytest.mark.asyncio
 async def test_select_period_orders_prioritizes_tier1_over_tier3(monkeypatch):
-    """Testa selecao prioritaria de ativo Tier 1 (OTC_SPC) sobre Tier 3 (OTC_DJI)."""
+    """Testa selecao prioritaria de ativo Tier 1 (OTC_FCHI) sobre Tier 3 (OTC_AS51)."""
     orch = _orch("demo")
     monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
     orch.config["pullback_strategy"] = {
@@ -733,7 +732,7 @@ async def test_select_period_orders_prioritizes_tier1_over_tier3(monkeypatch):
     orch.config["orchestrator"]["execution"]["multi_symbol_orders"] = False
 
     order_tier3 = (
-        "OTC_DJI",
+        "OTC_AS51",
         TradeDirection.CALL,
         {
             "indicator_period_seconds": 900,
@@ -745,7 +744,7 @@ async def test_select_period_orders_prioritizes_tier1_over_tier3(monkeypatch):
         },
     )
     order_tier1 = (
-        "OTC_SPC",
+        "OTC_FCHI",
         TradeDirection.CALL,
         {
             "indicator_period_seconds": 900,
@@ -765,7 +764,7 @@ async def test_select_period_orders_prioritizes_tier1_over_tier3(monkeypatch):
 
     chosen = await orders.select_period_orders(orch, [])
     assert len(chosen) >= 1
-    assert chosen[0][0] == "OTC_SPC"
+    assert chosen[0][0] == "OTC_FCHI"
 
 
 @pytest.mark.asyncio
