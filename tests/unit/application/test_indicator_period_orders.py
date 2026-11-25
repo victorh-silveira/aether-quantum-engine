@@ -798,6 +798,66 @@ async def test_prequote_records_broker_max_payout_metadata(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_period_candidates_economic_calendar_veto_and_block_cap(monkeypatch):
+    from src.application.services import indicator_consensus as ic
+    from src.domain.fundamental.economic_calendar import EconomicEvent
+
+    orch = _orch("demo")
+    orch.config["economic_calendar"] = {
+        "enabled": True,
+        "impacts": ["High"],
+        "usd_global": True,
+        "pre_minutes": 15,
+        "post_minutes": 0,
+    }
+    orch._indicator_signal_status = {}
+    orch._economic_calendar_events = [EconomicEvent("Core PCE", "USD", 1200, "High")]
+    monkeypatch.setattr(orders, "signal_epoch_current", lambda config, metrics: True)
+    assert orders.period_candidates(orch, []) == []
+    assert orch._indicator_signal_status[("R_10", 300)] == "veto_calendario_macro:USD:HIGH"
+
+    # Cap regional em select_period_orders
+    orch2 = _orch("real")
+    orch2.config["orchestrator"]["execution"]["multi_symbol_orders"] = True
+    orch2.config["orchestrator"]["execution"]["max_orders_per_cycle"] = 4
+    orch2.config["orchestrator"]["execution"]["max_orders_per_block_per_cycle"] = 1
+    monkeypatch.setattr(
+        orders,
+        "period_candidates",
+        lambda o, m: [
+            ("OTC_GDAXI", TradeDirection.CALL, {"indicator_broker_lower_95": 0.3}),
+            ("OTC_FCHI", TradeDirection.CALL, {"indicator_broker_lower_95": 0.2}),
+            ("OTC_SPC", TradeDirection.CALL, {"indicator_broker_lower_95": 0.1}),
+        ],
+    )
+
+    async def _ok_prequote(o, order, sem):
+        return order
+
+    monkeypatch.setattr(orders, "_prequote", _ok_prequote)
+    monkeypatch.setattr(orders.time, "time", lambda: 900)
+    chosen = await orders.select_period_orders(orch2, [])
+    assert [sym for sym, _, _ in chosen] == ["OTC_GDAXI", "OTC_SPC"]
+
+    # refresh_indicator_consensus inicializa e consulta _economic_calendar_client quando habilitado
+    fake_orch = SimpleNamespace(
+        config={"indicator_consensus": {"enabled": False}, "economic_calendar": {"enabled": True}},
+        symbols=["OTC_SPC"],
+    )
+
+    class _FakeCalClient:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+        async def get_events(self):
+            return [EconomicEvent("GDP", "USD", 1200, "High")]
+
+    monkeypatch.setattr(ic, "EconomicCalendarClient", _FakeCalClient)
+    await ic.refresh_indicator_consensus(fake_orch)
+    assert len(fake_orch._economic_calendar_events) == 1
+
+
+@pytest.mark.asyncio
 async def test_prequote_uses_single_strike_and_caches_last_rate(monkeypatch):
     orch = _orch("demo")
     orch.state.balance = 8881.49

@@ -453,6 +453,7 @@
       "inter_symbol_delay": 0.05,
       "multi_symbol_orders": true,
       "max_orders_per_cycle": 4,
+      "max_orders_per_block_per_cycle": 2,
       "loss_protection": {
         "disconnect": {
           "block_threshold": 0.18,
@@ -780,6 +781,20 @@
   },
   "trading": {
     "mode": "demo"
+  },
+  "economic_calendar": {
+    "enabled": true,
+    "source_url": "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+    "refresh_interval_seconds": 21600,
+    "impacts": [
+      "High"
+    ],
+    "usd_medium_enabled": false,
+    "usd_global": true,
+    "pre_minutes": 15,
+    "post_minutes": 0,
+    "fail_open": true,
+    "cache_path": "data/economic_calendar_cache.json"
   },
   "indicator": {
     "product": "stock_indices_indicator",

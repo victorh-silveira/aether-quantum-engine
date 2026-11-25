@@ -13,6 +13,12 @@ from src.application.services.indicator_purchase_quarantine import quarantine_un
 from src.domain.models.indicator_consensus import ApprovedSignal
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
+from src.infrastructure.market.economic_calendar_client import (
+    DEFAULT_CACHE_PATH,
+    DEFAULT_CALENDAR_URL,
+    DEFAULT_REFRESH_SECONDS,
+    EconomicCalendarClient,
+)
 from src.infrastructure.market.timescale_writer import TimescaleMarketWriter
 from src.infrastructure.storage.indicator_broker_evidence_reader import (
     read_indicator_broker_evidence,
@@ -44,6 +50,18 @@ async def refresh_indicator_consensus(orch) -> None:
     """Busca um snapshot por ciclo sem reutilizar leituras de ciclos anteriores."""
     orch._indicator_signals, orch._indicator_period_signals = {}, {}
     orch._indicator_broker_evidence, orch._indicator_real_evidence, orch._indicator_signal_status = {}, {}, {}
+    orch._economic_calendar_events = []
+    cal_cfg = orch.config.get("economic_calendar") or {}
+    if cal_cfg.get("enabled", False):
+        client = getattr(orch, "_economic_calendar_client", None)
+        if client is None:
+            client = EconomicCalendarClient(
+                source_url=str(cal_cfg.get("source_url") or DEFAULT_CALENDAR_URL),
+                cache_path=str(cal_cfg.get("cache_path") or DEFAULT_CACHE_PATH),
+                refresh_interval_seconds=int(cal_cfg.get("refresh_interval_seconds") or DEFAULT_REFRESH_SECONDS),
+            )
+            orch._economic_calendar_client = client
+        orch._economic_calendar_events = await client.get_events()
     period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
     orch._indicator_epoch = int(time.time() // period_seconds) * period_seconds - period_seconds
     if not consensus_enabled(orch.config):

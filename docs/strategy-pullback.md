@@ -12,6 +12,8 @@ O universo operacional abrange os **12 ativos mundiais de ações OTC** (Europa:
 3. **Ramo 2 — Momentum Wilder Rápido + Pullback (`setup_di5_pullback`):** fora da virada `:45`, entrada a favor da pressão direcional `DI+(5) - DI-(5)` (`> +50` para CALL em vela de recuo negativa; `< -50` para PUT em vela de recuo positiva).
 4. **Ramo 3 — Compressão Regional Profunda (`setup_comp_fade`):** fade de barra forte (`|body|/ATR14 >= 0.80`, `range/ATR14 >= 0.25`) sob compressão profunda (`ATR14/ATR50 < 0.85`) e consenso regional `>= 75%` (mínimo 3 pares, exceto hora 20 UTC).
 - **Resolução de Conflitos:** se dois ramos dispararem lados opostos no mesmo `(symbol, epoch)`, o sinal é vetado (`conflito_multi_regime`).
+- **Gate de Calendário Econômico (`economic_calendar`):** veto cirúrgico pré-release e overlap de contrato (`pre_minutes=15`, `post_minutes=0`, impactos `High`, `USD` global e demais moedas por bloco regional) via feed semanal com cache local de 6h e `fail_open=true`, preservando intacta a reversão pós-choque na vela seguinte (`+15m`).
+- **Controle de Correlação Regional:** limite `max_orders_per_block_per_cycle=2` (dentro de `max_orders_per_cycle=4`) evitando concentração simultânea no mesmo bloco (Europa, EUA ou Ásia-Pacífico).
 
 ---
 

@@ -15,6 +15,11 @@ from src.application.services.orchestrator.indicator_period_filters import (
 )
 from src.application.services.pullback_recovery_claim import unreserved_loss
 from src.application.services.rise_fall_quote_guard import calculate_payout_breakeven_prob, is_quote_edge_acceptable
+from src.domain.fundamental.economic_calendar import (
+    apply_regional_block_cap,
+    evaluate_calendar_veto,
+    policy_from_config,
+)
 from src.domain.models.trade import TradeDirection
 from src.domain.risk.broker_ev_evidence import BrokerEvEvidence
 from src.domain.risk.pullback_stake import resolve_pullback_prequote_stake
@@ -104,6 +109,9 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
     )
     quarantine = getattr(orch, "_symbol_loss_quarantine", {})
     operate_all = bool(pb_cfg.get("operate_all_signals", False))
+    cal_policy = policy_from_config(orch.config)
+    cal_events = getattr(orch, "_economic_calendar_events", ())
+    sig_status = getattr(orch, "_indicator_signal_status", None)
     for (symbol, period), signal in getattr(orch, "_indicator_period_signals", {}).items():
         if (
             pb_enabled
@@ -125,6 +133,13 @@ def period_candidates(orch: Any, m5_orders: list[tuple]) -> list[tuple]:
                 else not signal.model_version.startswith("pullback-1-")
             )
         ):
+            continue
+        vetoed, veto_reason = evaluate_calendar_veto(
+            symbol, signal.candle_epoch + period, period, cal_events, cal_policy
+        )
+        if vetoed:
+            if isinstance(sig_status, dict):
+                sig_status[(symbol, period)] = veto_reason
             continue
         evidence = evidence_by_version.get((symbol, period, signal.model_version), BrokerEvEvidence(0, ()))
         pilot = mode == "demo" and evidence.pilot_available and not evidence.promoted
@@ -270,9 +285,13 @@ async def select_period_orders(orch: Any, m5_orders: list[tuple]) -> list[tuple]
         if symbol not in chosen or score > chosen[symbol][0]:
             chosen[symbol] = (score, order)
     multi = bool(orch.config.get("orchestrator", {}).get("execution", {}).get("multi_symbol_orders", False))
-    lim = int(orch.config.get("orchestrator", {}).get("execution", {}).get("max_orders_per_cycle", 1)) if multi else 1
+    exec_cfg = orch.config.get("orchestrator", {}).get("execution", {})
+    lim = int(exec_cfg.get("max_orders_per_cycle", 1)) if multi else 1
     ranked = [item[1] for item in sorted(chosen.values(), key=lambda item: item[0], reverse=True)]
     if not multi and orch.config.get("pullback_strategy", {}).get("enabled"):
         fb_depth = int(orch.config.get("pullback_strategy", {}).get("max_fallback_candidates", 1))
         return ranked[: max(1, fb_depth)]
+    block_cap = int(exec_cfg.get("max_orders_per_block_per_cycle", 0) or 0)
+    if multi and block_cap > 0:
+        ranked = apply_regional_block_cap(ranked, block_cap)
     return ranked[: max(1, lim)]

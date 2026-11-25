@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Mapping
 from typing import Any, Protocol, runtime_checkable
 
+from src.domain.fundamental.economic_calendar import EconomicEvent
 from src.domain.models.market_data import Candle
 
 
@@ -39,3 +40,11 @@ class ModelArtifactPort(Protocol):
 
     async def put_bytes(self, key: str, data: bytes) -> None:
         """Persiste bytes do artefato."""
+
+
+@runtime_checkable
+class EconomicCalendarPort(Protocol):
+    """Porta de leitura de eventos do calendario economico com cache."""
+
+    async def get_events(self) -> list[EconomicEvent]:
+        """Retorna eventos macroeconomicos vigentes da semana."""
