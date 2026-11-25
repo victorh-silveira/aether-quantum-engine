@@ -196,14 +196,14 @@ def evaluate_multi_regime_hf(
         return "SEM SINAL", "mercado_sem_oscilacao"
     glb_dirs, blk_dirs, blk_ratios = _peer_snapshot(symbol, bars[-1].epoch, peer_bars)
     candidates = (
-        (_eval_climax_global(bars, atr14, atr50, glb_dirs, blk_ratios), "setup_climax_global"),
-        (_eval_q2_cci14(bars, atr14, atr50, blk_dirs), "setup_q2_cci14"),
-        (_eval_di5_pullback(bars), "setup_di5_pullback"),
-        (_eval_comp_fade_regional(bars, atr14, atr50, blk_dirs), "setup_comp_fade"),
+        _eval_climax_global(bars, atr14, atr50, glb_dirs, blk_ratios),
+        _eval_q2_cci14(bars, atr14, atr50, blk_dirs),
+        _eval_di5_pullback(bars),
+        _eval_comp_fade_regional(bars, atr14, atr50, blk_dirs),
     )
-    hits = [(side, reason) for side, reason in candidates if side is not None]
+    hits = [side for side in candidates if side is not None]
     if not hits:
         return "SEM SINAL", "sem_setup_multi_regime"
-    if len({side for side, _ in hits}) > 1:
+    if len(set(hits)) > 1:
         return "SEM SINAL", "conflito_multi_regime"
-    return hits[0][0], (hits[0][1] if len(hits) == 1 else "setup_multi_regime")
+    return hits[0], "setup_confirmado"

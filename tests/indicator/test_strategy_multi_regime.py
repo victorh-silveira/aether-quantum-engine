@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from src.domain.models.indicator_consensus import approved_signal_from_row
 from src.indicator.domain import Candle
 from src.indicator.pullback import evaluate, version_for_variant
 from src.indicator.pullback_training import _causal_peer_slice, diagnose_all
@@ -186,7 +187,23 @@ def test_evaluate_multi_regime_hf_integration_and_conflict(monkeypatch):
         peer_bars=peers,
     )
     assert res.side == "PUT"
-    assert res.reason == "setup_multi_regime"
+    assert res.reason == "setup_confirmado"
+    approved = approved_signal_from_row(
+        {
+            "symbol": "OTC_GDAXI",
+            "period_seconds": 900,
+            "candle_epoch": bars_up[-1].epoch,
+            "model_version": res.version,
+            "side": res.side,
+            "probability": None,
+            "reason": res.reason,
+            "model_active": True,
+        },
+        expected_epoch=bars_up[-1].epoch,
+    )
+    assert approved is not None
+    assert approved.side == "PUT"
+    assert approved.model_version == res.version
 
     # Guardas: poucas velas, vela sem oscilacao, ATR invalido, sem sinal, conflito
     assert evaluate_multi_regime_hf(bars_up[:10]) == ("SEM SINAL", "mercado_sem_oscilacao")
