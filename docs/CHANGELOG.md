@@ -1,3 +1,9 @@
+## [5.10.1](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.10.0...v5.10.1) (2026-11-25)
+
+### Correcoes de Bug
+
+* **engine:** alinhar motivo de sinal do multi_regime_hf ao contrato setup_confirmado ([daf307f](https://github.com/victorh-silveira/aether-quantum-engine/commit/daf307f0c0080aa9fa9d7a8453535f8e31b81805))
+
 ## [5.10.0](https://github.com/victorh-silveira/aether-quantum-engine/compare/v5.9.0...v5.10.0) (2026-11-25)
 
 ### Funcionalidades
