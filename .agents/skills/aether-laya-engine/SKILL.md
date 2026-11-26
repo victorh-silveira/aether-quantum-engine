@@ -6,6 +6,8 @@ description: "Execucao, diagnostico e manutencao do motor continuo Laya System 1
 # Skill: Aether Laya Engine (`R_10` M5 Continuo)
 
 ## Fluxo Operacional
+O menu `make help` e compacto: App, CI/CD e Docker, somente comandos essenciais e descricoes objetivas em uma frase. Nao incluir metadados ou tutoriais no menu. No ambiente instalado, a rotina diaria usa docker-up e app-run; seguir `docs/laya-training.md` para treinamento e ativacao de checkpoint aprovado.
+
 1. Subir infraestrutura Docker: `make docker-up` (Redis, TimescaleDB, MinIO, Prometheus, Grafana, Tempo).
 2. Executar motor continuo: `make app-run` (Conda `deriv-api`, Python 3.13, `laya==0.5.5`).
 3. Verificar logs em `logs/engine.log` contendo `INDICATORS | R_10 M5 ...` e `LAYA_DECISION | R_10 M5 dir=CALL|PUT ...`.

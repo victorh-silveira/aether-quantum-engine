@@ -4,7 +4,21 @@ O fluxo offline usa Laya classico 0.5.5, `vegaml=False`, sem executor de ordens.
 
 ## Comandos no WSL com Conda deriv-api
 
+`make help` mostra comandos essenciais e descricoes objetivas em uma frase nos grupos App, CI/CD e Docker. CI/CD possui Local, Pre-commit e Workflows; metadados e tutoriais ficam nesta documentacao, fora do menu. Os alvos avancados continuam disponiveis diretamente. Instalacao e diagnostico sao etapas de configuracao; treinamento e uma operacao separada da rotina diaria.
+
+Para o ambiente ja instalado e usando o checkpoint configurado:
+
 ```bash
+make docker-up
+make app-run
+```
+
+`docker-up` inclui healthchecks e smoke checks; `app-run` verifica CUDA antes de iniciar. A configuracao de credenciais e conta deve estar concluida no ambiente. Instalar dependencias ou hooks, executar CI/CD e treinar novamente nao sao requisitos de cada inicializacao.
+
+Para preparar um ambiente novo e treinar um candidato, seguir as etapas abaixo. Omitir app-prepare quando o dataset ja existir.
+
+```bash
+make app-install
 make app-cuda-install
 make app-cuda-check
 make app-cuda-train-check
@@ -13,8 +27,13 @@ make app-train-dry-run
 make app-train
 make app-evaluate
 make app-promote
-make app-run
 ```
+
+Apos promocao aprovada, configurar `laya.approved_checkpoint` em `config/settings.json` com o caminho retornado pelo promote. Entao executar `make docker-up` e `make app-run`. Sem esse ajuste o motor continua usando o checkpoint anteriormente configurado.
+
+Pre-commit e desenvolvimento: instalar hooks com `make app-pre-commit` na configuracao inicial; usar `make app-pre-commit-run` antes do commit. Para diagnosticar uma etapa isolada do CI local, usar app-lint, app-validate, app-security, app-test e app-build. O CI/CD remoto e definido em `.github/workflows/ci.yml`: push na main, PR para main ou acionamento manual; a publicacao de versao ocorre na main apos CI aprovado.
+
+app-clean, docker-reset e docker-clean sao operacoes de manutencao; nao fazem parte da sequencia de inicializacao.
 
 O Makefile resolve o Python do Conda `deriv-api` e usa `LAYA_DATA=.cache/laya-r10-gpu-20261126`, `LAYA_RUN=.cache/laya-r10-gpu-run` e `LAYA_TRAIN_PROFILE=auto` por padrao. Alterar diretorios com `make app-train LAYA_DATA="caminho dos dados" LAYA_RUN="nova execucao"`. Preparacao de dados existentes nao deve ser repetida: o manifesto ja fixa o corte. `make app-evaluate LAYA_DEVICE=cpu` permite avaliacao explicitamente em CPU. `LAYA_ARGS` acrescenta argumentos de uma etapa, como `--cutoff` no prepare.
 

@@ -6,6 +6,8 @@ O harness de agentes reside na pasta canonica [`.agents/`](../.agents/) e e vers
 
 A sincronizacao e testada automaticamente em `tests/unit/repo/test_agent_coverage_matrix.py`.
 
+O menu Make agrupa App, CI/CD e Docker com comandos essenciais e descricoes objetivas em uma frase; a ordem diaria e os fluxos opcionais de treinamento e pre-commit estao documentados em [laya-training.md](laya-training.md).
+
 A superficie do motor inclui o contrato de exibicao com duas casas decimais nos logs, preservando a precisao interna e as metricas Prometheus.
 
 ## Matriz

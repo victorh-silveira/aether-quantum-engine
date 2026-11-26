@@ -10,6 +10,7 @@ alwaysApply: true
 - **Ativo e Timeframe:** `R_10` em velas M5 fechadas (`300s`), contrato Rise/Fall de 5 minutos (`duration=5`, `duration_unit="m"`).
 - **Entrada para o Laya:** enviar velas OHLC fechadas, pacote completo de `compute_indicators` e configuracoes sanitizadas de `config/settings.json`.
 - **CUDA e Make:** usar app-train/app-evaluate/app-promote e app-run do Makefile. Validar device com app-cuda-check; perfil auto=head em GPUs de ate 12 GiB, sem treino em CPU. A promocao continua exigindo os criterios temporais de docs/laya-training.md.
+- **Ordem Operacional:** Ambiente pronto: docker-up e app-run. Treino e pre-commit pertencem a fluxos separados; nao executar limpeza/reset como pre-requisito diario. Ajuda compacta em App, CI/CD e Docker, sem metadados ou tutoriais.
 - **Contexto sem Truncamento:** calcular `max_len` com tokenizer real, incluindo pergunta e opcoes, dentro da capacidade do encoder. Rejeitar resposta truncada e registrar `LAYA_CONTEXT` com epoch, assinatura e zero tokens descartados. Probabilidades e confianca nao representam acerto financeiro validado.
 - **Stake Kelly e Recuperacao:** fracao 0,25, probabilidade sem inflacao, payout real, piso continuo de 1% e teto de 5%. Amortizar a divida por payout, sem Martingale 2x. Checkpoint local exige aprovacao temporal conforme `docs/laya-training.md`.
 - **Logs Obrigatorios:** `make app-run` deve registrar `INDICATORS | ...` e `LAYA_DECISION | ...` a cada ciclo M5.

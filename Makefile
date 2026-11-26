@@ -53,47 +53,48 @@ RESET  := \033[0m
 	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle lint test
 
 
+define help_command
+@printf '    $(GREEN)%-28s$(RESET) %s\n' '$(1)' '$(2)'
+endef
+
+define help_subcategory
+@printf '\n  $(CYAN)%s$(RESET)\n' '$(1)'
+endef
+
 help:
-	@echo -e "$(BLUE)========================================================================$(RESET)"
-	@echo -e "$(GREEN)                   AETHER QUANTUM ENGINE - MENU DE AJUDA                $(RESET)"
-	@echo -e "$(BLUE)========================================================================$(RESET)"
-	@echo -e "Uso: $(CYAN)make <comando>$(RESET)"
-	@echo -e ""
-	@echo -e "$(YELLOW)Python:$(RESET) Conda $(CONDA_ENV) ($(PYTHON))"
-	@echo -e ""
-	@echo -e "$(YELLOW)App:$(RESET)"
-	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor em execucao real/demo (run.py)"
-	@echo -e "  $(GREEN)app-prepare$(RESET)        - Prepara 90 dias R_10 M5 e particoes temporais"
-	@echo -e "  $(GREEN)app-train$(RESET)          - Treina Laya na GPU; LAYA_TRAIN_PROFILE=auto|head|full"
-	@echo -e "  $(GREEN)app-train-dry-run$(RESET)  - Valida dados e tokens sem carregar pesos"
-	@echo -e "  $(GREEN)app-evaluate$(RESET)       - Avalia candidato selecionado no teste final"
-	@echo -e "  $(GREEN)app-promote$(RESET)        - Aprova checkpoint sem ativar o motor"
-	@echo -e "  $(GREEN)app-cuda-install$(RESET)   - Instala PyTorch CUDA no ambiente Conda selecionado"
-	@echo -e "  $(GREEN)app-cuda-check$(RESET)     - Valida GPU e inferencia real do Laya sem ordens"
-	@echo -e "  $(GREEN)app-cuda-train-check$(RESET) - Valida backward e otimizador do Laya na GPU"
-	@echo -e "  Dados: LAYA_DATA=$(LAYA_DATA) | Run: LAYA_RUN=$(LAYA_RUN)"
-	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint Python/JSON/YAML/Docker/Shell/Rust/Workflows + indicador"
-	@echo -e "  $(GREEN)app-validate$(RESET)       - Valida codigo, configs, Compose, Shell e Rust"
-	@echo -e "  $(GREEN)app-security$(RESET)       - Seguranca Python/Docker/Rust + indicador"
-	@echo -e "  $(GREEN)app-test$(RESET)           - Testes Python/JSON/Docker/Shell/Rust + indicador; cobertura 100%"
-	@echo -e "  $(GREEN)app-build$(RESET)          - Build/compilacao da matriz local do CI"
-	@echo -e "  $(GREEN)app-clean$(RESET)          - Limpa caches, artefactos e logs locais"
-	@echo -e "  $(GREEN)app-install$(RESET)        - Instala dependencias no Conda $(CONDA_ENV)"
-	@echo -e "  $(GREEN)app-pre-commit$(RESET)     - Instala e valida githooks pre-commit"
-	@echo -e "  $(GREEN)app-pre-commit-run$(RESET) - Executa a matriz completa de hooks em todos os arquivos"
-	@echo -e "  $(GREEN)app-commit$(RESET)         - Commit padronizado com validacao PT-BR e commitlint (ARGS='...')"
-	@echo -e ""
-	@echo -e "$(YELLOW)Docker:$(RESET)"
-	@echo -e "  $(GREEN)docker-up$(RESET)          - Sobe stack com Timescale, Redis, MinIO e indicador"
-	@echo -e "  $(GREEN)docker-rebuild$(RESET)     - Rebuilda servico do indicador"
-	@echo -e "  $(GREEN)docker-reset$(RESET)       - $(RED)DESTRUTIVO$(RESET): sanitiza run + volumes, bootstrap e sobe stack"
-	@echo -e "  $(GREEN)docker-clean$(RESET)       - $(RED)DESTRUTIVO$(RESET): para e remove containers, redes e volumes da stack"
-	@echo -e "  $(GREEN)docker-down$(RESET)        - Para os containers da stack (preserva dados e volumes)"
-	@echo -e "  $(GREEN)docker-restart$(RESET)     - Reinicia os containers da stack (preserva dados)"
-	@echo -e "  $(GREEN)docker-ps$(RESET)          - Exibe o status atual dos containers"
-	@echo -e "  $(GREEN)docker-logs$(RESET)        - Logs dos servicos running (tail=200; DOCKER_SERVICE=... F=1)"
-	@echo -e "  $(GREEN)docker-smoke$(RESET)       - Executa smoke checks e verificacao de saude da stack"
-	@echo -e "$(BLUE)========================================================================$(RESET)"
+	@printf '$(BLUE)========================================================================$(RESET)\n'
+	@printf '$(GREEN)AETHER QUANTUM ENGINE - MENU DE AJUDA$(RESET)\n'
+	@printf '$(BLUE)========================================================================$(RESET)\n'
+	@printf '\n$(YELLOW)APP$(RESET)\n'
+	$(call help_command,app-install,Instala dependencias do projeto no ambiente Conda)
+	$(call help_command,app-cuda-install,Instala PyTorch com CUDA e verifica o acesso a GPU)
+	$(call help_command,app-cuda-check,Executa inferencia real do Laya na GPU sem enviar ordens)
+	$(call help_command,app-prepare,Prepara 90 dias de velas R_10 M5 e separa as particoes)
+	$(call help_command,app-train-dry-run,Valida o dataset e o limite de tokens sem carregar pesos)
+	$(call help_command,app-train,Treina o Laya na GPU e seleciona o melhor candidato)
+	$(call help_command,app-evaluate,Compara o candidato com o modelo base no teste reservado)
+	$(call help_command,app-promote,Aprova o checkpoint validado sem ativar sua execucao)
+	$(call help_command,app-run,Verifica CUDA e inicia o motor com o checkpoint configurado)
+	@printf '\n$(YELLOW)CI/CD$(RESET)\n'
+	$(call help_subcategory,Local)
+	$(call help_command,app-lint,Verifica estilo e qualidade de codigo e configuracoes)
+	$(call help_command,app-test,Executa a suite de testes com cobertura obrigatoria de 100%)
+	$(call help_command,app-security,Audita dependencias e verifica vulnerabilidades e segredos)
+	$(call help_subcategory,Pre-commit)
+	$(call help_command,app-pre-commit,Instala os hooks Git de validacao e padrao de commit)
+	$(call help_command,app-pre-commit-run,Executa todos os hooks de qualidade e seguranca do projeto)
+	$(call help_command,app-commit,Cria commit Conventional Commits em PT-BR com os hooks ativos)
+	$(call help_subcategory,Workflows)
+	$(call help_command,app-workflows-lint,Valida a sintaxe e a estrutura dos workflows do GitHub Actions)
+	@printf '\n$(YELLOW)DOCKER$(RESET)\n'
+	$(call help_command,docker-up,Sobe a stack e verifica a saude dos servicos)
+	$(call help_command,docker-down,Para os containers preservando os dados e volumes)
+	$(call help_command,docker-restart,Reinicia os servicos e aguarda os healthchecks)
+	$(call help_command,docker-ps,Exibe o estado atual dos containers da stack)
+	$(call help_command,docker-logs,Exibe os logs dos servicos com filtro por DOCKER_SERVICE)
+	$(call help_command,docker-reset,DESTRUTIVO - apaga dados e artefatos e recria a stack)
+	$(call help_command,docker-clean,DESTRUTIVO - remove containers e volumes persistidos)
+	@printf '$(BLUE)========================================================================$(RESET)\n'
 
 # ------------------------------------------------------------------------------
 # App Targets
