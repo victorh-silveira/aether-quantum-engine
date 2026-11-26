@@ -23,8 +23,8 @@ def log_laya_cycle_decision(
     try:
         orch.logger.info("")
         orch.logger.info(
-            "INDICATORS | %s M5 close=%.2f | EMA20/50=%.2f/%.2f | RSI14=%.1f | MACD_h=%+.4f | "
-            "ADX14=%.1f | Stoch=%.1f | BB%%B=%.2f | ATR14=%.2f | Hurst=%.2f | streak=%+d",
+            "INDICATORS | %s M5 close=%.2f | EMA20/50=%.2f/%.2f | RSI14=%.2f | MACD_h=%+.2f | "
+            "ADX14=%.2f | Stoch=%.2f | BB%%B=%.2f | ATR14=%.2f | Hurst=%.2f | streak=%+.2f",
             decision.symbol,
             snapshot.close,
             snapshot.ema_20,
@@ -39,12 +39,12 @@ def log_laya_cycle_decision(
             snapshot.streak,
         )
         orch.logger.info(
-            "INDICATORS_FULL | %s M5 close=%.4f | EMA9=%.4f EMA20=%.4f EMA21=%.4f EMA50=%.4f "
-            "spread=%.3fATR sl20=%.3f sl50=%.3f | RSI7=%.2f RSI14=%.2f | "
-            "MACD=%.4f sig=%.4f hist=%.4f dHist=%+.4f | ADX14=%.2f (+DI=%.2f -DI=%.2f dDI=%+.2f) "
-            "ADX20=%.2f dDI20=%+.2f | CCI14=%.1f CMO14=%.1f Stoch=%.1f/%.1f WR=%.1f ROC=%.3f | "
-            "BB%%B=%.3f BBw=%.4f KC%%B=%.3f | ATR14=%.4f ATR50=%.4f ratio=%.3f | "
-            "Hurst=%.3f Z=%.2f body=%.2fATR wick=%.2f/%.2f dir=%+d streak=%+d",
+            "INDICATORS_FULL | %s M5 close=%.2f | EMA9=%.2f EMA20=%.2f EMA21=%.2f EMA50=%.2f "
+            "spread=%.2fATR sl20=%.2f sl50=%.2f | RSI7=%.2f RSI14=%.2f | "
+            "MACD=%.2f sig=%.2f hist=%.2f dHist=%+.2f | ADX14=%.2f (+DI=%.2f -DI=%.2f dDI=%+.2f) "
+            "ADX20=%.2f dDI20=%+.2f | CCI14=%.2f CMO14=%.2f Stoch=%.2f/%.2f WR=%.2f ROC=%.2f | "
+            "BB%%B=%.2f BBw=%.2f KC%%B=%.2f | ATR14=%.2f ATR50=%.2f ratio=%.2f | "
+            "Hurst=%.2f Z=%.2f body=%.2fATR wick=%.2f/%.2f dir=%+.2f streak=%+.2f",
             decision.symbol,
             snapshot.close,
             snapshot.ema_9,
@@ -87,8 +87,8 @@ def log_laya_cycle_decision(
             snapshot.streak,
         )
         orch.logger.info(
-            "LAYA_DECISION | %s M5 dir=%s | P(CALL)=%.6f%% P(PUT)=%.6f%% | prob=%.6f conf=%.6f | "
-            "lat=%.0fms | stake=$%.2f (%.2f%%) | banca=$%.2f",
+            "LAYA_DECISION | %s M5 dir=%s | P(CALL)=%.2f%% P(PUT)=%.2f%% | prob=%.2f conf=%.2f | "
+            "lat=%.2fms | stake=$%.2f (%.2f%%) | banca=$%.2f",
             decision.symbol,
             decision.direction.name,
             decision.prob_call * 100.0,

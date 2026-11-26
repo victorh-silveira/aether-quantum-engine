@@ -25,4 +25,4 @@ def release_trading_cycle_after_reconnect(orch: Any) -> None:
     delay = schedule_post_reconnect_warm_up_barrier(orch)
     logger = getattr(orch, "logger", None)
     if logger is not None:
-        logger.info("RECOV: ciclo continuo liberado | warm_up=%.0fs", delay)
+        logger.info("RECOV: ciclo continuo liberado | warm_up=%.2fs", delay)

@@ -172,7 +172,7 @@ async def _attempt_post_settlement_trading_cycle(orch: Any, orch_cfg: dict) -> b
             return bool(getattr(orch, "_last_cycle_cluster_executed", False))
         except TimeoutError:
             orch.is_trading = False
-            orch.logger.debug("CICLO: timeout pos-liquidacao (%.0fs); backoff na janela de tolerancia", cycle_timeout)
+            orch.logger.debug("CICLO: timeout pos-liquidacao (%.2fs); backoff na janela de tolerancia", cycle_timeout)
             return False
     finally:
         orch._dl_fast_cycle = False
@@ -228,7 +228,7 @@ async def _apply_tolerance_window_recovery(orch: Any, *, window: float, failed_a
         SETTLE_TOLERANCE,
         "settle_tolerance",
         settle_content,
-        "janela tolerancia %.0fs | orphans=%d | tentativas=%d | estado reconciliado",
+        "janela tolerancia %.2fs | orphans=%d | tentativas=%d | estado reconciliado",
         window,
         settled,
         failed_attempts,

@@ -186,7 +186,7 @@ class Orchestrator:
         ):
             self._last_idle_watchdog_attempt = now
             self.logger.warning(
-                "WATCHDOG: ciclo ocioso ha %.0fs; verificando ciclo", now - self._last_cluster_cycle_end
+                "WATCHDOG: ciclo ocioso ha %.2fs; verificando ciclo", now - self._last_cluster_cycle_end
             )
             await self._run_trading_cycle_if_ready()
 

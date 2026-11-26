@@ -19,5 +19,5 @@ O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo
 - O warmup exige pelo menos 51 barras fechadas (ATR50 com fechamento anterior). Cada ciclo captura uma unica serie imutavel, reutilizada ate o registro da barra processada.
 - A fronteira recebe o orquestrador e usa os 300 segundos configurados. A ultima vela avaliada nao pode ser reutilizada apos liquidacao ou reconexao.
 - O adapter calcula tokens da pergunta, opcoes e estado completo com o tokenizer do checkpoint. O `max_len` explicito respeita a capacidade do encoder; resposta truncada e erro tecnico, sem decisao valida.
-- `LAYA_CONTEXT` registra granularidade, quantidade, epoch, assinatura e tokens descartados. `INDICATORS_FULL` aparece em INFO; `LAYA_DECISION` inclui probabilidades com seis casas decimais, `prob` e `conf`.
+- `LAYA_CONTEXT` registra granularidade, quantidade, epoch, assinatura e tokens descartados. `INDICATORS_FULL` aparece em INFO; `LAYA_DECISION` inclui valores numericos de exibicao com duas casas decimais, `prob` e `conf`.
 - Probabilidade e confianca sao saidas do modelo; nao representam taxa de acerto validada no R_10. Probabilidades repetidas podem ser legitimas e nao sao alteradas artificialmente.

@@ -26,7 +26,7 @@ def _finite_probability(value: Any, default: float = 0.5) -> float:
     except (TypeError, ValueError):
         number = math.nan
     if not math.isfinite(number) or not 0.0 <= number <= 1.0:
-        logging.getLogger("AETH").warning("LAYA_RESPONSE | probabilidade invalida; fallback=%.6f", default)
+        logging.getLogger("AETH").warning("LAYA_RESPONSE | probabilidade invalida; fallback=%.2f", default)
         return default
     return number
 

@@ -12,6 +12,7 @@ O servico de orquestracao em src/application/services/orchestrator/ coordena os 
 - **Warmup Obrigatório:** Exigir pelo menos 51 velas M5 fechadas via `get_closed_candles(symbol, 300)`, sem fallback D1, com epochs unicos e ordenados.
 - **Sincronização M5:** Passar o orquestrador a fronteira de 300 segundos e preservar a mesma serie durante inferencia, execucao e persistencia. Nao repetir a mesma vela apos liquidacao ou reconexao.
 - **Contexto Completo:** Dimensionar o contexto com tokenizer real e rejeitar respostas truncadas. Registrar epoch, assinatura, tokens e todos os indicadores em INFO. Preservar CALL/PUT continuo sem vetos de estrategia.
+- **Exibicao Numerica:** Formatar valores numericos dos logs com duas casas decimais; preservar precisao interna, metricas, identificadores e contagens tecnicas.
 - **Watchdog Ativo:** Um servico de watchdog monitora continuamente a saude do loop assincrono e dos streams; estagnacao prolongada dispara alertas e safe-shutdown defensivo.
 
 ## 3. Padrões de Implementação

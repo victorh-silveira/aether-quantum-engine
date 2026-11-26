@@ -79,7 +79,7 @@ async def resolve_order_proposal(
         direction.name,
         prop_id,
         ask_price,
-        payout_val,
+        f"{payout_val:.2f}" if payout_val is not None else "n/a",
         time.monotonic() - t0,
     )
     return prop_id, ask_price, payout_val, proposal

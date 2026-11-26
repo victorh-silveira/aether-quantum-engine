@@ -105,8 +105,8 @@ async def test_continuous_laya_cycle_never_skips_and_logs(monkeypatch):
     decision_log = next(
         call.args[0] % call.args[1:] for call in logger.info.call_args_list if "LAYA_DECISION |" in call.args[0]
     )
-    assert "P(CALL)=75.000000%" in decision_log
-    assert "prob=0.750000 conf=0.750000" in decision_log
+    assert "P(CALL)=75.00%" in decision_log
+    assert "prob=0.75 conf=0.75" in decision_log
 
     snap = compute_indicators(candles)
     log_laya_cycle_decision(orch, snap, decision, 30.0, 0.03, 1000.0)

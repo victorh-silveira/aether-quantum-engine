@@ -51,7 +51,7 @@ async def orchestrator_atomic_state_context(orch: Any) -> AsyncIterator[None]:
             stack = "".join(traceback.format_stack())
             raise RuntimeError(
                 f"[AETHER] STATE_LOCK_TIMEOUT: deadlock em _state_lock "
-                f"(caller={origin}, retentor={holder}, timeout={_state_lock_timeout():.1f}s)\n"
+                f"(caller={origin}, retentor={holder}, timeout={_state_lock_timeout():.2f}s)\n"
                 f"{stack}"
             ) from exc
         try:

@@ -127,7 +127,7 @@ class AetherWatchdog:
             ):
                 return
             logger.warning(
-                "WATCHDOG: STALE_DATA | ultimo tick ha %.1fs | reconectando stream",
+                "WATCHDOG: STALE_DATA | ultimo tick ha %.2fs | reconectando stream",
                 stale_age,
             )
             try:

@@ -16,6 +16,7 @@ description: "Execucao, diagnostico e manutencao do motor continuo Laya System 1
 - Stake dinamica `[1%, 5%]`: `src/domain/risk/laya_stake.py`
 - Adapter Laya: `src/infrastructure/inference/laya_decision_adapter.py`
 - Contexto completo: `src/infrastructure/inference/laya_context.py`; conferir `LAYA_CONTEXT` com zero tokens descartados.
+- Exibicao: indicadores, probabilidades, confianca, latencia e dinheiro com duas casas decimais; nao arredondar dados internos ou metricas Prometheus.
 - Dados: `StreamHandler.get_closed_candles(symbol, 300)` exige M5 fechado, sem fallback diario; warmup minimo de 51 barras.
 - Validacao offline: `python -m tools.laya_inference_probe` com pesos locais e sem executor de ordens. Nao exigir variacao artificial de probabilidades ou prometer rentabilidade.
 - Orquestrador continuo: `src/application/services/orchestrator/trading_cycle_entry.py`

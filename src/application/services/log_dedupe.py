@@ -75,7 +75,7 @@ class LogDeduper:
     ) -> None:
         """Emite log deduplicado quando a valvula de inanicao reduz o piso de margem."""
         message = (
-            f"[AETHER] EXECUTION_FLOW | inanicao ativa | min={float(min_margin):.4f} | skipped={int(skipped_cycles)}"
+            f"[AETHER] EXECUTION_FLOW | inanicao ativa | min={float(min_margin):.2f} | skipped={int(skipped_cycles)}"
         )
         channel = f"starvation:{int(skipped_cycles)}:{float(min_margin):.4f}"
         log_info_if_changed(self._owner, logger, channel, message, "%s", message)

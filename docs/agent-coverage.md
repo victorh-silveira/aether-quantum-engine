@@ -6,6 +6,8 @@ O harness de agentes reside na pasta canonica [`.agents/`](../.agents/) e e vers
 
 A sincronizacao e testada automaticamente em `tests/unit/repo/test_agent_coverage_matrix.py`.
 
+A superficie do motor inclui o contrato de exibicao com duas casas decimais nos logs, preservando a precisao interna e as metricas Prometheus.
+
 ## Matriz
 
 | Superficie | Doc | Rule (`.agents/rules/`) | Skill (`.agents/skills/`) |

@@ -128,7 +128,7 @@ async def fetch_paginated_candle_history(
                     raise
                 delay = min(backoff_cap, backoff_base**attempt)
                 logger.warning(
-                    "DATA | timeout %s | granularity=%ss | pagina=%d | retry %d/2 em %.1fs",
+                    "DATA | timeout %s | granularity=%ss | pagina=%d | retry %d/2 em %.2fs",
                     symbol,
                     granularity,
                     chunk_index,
@@ -142,7 +142,7 @@ async def fetch_paginated_candle_history(
             if is_rate_limit_error(res) and attempt < max_retries:
                 delay = min(backoff_cap, chunk_delay * (backoff_base ** (attempt + 1)))
                 logger.warning(
-                    "DATA | rate limit %s | retry %d/%d em %.1fs",
+                    "DATA | rate limit %s | retry %d/%d em %.2fs",
                     symbol,
                     attempt + 1,
                     max_retries,
