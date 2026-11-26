@@ -9,7 +9,7 @@ O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo
 3. **Warmup (`warm_up_buffer_guard.py`):** exige minimo de velas M5 fechadas no buffer para calculo causal estavel dos indicadores.
 4. **Indicadores (`compute_indicators`):** calcula todo o pacote tecnico (EMAs, RSI, MACD, Stochastic, CCI, CMO, Williams %R, ROC, ADX/DI, ATR, Bollinger, Keltner, Hurst, microestrutura e `session_zscore`).
 5. **Decisao Laya (`LayaDecisionAdapter.decide`):** envia velas recentes, indicadores e settings sanitizados ao Laya System 1, retornando `CALL` ou `PUT` (desempate deterministico por `ema_20 >= ema_50`).
-6. **Dimensionamento (`calculate_laya_stake`):** calcula stake linear entre 1% e 5% da banca pela probabilidade do Laya, com piso `stake_min` e teto absoluto de 5%.
+6. **Dimensionamento (`size_kelly_recovery`):** consulta payout preliminar, calcula Kelly fracionado com piso de 1% e recuperacao por payout; saldo e limites sao revalidados na proposta final, com teto de 5%.
 7. **Telemetria (`cycle_indicators_logger.py`):** imprime obrigatoriamente `INDICATORS | ...` e `LAYA_DECISION | ...`.
 8. **Execucao:** `ExecutionManager.execute_laya_order` envia o contrato Rise/Fall de 5 minutos e registra o watch de liquidacao.
 
@@ -21,3 +21,5 @@ O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo
 - O adapter calcula tokens da pergunta, opcoes e estado completo com o tokenizer do checkpoint. O `max_len` explicito respeita a capacidade do encoder; resposta truncada e erro tecnico, sem decisao valida.
 - `LAYA_CONTEXT` registra granularidade, quantidade, epoch, assinatura e tokens descartados. `INDICATORS_FULL` aparece em INFO; `LAYA_DECISION` inclui valores numericos de exibicao com duas casas decimais, `prob` e `conf`.
 - Probabilidade e confianca sao saidas do modelo; nao representam taxa de acerto validada no R_10. Probabilidades repetidas podem ser legitimas e nao sao alteradas artificialmente.
+- Os indicadores usam no maximo as ultimas 120 barras, a mesma janela causal do treinamento. Kelly e recuperacao possuem logs separados; a linha LAYA_DECISION mostra dimensionamento preliminar e o EXEC mostra o preco realmente comprado.
+- A divida e os IDs liquidados integram o snapshot de risco; reconexao ou reconciliacao nao reaplicam resultados. Checkpoints locais exigem aprovacao e hash integro.

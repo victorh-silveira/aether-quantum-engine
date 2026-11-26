@@ -7,11 +7,16 @@ import json
 from typing import Any
 
 
+def serialize_laya_state(state: dict) -> str:
+    """Serializa de forma identica em treinamento e inferencia, sem arredondamento extra."""
+    return json.dumps(state, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+
+
 def encode_laya_context(agent: Any, state: dict, questions: dict) -> tuple[str, int, str]:
     """Serializa todo o estado e reserva pergunta e separadores sem truncamento."""
     from laya.common import build_head, encode_text  # noqa: PLC0415
 
-    text = json.dumps(state, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    text = serialize_laya_state(state)
     token_count = len(encode_text(agent.tok, text, add_special_tokens=False)["input_ids"])
     head_limit = int(agent.cfg.get("head_max_len", 192))
     head_sizes = []

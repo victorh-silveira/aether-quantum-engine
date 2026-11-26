@@ -61,6 +61,8 @@ async def test_continuous_laya_cycle_never_skips_and_logs(monkeypatch):
         ws=SimpleNamespace(is_running=True),
         stream=SimpleNamespace(is_synchronized=True, get_closed_candles=lambda sym, g: candles),
         laya=SimpleNamespace(decide=AsyncMock(return_value=decision)),
+        trade_handler=SimpleNamespace(fetch_proposal_snapshot=AsyncMock(return_value={"rate": 0.8})),
+        risk_manager=SimpleNamespace(pending_loss=0.0),
         executor=SimpleNamespace(execute_laya_order=AsyncMock(return_value=True)),
         logger=logger,
         running=True,
@@ -98,7 +100,7 @@ async def test_continuous_laya_cycle_never_skips_and_logs(monkeypatch):
     orch.laya.decide.assert_awaited_once()
     orch.executor.execute_laya_order.assert_awaited_once()
     stake_arg = orch.executor.execute_laya_order.await_args.args[1]
-    assert stake_arg == 30.0  # 3% para prob=0.75 em banca $1000
+    assert stake_arg == 50.0  # Kelly positivo limitado a 5% da banca
     assert any("INDICATORS |" in call.args[0] for call in logger.info.call_args_list)
     assert any("LAYA_DECISION |" in call.args[0] for call in logger.info.call_args_list)
     assert any("INDICATORS_FULL |" in call.args[0] for call in logger.info.call_args_list)

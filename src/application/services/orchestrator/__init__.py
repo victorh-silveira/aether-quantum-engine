@@ -75,6 +75,7 @@ class Orchestrator:
                 model_id=str(laya_cfg.get("model_id", "convaiinnovations/laya")),
                 device=str(laya_cfg.get("device", "auto")),
                 context_candles=int(laya_cfg.get("context_candles", 12)),
+                approved_checkpoint=str(laya_cfg.get("approved_checkpoint", "")),
             )
         )
         self.trading_transport = "ws"

@@ -637,7 +637,8 @@ async def test_tail_final_40_lines_for_100_percent():
             ),
         ),
         patch(
-            "src.application.services.orchestrator.trading_cycle_entry.calculate_laya_stake", return_value=(0.0, 0.0)
+            "src.application.services.orchestrator.trading_cycle_entry.quote_laya_sizing",
+            AsyncMock(return_value=SimpleNamespace(stake=0.0)),
         ),
         patch("src.application.services.orchestrator.trading_cycle_entry.log_laya_cycle_decision"),
     ):
@@ -661,7 +662,8 @@ async def test_tail_final_40_lines_for_100_percent():
             ),
         ),
         patch(
-            "src.application.services.orchestrator.trading_cycle_entry.calculate_laya_stake", return_value=(10.0, 0.01)
+            "src.application.services.orchestrator.trading_cycle_entry.quote_laya_sizing",
+            AsyncMock(return_value=SimpleNamespace(stake=10.0)),
         ),
         patch("src.application.services.orchestrator.trading_cycle_entry.log_laya_cycle_decision"),
     ):

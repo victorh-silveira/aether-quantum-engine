@@ -1,5 +1,5 @@
 ---
-description: Dimensionamento institucional, stake base de 1,5%, orcamento de ciclo de 4% e cap por ordem de 5%
+description: Kelly fracionado, piso continuo de 1% e recuperacao por payout limitada a 5%
 alwaysApply: true
 ---
 
@@ -9,11 +9,11 @@ alwaysApply: true
 A preservacao de capital e o imperativo supremo do motor. O dimensionamento e governado pelo modelo de risco institucional senior em src/domain/risk/.
 
 ## 2. Hard Gates Inegociáveis
-- **Stake Base:** A configuracao vigente utiliza `base_stake_pct=0.015`, com piso de **1%** e teto absoluto de **5% por ordem**, respeitando saldo disponivel e arredondamento do broker.
-- **Cluster Risk Budget:** `cycle_risk_budget_pct=0.04` divide o orcamento entre as ordens simultaneas selecionadas, com `max_orders_per_cycle=4`. Reutilize o dimensionamento de producao e contabilize reservas a cada compra confirmada.
-- **Sem Recuperacao Operacional:** `smooth_recovery=false` e `amort_steps=0`; perdas anteriores nao aumentam a stake. Recuperacao agressiva 1/1 permanece desligada.
-- **Banimento de Martingale e D'Alembert:** Metodos de progressao geometrica (Martingale, Fibonacci acelerado, D'Alembert) estao terminantemente proibidos no codigo.
-- **Gate de EV Positivo em REAL:** Ordens em conta REAL exigem cotacao com EV positivo e margem de seguranca minima de 0,01 acima do break-even apos corte de haircut.
+- **Kelly Fracionado:** Multiplicador 0,25 da fracao positiva, probabilidade sem inflacao e payout efetivamente cotado. Fonte unica de limites em `risk_management.params`.
+- **Piso Continuo:** 1% e minimo $1,00, inclusive com Kelly negativo, por mandato do operador. Registrar FLOOR explicitamente.
+- **Recuperacao por Payout:** Adaptar formulas da main 460c4f41. Losses somam divida, lucros realizados a abatem; win parcial nao zera divida.
+- **Teto:** 5% por ordem; amortizar em etapas quando a recuperacao integral nao couber no teto. Nao aplicar Martingale 2x ou progressao geometrica.
+- **Idempotencia:** Persistir divida e IDs liquidados para nao reaplicar resultados apos reconexao ou reinicio.
 
 ## 3. Padrões de Implementação
 - **Consulta de Saldo Dinâmico:** O saldo da banca e verificado diretamente na resposta da conta antes da requisicao de proposta de contrato.
@@ -21,5 +21,5 @@ A preservacao de capital e o imperativo supremo do motor. O dimensionamento e go
 - **Sem Stop-Win Curto:** A configuracao vigente nao utiliza stop-win diario curto assimetrico. Nao introduza limites financeiros arbitrarios sem mandato do operador.
 
 ## 4. Proibições Estritas
-- Proibido qualquer aumento discricionario de stake apos uma sequencia de perdas.
+- Proibido aumento discricionario de stake fora da formula de recuperacao autorizada.
 - Proibido remover tetos de protecao financeira ou travas de saldo minimo.

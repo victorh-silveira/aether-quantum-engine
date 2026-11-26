@@ -88,7 +88,7 @@ def log_laya_cycle_decision(
         )
         orch.logger.info(
             "LAYA_DECISION | %s M5 dir=%s | P(CALL)=%.2f%% P(PUT)=%.2f%% | prob=%.2f conf=%.2f | "
-            "lat=%.2fms | stake=$%.2f (%.2f%%) | banca=$%.2f",
+            "lat=%.2fms | stake=$%.2f (%.2f%%) | banca=$%.2f | model=%s",
             decision.symbol,
             decision.direction.name,
             decision.prob_call * 100.0,
@@ -99,6 +99,7 @@ def log_laya_cycle_decision(
             stake,
             stake_pct * 100.0,
             balance,
+            decision.model_version,
         )
     finally:
         restore_log_context(prev_cid, prev_sym)

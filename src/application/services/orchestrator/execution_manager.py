@@ -57,6 +57,7 @@ class ExecutionManager:
                     "laya_prob_put": decision.prob_put,
                     "laya_confidence": decision.confidence,
                     "laya_latency_ms": decision.latency_ms,
+                    "laya_model_version": decision.model_version,
                     "_order_candle_epoch": candle_epoch,
                 },
             )

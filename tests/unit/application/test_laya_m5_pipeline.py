@@ -35,6 +35,8 @@ def pipeline(monkeypatch):
         ws=SimpleNamespace(is_running=True),
         state=SimpleNamespace(balance=1000, active_contracts={}),
         laya=SimpleNamespace(decide=AsyncMock(return_value=decision)),
+        trade_handler=SimpleNamespace(fetch_proposal_snapshot=AsyncMock(return_value={"rate": 0.8})),
+        risk_manager=SimpleNamespace(pending_loss=0.0),
         executor=SimpleNamespace(execute_laya_order=AsyncMock(return_value=True)),
         logger=MagicMock(),
         is_trading=False,

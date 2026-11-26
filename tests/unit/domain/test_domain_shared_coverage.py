@@ -69,7 +69,14 @@ def test_risk_manager_open_settle_and_restore_branches():
     assert rm.peak_session_profit == 9.5
 
     exported = rm.get_state()
-    assert exported == {"initial_bankroll": 500.0, "total_session_profit": 9.5, "peak_session_profit": 9.5}
+    assert exported == {
+        "initial_bankroll": 500.0,
+        "total_session_profit": 9.5,
+        "peak_session_profit": 9.5,
+        "pending_loss": 0.0,
+        "recovery_losses": 0,
+        "settled_contract_ids": [101],
+    }
     rm.reset_session(600.0)
     assert rm.initial_bankroll == 600.0
     assert rm.total_session_profit == 0.0

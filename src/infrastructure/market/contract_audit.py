@@ -55,6 +55,8 @@ def open_audit_row(
         "buy_price": _number(payload, "buy_price"),
         "payout": _number(payload, "payout"),
         "settlement_source": "pending",
+        "model_version": payload.get("model_version"),
+        "signal_prob": _number(payload, "signal_prob"),
         "proposal_id": payload.get("proposal_id"),
         "contract_type": _contract_type(payload, direction),
         "barrier": _number(payload, "barrier"),

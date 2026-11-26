@@ -9,10 +9,8 @@
   "laya": {
     "model_id": "convaiinnovations/laya",
     "device": "auto",
-    "min_stake_pct": 0.01,
-    "max_stake_pct": 0.05,
-    "stake_min": 1.0,
-    "context_candles": 12
+    "context_candles": 12,
+    "approved_checkpoint": ""
   },
   "api_config": {
     "deriv_app_id": "",
@@ -104,7 +102,12 @@
     "watchdog_stale_tick_seconds": 300,
     "ws_reconnect_delay_seconds": 8,
     "execution": {
-      "proposal_retry_scales": [0.85, 0.7, 0.55, 0.4],
+      "proposal_retry_scales": [
+        0.85,
+        0.7,
+        0.55,
+        0.4
+      ],
       "settlement_max_stagnant_polls": 48,
       "settlement_poll_seconds": 0.5,
       "settlement_post_expiry_slack_seconds": 5.0,
@@ -123,7 +126,17 @@
       "contract_type": "CALL",
       "duration": 5,
       "duration_unit": "m",
-      "stake_min": 1.0
+      "stake_min": 1.0,
+      "min_stake_pct": 0.01,
+      "max_stake_pct": 0.05
+    },
+    "kelly": {
+      "fraction": 0.25
+    },
+    "recovery": {
+      "enabled": true,
+      "method": "payout_amortization",
+      "reference_commit": "460c4f41"
     }
   },
   "telemetry": {

@@ -1,4 +1,4 @@
-"""Gerenciador de risco e sessao para execucao continua com Laya (1% a 5%)."""
+"""Estado financeiro persistente para Kelly e recuperacao por payout."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from typing import Any
 
 
 class RiskManager:
-    """Rastreia banca da sessao, lucro realizado e contratos abertos sem vetos ou Kelly."""
+    """Rastreia banca, perdas pendentes e liquidacoes idempotentes da sessao."""
 
     def __init__(self, config: dict[str, Any] | None = None, *, logger: Any = None) -> None:
         self.config = config or {}
@@ -21,6 +21,9 @@ class RiskManager:
         self.cluster_results: dict[int, float] = {}
         self.expected_cluster_settlements: int = 0
         self.logger = logger
+        self.pending_loss = 0.0
+        self.recovery_losses = 0
+        self.settled_contract_ids: set[int] = set()
 
     def set_initial_bankroll(self, amount: float) -> None:
         """Define a banca inicial para rastreamento da sessao."""
@@ -31,6 +34,8 @@ class RiskManager:
         self.initial_bankroll = float(bankroll)
         self.total_session_profit = 0.0
         self.peak_session_profit = 0.0
+        self.pending_loss = 0.0
+        self.recovery_losses = 0
 
     def register_open_contract(self, contract_id: int, symbol: str, stake: float) -> None:
         """Registra contrato aberto e sua stake efetiva."""
@@ -50,6 +55,13 @@ class RiskManager:
         """Atualiza lucro de sessao e limpa contrato liquidado."""
         cid = int(contract_id)
         pnl = float(profit)
+        if cid in self.settled_contract_ids:
+            return 0.0
+        self.settled_contract_ids.add(cid)
+        self.pending_loss = max(0.0, self.pending_loss - pnl)
+        self.recovery_losses = self.recovery_losses + 1 if pnl < 0 else self.recovery_losses
+        if self.pending_loss == 0:
+            self.recovery_losses = 0
         if cid in self.active_contract_ids:
             self.active_contract_ids.remove(cid)
         self.contract_to_symbol.pop(cid, None)
@@ -69,6 +81,9 @@ class RiskManager:
             "initial_bankroll": self.initial_bankroll,
             "total_session_profit": self.total_session_profit,
             "peak_session_profit": self.peak_session_profit,
+            "pending_loss": self.pending_loss,
+            "recovery_losses": self.recovery_losses,
+            "settled_contract_ids": sorted(self.settled_contract_ids),
         }
 
     def restore_state(self, payload: dict[str, Any] | None) -> None:
@@ -78,3 +93,6 @@ class RiskManager:
         self.initial_bankroll = float(payload.get("initial_bankroll", self.initial_bankroll) or 0.0)
         self.total_session_profit = float(payload.get("total_session_profit", 0.0) or 0.0)
         self.peak_session_profit = float(payload.get("peak_session_profit", self.total_session_profit) or 0.0)
+        self.pending_loss = max(0.0, float(payload.get("pending_loss", 0.0)))
+        self.recovery_losses = max(0, int(payload.get("recovery_losses", 0)))
+        self.settled_contract_ids = {int(cid) for cid in payload.get("settled_contract_ids", [])}

@@ -19,6 +19,7 @@ class LayaDecision:
     confidence: float
     latency_ms: float
     indicators: dict[str, float]
+    model_version: str = "convaiinnovations/laya"
 
     def __post_init__(self) -> None:
         """Valida que a direcao e estritamente binaria (CALL ou PUT)."""

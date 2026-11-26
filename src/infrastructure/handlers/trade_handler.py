@@ -72,6 +72,8 @@ class TradeHandler:
     ) -> Contract:
         """Compra um contrato via proposal/buy (WS) ou bulk-purchase (REST)."""
         if str(self.trading_transport).lower() == "rest":
+            if params and "_laya_sizing" in params:
+                raise RuntimeError("LAYA_SIZING exige proposta final WSS verificavel")
             exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
             if bool(exec_cfg.get("require_quote_edge", False)) or (
                 isinstance(params, dict) and "_quote_guard_side_probability" in params
@@ -92,6 +94,9 @@ class TradeHandler:
         prop_id, ask_price, payout_val, proposal = await resolve_order_proposal(
             self, symbol, direction, stake, p_cfg, proposal_req, timeout
         )
+        if "_laya_sizing" in p_cfg:
+            stake = ask_price
+            proposal_req = dict(proposal_req, amount=stake)
         if not math.isfinite(ask_price) or ask_price <= 0:
             raise RuntimeError("Cotacao final Rise/Fall sem preco valido; compra bloqueada")
         rate: float | None = None
@@ -144,7 +149,12 @@ class TradeHandler:
         b = buy_resp.get("buy")
         if not isinstance(b, dict):
             raise RuntimeError("Erro na compra direta: resposta sem contrato")
-        await self._record_purchase_audit(b, symbol, direction, request_epoch_ms, ack_epoch_ms)
+        audit_payload = dict(b)
+        if "_laya_sizing" in p_cfg:
+            audit_payload.update(
+                model_version=p_cfg.get("_indicator_model_version"), signal_prob=p_cfg["_laya_sizing"]["probability"]
+            )
+        await self._record_purchase_audit(audit_payload, symbol, direction, request_epoch_ms, ack_epoch_ms)
         expiry = int(proposal.get("date_expiry") or b.get("date_expiry") or 0)
         if expiry <= 0:
             expiry = int(time.time()) + _contract_duration_seconds(proposal_req)

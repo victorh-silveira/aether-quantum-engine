@@ -39,15 +39,21 @@ async def place_order(
     logger = logging.getLogger("AETH")
     cid = f"C{int(getattr(executor.orch, '_active_cycle_id', 1)):04d}"
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
-    laya_cfg = executor.orch.config.get("laya") if isinstance(executor.orch.config.get("laya"), dict) else {}
-    stake_min = float(laya_cfg.get("stake_min", 1.0))
-    _ = metrics
+    risk_cfg = executor.orch.config.get("risk_management", {})
+    stake_min = float(risk_cfg.get("params", {}).get("stake_min", 1.0))
     params: dict[str, Any] = {
         "contract_type": "CALL",
         "duration": int(duration),
         "duration_unit": "m",
         "stake_min": stake_min,
     }
+    if metrics and "laya_probability" in metrics:
+        params["_laya_sizing"] = {
+            "probability": metrics["laya_probability"],
+            "pending": executor.orch.risk_manager.pending_loss,
+            "config": risk_cfg,
+        }
+        params["_indicator_model_version"] = metrics.get("laya_model_version", "convaiinnovations/laya")
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
     if not attempts:
         return None

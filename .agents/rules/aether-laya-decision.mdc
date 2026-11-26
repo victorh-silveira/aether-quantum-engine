@@ -10,5 +10,5 @@ alwaysApply: true
 - **Ativo e Timeframe:** `R_10` em velas M5 fechadas (`300s`), contrato Rise/Fall de 5 minutos (`duration=5`, `duration_unit="m"`).
 - **Entrada para o Laya:** enviar velas OHLC fechadas, pacote completo de `compute_indicators` e configuracoes sanitizadas de `config/settings.json`.
 - **Contexto sem Truncamento:** calcular `max_len` com tokenizer real, incluindo pergunta e opcoes, dentro da capacidade do encoder. Rejeitar resposta truncada e registrar `LAYA_CONTEXT` com epoch, assinatura e zero tokens descartados. Probabilidades e confianca nao representam acerto financeiro validado.
-- **Stake Dinamica:** escalada linearmente em `[1%, 5%]` via `calculate_laya_stake` pela probabilidade do Laya, sem recuperacao 1/1, Martingale, Kelly ou D'Alembert.
+- **Stake Kelly e Recuperacao:** fracao 0,25, probabilidade sem inflacao, payout real, piso continuo de 1% e teto de 5%. Amortizar a divida por payout, sem Martingale 2x. Checkpoint local exige aprovacao temporal conforme `docs/laya-training.md`.
 - **Logs Obrigatorios:** `make app-run` deve registrar `INDICATORS | ...` e `LAYA_DECISION | ...` a cada ciclo M5.

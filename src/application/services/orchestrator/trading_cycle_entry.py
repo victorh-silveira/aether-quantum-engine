@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from src.application.services.orchestrator.cycle_indicators_logger import log_laya_cycle_decision
+from src.application.services.orchestrator.laya_sizing import quote_laya_sizing
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
@@ -15,7 +16,6 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
     trading_cycle_entry_allowed,
 )
 from src.domain.indicators.technical_indicators import compute_indicators
-from src.domain.risk.laya_stake import calculate_laya_stake
 from src.infrastructure.telemetry.otel_tracer import flush_otlp_spans_async, trace_span
 from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
@@ -45,17 +45,12 @@ def _closed_m5_candles(orch: Any, symbol: str) -> list[Any]:
 async def _execute_laya_cycle(orch: Any, candles: list[Any]) -> bool:
     """Calcula indicadores, consulta Laya, registra logs e envia ordem continua."""
     symbol = str(getattr(orch, "anchor", "R_10") or "R_10")
+    candles = candles[-120:]
     snapshot = compute_indicators(candles)
     decision = await orch.laya.decide(symbol, candles, snapshot.to_dict(), orch.config)
-    laya_cfg = orch.config.get("laya") if isinstance(orch.config.get("laya"), dict) else {}
     balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
-    stake, stake_pct = calculate_laya_stake(
-        balance,
-        decision.probability,
-        stake_min=float(laya_cfg.get("stake_min", 1.0)),
-        min_stake_pct=float(laya_cfg.get("min_stake_pct", 0.01)),
-        max_stake_pct=float(laya_cfg.get("max_stake_pct", 0.05)),
-    )
+    sizing = await quote_laya_sizing(orch, decision)
+    stake, stake_pct = sizing.stake, sizing.stake / balance
     log_laya_cycle_decision(orch, snapshot, decision, stake, stake_pct, balance)
     if stake <= 0.0 or session_persistence_blocks_trading_cycle(orch):
         return False

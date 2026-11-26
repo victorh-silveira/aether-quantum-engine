@@ -30,9 +30,13 @@ A verificacao offline pode ser reproduzida com `python -m tools.laya_inference_p
 
 ## 3. Dimensionamento de Stake (`1%` a `5%`)
 
-Implementado em `src/domain/risk/laya_stake.py`:
+Implementado em `src/domain/risk/kelly_recovery.py`, adaptando formulas da main `460c4f41`:
 
-- Para `probability <= 0.50`: stake minima de **1%** da banca.
-- Para `0.50 < probability < 1.00`: escala linear entre **1% e 5%** da banca.
-- Para `probability == 1.00`: teto absoluto de **5%** da banca.
-- Zero recuperacao 1/1, zero Martingale, zero Kelly exponencial e zero D'Alembert.
+- Kelly bruto `f=(b*p-(1-p))/b`; aplicar fracao 0,25 somente a parte positiva. `b` e o lucro liquido da proposta dividido pelo preco.
+- Piso de 1% e minimo $1,00 mesmo quando Kelly nao recomenda aposta, por decisao do operador; registrar origem `FLOOR`, `KELLY` ou `RECOVERY`.
+- A perda pendente aumenta pelo loss realizado e diminui pelo lucro liquido dos wins. Win parcial nao zera divida.
+- Etapas `ceil(pending/(payout*cap))`; parcela `pending/etapas`. Stake final e o maior valor entre Kelly com piso e parcela/payout, limitada a 5% e arredondada sem ultrapassar o teto.
+- Revalidar saldo, preco, payout e dimensionamento na proposta usada para compra WSS. REST sem proposta final verificavel nao executa esse fluxo.
+- Persistir estado financeiro e IDs liquidados; nenhuma liquidacao duplicada reaplica a divida.
+
+O modelo atual permanece ativo ate existir checkpoint local aprovado. O fluxo GPU e os criterios de promocao estao em [laya-training.md](laya-training.md). Nao ha promessa de rentabilidade ou eliminacao de losses.

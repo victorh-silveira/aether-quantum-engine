@@ -56,6 +56,7 @@ def settlement_seen(orch: Any) -> set[int]:
     if not isinstance(seen, set):
         seen = set()
         orch._settled_contract_ids = seen
+    seen.update(getattr(getattr(orch, "risk_manager", None), "settled_contract_ids", set()))
     return seen
 
 

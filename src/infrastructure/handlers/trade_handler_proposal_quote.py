@@ -62,7 +62,12 @@ async def resolve_order_proposal(
     timeout: int,
 ) -> tuple[str, float, float | None, dict]:
     """Envia proposal na Deriv e retorna (proposal_id, ask_price, payout, proposal)."""
-    _ = p_cfg
+    if "_laya_sizing" in p_cfg:
+        from src.infrastructure.handlers.laya_quote_sizing import resize_laya_proposal  # noqa: PLC0415
+
+        return await resize_laya_proposal(
+            handler, symbol, direction, stake, p_cfg, proposal_req, timeout, resolve_order_proposal
+        )
     t0 = time.monotonic()
     prop_resp = await handler.ws.send(proposal_req, timeout=timeout)
     if "error" in prop_resp:

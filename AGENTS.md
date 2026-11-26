@@ -35,16 +35,18 @@ Ponto de entrada unico e soberano para agentes autonomos de IA e desenvolvedores
 - **Integridade de Inferencia:** Usar exclusivamente o buffer M5 fechado, com pelo menos 51 barras e identidade preservada durante a inferencia. Dimensionar o contexto pelo tokenizer real e rejeitar truncamento; `LAYA_CONTEXT` registra epoch, assinatura e consumo de tokens. Nao alterar probabilidades artificialmente nem interpretar confianca como taxa de acerto financeiro validada.
 - **Formatacao Numerica:** Exibir valores de indicadores, probabilidades, confianca, latencia, duracoes e dinheiro com duas casas decimais nos logs Python. Preservar precisao dos calculos, dados de inferencia, metricas Prometheus, identificadores, epochs e contagens tecnicas.
 
-### Gestao de Capital e Dimensionamento (`laya_stake`):
-- **Stake Dinamica Calibrada `[1%, 5%]`:** Escalada linearmente pela probabilidade de acerto do Laya (`0.50 -> 1%`, `1.00 -> 5%`), respeitando piso `stake_min` ($1.00) e **teto absoluto inviolavel de 5% da banca**.
-- **Sem Recuperacao / Sem Multiplicadores:** Amortizacao 1/1, Martingale, Kelly exponencial e D'Alembert estao removidos.
+### Gestao de Capital e Dimensionamento (`kelly_recovery`):
+- **Kelly Fracionado:** `f=(b*p-(1-p))/b`, multiplicador 0,25 e payout liquido cotado. Nao elevar probabilidades para fabricar edge.
+- **Piso Continuo:** Manter 1% da banca e minimo $1,00 mesmo com Kelly nulo ou negativo, por mandato do operador. Registrar `FLOOR` explicitamente.
+- **Recuperacao por Payout:** Adaptacao da main `460c4f41`, com divida reduzida apenas pelo lucro realizado, amortizacao em etapas e teto absoluto de 5% por ordem. Nao aplicar Martingale 2x ou progressao geometrica.
+- **Treinamento GPU:** Preparar 90 dias R_10 M5, dividir temporalmente 60/10/10/20 e calibrar fora do treino. Promover apenas candidato aprovado no teste final; treinamento exige CUDA. Referencia: `docs/laya-training.md`.
 
 ---
 
 ## 4. Proibicoes Globais e Hard Gates
 
 1. Introduzir `SKIP`, filtros ou vetos que bloqueiem a decisao continua `CALL`/`PUT` do Laya.
-2. Ultrapassar o teto de **5% da banca** por ordem ou reintroduzir Martingale/D'Alembert/Kelly.
+2. Ultrapassar o teto de **5% da banca** por ordem, fabricar edge para Kelly ou introduzir Martingale/D'Alembert geometrico.
 3. Criar ou manter arquivos em `src/**/*.py` acima de **300 linhas**.
 4. Reduzir a cobertura de testes unitarios em `src` abaixo de **100%**.
 5. Utilizar pandas ou inserir emojis em codigo, logs, docs ou commits.

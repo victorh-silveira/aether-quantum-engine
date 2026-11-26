@@ -7,7 +7,7 @@ O motor segue **DDD (Domain-Driven Design)** e **Arquitetura Hexagonal (Ports & 
 - **Domain (`src/domain/`)**: 100% puro, sem imports de infraestrutura ou ML (`laya`, `torch`, `redis`, `asyncpg`).
   - `indicators/`: calculo causal de todos os indicadores tecnicos (`compute_indicators`, `IndicatorSnapshot`).
   - `models/`: `Candle`, `TradeDirection`, `Contract`, `LayaDecision` (estritamente `CALL` ou `PUT`).
-  - `risk/`: `RiskManager` e `calculate_laya_stake` (dimensionamento dinamico linear `[1%, 5%]` com teto absoluto de 5%, sem Martingale/D'Alembert/Kelly).
+  - `risk/`: `RiskManager`, `StakeSizing` e `size_kelly_recovery` (Kelly fracionado com piso de 1%, recuperacao por payout e teto absoluto de 5%; estado de liquidacao persistente e idempotente).
 - **Application (`src/application/`)**:
   - `ports/outbound.py`: contratos `MarketCandlePort`, `SettlementQueuePort`, `LayaDecisionPort`.
   - `services/orchestrator/`: ciclo M5 continuo no `R_10`, warmup de velas fechadas, log obrigatorio `INDICATORS | ...` e `LAYA_DECISION | ...`, envio de ordens Rise/Fall 5m (`duration=5`, `duration_unit="m"`) e reconciliacao de liquidacao.

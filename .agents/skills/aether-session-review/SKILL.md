@@ -13,7 +13,7 @@ description: Revisao de sessoes de trading, auditoria de logs, dimensionamento d
    - Inspecione os logs da sessao procurando por anomalias de conexao, rejeicoes de proposta ou vetos estruturais de exaustao.
 2. **Auditoria de Sizing e Payout:**
    - Verifique se cada ordem respeitou estritamente a stake base de 1% e o teto de 5% na recuperacao.
-   - Confirme se todas as ordens em REAL possuíam EV positivo comprovado no momento da cotacao.
+   - Conferir logs KELLY/RECOVERY: payout e saldo reais, piso de 1% explicito quando Kelly negativo e divida abatida somente pelo lucro realizado.
 3. **Balanço da Sessão:**
    - Compare os resultados obtidos na `profit_table` da corretora com o estado local e as gravacoes no TimescaleDB.
 

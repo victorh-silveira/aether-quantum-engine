@@ -22,7 +22,8 @@ A superficie do motor inclui o contrato de exibicao com duas casas decimais nos 
 | asyncpg / Timescale | [infra-docker.md](infra-docker.md) + [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-asyncpg-timescale` |
 | Redis hiredis / settlement ZSET | [engineering-settlement.md](engineering-settlement.md) + [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-settlement.mdc` | `aether-redis-hiredis` |
 | Doutrina / sessao continua | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
-| Gestao de capital dinamica [1%, 5%] | [strategy-laya.md](strategy-laya.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Kelly fracionado e recuperacao por payout [1%, 5%] | [strategy-laya.md](strategy-laya.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
+| Treinamento GPU e promocao temporal Laya | [laya-training.md](laya-training.md) | `aether-laya-decision.mdc` | `aether-laya-engine` |
 | Orchestrator / ciclo M5 | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
 | Integridade M5 e contexto Laya sem truncamento | [engineering-orchestrator.md](engineering-orchestrator.md) + [strategy-laya.md](strategy-laya.md) | `aether-orchestrator.mdc` + `aether-laya-decision.mdc` | `aether-cycle-debug` + `aether-laya-engine` |
 | Settlement / Redis fila | [engineering-settlement.md](engineering-settlement.md) | `aether-settlement.mdc` | `aether-settlement-debug` |

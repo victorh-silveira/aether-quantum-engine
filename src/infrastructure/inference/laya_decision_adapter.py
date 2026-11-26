@@ -13,6 +13,7 @@ from typing import Any
 from src.domain.models.laya_decision import LayaDecision
 from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection
+from src.infrastructure.inference.laya_checkpoint import resolve_approved_checkpoint
 from src.infrastructure.inference.laya_context import encode_laya_context, validate_laya_usage
 
 
@@ -77,6 +78,17 @@ def _format_candles_summary(candles: list[Candle], limit: int = 12) -> list[dict
     ]
 
 
+def build_laya_state(symbol: str, candles: list[Candle], indicators: dict, settings: dict, limit: int = 12) -> dict:
+    """Monta a entrada causal comum ao dataset e ao motor de execucao."""
+    return {
+        "symbol": symbol,
+        "timeframe_seconds": 300,
+        "indicators": {k: round(float(v), 6) for k, v in indicators.items()},
+        "recent_candles": _format_candles_summary(candles, limit),
+        "settings": sanitize_settings_context(settings),
+    }
+
+
 def _extract_choice_probs(
     raw: dict[str, Any], indicators: dict[str, float]
 ) -> tuple[TradeDirection, float, float, float]:
@@ -121,11 +133,14 @@ class LayaDecisionAdapter:
         device: str = "auto",
         context_candles: int = 12,
         agent: Any | None = None,
+        approved_checkpoint: str = "",
     ) -> None:
         self.model_id = model_id
         self.device = device
         self.context_candles = max(1, int(context_candles))
         self._agent = agent
+        self.approved_checkpoint = approved_checkpoint
+        self.model_version = model_id
 
     def _ensure_agent(self) -> Any:
         """Carrega o modelo Laya pre-treinado sob demanda com suporte a CUDA."""
@@ -142,7 +157,8 @@ class LayaDecisionAdapter:
         import torch  # noqa: PLC0415
 
         resolved_device = ("cuda" if torch.cuda.is_available() else "cpu") if self.device == "auto" else self.device
-        self._agent = laya.load(self.model_id, device=resolved_device, vegaml=False)
+        checkpoint, self.model_version = resolve_approved_checkpoint(self.model_id, self.approved_checkpoint)
+        self._agent = laya.load(checkpoint, device=resolved_device, vegaml=False)
         return self._agent
 
     def _predict_sync(
@@ -154,13 +170,7 @@ class LayaDecisionAdapter:
     ) -> LayaDecision:
         """Executa inferencia sincrona em um unico forward pass System 1."""
         agent = self._ensure_agent()
-        state = {
-            "symbol": symbol,
-            "timeframe_seconds": 300,
-            "indicators": {k: round(float(v), 6) for k, v in indicators.items()},
-            "recent_candles": _format_candles_summary(candles, self.context_candles),
-            "settings": sanitize_settings_context(settings_context),
-        }
+        state = build_laya_state(symbol, candles, indicators, settings_context, self.context_candles)
         context, max_len, signature = encode_laya_context(agent, state, _LAYA_QUESTIONS)
         t0 = time.perf_counter()
         raw = agent.system_one(context, _LAYA_QUESTIONS, max_len=max_len)
@@ -187,6 +197,7 @@ class LayaDecisionAdapter:
             confidence=conf,
             latency_ms=latency_ms,
             indicators=dict(indicators),
+            model_version=self.model_version,
         )
 
     async def decide(
