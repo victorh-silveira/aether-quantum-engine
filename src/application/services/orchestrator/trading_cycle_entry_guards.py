@@ -1,4 +1,4 @@
-"""Guardas de pre-condicao para entrada em ciclo de trade."""
+"""Guardas de sincronia e cadencia M5 para operacao continua sem vetos ou skips."""
 
 from __future__ import annotations
 
@@ -6,284 +6,57 @@ import time
 from typing import Any
 
 from src.application.services.orchestrator.api_maintenance_guard import api_maintenance_blocks_trading_cycle
-from src.application.services.orchestrator.engine_mode import ENGINE_MODE_TRAIN, resolve_engine_mode
 from src.application.services.orchestrator.orchestrator_data_signature import (
-    at_m5_open_window,
+    get_data_state_signature,
     m5_boundary_epoch,
     resolve_signature_boundary_seconds,
-    seconds_until_next_signature_boundary,
 )
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
-from src.domain.risk.stop_win_target import resolve_stop_win_target
-from src.presentation.terminal.log_context import clear_log_context, get_log_context, restore_log_context
-
-
-def _orchestrator_cfg(orch: Any) -> dict:
-    """Retorna o bloco orchestrator da configuracao do motor."""
-    chunk = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
-    return chunk if isinstance(chunk, dict) else {}
-
-
-def _cycle_cadence_seconds(orch: Any) -> int:
-    """Intervalo alvo entre ciclos de decisao em segundos."""
-    base = int(_orchestrator_cfg(orch).get("cycle_interval_seconds") or 0)
-    if base <= 0:
-        return 0
-    if not bool(getattr(orch, "_last_cycle_was_exec_empty", False)):
-        return base
-    raw = _orchestrator_cfg(orch).get("exec_empty_retry_seconds", 45)
-    try:
-        empty_retry = int(raw)
-    except (TypeError, ValueError):
-        empty_retry = 45
-    return max(15, min(base, empty_retry))
 
 
 def cycle_cadence_seconds(orch: Any) -> int:
-    """Intervalo alvo entre ciclos de decisao em segundos (API publica)."""
-    return _cycle_cadence_seconds(orch)
-
-
-def _cycle_cadence_elapsed(orch: Any) -> bool:
-    """True quando o tempo desde o ultimo ciclo atingiu o intervalo configurado."""
-    cadence = _cycle_cadence_seconds(orch)
-    if cadence <= 0:
-        return False
-    last_end = float(getattr(orch, "_last_cluster_cycle_end", 0.0))
-    if last_end <= 0.0:
-        return True
-    return (time.time() - last_end) >= cadence
+    """Retorna granularidade do ciclo M5 (300s) a partir da configuracao."""
+    return int(resolve_signature_boundary_seconds(orch))
 
 
 def mark_cycle_attempt_complete(orch: Any) -> None:
-    """Atualiza relogio de cadencia apos qualquer tentativa de ciclo concluida."""
+    """Atualiza timestamp da ultima tentativa de ciclo concluida."""
     orch._last_cluster_cycle_end = time.time()
 
 
-def _log_market_signature_invalidation(orch: Any, *, previous: str, current: str) -> None:
-    """Registra invalidacao deduplicada do cache tecnico por divergencia M5."""
-    if not current or current == previous:
-        return
-    logged_key = str(getattr(orch, "_signature_invalidation_logged_key", "") or "")
-    if logged_key == current:
-        return
-    orch._signature_invalidation_logged_key = current
-    orch.logger.debug(
-        "DATA_SIG: cache invalidado por divergencia M5 | anterior=%s | atual=%s | inferencia reinicializada",
-        previous or "-",
-        current,
-    )
-
-
-def _stop_win_blocks_cycle(orch: Any) -> bool:
-    """True quando a meta diaria de lucro ou perda ja foi atingida."""
-    if getattr(orch, "shutdown_reason", None) == "stop_win":
-        return True
-    risk_manager = getattr(orch, "risk_manager", None)
-    if risk_manager is None:
-        return False
-    config = getattr(orch, "config", {}) or {}
-    risk_cfg = config.get("risk_management", {}) if isinstance(config, dict) else {}
-    persisted_target = None
-    if hasattr(orch, "state_mgr") and orch.state_mgr is not None:
-        persisted_target = float(orch.state_mgr.state.daily_stop_win_target)
-    target = resolve_stop_win_target(
-        risk_cfg,
-        float(risk_manager.initial_bankroll),
-        persisted_target=persisted_target if persisted_target > 0.0 else None,
-    )
-    pnl = float(risk_manager.total_session_profit)
-
-    if hasattr(orch, "state_mgr") and orch.state_mgr is not None and type(orch.state_mgr).__name__ == "StateManager":
-        if orch.state_mgr.state.initial_balance <= 0.0:
-            orch.state_mgr.state.initial_balance = float(risk_manager.initial_bankroll)
-        if orch.state_mgr.state.daily_stop_win_target <= 0.0:
-            orch.state_mgr.state.daily_stop_win_target = float(target)
-        if orch.state_mgr.state.total_trades_today <= 0 and pnl > 0.0:
-            orch.state_mgr.state.total_trades_today = 1
-
-        orch.state_mgr.state.current_balance = orch.state_mgr.state.initial_balance + pnl
-        orch.state_mgr.check_session_limits()
-        return orch.state_mgr.state.stop_win_triggered
-
-    if target <= 0.0:
-        return False
-    return pnl >= target
-
-
-def _orchestrator_preconditions_block(orch: Any) -> bool:
-    """True quando reconciliacao, manutencao ou persistencia bloqueiam o ciclo."""
-    return (
-        getattr(orch, "_reconciliation_pending", False)
-        or api_maintenance_blocks_trading_cycle(orch)
-        or session_persistence_blocks_trading_cycle(orch)
-    )
-
-
-def _engine_runtime_blocks_cycle(orch: Any) -> bool:
-    """True quando modo treino, shutdown, stop-win ou slot ativo impedem nova entrada."""
-    return (
-        resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN
-        or (not getattr(orch, "running", True) and getattr(orch, "shutdown_reason", None))
-        or _stop_win_blocks_cycle(orch)
-        or orch.is_trading
-    )
-
-
-def _active_contracts_block_cycle(orch: Any) -> bool:
-    """True enquanto houver contratos abertos aguardando liquidacao."""
-    if not orch.state.active_contracts:
-        orch._settlement_wait_logged = False
-        return False
-    if not orch._settlement_wait_logged:
-        orch._settlement_wait_logged = True
-    return True
-
-
-def _macro_cadence_blocks_cycle(orch: Any) -> bool:
-    """True quando o intervalo macro entre ciclos ainda nao foi atingido."""
-    return not _cycle_cadence_elapsed(orch)
-
-
-def _signature_epoch_blocks_cycle(orch: Any) -> bool:
-    """True quando assinatura M5 e epoch de ancora nao mudaram desde o ultimo ciclo."""
-    sig = None
-    signature_changed = False
-    if hasattr(orch, "get_data_state_signature") and hasattr(orch, "last_data_signature"):
-        sig = orch.get_data_state_signature()
-        signature_changed = bool(sig and sig != orch.last_data_signature)
-        if sig and not signature_changed:
-            return True
-        if signature_changed:
-            _log_market_signature_invalidation(orch, previous=orch.last_data_signature, current=sig)
-    last_epoch = getattr(orch, "_last_epoch", 0)
-    last_processed = getattr(orch, "_last_processed_epoch", 0)
-    return (
-        not signature_changed
-        and isinstance(last_epoch, (int, float))
-        and isinstance(last_processed, (int, float))
-        and last_epoch > 0
-        and last_processed == last_epoch
-    )
+def mark_boundary_cycle_evaluated(orch: Any) -> None:
+    """Registra epoch de fronteira M5 avaliado para evitar reentrada na mesma vela."""
+    orch._last_evaluated_boundary_epoch = m5_boundary_epoch(time.time())
 
 
 def commit_trading_cycle_data_signature(orch: Any) -> None:
-    """Persiste assinatura M5 apenas apos cluster executado com sucesso."""
-    if not hasattr(orch, "get_data_state_signature") or not hasattr(orch, "last_data_signature"):
-        return
-    sig = orch.get_data_state_signature()
+    """Grava assinatura M5 corrente apos conclusao do ciclo."""
+    sig = get_data_state_signature(orch)
     if sig:
         orch.last_data_signature = sig
 
 
-def _non_fast_cycle_blocks(orch: Any) -> bool:
-    """True quando cadencia macro ou assinatura M5 impedem disparo fora do modo rapido DL."""
-    if getattr(orch, "_dl_fast_cycle", False):
-        return False
-    cadence = _cycle_cadence_seconds(orch)
-    if cadence > 0:
-        return _macro_cadence_blocks_cycle(orch)
-    return _signature_epoch_blocks_cycle(orch)
-
-
-def _require_signature_boundary(orch: Any) -> bool:
-    """True quando o ciclo so pode iniciar na abertura M5 (SSOT)."""
-    raw = _orchestrator_cfg(orch).get("require_signature_boundary", True)
-    return bool(raw)
-
-
-def _signature_open_tolerance_seconds(orch: Any) -> float:
-    """Janela pos-abertura M5 em que o ciclo ainda e elegivel."""
-    if orch.config.get("pullback_strategy", {}).get("enabled", False):
-        raw_pb = orch.config.get("pullback_strategy", {}).get("entry_window_seconds", 30.0)
-        try:
-            return max(1.0, float(raw_pb))
-        except (TypeError, ValueError):
-            return 30.0
-    raw = _orchestrator_cfg(orch).get("signature_boundary_open_tolerance_seconds", 20.0)
-    try:
-        return max(1.0, float(raw))
-    except (TypeError, ValueError):
-        return 20.0
-
-
-def _log_awaiting_m5_open(orch: Any, wait: float) -> None:
-    """Log deduplicado de espera pela abertura da vela com isolamento de contexto."""
-    logger = getattr(orch, "logger", None)
-    if logger is None:
-        return
-    now_ts = time.time()
-    boundary = resolve_signature_boundary_seconds(orch)
-    target_boundary = int(now_ts // boundary + 1) * boundary
-    key = f"cycle_open:{target_boundary}"
-    if str(getattr(orch, "_m5_open_wait_logged_key", "") or "") == key:
-        return
-    orch._m5_open_wait_logged_key = key
-    prev_cid, prev_sym = get_log_context()
-    clear_log_context()
-    tf_name = f"M{boundary // 60}" if boundary % 60 == 0 else f"{boundary}s"
-    try:
-        logger.info("CICLO: aguardando %s | restante=%.0fs", tf_name, wait)
-    finally:
-        restore_log_context(prev_cid, prev_sym)
-
-
-def mark_boundary_cycle_evaluated(orch: Any) -> None:
-    """Registra a fronteira temporal atual como avaliada para evitar reentrada no cooldown."""
-    if not orch.config.get("pullback_strategy", {}).get("enabled", False):
-        return
-    orch._last_m5_cycle_boundary = m5_boundary_epoch(orch)
-
-
 def check_and_clear_boundary_cooldown(orch: Any) -> bool:
-    """Limpa cooldown remanescente se uma nova fronteira temporal tiver iniciado na janela de abertura."""
-    if not orch.config.get("pullback_strategy", {}).get("enabled", False):
-        return False
-    tol = _signature_open_tolerance_seconds(orch)
-    cur_b = m5_boundary_epoch(orch)
-    last_b = float(getattr(orch, "_last_m5_cycle_boundary", 0.0) or 0.0)
-    if cur_b > last_b and at_m5_open_window(orch, tolerance=tol):
+    """Limpa cooldown residual caso exista."""
+    cooldown = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
+    if cooldown > 0.0 and time.time() >= cooldown:
         orch._cooldown_until = 0.0
         return True
     return False
 
 
-def _signature_open_blocks_cycle(orch: Any) -> bool:
-    """True fora da janela de abertura da vela; agenda cooldown ate o proximo multiplo."""
-    if not _require_signature_boundary(orch):
-        return False
-    tol = _signature_open_tolerance_seconds(orch)
-    if at_m5_open_window(orch, tolerance=tol):
-        if orch.config.get("pullback_strategy", {}).get("enabled", False):
-            cur_b = m5_boundary_epoch(orch)
-            if getattr(orch, "_last_m5_cycle_boundary", None) == cur_b:
-                wait = max(0.5, float(seconds_until_next_signature_boundary(orch)))
-                _log_awaiting_m5_open(orch, wait)
-                deadline = time.time() + wait
-                prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
-                orch._cooldown_until = max(prev, deadline)
-                return True
-        return False
-    wait = float(seconds_until_next_signature_boundary(orch))
-    wait = max(0.5, wait)
-    _log_awaiting_m5_open(orch, wait)
-    deadline = time.time() + wait
-    prev = float(getattr(orch, "_cooldown_until", 0.0) or 0.0)
-    orch._cooldown_until = max(prev, deadline)
-    return True
-
-
 def trading_cycle_entry_allowed(orch: Any) -> bool:
-    """False quando o motor nao pode iniciar um novo ciclo de decisao."""
-    cooldown = float(getattr(orch, "_cooldown_until", 0.0))
-    if cooldown > 0.0 and time.time() < cooldown and not check_and_clear_boundary_cooldown(orch):
+    """Libera entrada continua quando ha nova vela M5 fechada e nenhum contrato ativo."""
+    if not getattr(orch, "running", True) or getattr(orch, "is_trading", False):
         return False
-    if _orchestrator_preconditions_block(orch):
+    if getattr(orch, "_reconciliation_pending", False):
         return False
-    if _engine_runtime_blocks_cycle(orch):
+    if api_maintenance_blocks_trading_cycle(orch) or session_persistence_blocks_trading_cycle(orch):
         return False
-    if _active_contracts_block_cycle(orch):
+    if getattr(orch.state, "active_contracts", None):
         return False
-    if _signature_open_blocks_cycle(orch):
+    boundary = m5_boundary_epoch(time.time())
+    if int(getattr(orch, "_last_evaluated_boundary_epoch", 0) or 0) == boundary:
         return False
-    return not _non_fast_cycle_blocks(orch)
+    sig = get_data_state_signature(orch)
+    return not (sig and sig == getattr(orch, "last_data_signature", ""))

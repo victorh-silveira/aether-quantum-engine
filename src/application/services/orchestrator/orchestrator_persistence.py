@@ -6,14 +6,11 @@ import logging
 from typing import Any
 
 from src.application.services.orchestrator.orchestrator_atomic_state import orchestrator_atomic_state_context
+from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
 from src.application.services.orchestrator.orchestrator_state_restore import (
     persist_session_hash,
     session_hash_payload,
     sync_market_signature,
-)
-from src.application.services.orchestrator.session_target_bootstrap import (
-    current_dlambert_redis_payload,
-    current_session_redis_payload,
 )
 
 
@@ -29,22 +26,16 @@ async def persist_full_state_unlocked(orch: Any) -> None:
             "risk": orch.risk_manager.get_state(),
         }
     )
-    sig = orch.get_data_state_signature()
+    sig = get_data_state_signature(orch)
     session = session_hash_payload(orch)
-    start_bal, target_win = current_session_redis_payload(orch)
-    dlambert_unit, linear_losses = current_dlambert_redis_payload(orch)
+    start_bal = float(getattr(orch.risk_manager, "initial_bankroll", 0.0) or 0.0)
     save_bundle = getattr(orch.state_store, "save_state_bundle", None)
-    skip_counter = int(getattr(orch, "_recovery_skip_counter", 0))
     if callable(save_bundle):
         await save_bundle(
             snapshot=s,
             session=session,
             market_sig=sig or None,
-            recovery_skip_counter=skip_counter,
             session_start_balance=start_bal,
-            session_target_win=target_win,
-            dlambert_unit=dlambert_unit,
-            consecutive_losses_linear=linear_losses,
         )
     else:
         await orch.state_store.save_snapshot(s)

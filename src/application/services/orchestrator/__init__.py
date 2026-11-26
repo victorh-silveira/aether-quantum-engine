@@ -1,4 +1,6 @@
-"""Orquestrador principal: conexao Deriv, streams de velas e ciclos de trade."""
+"""Orquestrador principal: conexao Deriv, stream M5 no R_10 e decisao continua Laya."""
+
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -6,13 +8,9 @@ import time
 from typing import Any
 
 from src.application.services.auth_manager import AuthManager
-from src.application.services.deep_learning.dl_retrain import tick_bars_since_train
-from src.application.services.direction_loss_tracker import DirectionLossTracker, get_direction_loss_tracker
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
-from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.execution_manager import ExecutionManager
 from src.application.services.orchestrator.graceful_shutdown import close_infrastructure_connections
-from src.application.services.orchestrator.orchestrator_data_signature import get_data_state_signature
 from src.application.services.orchestrator.orchestrator_persistence import persist_full_state_unlocked, save_full_state
 from src.application.services.orchestrator.orchestrator_run_loop import (
     run_orchestrator_main_loop,
@@ -31,14 +29,13 @@ from src.application.services.orchestrator.session_pair_tracker import SessionPa
 from src.application.services.orchestrator.settlement_backfill import reconcile_single_contract
 from src.application.services.orchestrator.trading_cycle_entry import run_trading_cycle_if_ready
 from src.application.services.orchestrator.trading_cycle_entry_guards import trading_cycle_entry_allowed
-from src.application.services.orchestrator.training_run import run_orchestrator_training
 from src.application.services.quant_metrics_collector import QuantMetricsCollector
-from src.application.services.strategy.decision_mode import resolve_decision_mode
 from src.domain.risk.risk_manager import RiskManager
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.factories.infra_factory import create_infra_services
 from src.infrastructure.handlers.stream_handler import StreamHandler
 from src.infrastructure.handlers.trade_handler import TradeHandler
+from src.infrastructure.inference.laya_decision_adapter import LayaDecisionAdapter
 from src.infrastructure.state.json_state_store import JsonStateStore
 from src.infrastructure.state.persistence_manager import PersistenceManager
 from src.infrastructure.state.state_manager import StateManager
@@ -48,10 +45,10 @@ from src.infrastructure.telemetry.otel_business_instrumentor import BusinessMetr
 
 
 class Orchestrator:
-    """Coordena WebSocket, estado, risco e execucao por ciclo."""
+    """Coordena WebSocket Deriv, stream M5, motor Laya e liquidacao continua."""
 
-    def __init__(self, config: dict, auth: AuthManager | None = None):
-        """Inicializa dependencias, estado e infraestrutura do motor."""
+    def __init__(self, config: dict[str, Any], auth: AuthManager | None = None, laya: Any | None = None):
+        """Inicializa dependencias, estado, infraestrutura e motor Laya."""
         self.config = config
         self.infra = create_infra_services(config)
         self.state_store = self.infra.state_store
@@ -63,11 +60,6 @@ class Orchestrator:
         self.ws = WebSocketManager("", request_timeout=timeout)
         self.anchor, self.symbols = normalize_symbols_and_anchor(config)
         data_cfg = dict(config.get("data_handler") or {})
-        pb_cfg = config.get("pullback_strategy") if isinstance(config.get("pullback_strategy"), dict) else {}
-        if pb_cfg.get("enabled") and pb_cfg.get("period_seconds"):
-            pb_period = int(pb_cfg["period_seconds"])
-            data_cfg["micro_granularity"] = pb_period
-            data_cfg["mini_granularity"] = pb_period
         self.stream = StreamHandler(
             self.ws,
             self.symbols,
@@ -75,11 +67,19 @@ class Orchestrator:
             market_writer=self.market_writer,
         )
         self.trade_handler = TradeHandler(self.ws, config, auth=self.auth, market_writer=self.market_writer)
+        laya_cfg = config.get("laya") if isinstance(config.get("laya"), dict) else {}
+        self.laya = (
+            laya
+            if laya is not None
+            else LayaDecisionAdapter(
+                model_id=str(laya_cfg.get("model_id", "convaiinnovations/laya")),
+                device=str(laya_cfg.get("device", "auto")),
+                context_candles=int(laya_cfg.get("context_candles", 12)),
+            )
+        )
         self.trading_transport = "ws"
         self.deriv_account_id = ""
-        self.risk_manager = RiskManager(config["risk_management"], logger=logging.getLogger("AETH"))
-        gran = int(data_cfg.get("micro_granularity", 120))
-        self.risk_manager.set_candle_interval_seconds(gran)
+        self.risk_manager = RiskManager(config.get("risk_management"), logger=logging.getLogger("AETH"))
         self.state = TradingState()
         self.persistence = JsonStateStore() if not self.infra.enabled else PersistenceManager()
         self.state_mgr = StateManager()
@@ -101,14 +101,11 @@ class Orchestrator:
         self._last_result_cycle_id, self._last_settlement_outcome = 0, ""
         self._session_wins, self._session_losses = 0, 0
         self._stream_ready_at: float | None = None
-        self._recovery_skip_counter = 0
         self._reconciliation_pending = False
         self._post_settlement_task: asyncio.Task | None = None
         self._post_settlement_wake = asyncio.Event()
         self._post_settlement_incomplete_streak, self._post_settlement_deadlock = 0, False
         self._settlement_wait_logged = False
-        self._last_loss_symbol = ""
-        self._last_loss_direction = ""
         self._last_idle_watchdog_attempt = 0.0
         self.last_data_signature = ""
         self._stream_ready_mono = 0.0
@@ -118,162 +115,132 @@ class Orchestrator:
         self._profit_table_audit_task: asyncio.Task | None = None
         self.quant_collector = QuantMetricsCollector()
         self.business_metrics = BusinessMetricsInstrumentor()
-        m_cfg = config.get("telemetry", {}) if isinstance(config, dict) else {}
-        self.metrics_server = MetricsServer(
-            self.quant_collector,
-            instrumentor=self.business_metrics,
-            host=str(m_cfg.get("host", "127.0.0.1")),
-            port=int(m_cfg.get("port", 9100)),
+        self._last_interval_cycle_check = 0.0
+        self._last_cycle_was_exec_empty = False
+        self._last_cycle_cluster_executed = False
+        telemetry_cfg = config.get("telemetry", {}) if isinstance(config.get("telemetry"), dict) else {}
+        self.metrics_server = (
+            MetricsServer(
+                self.quant_collector,
+                instrumentor=self.business_metrics,
+                host=str(telemetry_cfg.get("host", "127.0.0.1")),
+                port=int(telemetry_cfg.get("port", 9100)),
+            )
+            if telemetry_cfg
+            else None
         )
 
-    @property
-    def loss_tracker(self) -> DirectionLossTracker:
-        """Rastreador singleton de perdas direcionais com expiracao temporal."""
-        return get_direction_loss_tracker()
+    async def _bar_epoch_already_processed(self, epoch: int) -> bool:
+        """Indica se o epoch da vela M5 ja foi processado ou aberto."""
+        return await bar_epoch_already_processed(self, self.anchor, epoch)
 
-    def get_data_state_signature(self) -> str:
-        """Calcula uma assinatura unica do estado dos dados de mercado."""
-        return get_data_state_signature(self)
-
-    def _dl_enabled(self) -> bool:
-        """Retorna se o modo decisao Deep Learning esta ativo."""
-        return resolve_decision_mode(self.config) == "deep_learning"
-
-    def _decision_mode(self) -> str:
-        """Retorna o modo de decisao configurado para o ciclo."""
-        return resolve_decision_mode(self.config)
-
-    async def run_training(self) -> bool:
-        """Executa sessao dedicada de treino DL e encerra."""
-        self.loop = asyncio.get_running_loop()
-        return await run_orchestrator_training(self)
-
-    async def run(self):
-        """Loop principal: reconexao, persistencia e ciclos por intervalo."""
-        self.loop = asyncio.get_running_loop()
-        await run_orchestrator_main_loop(self)
-
-    async def _tick_idle_cycle_watchdog(self) -> None:
-        """Verifica ociosidade e dispara ciclo quando necessario."""
-        if not self.stream.is_synchronized or self.state.active_contracts or self.is_trading:
-            return  # pragma: no cover
-        task = self._post_settlement_task
-        if task is not None and not task.done():
-            return
-        orch_cfg = self.config.get("orchestrator") if isinstance(self.config.get("orchestrator"), dict) else {}
-        interval = float(orch_cfg.get("idle_cycle_watchdog_seconds", 15.0))
-        if interval <= 0:
-            return
-        now = time.time()
-        if now - self._last_idle_watchdog_attempt < interval:
-            return
-        self._last_idle_watchdog_attempt = now
-        await self._run_trading_cycle_if_ready()
-
-    async def _tick_interval_cycle_if_due(self) -> None:
-        """Dispara ciclo completo a cada cycle_interval_seconds."""
-        cycle_iv = int(self.config.get("orchestrator", {}).get("cycle_interval_seconds") or 0)
-        if cycle_iv <= 0:
-            return  # pragma: no cover
-        now = time.time()
-        last_end = float(getattr(self, "_last_cluster_cycle_end", 0.0) or 0.0)
-        if last_end > 0.0 and now - last_end < cycle_iv:
-            return
-        if post_settlement_cycle_pending(self):
-            return
-        if self.stream.is_synchronized and trading_cycle_entry_allowed(self):
-            await self._run_trading_cycle_if_ready()
-
-    def mark_cluster_cycle_complete(self) -> None:
-        """Atualiza timestamp de fim do ultimo cluster."""
-        self._last_cluster_cycle_end = time.time()
-
-    def schedule_trading_cycle_after_settlement(self) -> None:
-        """Agenda novo ciclo de decisao logo apos liquidacao do contrato."""
-        schedule_trading_cycle_after_settlement(self)
-
-    async def _run_post_settlement_breath_and_cycle(self) -> None:
-        """Aplica folego pos-liquidacao antes de um novo ciclo."""
-        await run_post_settlement_breath_and_cycle(self)
-
-    async def _setup_session(self) -> bool:
-        """Estabelece sessao de trading com autenticacao e WebSocket."""
-        return await setup_session(self)
-
-    async def _start_streams(self) -> bool:
-        """Inicia streams OHLC e sincroniza velas historicas."""
-        ok = await start_streams(self)
-        if ok:
-            self.stream.tick_buffer.mark_activity()
-            self._stream_ready_mono = asyncio.get_running_loop().time()
-        return ok
-
-    async def _on_candle(self, candle: Any):
-        """Callback de vela do ancora: atualiza estado e tenta ciclo."""
-        pb_cfg = self.config.get("pullback_strategy") if isinstance(self.config.get("pullback_strategy"), dict) else {}
-        dyn_rot = bool(pb_cfg.get("enabled") and pb_cfg.get("dynamic_rotation"))
-        if candle.symbol != self.anchor and (not dyn_rot or candle.symbol not in self.symbols):
-            return
-        if await bar_epoch_already_processed(self, self.anchor, candle.epoch):
-            return
-        self.tick_count += 1
-        if self._last_epoch == candle.epoch:
-            return
-        self._last_epoch = candle.epoch
-        try:
-            val_epoch = int(candle.epoch)
-        except (ValueError, TypeError):  # pragma: no cover
-            val_epoch = int(time.time())  # pragma: no cover
-        _ = val_epoch
-        if training_enabled(self):
-            tick_bars_since_train(self, self.symbols)
-        self.risk_manager.decay_proposal_skip_cycles()
-        if post_settlement_cycle_pending(self):
-            return
-        await self._run_trading_cycle_if_ready()
-
-    async def _run_trading_cycle_if_ready(self) -> bool:
-        """Executa um ciclo completo de decisao e cluster quando permitido."""
-        return await run_trading_cycle_if_ready(self)
-
-    async def _subscribe_account_transactions(self) -> None:
-        """Inscreve callback de transacoes de conta na Deriv."""
-        await subscribe_transactions(self)
-
-    async def _on_transaction(self, data: dict) -> None:
-        """Reconcilia contrato quando a Deriv emite transacao de fechamento."""
-        txn = data.get("transaction")
-        if not isinstance(txn, dict):
-            return
-        raw_id = txn.get("contract_id")
-        if raw_id is None:
-            return
-        c_id = int(raw_id)
-        known = (
-            c_id in self.state.active_contracts
-            or c_id in self.risk_manager.active_contract_ids
-            or c_id in self.risk_manager.contract_to_symbol
-        )
-        if not known:
-            return
-        await reconcile_single_contract(self, c_id)
-
-    async def _on_contract_update(self, data):
-        """Enfileira liquidacao de contrato sem bloquear o loop principal."""
-        await enqueue_contract_settlement(self, data)
-
-    async def _save_full_state(self):
-        """Persiste o snapshot completo do orquestrador."""
+    async def save_full_state(self) -> None:
+        """Persiste estado atual de sessao e contratos."""
         await save_full_state(self)
 
-    async def _persist_full_state_unlocked(self):
-        """Persiste snapshot completo assumindo lock atomico ja adquirido."""
+    async def _persist_full_state_unlocked(self) -> None:
+        """Persiste snapshot completo sem adquirir lock externo."""
         await persist_full_state_unlocked(self)
 
-    async def close_infrastructure_connections(self) -> None:
-        """Encerra Timescale, Redis e WebSocket antes do exit."""
-        await close_infrastructure_connections(self)
+    def _enqueue_contract_settlement(self, contract_id: int, symbol: str, expiry_time: int) -> None:
+        """Enfileira contrato aberto na fila Redis ZSET de liquidacao."""
+        enqueue_contract_settlement(self, contract_id, symbol, expiry_time)
+
+    async def _reconcile_single_contract(self, contract_id: int) -> bool:
+        """Reconcilia um contrato individual via broker."""
+        return await reconcile_single_contract(self, contract_id)
+
+    def mark_cluster_cycle_complete(self) -> None:
+        """Libera o slot de trade e atualiza o relogio de fim de ciclo."""
+        self.is_trading = False
+        self._last_cluster_cycle_end = time.time()
+
+    def _post_settlement_cycle_pending(self) -> bool:
+        """Indica se ha ciclo pos-liquidacao pendente."""
+        return post_settlement_cycle_pending(self)
+
+    async def _run_post_settlement_breath_and_cycle(self) -> None:
+        """Dispara novo ciclo imediatamente apos liquidacao quando pronto."""
+        await run_post_settlement_breath_and_cycle(self)
+
+    def _schedule_trading_cycle_after_settlement(self) -> None:
+        """Agenda disparo do ciclo pos-liquidacao."""
+        schedule_trading_cycle_after_settlement(self)
+
+    def _trading_cycle_entry_allowed(self) -> bool:
+        """Verifica se uma nova vela M5 esta pronta para avaliacao Laya."""
+        return trading_cycle_entry_allowed(self)
+
+    async def _run_trading_cycle_if_ready(self) -> bool:
+        """Executa ciclo continuo com Laya quando a vela M5 estiver fechada."""
+        return await run_trading_cycle_if_ready(self)
+
+    async def _tick_idle_cycle_watchdog(self) -> None:
+        """Verifica ociosidade prolongada entre ciclos M5."""
+        now = time.time()
+        idle_s = float((self.config.get("orchestrator") or {}).get("idle_cycle_watchdog_seconds", 1200))
+        if (
+            self._last_cluster_cycle_end > 0
+            and (now - self._last_cluster_cycle_end) >= idle_s
+            and (now - self._last_idle_watchdog_attempt) >= 60.0
+        ):
+            self._last_idle_watchdog_attempt = now
+            self.logger.warning(
+                "WATCHDOG: ciclo ocioso ha %.0fs; verificando ciclo", now - self._last_cluster_cycle_end
+            )
+            await self._run_trading_cycle_if_ready()
+
+    async def _tick_interval_cycle_if_due(self) -> None:
+        """Reavalia entrada continua por cadencia de vela fechada."""
+        now = time.time()
+        if (now - self._last_interval_cycle_check) >= 1.0:
+            self._last_interval_cycle_check = now
+            await self._run_trading_cycle_if_ready()
+
+    async def setup_session(self) -> bool:
+        """Autentica Deriv e prepara sessao de trading."""
+        return await setup_session(self)
+
+    async def start_streams(self) -> bool:
+        """Inicia stream de velas M5 no R_10."""
+        return await start_streams(self)
+
+    async def subscribe_transactions(self) -> None:
+        """Assina transacoes da conta para reconciliacao de saldo."""
+        await subscribe_transactions(self)
+
+    async def _on_candle(self, candle: Any) -> None:
+        """Callback de vela M5 recebida no stream continuo."""
+        _ = candle
+        if self.running and not self.is_trading:
+            await self._run_trading_cycle_if_ready()
+
+    async def _on_contract_update(self, data: dict[str, Any]) -> None:
+        """Callback de atualizacao de contrato aberto via WebSocket."""
+        await enqueue_contract_settlement(self, data)
+
+    async def _on_transaction(self, data: dict[str, Any]) -> None:
+        """Callback de transacao da conta para reconciliar contratos ativos."""
+        tx = data.get("transaction") if isinstance(data, dict) else None
+        c_id = tx.get("contract_id") if isinstance(tx, dict) else None
+        if c_id is not None and (
+            int(c_id) in self.state.active_contracts or int(c_id) in self.risk_manager.active_contract_ids
+        ):
+            await self._reconcile_single_contract(int(c_id))
+
+    def schedule_trading_cycle_after_settlement(self) -> None:
+        """Agenda disparo do ciclo pos-liquidacao."""
+        schedule_trading_cycle_after_settlement(self)
+
+    async def _save_full_state(self) -> None:
+        """Alias assincrono para persistencia completa de estado."""
+        await self.save_full_state()
+
+    async def run(self) -> None:
+        """Loop principal continuo do orquestrador."""
+        await run_orchestrator_main_loop(self)
 
     async def stop(self) -> None:
-        """Para o loop e fecha infraestrutura de forma graciosa."""
+        """Encerra conexoes de infraestrutura do orquestrador."""
+        self.running = False
         await close_infrastructure_connections(self)

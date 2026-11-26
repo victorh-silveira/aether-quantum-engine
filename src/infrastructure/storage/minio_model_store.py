@@ -11,8 +11,6 @@ from typing import Any
 
 from minio import Minio
 
-from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact_async
-
 
 class MinioModelStore:
     """Upload e download de checkpoints via SDK MinIO."""
@@ -118,25 +116,6 @@ class MinioModelStore:
                 return {}
 
         return await asyncio.to_thread(_load)
-
-    async def sanity_check_torchscript(
-        self,
-        dest_ts: Path,
-        *,
-        lookback: int,
-        feature_dim: int,
-        symbol: str = "",
-        manifest: dict[str, Any] | None = None,
-    ) -> None:
-        """Executa forward pass de sanidade no artefato TorchScript."""
-        await verify_torchscript_artifact_async(
-            dest_ts,
-            lookback=lookback,
-            feature_dim=feature_dim,
-            manifest=manifest,
-        )
-        label = symbol or dest_ts.stem
-        self.logger.debug("MINIO: sanity ok %s", label)
 
     async def head(self) -> bool:
         """Valida conectividade com MinIO e garante bucket configurado."""

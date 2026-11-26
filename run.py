@@ -7,7 +7,6 @@ import sys
 import types
 
 from src.application.services.orchestrator import Orchestrator
-from src.application.services.orchestrator.engine_mode import ENGINE_MODE_EXECUTE
 from src.application.services.orchestrator.engine_session import (
     create_authenticated_auth,
     load_engine_config,
@@ -143,7 +142,7 @@ def _emit_fatal_startup_error(exc: BaseException) -> None:
 async def main() -> int:
     """Carrega configuracao, autentica e executa o loop principal do motor."""
     ensure_polars_max_threads()
-    config, logger = load_engine_config(engine_mode=ENGINE_MODE_EXECUTE)
+    config, logger = load_engine_config()
     otlp_endpoint = str((config.get("telemetry") or {}).get("otlp_endpoint") or "").strip()
     if otlp_endpoint:
         os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", otlp_endpoint)
@@ -157,13 +156,8 @@ async def main() -> int:
     except (asyncio.CancelledError, KeyboardInterrupt):
         return 130
     finally:
-        await orchestrator.close_infrastructure_connections()
+        await orchestrator.stop()
 
-    reason = getattr(orchestrator, "shutdown_reason", None)
-    if reason == "stop_win":
-        target = orchestrator.risk_manager.total_session_profit
-        logger.info("STOP_WIN: meta da sessao atingida (pnl_sessao=$%+.2f). Motor encerrado.", target)
-        return 0
     if not orchestrator.running:
         logger.error(
             "Motor encerrou antes do loop principal. Veja INIT (PAT, OTP, stream) e %s",

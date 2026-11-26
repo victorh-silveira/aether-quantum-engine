@@ -22,7 +22,6 @@ async def test_close_infrastructure_connections_idempotent():
             "src.application.services.orchestrator.graceful_shutdown.close_infra_services",
             new_callable=AsyncMock,
         ) as close_infra,
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -59,7 +58,6 @@ async def test_close_infrastructure_cancels_post_settlement_task():
             "src.application.services.orchestrator.graceful_shutdown.close_infra_services",
             new_callable=AsyncMock,
         ),
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -88,7 +86,6 @@ async def test_close_infrastructure_awaits_cancelled_asyncio_task():
     task = asyncio.create_task(_block())
     orch._post_settlement_task = task
     with (
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -112,7 +109,6 @@ async def test_close_infrastructure_with_invalid_infra_block():
     orch.infra = None
     orch.ws = None
     with (
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -137,7 +133,6 @@ async def test_close_infrastructure_ws_close_failure_logged():
     orch.ws = AsyncMock()
     orch.ws.close = AsyncMock(side_effect=RuntimeError("ws down"))
     with (
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,
@@ -159,7 +154,7 @@ async def test_orchestrator_close_infrastructure_connections(orch_config):
         "src.application.services.orchestrator.close_infrastructure_connections",
         new_callable=AsyncMock,
     ) as close_mock:
-        await orch.close_infrastructure_connections()
+        await orch.stop()
     close_mock.assert_awaited_once()
 
 
@@ -193,7 +188,6 @@ async def test_close_infrastructure_stops_metrics_server_coroutine():
     ms = AsyncMetricsServer()
     orch.metrics_server = ms
     with (
-        patch("src.application.services.orchestrator.graceful_shutdown.cancel_deferred_symbol_training"),
         patch(
             "src.application.services.orchestrator.graceful_shutdown.stop_ingestion_watchdog",
             new_callable=AsyncMock,

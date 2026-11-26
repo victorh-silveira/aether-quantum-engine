@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - aether_redis_data:/data
       - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
@@ -148,45 +148,6 @@ services:
       start_period: 15s
     networks:
       - aether-backend
-
-  aether-market-signal-indicator:
-    image: aether-market-signal-indicator:local
-    pull_policy: build
-    build:
-      context: ../..
-      dockerfile: infra/docker/indicator.Dockerfile
-    container_name: aether-market-signal-indicator
-    profiles: [indicator]
-    restart: unless-stopped
-    depends_on:
-      aether-core-data-timescaledb:
-        condition: service_healthy
-    environment:
-      AETHER_TIMESCALE_DSN: postgresql://${AETHER_PG_USER:-aether}:${AETHER_PG_PASSWORD:-aether}@aether-core-data-timescaledb:5432/${AETHER_PG_DB:-aether}
-      PULLBACK_VARIANT: ${PULLBACK_VARIANT:-dual_sniper}
-      TZ: America/Sao_Paulo
-      PYTHONDONTWRITEBYTECODE: "1"
-      PYTHONUNBUFFERED: "1"
-    volumes:
-      - ../../data/indicator-models:/opt/aether/data/indicator-models:ro
-      - ../../src:/opt/aether/src:ro
-    ports:
-      - "127.0.0.1:9102:9101"
-    mem_limit: 512m
-    mem_swappiness: 0
-    cpus: 0.50
-    security_opt:
-      - no-new-privileges:true
-    logging: *aether-logging
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:9101/metrics"]
-      interval: 10s
-      timeout: 3s
-      retries: 12
-      start_period: 15s
-    networks:
-      - aether-backend
-      - aether-telemetry
 
   aether-observe-metrics-prometheus:
     image: aether-observe-metrics-prometheus:2.50.1

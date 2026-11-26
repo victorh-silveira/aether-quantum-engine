@@ -8,7 +8,9 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
-from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
+
+
+SIGNAL_SUSPENDED = "SIGNAL_SUSPENDED"
 
 
 def _maintenance_fallback() -> float:
@@ -127,10 +129,6 @@ def schedule_api_maintenance_hibernation(orch: Any, error: BaseException | str) 
 def handle_broker_maintenance_error(orch: Any, error: BaseException | str) -> bool:
     """Agenda hibernacao quando o erro corresponde a manutencao do broker."""
     if not is_api_maintenance_error(error):
-        return False
-    cfg = getattr(orch, "config", None)
-    pb = cfg.get("pullback_strategy", {}) if isinstance(cfg, dict) else {}
-    if bool(pb.get("enabled")) and bool(pb.get("dynamic_rotation")) and "maintenance" not in str(error).lower():
         return False
     schedule_api_maintenance_hibernation(orch, error)
     return True

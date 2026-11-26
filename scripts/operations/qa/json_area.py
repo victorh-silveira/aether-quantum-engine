@@ -27,8 +27,8 @@ def run_json(stage: str, root: Path) -> None:
     if stage == "validate":
         settings = root / "config" / "settings.json"
         data = json.loads(settings.read_text(encoding="utf-8"))
-        if "symbols" not in data or "deep_learning" not in data:
-            raise ValueError("config/settings.json sem symbols ou deep_learning")
+        if "symbols" not in data or "laya" not in data:
+            raise ValueError("config/settings.json sem symbols ou laya")
         print("[python] json validate ok settings.json")
         return
     if stage == "test":

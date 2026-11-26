@@ -1,39 +1,21 @@
-"""Pre-condicoes e aquisicao de lock para iniciar um ciclo de trade."""
+"""Entrada do ciclo continuo M5 no R_10 com decisao binaria 100% Laya (zero SKIP)."""
 
 from __future__ import annotations
 
-import asyncio
-import time
 from typing import Any
 
-from src.application.services.deep_learning.decision_bridge import collect_deep_learning_decisions
-from src.application.services.deep_learning.dl_deferred_train import try_enqueue_next_bootstrap_training
-from src.application.services.deep_learning.dl_startup import prepare_inference_run_loop
-from src.application.services.execution_helpers import invalidate_ema_cache
-from src.application.services.force_trade_mode import force_trade_from_orch
-from src.application.services.indicator_consensus import refresh_indicator_consensus
-from src.application.services.orchestrator.cycle_indicators_logger import log_cycle_indicators
-from src.application.services.orchestrator.decision_mode_banner import emit_decision_engine_banner
-from src.application.services.orchestrator.orchestrator_data_signature import (
-    seconds_until_next_signature_boundary,
-)
+from src.application.services.orchestrator.cycle_indicators_logger import log_laya_cycle_decision
 from src.application.services.orchestrator.orchestrator_state_restore import mark_bar_processed
-from src.application.services.orchestrator.regime_freeze_yield import await_regime_freeze_yield
 from src.application.services.orchestrator.session_persistence_barrier import session_persistence_blocks_trading_cycle
 from src.application.services.orchestrator.settlement_queue_ops import process_redis_settlement_queue
 from src.application.services.orchestrator.trading_cycle_entry_guards import (
-    _stop_win_blocks_cycle,
     commit_trading_cycle_data_signature,
-    cycle_cadence_seconds,
     mark_boundary_cycle_evaluated,
     mark_cycle_attempt_complete,
     trading_cycle_entry_allowed,
 )
-from src.application.services.orchestrator.warm_up_buffer_guard import trading_cycle_warm_up_suspended
-from src.application.services.regime_micro_freeze import SIGNAL_SUSPENDED
-from src.application.services.strategy.decision_mode import resolve_decision_mode
-from src.domain.symbols.drift_symbols import is_otc_exchange_open_brt
-from src.infrastructure.market.timescale_correlation_worker import refresh_correlation_cache, start_correlation_worker
+from src.domain.indicators.technical_indicators import compute_indicators
+from src.domain.risk.laya_stake import calculate_laya_stake
 from src.infrastructure.telemetry.otel_tracer import flush_otlp_spans_async, trace_span
 from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
@@ -42,200 +24,92 @@ __all__ = ("trading_cycle_entry_allowed", "prepare_orchestrator_run_loop", "run_
 
 
 def prepare_orchestrator_run_loop(orch: Any) -> None:
-    """Inicializa estado do loop principal apos streams e banner de decisao."""
+    """Inicializa estado do loop continuo apos conexao e sincronia de velas M5."""
     orch._last_cluster_cycle_end = 0.0
     orch._cooldown_until = 0.0
-    orch._cooldown_skip_logged_until = 0.0
     orch._api_maintenance_until = 0.0
     orch._api_maintenance_logged_until = 0.0
     orch._session_persistence_write_active = False
     orch._stream_warmed_up_at = 0.0
     orch._warm_up_logged_until = 0.0
-    orch._warm_up_waiver_applied = False
-    orch._quality_guard_logged_cycle_id = -1
-    orch._signature_invalidation_logged_key = ""
+    orch._settlement_wait_logged = False
     orch.running = True
-    orch._trading_slot_poll_task = None
-    orch._dl_bootstrap_completed = (
-        True if orch.config.get("pullback_strategy", {}).get("enabled", False) else prepare_inference_run_loop(orch)
-    )
-    mode = resolve_decision_mode(orch.config)
-    emit_decision_engine_banner(orch.logger, orch.config, decision_mode=mode)
-    start_correlation_worker(orch)
-    if mode == "deep_learning" and not orch._dl_bootstrap_completed:
-        dl_cfg = orch.config.get("deep_learning") or {}
-        if bool(dl_cfg.get("online_training", False)):
-            try_enqueue_next_bootstrap_training(orch)
-        else:
-            orch.logger.warning(
-                "DL: um ou mais ativos sem checkpoint compativel; somente esses ativos ficam inelegiveis. "
-                "Execute make app-train para gerar checkpoints; app-run nao treina."
-            )
-    orch.logger.info("")
-    orch.logger.debug(
-        "INIT: loop ativo | ciclo=%ds",
-        cycle_cadence_seconds(orch),
-    )
+    orch.logger.info("INIT: Laya System 1 continuo ativo | simbolo=%s | timeframe=M5 (300s) | zero SKIP", orch.anchor)
 
 
-async def acquire_trading_cycle_lock(orch: Any) -> bool:
-    """Reserva o slot de ciclo ativo sem lock bloqueante (cooperativo asyncio)."""
-    if _stop_win_blocks_cycle(orch):
-        return False
-    if orch.is_trading:
-        return False
-    orch.is_trading = True
-    return True
+def _closed_m5_candles(orch: Any, symbol: str) -> list[Any]:
+    """Extrai serie de velas M5 fechadas para o simbolo informado."""
+    getter = getattr(orch.stream, "get_closed_candles", None)
+    if callable(getter):
+        return list(getter(symbol, 300) or [])
+    candles_map = getattr(orch.stream, "candles", None)
+    if isinstance(candles_map, dict):
+        return list(candles_map.get((symbol, 300)) or candles_map.get(symbol) or [])
+    return []
 
 
-def _log_cycle_indicators(orch: Any) -> None:
-    """Registra indicadores M5 detalhados dos ativos ativos no ciclo."""
-    log_cycle_indicators(orch)
-
-
-def _indicator_status_ready(orch: Any, period_seconds: int) -> bool:
-    """Confere se as leituras do indicador necessarias ao ciclo ja foram publicadas."""
-    status = getattr(orch, "_indicator_signal_status", {})
-    pb_cfg = orch.config.get("pullback_strategy", {})
-    if pb_cfg.get("dynamic_rotation") or pb_cfg.get("operate_all_signals"):
-        cfg_symbols = orch.config.get("indicator", {}).get("symbols") or getattr(orch, "symbols", []) or []
-        allow_closed = bool(pb_cfg.get("allow_closed_markets", False))
-        now_ts = time.time()
-        expected = {str(s) for s in cfg_symbols if allow_closed or is_otc_exchange_open_brt(str(s), now_ts)}
-        if expected:
-            return all((sym, period_seconds) in status for sym in expected)
-    target_symbol = pb_cfg.get("promoted_symbol") or orch.config.get("anchor")
-    if target_symbol:
-        return (str(target_symbol), period_seconds) in status
-    return any(p == period_seconds for _, p in status)
-
-
-def _publish_confirmed_setups_metric(orch: Any) -> None:
-    """Atualiza o gauge Prometheus de setups confirmados em todo ciclo ativo."""
-    inst = getattr(orch, "business_instrumentor", None)
-    if inst is None or not hasattr(inst, "update_confirmed_setups_count"):
-        return
-    period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
-    confirmed_count = sum(
-        1
-        for (_, period), reason in getattr(orch, "_indicator_signal_status", {}).items()
-        if period == period_seconds and reason == "setup_confirmado"
-    )
-    inst.update_confirmed_setups_count(confirmed_count)
-
-
-async def _execute_inference_cluster_cycle(orch: Any) -> bool:
-    """Coleta inferencia DL e executa cluster quando o warm-up micro ja liberou o ciclo."""
-    setup_enabled = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
-    orch.logger.debug(
-        "[C%04d] CICLO: consultando %s (%d simbolos no stream)",
-        orch._active_cycle_id,
-        "setup" if setup_enabled else "DL",
-        len(orch.symbols),
-    )
-    cluster_executed = False
-    decisions = {} if setup_enabled else await collect_deep_learning_decisions(orch)
-    await refresh_indicator_consensus(orch)
-    if setup_enabled:
-        period_seconds = int(orch.config.get("pullback_strategy", {}).get("period_seconds", 300))
-        for _ in range(12):
-            if _indicator_status_ready(orch, period_seconds) or time.time() % period_seconds >= 10:
-                break
-            await asyncio.sleep(1.0)
-            await refresh_indicator_consensus(orch)
-    _log_cycle_indicators(orch)
-    _publish_confirmed_setups_metric(orch)
-    if (
-        int(orch._cycle_seq)
-        % max(
-            1,
-            int(
-                (orch.config.get("infra", {}).get("correlation", {}) or {}).get(
-                    "correlation_refresh_cycles",
-                    5,
-                )
-            ),
+async def _execute_laya_cycle(orch: Any) -> bool:
+    """Calcula indicadores, consulta Laya, registra logs e envia ordem continua."""
+    symbol = str(getattr(orch, "anchor", "R_10") or "R_10")
+    candles = _closed_m5_candles(orch, symbol)
+    if len(candles) < 2:
+        orch.logger.warning(
+            "[C%04d] STRM: velas M5 insuficientes para %s (%d)", orch._active_cycle_id, symbol, len(candles)
         )
-        == 0
-    ):
-        await refresh_correlation_cache(orch)
-    if not session_persistence_blocks_trading_cycle(orch):
-        executed_count = await orch.executor.execute_cluster(decisions)
-        cluster_executed = executed_count > 0 if isinstance(executed_count, (int, float)) else True
-        await await_regime_freeze_yield(orch, decisions)
-    return cluster_executed
+        return False
+    snapshot = compute_indicators(candles)
+    decision = await orch.laya.decide(symbol, candles, snapshot.to_dict(), orch.config)
+    laya_cfg = orch.config.get("laya") if isinstance(orch.config.get("laya"), dict) else {}
+    balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
+    stake, stake_pct = calculate_laya_stake(
+        balance,
+        decision.probability,
+        stake_min=float(laya_cfg.get("stake_min", 1.0)),
+        min_stake_pct=float(laya_cfg.get("min_stake_pct", 0.01)),
+        max_stake_pct=float(laya_cfg.get("max_stake_pct", 0.05)),
+    )
+    log_laya_cycle_decision(orch, snapshot, decision, stake, stake_pct, balance)
+    if stake <= 0.0 or session_persistence_blocks_trading_cycle(orch):
+        return False
+    try:
+        executed = await orch.executor.execute_laya_order(decision, stake, candles[-1].epoch)
+    except Exception as exc:
+        orch.logger.error(
+            "[C%04d] EXEC_ERR | %s %s: %s", orch._active_cycle_id, decision.symbol, decision.direction.name, exc
+        )
+        return False
+    return bool(executed)
 
 
 async def run_trading_cycle_if_ready(orch: Any) -> bool:
-    """Executa um ciclo completo de decisao e cluster quando permitido."""
+    """Executa um ciclo continuo de decisao Laya e compra Rise/Fall M5."""
     await process_redis_settlement_queue(orch)
-
-    if not trading_cycle_entry_allowed(orch) or not await acquire_trading_cycle_lock(orch):
+    if not trading_cycle_entry_allowed(orch) or orch.is_trading:
         orch._last_cycle_cluster_executed = False
         return False
+    orch.is_trading = True
     ran = False
-    cluster_executed = False
+    executed = False
     try:
         if not orch.ws.is_running or not orch.stream.is_synchronized:
             orch.logger.debug("STRM: aguardando sincronia...")
-        elif resolve_decision_mode(orch.config) == "inactive":
-            orch.logger.error(
-                "CICLO: modo inativo; defina deep_learning.enabled=true em config/settings.json.",
-            )
-            ran = True
-        else:
-            orch._cycle_seq += 1
-            if orch._cycle_seq > 1:
-                orch.logger.info("")
-            orch._active_cycle_id = orch._cycle_seq
-            invalidate_ema_cache(orch._active_cycle_id)
-            orch._side_eq_log_keys = set()
-            started_at = time.monotonic()
-            with trace_span(
-                "trading.cycle",
-                attributes={"cycle.id": int(orch._active_cycle_id), "anchor": str(getattr(orch, "anchor", ""))},
-                new_root=True,
-            ):
-                bind_log_context(cycle_id=orch._active_cycle_id, symbol=getattr(orch, "anchor", None))
-                ran = True
-                if trading_cycle_warm_up_suspended(orch) != SIGNAL_SUSPENDED:
-                    cluster_executed = await _execute_inference_cluster_cycle(orch)
-                    if cluster_executed:
-                        commit_trading_cycle_data_signature(orch)
-                        mark_boundary_cycle_evaluated(orch)
-                        orch._last_processed_epoch = orch._last_epoch
-                        await mark_bar_processed(orch, orch.anchor, orch._last_epoch)
-                    else:
-                        commit_trading_cycle_data_signature(orch)
-                        if not force_trade_from_orch(orch):
-                            boundary_wait = float(seconds_until_next_signature_boundary(orch))
-                            orch_cfg = orch.config.get("orchestrator") if isinstance(orch.config, dict) else {}
-                            if not isinstance(orch_cfg, dict):
-                                orch_cfg = {}
-                            try:
-                                empty_cap = float(orch_cfg.get("exec_empty_retry_seconds", 15))
-                            except (TypeError, ValueError):
-                                empty_cap = 15.0
-                            setup_active = bool(orch.config.get("pullback_strategy", {}).get("enabled", False))
-                            if setup_active:
-                                if getattr(orch, "_indicator_signal_status", None):
-                                    mark_boundary_cycle_evaluated(orch)
-                                orch._last_processed_epoch = orch._last_epoch
-                                delay = 4.0
-                            else:
-                                delay = min(max(boundary_wait, 1.0), max(5.0, empty_cap))
-                            orch._cooldown_until = time.time() + delay
-            inst = getattr(orch, "business_instrumentor", None)
-            if inst is not None and hasattr(inst, "runtime"):
-                inst.runtime.record_cycle_duration(time.monotonic() - started_at)
-    except Exception as e:
-        orch.logger.error("FALHA: Ciclo: %s", e)
+            return False
+        orch._cycle_seq += 1
+        orch._active_cycle_id = orch._cycle_seq
+        bind_log_context(cycle_id=orch._active_cycle_id, symbol=orch.anchor)
+        mark_boundary_cycle_evaluated(orch)
+        with trace_span("aether.trading_cycle", attributes={"cycle_id": orch._active_cycle_id, "symbol": orch.anchor}):
+            executed = await _execute_laya_cycle(orch)
+        commit_trading_cycle_data_signature(orch)
+        candles = _closed_m5_candles(orch, orch.anchor)
+        if candles:
+            await mark_bar_processed(orch, orch.anchor, candles[-1].epoch)
+        orch._last_cycle_cluster_executed = executed
         ran = True
+        return executed
     finally:
         clear_log_context()
         orch.is_trading = False
         if ran:
             mark_cycle_attempt_complete(orch)
-        orch._last_cycle_cluster_executed = cluster_executed
-        await flush_otlp_spans_async()
-    return ran
+            await flush_otlp_spans_async()

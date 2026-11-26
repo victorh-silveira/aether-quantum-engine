@@ -1,44 +1,18 @@
-# Arquitetura — Aether Quantum Engine
+# Arquitetura do Aether Quantum Engine (Laya Continuo R_10 M5)
 
-O Aether executa contratos Rise/Fall de 15 minutos por sinal institucional M15 da Deriv. O motor Python roda no host com `asyncio`; Redis, TimescaleDB, indicador público, Prometheus e Grafana compartilham o Compose. TCN e ML legados ficam em pesquisa separada. Consulte [o setup operacional](strategy-pullback.md).
+O motor segue **DDD (Domain-Driven Design)** e **Arquitetura Hexagonal (Ports & Adapters)** em **Python 3.13** com **asyncio** no host e stack de dados/telemetria em Docker (`Redis`, `TimescaleDB`, `MinIO`, `Prometheus`, `Grafana`, `Tempo`).
 
-## Relógios e dados
+## Camadas DDD
 
-| Superfície | Configuração atual |
-|---|---|
-| Indicador operacional | M15, 128 velas fechadas da Deriv |
-| Entrada | Até 60 segundos após abertura da vela seguinte |
-| Contrato | Rise/Fall, 15 minutos |
-| Pesquisa | H1, D1 e stream M5 legado; sem autoridade de compra |
-
-O motor seleciona apenas sinal M15 da versão configurada. A DEMO usa piloto versionado; a REAL exige 200 liquidações DEMO do broker, limite inferior positivo e cotação final com EV positivo e margem. O lado do setup não é invertido pelo stream. Sem sinal atual, a execução fica vazia.
-
-## Fluxo
-
-```mermaid
-flowchart LR
-    WS[OHLC público Deriv] --> Indicador[Setup M15]
-    Indicador --> Registro[Piloto ou ativo por versão]
-    Registro --> Cotacao[Proposta final]
-    Cotacao --> Compra[Contrato de 15 minutos]
-    Compra --> Liquidacao[Resultado confirmado pelo broker]
-    Liquidacao --> Estado[Redis e TimescaleDB]
-```
-
-O histórico de pesquisa é proxy de velas, separado do resultado de contrato. A referência de preço da sessão usa preços típicos OHLC sem volume, com bandas de 1,5 desvio padrão. Não é VWAP por volume. As séries externas não são concatenadas às velas da Deriv.
-
-## Risco e estado
-
-O estado e a fila de liquidação usam Redis; Timescale guarda sinais e contratos. Stake base de 1% da banca disponível e recuperação pelo payout cotado limitada a 5% por ordem. Não há stop loss nem teto acumulado de perda. Reserva por conta, ativo e vela, reconciliação de compra sem ACK e deduplicação por contrato continuam ativas.
-
-## Referências
-
-- [Configuração e resolvers](engineering-settings-ssot.md)
-- [Treino TCN](engineering-deep-learning.md)
-- [Orquestrador](engineering-orchestrator.md)
-- [Liquidação](engineering-settlement.md)
-- [Infraestrutura](infra-docker.md)
-
-## Indicador público e motor
-
-O indicador público não autentica conta nem compra contratos. O motor consulta seu sinal M15 da última vela fechada e da versão vigente. A âncora operacional configurada é `OTC_SSMI`; o treino não troca essa âncora. Ativos e períodos diferentes permanecem separados por identidade no banco e na auditoria.
+- **Domain (`src/domain/`)**: 100% puro, sem imports de infraestrutura ou ML (`laya`, `torch`, `redis`, `asyncpg`).
+  - `indicators/`: calculo causal de todos os indicadores tecnicos (`compute_indicators`, `IndicatorSnapshot`).
+  - `models/`: `Candle`, `TradeDirection`, `Contract`, `LayaDecision` (estritamente `CALL` ou `PUT`).
+  - `risk/`: `RiskManager` e `calculate_laya_stake` (dimensionamento dinamico linear `[1%, 5%]` com teto absoluto de 5%, sem Martingale/D'Alembert/Kelly).
+- **Application (`src/application/`)**:
+  - `ports/outbound.py`: contratos `MarketCandlePort`, `SettlementQueuePort`, `LayaDecisionPort`.
+  - `services/orchestrator/`: ciclo M5 continuo no `R_10`, warmup de velas fechadas, log obrigatorio `INDICATORS | ...` e `LAYA_DECISION | ...`, envio de ordens Rise/Fall 5m (`duration=5`, `duration_unit="m"`) e reconciliacao de liquidacao.
+- **Infrastructure (`src/infrastructure/`)**:
+  - `inference/laya_decision_adapter.py`: adapter de `LayaDecisionPort` usando `laya==0.5.5` (`convaiinnovations/laya`, `vegaml=False`, `agent.system_one(...)`) com sanitizacao de credenciais do `settings.json` e desempate deterministico (`ema_20 >= ema_50 -> CALL`).
+  - `api/` e `handlers/`: WebSocket/REST Deriv, stream M5 (`R_10`), buffer de ticks e execucao de propostas.
+  - `state/`, `market/`, `telemetry/`: Redis ZSET para liquidacao, TimescaleDB para contratos/velas e Prometheus/OTel.
+- **Presentation (`src/presentation/`)**: logging estruturado em terminal e arquivo sem emojis.

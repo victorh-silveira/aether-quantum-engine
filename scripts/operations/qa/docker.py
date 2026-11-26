@@ -64,11 +64,11 @@ def run_docker(stage: str, root: Path) -> None:
             skip("docker", "compose ausente")
             return
         compose_env = dict(os.environ)
-        compose_env["COMPOSE_PROFILES"] = "core,telemetry,indicator"
+        compose_env["COMPOSE_PROFILES"] = "core,telemetry"
         run_cmd(
             [docker, "compose", "-f", str(compose), "--project-directory", str(compose.parent), "config", "-q"],
             cwd=root,
-            description="Docker Compose config (profiles core,telemetry,indicator)",
+            description="Docker Compose config (profiles core,telemetry)",
             env=compose_env,
         )
         _validate_grafana_dashboards(root)

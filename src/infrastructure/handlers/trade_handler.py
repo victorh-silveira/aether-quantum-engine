@@ -5,14 +5,13 @@ import math
 import time
 from typing import Any
 
-from src.application.services.rise_fall_quote_guard import unit_ev
 from src.domain.models.trade import Contract, TradeDirection, TradeStatus
-from src.domain.risk.payout_observation import contract_profit_rate
 from src.infrastructure.api.websocket_manager import WebSocketManager
 from src.infrastructure.handlers.stream_reconnect_profit_audit import schedule_profit_table_audit
 from src.infrastructure.handlers.trade_handler_buy_recovery import recover_unknown_contract_proposal
 from src.infrastructure.handlers.trade_handler_errors import PurchaseOutcomeUnknownError
 from src.infrastructure.handlers.trade_handler_proposal_quote import (
+    contract_profit_rate,
     fetch_proposal_snapshot,
     resolve_order_proposal,
 )
@@ -85,51 +84,23 @@ class TradeHandler:
         self, symbol: str, direction: TradeDirection, stake: float, params: dict | None
     ) -> Contract:
         """Compra um contrato via proposal e buy (API Deriv WebSocket autenticada)."""
-        p_cfg = params if params is not None else self.config["risk_management"]["params"]
+        p_cfg = params if params is not None else self.config.get("risk_management", {}).get("params", {})
         exec_cfg = self.config.get("orchestrator", {}).get("execution", {})
-        if (
-            p_cfg.get("_indicator_demo_pilot")
-            and str(p_cfg.get("_indicator_model_version", "")).startswith("pullback-1-")
-            and str(self.config.get("trading", {}).get("mode", "real")).lower() != "demo"
-        ):
-            raise RuntimeError("Piloto de setup permitido somente em DEMO")
         validate_quote_guard_params(p_cfg, exec_cfg)
-        if float(p_cfg.get("_quote_guard_min_edge", 0.0) or 0.0) < 0.0 and not (
-            str(self.config.get("trading", {}).get("mode", "real")).lower() == "demo"
-            and p_cfg.get("_indicator_demo_pilot") is True
-        ):
-            raise RuntimeError("EV negativo permitido somente no piloto DEMO; compra bloqueada")
         proposal_req = build_proposal_request(symbol, direction, stake, p_cfg)
         timeout = int(self.ws.request_timeout)
         prop_id, ask_price, payout_val, proposal = await resolve_order_proposal(
             self, symbol, direction, stake, p_cfg, proposal_req, timeout
         )
-        is_multiplier = str(p_cfg.get("contract_type", "")).upper() == "MULTIPLIER"
         if not math.isfinite(ask_price) or ask_price <= 0:
-            raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
-        if "_pullback_stake_cap" in p_cfg and ask_price > float(p_cfg["_pullback_stake_cap"]) + 1e-9:
-            raise RuntimeError("Cotacao final do pullback excede o teto de stake")
+            raise RuntimeError("Cotacao final Rise/Fall sem preco valido; compra bloqueada")
         rate: float | None = None
         if payout_val is not None:
             if not math.isfinite(payout_val) or payout_val < 0:
-                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
-            if not is_multiplier and payout_val == 0 and "_quote_guard_side_probability" not in p_cfg:
-                raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada")
+                raise RuntimeError("Cotacao final Rise/Fall sem payout valido; compra bloqueada")
             rate = contract_profit_rate(payout_val, ask_price)
             if rate is not None:
                 self.latest_payout_rate = rate
-        if (
-            p_cfg.get("_indicator_demo_pilot")
-            and str(p_cfg.get("_indicator_model_version", "")).startswith("pullback-1-")
-            and (payout_val is None or rate is None or rate <= 0.0)
-        ):
-            raise RuntimeError("Cotacao final do piloto DEMO sem payout valido")
-        if "_pullback_stake_cap" in p_cfg:
-            quoted_rate = float(p_cfg.get("_pullback_quote_rate") or 0.0)
-            if rate is None or rate <= 0.0:
-                raise RuntimeError("Cotacao final do pullback sem payout valido")
-            if quoted_rate > 0 and rate + 0.02 < quoted_rate:
-                raise RuntimeError("Payout final do pullback inferior ao usado para dimensionar a stake")
         await record_indicator_quote(
             self.market_writer,
             self.config,
@@ -141,33 +112,7 @@ class TradeHandler:
             payout_val,
             rate,
         )
-        min_payout = float(p_cfg.get("min_payout_rate") or 0.0)
-        if rate is not None and min_payout > 0.0 and rate + 1e-9 < min_payout:
-            raise RuntimeError(
-                f"Cotacao final Rise/Fall perdeu vantagem: payout_rate={rate:.4f} "
-                f"piso_payout={min_payout:.4f}; compra bloqueada"
-            )
         quote_ev: float | None = None
-        if "_quote_guard_side_probability" in p_cfg:
-            p_side = float(p_cfg["_quote_guard_side_probability"])
-            min_edge = float(p_cfg.get("_quote_guard_min_edge", 0.0))
-            margin = float(p_cfg.get("_quote_guard_safety_margin", 0.0) or 0.0)
-            if rate is None or rate <= 0.0:
-                raise RuntimeError("Cotacao final Rise/Fall perdeu vantagem: payout liquido invalido; compra bloqueada")
-            quote_ev = unit_ev(p_side, rate)
-            if quote_ev <= min_edge:
-                required_probability = max((1.0 + min_edge) / (1.0 + rate), 1.0 / (1.0 + rate) + margin)
-                raise RuntimeError(
-                    f"Cotacao final Rise/Fall perdeu vantagem: quote_ev={quote_ev:+.4f} "
-                    f"min_edge={min_edge:+.4f} p_side={p_side:.4f} "
-                    f"p_minima={required_probability:.4f} payout_rate={rate:.4f}; compra bloqueada"
-                )
-            if margin > 0.0 and p_side < (1.0 / (1.0 + rate) + margin):
-                raise RuntimeError(
-                    f"Cotacao final Rise/Fall perdeu margem de seguranca sobre break-even: "
-                    f"p_side={p_side:.4f} minimo={1.0 / (1.0 + rate) + margin:.4f} "
-                    f"payout_rate={rate:.4f}; compra bloqueada"
-                )
 
         require_current_signal_candle(p_cfg)
         request_epoch_ms = time.time_ns() // 1_000_000

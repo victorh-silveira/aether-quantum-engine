@@ -7,10 +7,7 @@ import time
 import urllib.error
 from typing import TYPE_CHECKING
 
-from src.application.services.deep_learning.dl_model_artifacts import bootstrap_and_validate_models
-from src.application.services.deep_learning.dl_startup import resolve_startup_fetch_bars
 from src.application.services.infra_timing_config import resolve_orchestrator_timing_config
-from src.application.services.orchestrator.engine_mode import training_enabled
 from src.application.services.orchestrator.orchestrator_state_restore import restore_orchestrator_state
 from src.application.services.orchestrator.session_target_bootstrap import bootstrap_active_session_targets
 from src.infrastructure.api.deriv_rest_client import DerivRestError, select_account
@@ -189,10 +186,8 @@ async def _try_optional_otp_trading_ws(orch: Orchestrator) -> bool:
 
 async def setup_trading_session(orch: Orchestrator) -> bool:
     """Conecta market data publico; OTP se disponivel, senao REST bulk-purchase."""
-    initial_boot = bool(getattr(orch, "_is_initial_boot", True))
     try:
         await validate_infra_services(orch.infra, orch.config)
-        await bootstrap_and_validate_models(orch, is_initial_boot=initial_boot)
         await restore_orchestrator_state(orch)
         if orch.ws.ws:
             await orch.ws.close()
@@ -200,34 +195,21 @@ async def setup_trading_session(orch: Orchestrator) -> bool:
         orch.deriv_account_id = account_id
         orch.trade_handler.deriv_account_id = account_id
         orch.state.balance = balance
-        if training_enabled(orch):
+        otp_ok = await _try_optional_otp_trading_ws(orch)
+        if not otp_ok:
+            if orch.ws.ws:
+                await orch.ws.close()
             await open_public_market_handshake(orch)
-            await bootstrap_active_session_targets(orch, float(orch.state.balance))
-            if orch.risk_manager.initial_bankroll <= 0.0:
-                orch.risk_manager.set_initial_bankroll(orch.state.balance)
             orch.trading_transport = "rest"
             orch.trade_handler.trading_transport = "rest"
             orch.logger.info(
-                "AUTH: treino via WSS publico | conta=%s saldo=%.2f (sem OTP)",
+                "AUTH: execucao hibrida | WSS publico + bulk-purchase REST | conta=%s saldo=%.2f",
                 account_id,
                 orch.state.balance,
             )
-        else:
-            otp_ok = await _try_optional_otp_trading_ws(orch)
-            if not otp_ok:
-                if orch.ws.ws:
-                    await orch.ws.close()
-                await open_public_market_handshake(orch)
-                orch.trading_transport = "rest"
-                orch.trade_handler.trading_transport = "rest"
-                orch.logger.info(
-                    "AUTH: execucao hibrida | WSS publico + bulk-purchase REST | conta=%s saldo=%.2f",
-                    account_id,
-                    orch.state.balance,
-                )
-            await bootstrap_active_session_targets(orch, float(orch.state.balance))
-            if orch.risk_manager.initial_bankroll <= 0.0:
-                orch.risk_manager.set_initial_bankroll(orch.state.balance)
+        await bootstrap_active_session_targets(orch, float(orch.state.balance))
+        if orch.risk_manager.initial_bankroll <= 0.0:
+            orch.risk_manager.set_initial_bankroll(orch.state.balance)
         orch._is_initial_boot = False
         return True
     except Exception as exc:
@@ -243,24 +225,14 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
         for attempt in range(1, retries + 1):
             orch.logger.debug("STRM: sincronizando velas...")
             try:
-                bars, mode = resolve_startup_fetch_bars(orch.config, orch.symbols)
+                bars = int((orch.config.get("data_handler") or {}).get("history_bars", 120))
                 orch.stream.config["_startup_fetch_count"] = bars
                 reconnect_quiet = bool(getattr(orch, "_streams_ever_started", False))
-                is_train = training_enabled(orch)
-                if is_train:
-                    orch.stream.config["_startup_train_lean"] = True
                 boot_log = orch.logger.debug if reconnect_quiet else orch.logger.info
-                boot_log(
-                    "DATA: Startup %s | %d ativo(s) | %d velas%s",
-                    mode,
-                    len(orch.symbols),
-                    bars,
-                    " (lean)" if is_train else "",
-                )
+                boot_log("DATA: Startup Laya M5 | %d ativo(s) | %d velas", len(orch.symbols), bars)
                 await orch.stream.start_candle_stream(orch._on_candle)
                 orch.stream.config.pop("_startup_fetch_count", None)
                 orch.stream.config.pop("_startup_quiet", None)
-                orch.stream.config.pop("_startup_train_lean", None)
                 orch._stream_ready_at = time.time()
                 orch._streams_ever_started = True
                 return True
@@ -270,7 +242,7 @@ async def start_orchestrator_streams(orch: Orchestrator) -> bool:
                 orch.logger.debug("STRM: reconexao durante startup (%s/%s): %s", attempt, retries, e)
                 await asyncio.sleep(delay)
                 if not orch.ws.is_running:
-                    if training_enabled(orch) or str(getattr(orch, "trading_transport", "ws")).lower() == "rest":
+                    if str(getattr(orch, "trading_transport", "ws")).lower() == "rest":
                         await open_public_market_handshake(orch)
                     else:
                         session = await open_broker_handshake(orch)

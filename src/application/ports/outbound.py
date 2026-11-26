@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator, Mapping
 from typing import Any, Protocol, runtime_checkable
 
-from src.domain.fundamental.economic_calendar import EconomicEvent
+from src.domain.models.laya_decision import LayaDecision
 from src.domain.models.market_data import Candle
 
 
@@ -24,27 +24,22 @@ class MarketCandlePort(Protocol):
 class SettlementQueuePort(Protocol):
     """Porta da fila de liquidacao (Redis ZSET no adapter)."""
 
-    async def enqueue(self, contract_id: str, score: float, payload: Mapping[str, Any]) -> bool:
+    async def enqueue(self, contract_id: str, _score: float, payload: Mapping[str, Any]) -> bool:
         """Enfileira contrato de forma idempotente; True se novo."""
 
-    async def pop_due(self, score: float, limit: int = 32) -> list[Mapping[str, Any]]:
+    async def pop_due(self, _score: float, limit: int = 32) -> list[Mapping[str, Any]]:
         """Remove e retorna contratos vencidos ate score temporal."""
 
 
 @runtime_checkable
-class ModelArtifactPort(Protocol):
-    """Porta de artefatos de modelo (MinIO/local no adapter)."""
+class LayaDecisionPort(Protocol):
+    """Porta de decisao binaria continua via motor Laya System 1."""
 
-    async def load_bytes(self, key: str) -> bytes | None:
-        """Carrega bytes do artefato ou None se ausente."""
-
-    async def put_bytes(self, key: str, data: bytes) -> None:
-        """Persiste bytes do artefato."""
-
-
-@runtime_checkable
-class EconomicCalendarPort(Protocol):
-    """Porta de leitura de eventos do calendario economico com cache."""
-
-    async def get_events(self) -> list[EconomicEvent]:
-        """Retorna eventos macroeconomicos vigentes da semana."""
+    async def decide(
+        self,
+        symbol: str,
+        candles: list[Candle],
+        indicators: dict[str, float],
+        settings_context: dict[str, Any],
+    ) -> LayaDecision:
+        """Avalia velas, indicadores e configuracoes retornando CALL ou PUT."""

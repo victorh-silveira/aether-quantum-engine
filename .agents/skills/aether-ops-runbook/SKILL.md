@@ -14,18 +14,14 @@ description: Runbook operacional Aether — execucao, treinamento, sanitizacao e
    make docker-up
    make app-run
    ```
-2. **Execução de Diagnóstico / Treinamento:**
-   ```bash
-   make app-train
-   ```
-3. **Sanitização de Ambiente:**
+2. **Execução de Sanitização e QA:**
    ```bash
    make app-clean
    ```
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe scripts/operations/check_dl_checkpoint.py
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe scripts/operations/clean_workspace.py --area python --stage validate
 ```
 
 ## 4. Critérios de Aceite

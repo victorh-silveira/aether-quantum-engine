@@ -6,21 +6,20 @@ SHELL := /bin/bash
 APP_DIR=.
 CONDA_ENV ?= deriv-api
 DOCKER_DIR=infra/docker
-DOCKER_PROFILES ?= core,telemetry,indicator
+DOCKER_PROFILES ?= core,telemetry
 export COMPOSE_PROFILES := $(DOCKER_PROFILES)
 export AETHER_METRICS_HOST_IP ?= $(shell ip -4 route show default 2>/dev/null | awk 'NR==1 {print $$3}')
 export OTEL_EXPORTER_OTLP_ENDPOINT ?= http://127.0.0.1:4318
 export WSLENV := $(if $(WSLENV),$(WSLENV):,)OTEL_EXPORTER_OTLP_ENDPOINT
 DOCKER_COMPOSE=docker compose -f $(DOCKER_DIR)/docker-compose.yml --project-directory $(DOCKER_DIR) --env-file .env
 DOCKER_LOGS_TAIL ?= 200
-DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio aether-market-signal-indicator aether-observe-metrics-prometheus aether-observe-dashboards-grafana
+DOCKER_LOGS_SERVICES ?= aether-core-cache-redis aether-core-data-timescaledb aether-core-storage-minio aether-observe-metrics-prometheus aether-observe-dashboards-grafana
 
 define docker_service_name
 $(strip $(or \
 	$(if $(filter redis aether-core-cache-redis,$(1)),aether-core-cache-redis),\
 	$(if $(filter ts timescale timescaledb aether-core-data-timescaledb,$(1)),aether-core-data-timescaledb),\
 	$(if $(filter minio aether-core-storage-minio,$(1)),aether-core-storage-minio),\
-	$(if $(filter indicator aether-market-signal-indicator,$(1)),aether-market-signal-indicator),\
 	$(if $(filter prom prometheus aether-observe-metrics-prometheus,$(1)),aether-observe-metrics-prometheus),\
 	$(if $(filter grafana aether-observe-dashboards-grafana,$(1)),aether-observe-dashboards-grafana),\
 	$(1)))
@@ -41,10 +40,9 @@ RESET  := \033[0m
 
 .DEFAULT_GOAL := help
 
-.PHONY: app-run app-train app-test app-lint app-workflows-lint app-validate app-security app-build app-clean app-install \
-	indicator-up indicator-down indicator-train indicator-test indicator-lint indicator-security app-train-all \
+.PHONY: app-run app-test app-lint app-workflows-lint app-validate app-security app-build app-clean app-install \
 	app-pre-commit app-pre-commit-run app-commit app-setup-wsl help docker-up docker-down \
-	docker-restart docker-rebuild docker-reset docker-clean docker-ps docker-logs \
+	docker-restart docker-reset docker-clean docker-ps docker-logs \
 	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle lint test
 
 
@@ -152,40 +150,6 @@ app-clean:
 app-run:
 	$(PYTHON) run.py
 
-app-train:
-	@$(MAKE) --no-print-directory docker-up
-	@$(MAKE) --no-print-directory indicator-train
-
-app-research-ml:
-	$(PYTHON) -m src.application.services.orchestrator.train_cli
-	$(PYTHON) scripts/operations/check_dl_checkpoint.py
-	@$(PYTHON) scripts/operations/ensure_timescale.py || echo '[AVISO] Semente Timescale indisponivel.'
-
-indicator-up: docker-up
-
-indicator-down: docker-down
-
-indicator-train:
-	@if [ "$$($(INDICATOR_PYTHON) -c 'import sys; print(sys.platform)')" = linux ] && command -v prlimit >/dev/null 2>&1; then \
-		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		prlimit --as=$$(( $(INDICATOR_TRAIN_MEMORY_MB) * 1024 * 1024 )) -- $(INDICATOR_PYTHON) -m src.indicator; \
-	else \
-		OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1 \
-		$(INDICATOR_PYTHON) -m src.indicator; \
-	fi
-
-indicator-test:
-	$(INDICATOR_PYTHON) -m pytest tests/indicator --cov=src/indicator --cov-report=term-missing --cov-fail-under=100
-
-indicator-lint:
-	$(INDICATOR_PYTHON) -m ruff check src/indicator tests/indicator
-	$(INDICATOR_PYTHON) -m ruff format --check src/indicator tests/indicator
-
-indicator-security:
-	$(INDICATOR_PYTHON) -m ruff check --select S --ignore S104 src/indicator
-
-app-train-all: app-train
-
 app-pre-commit:
 	bash linters/git-hooks/install.sh
 	chmod +x linters/git-hooks/bin/resolve_conda_python.sh linters/git-hooks/bin/python
@@ -216,7 +180,6 @@ docker-up:
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 1 5 "Host prerequisites"'
 	@bash infra/docker/sh/host-prereq.sh
 	@test -f .env || cp .env.example .env
-	@mkdir -p data/indicator-models 2>/dev/null || true
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 2 5 "Compose up"'
 	$(DOCKER_COMPOSE) up -d --build
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 3 5 "Healthchecks"'
@@ -225,16 +188,6 @@ docker-up:
 	@bash infra/docker/sh/timescale-lifecycle.sh
 	@bash infra/docker/sh/docker-hydrate.sh
 	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_step 5 5 "Smoke checks"'
-	@bash infra/docker/sh/docker-smoke.sh
-
-docker-rebuild:
-	@bash -c 'source infra/docker/sh/docker-ui.sh; docker_ui_banner "docker-rebuild · rebuild indicador"'
-	@test -f .env || cp .env.example .env
-	$(DOCKER_COMPOSE) build --pull aether-market-signal-indicator
-	$(DOCKER_COMPOSE) up -d --force-recreate aether-market-signal-indicator
-	$(DOCKER_COMPOSE) up -d
-	@bash infra/docker/sh/docker-wait-healthy.sh
-	@bash infra/docker/sh/timescale-lifecycle.sh
 	@bash infra/docker/sh/docker-smoke.sh
 
 docker-timescale-lifecycle:

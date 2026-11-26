@@ -56,7 +56,8 @@ async def sync_triple_candle_history(handler: Any, callback) -> None:
     handler.is_synchronized = False
     if not handler.ws.is_running:
         raise ConnectionError("STREAM: WebSocket desconectado antes da sincronização.")
-    sync_log = handler.logger.debug if quiet else handler.logger.info
+    _ = quiet
+    sync_log = handler.logger.debug
     sync_log(
         "DATA: Sync historico | %d ativo(s) | macro=%ds micro=%ds mini=%ds%s",
         len(handler.symbols),

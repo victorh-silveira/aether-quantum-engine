@@ -1,82 +1,14 @@
-# Orquestrador e ciclo
+# Orchestrator e Ciclo Continuo M5 (`R_10`)
 
-Ciclo operacional do motor. Inventario de arquivos: [`structure.md`](structure.md) §orchestrator. Arquitetura: [`arquitetura.md`](arquitetura.md) §3.
+O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo no `R_10` com velas M5 fechadas (`period_seconds=300`), sem `make app-train`, sem TCN e sem vetos ou `SKIP`.
 
-## Relogio e triplo OHLC
+## Fluxo de Cada Ciclo M5
 
-- Fronteira / ciclo: **`signature_boundary_seconds` = 300 s** / **`cycle_interval_seconds` = 300 s** (sync com abertura/fecho da vela M5; contrato Deriv **5 m**); `exec_empty_retry_seconds` **300**
-- Cache DL (`dl_predict_cache`): path **eager** **sempre** re-infere; chaveia `cycle_id` + `boundary_epoch` (nao reusa entry de outro ciclo)
-- Tick live: antes do TCN, `patch_forming_bar_with_live_tick` injeta o ultimo preco do `TickBuffer` no close/high/low da vela M5 em formacao; `patch_forming_bar_microstructure` sobrescreve a ultima linha de micro live; snapshot `_patched_ohlc` alimenta SCALE/flow no mesmo ciclo
-- `DL: inferencia em cuda` e `log_device_once` no load do modelo — **nao** um log por ciclo
-- LOSS_CLF: predict HTTP a cada `_finalize`; log dedupe por `loss_clf_*:{cycle_id}`; `feature_dim` **24**; schema_hash; FLIP apos auto_learn; young pe>=**0.58** / mature **0.70**
-- MACRO OHLC: **86400 s** (`data_handler.granularity` — D1 / 365 barras de histórico)
-- MICRO OHLC (TCN decisor): **300 s** (`data_handler.micro_granularity` — M5 / **25000** barras de histórico)
-- Contrato Deriv RISE_FALL: **5 m** (`risk_management.params.duration`); label TCN = **N=1** vela M5 (`spot_forward`); frequencia maxima ≈ 1 trade / contrato (ciclo bloqueado com contrato aberto)
-- Confirmacao de lado/SKIP: janela `scale_vision.ops_window_bars` **3** (open da 1a M5 fechada → close da ultima = 15m acumulados); `[CANDLE]` M5 last-bar telemetria
-- MINI OHLC: **300 s** (`data_handler.mini_granularity`) — alinhado ao M5
-- MILI: tick flow (velocity/acceleration), nao barra OHLC
-- Sync inicial: `stream_sync_start.py` (historico MACRO+MICRO+MINI + subscribe candles/ticks). Em inferencia live, MACRO D1 **nao** herda `_startup_fetch_count` do piso micro (`inference_history_bars`); teto D1 = `min(365, history_bars)`. Paginacao `history_fetch` ordena por epoch e para quando a pagina nao cresce o buffer (evita loop 366↔63 em `ticks_history` descending).
-- Proporcao MACRO:MICRO **288:1** (86400:300)
-- Pos-settlement: `post_settlement_is_trading_wait_seconds` **90**; `settlement_tolerance_window_seconds` **600**; `post_settlement_cycle_timeout_seconds` **1200**; `watchdog_stale_tick_seconds` **300**
-- Não existe bloqueio temporal pós-LOSS. A entrada segue a fronteira de assinatura M5 por integridade do contrato; sinais contra a tendência exigem `counter_trend_min_edge` **0.08**, salvo FLIP/anti-trend-lock.
-- Anti-loss EMA: `invalidate_ema_cache(cycle_id)` no inicio de cada ciclo (`trading_cycle_entry.py`); `calc_ema_series` cacheada por ciclo evita recomputacao de EMA9/EMA21; slope EMA21 2-pontos (lag 5 min) + EMA9 slope rapido (`slope_tol * 0.6`); ancora hibrida (`resolve_hybrid_candle_anchor`) combina janela ops N=3 + ultima vela micro fechada
-
-## Pipeline do ciclo
-
-```text
-warmup/buffer → training_gate → collect decisoes DL
-  → resolve direcao + scale_vision → rank/pick → ExecutionManager
-  → settlement worker → post_settlement → proxima fronteira
-```
-
-| Etapa | Onde |
-|-------|------|
-| Run loop | `orchestrator_run_loop.py`, `engine_session.py` |
-| Assinatura dados | `orchestrator_data_signature.py` |
-| Collect | `execution_collect*.py` |
-| Direcao / escalas | `execution_direction_resolver.py`, `execution_scale_vision.py`, `execution_scale_micro.py`, `execution_scale_adapt.py`, `execution_scale_tape.py` |
-| Execucao | `execution_manager.py`, `execution_orders.py` |
-| Settlement | `settlement_*.py`, `orchestrator_settlement_queue.py` |
-| Pos-liquidacao | `post_settlement_*.py` |
-| Persistencia | `orchestrator_persistence.py`, `orchestrator_atomic_state.py` |
-| Watchdog | `watchdog_service.py` |
-
-## Scale vision (MACRO/MICRO/MINI/MILI)
-
-SSOT: `orchestrator.execution.scale_vision`. Telemetria multi-escala + **adapt retract** (nao e SKIP).
-
-Ordem: TCN → loss-clf FLIP (ancora TCN; `n_train >= flip_min_n_train` **1**) → Kelly.
-
-| Campo | Papel |
-|-------|-------|
-| MICRO | Direcao TCN do ciclo (`tcn_direction`) |
-| MACRO | Slope dos closes (janela `slope_bars`) |
-| MINI / MILI | Par de velas + tick flow; regime explos/retract/chop |
-| `adapt_retract_enabled` | **false** — scale vision mantido apenas para telemetria/regime (sem virar lado de execucao) |
-| `scale_adapted` | `1` quando adaptou; reason `retract_vs_tcn` / `explos_vs_tcn` / `tape_vs_tcn` ou `*_holds` |
-
-**Proibido:** quality gate / signal_skip / fusao EV / Soft Kelly discord / `cal_soft_edge`. IND RSI/ADX/HURST = telemetria.
-
-Log: `SCALE || … tape=… micro=… adapted=0|1` e IND: `SCALE: tcn=… tape=… micro=… adapted=…`  
-CLUSTER TF: `resolve_cluster_timeframe` prefere `micro_granularity` → tipicamente **M5** (300 s).
-
-Nao confundir com `raw_extreme` (calibracao DL): limiares `tcn_macro_*_override` sao de **raw TCN**, nao da escala MACRO OHLC. Ver [`engineering-deep-learning.md`](engineering-deep-learning.md).
-
-## Gates de fase
-
-- **FASE TREINO:** sem ordens ate modelos da sessao prontos
-- **FASE OPERACAO:** `mandatory_trade_each_cycle: false`, `force_trade_every_cycle: false`, `online_training: false`; inversao de lado = loss-clf FLIP por `p_eff` no piso apos auto_learn; SCALE permanece telemetria.
-- Lock/barreira serializa inferencia, liquidacao e persistencia
-- A reserva local e Redis de uma ordem por conta/ativo/vela M5 ocorre antes da proposta; ativos distintos podem ser comprados no mesmo ciclo. O registro de contrato confirmado precede a telemetria assincrona e a inscricao de settlement.
-
-## Diagnostico rapido
-
-| Sintoma | Ver |
-|---------|-----|
-| Ciclo nao dispara | signature, warmup buffer (MACRO/MICRO/MINI), idle watchdog |
-| So EXEC_EMPTY | bloqueio tecnico / Kelly — processo pode estar correto |
-| Lado ≠ TCN no EXEC | Esperado com `adapted=1` (retract) ou `LOSS_CLF FLIP`; outros flips = bug |
-| Travado apos trade | settlement queue / post_settlement |
-| Reconnect loop | watchdog stale + cooldown |
-
-Skill: `aether-cycle-debug`.
+1. **Liquidacao pendente:** `process_redis_settlement_queue(orch)` verifica contratos vencidos na fila ZSET.
+2. **Guarda de cadencia (`trading_cycle_entry_guards.py`):** garante execucao unica por fronteira M5 fechada (`m5_boundary_epoch`) quando nao ha contrato ativo nem hibernacao por manutencao da API.
+3. **Warmup (`warm_up_buffer_guard.py`):** exige minimo de velas M5 fechadas no buffer para calculo causal estavel dos indicadores.
+4. **Indicadores (`compute_indicators`):** calcula todo o pacote tecnico (EMAs, RSI, MACD, Stochastic, CCI, CMO, Williams %R, ROC, ADX/DI, ATR, Bollinger, Keltner, Hurst, microestrutura e `session_zscore`).
+5. **Decisao Laya (`LayaDecisionAdapter.decide`):** envia velas recentes, indicadores e settings sanitizados ao Laya System 1, retornando `CALL` ou `PUT` (desempate deterministico por `ema_20 >= ema_50`).
+6. **Dimensionamento (`calculate_laya_stake`):** calcula stake linear entre 1% e 5% da banca pela probabilidade do Laya, com piso `stake_min` e teto absoluto de 5%.
+7. **Telemetria (`cycle_indicators_logger.py`):** imprime obrigatoriamente `INDICATORS | ...` e `LAYA_DECISION | ...`.
+8. **Execucao:** `ExecutionManager.execute_laya_order` envia o contrato Rise/Fall de 5 minutos e registra o watch de liquidacao.

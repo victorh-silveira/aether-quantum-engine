@@ -19,8 +19,6 @@ _ORCH_TIMING_KEYS = (
     "broker_handshake_timeout_seconds",
     "state_lock_acquire_timeout_seconds",
     "api_maintenance_fallback_seconds",
-    "recovery_warm_up_delay_seconds",
-    "recovery_pending_warm_up_max_seconds",
     "stream_warm_up_delay_seconds",
     "settlement_tolerance_window_seconds",
     "ws_connect",
@@ -59,10 +57,16 @@ def _load_settings() -> dict[str, Any]:
 
 def resolve_orchestrator_timing_config(orch: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve knobs de timing do orchestrator; overrides parciais mesclam no SSOT."""
-    settings_orch = _load_settings().get("orchestrator")
+    full_settings = _load_settings()
+    settings_orch = full_settings.get("orchestrator")
     base = dict(settings_orch) if isinstance(settings_orch, dict) else {}
     override = dict(orch) if isinstance(orch, dict) else {}
-    base_ws = base.get("ws_connect") if isinstance(base.get("ws_connect"), dict) else {}
+    api_ws = (full_settings.get("api_config") or {}).get("ws_connect")
+    base_ws = (
+        base.get("ws_connect")
+        if isinstance(base.get("ws_connect"), dict)
+        else (api_ws if isinstance(api_ws, dict) else {})
+    )
     override_ws = override.get("ws_connect") if isinstance(override.get("ws_connect"), dict) else {}
     merged = {**base, **override}
     merged["ws_connect"] = {**base_ws, **override_ws}
@@ -73,8 +77,6 @@ def resolve_orchestrator_timing_config(orch: dict[str, Any] | None = None) -> di
         "broker_handshake_timeout_seconds": require_float(block, "broker_handshake_timeout_seconds"),
         "state_lock_acquire_timeout_seconds": require_float(block, "state_lock_acquire_timeout_seconds"),
         "api_maintenance_fallback_seconds": require_float(block, "api_maintenance_fallback_seconds"),
-        "recovery_warm_up_delay_seconds": require_float(block, "recovery_warm_up_delay_seconds"),
-        "recovery_pending_warm_up_max_seconds": require_float(block, "recovery_pending_warm_up_max_seconds"),
         "stream_warm_up_delay_seconds": require_float(block, "stream_warm_up_delay_seconds"),
         "settlement_tolerance_window_seconds": require_float(block, "settlement_tolerance_window_seconds"),
         "ws_connect": {

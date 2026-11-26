@@ -20,10 +20,10 @@ def test_compose_base_has_hardening_and_localhost_binds():
     text = _compose_text()
     assert "restart: unless-stopped" in text
     assert 'max-size: "10m"' in text
-    assert "127.0.0.1:6379:6379" in text
+    assert "127.0.0.1:${REDIS_PORT:-6379}:6379" in text
     assert "127.0.0.1:5432:5432" in text
     assert "127.0.0.1:9000:9000" in text
-    assert "127.0.0.1:9102:9101" in text
+    assert "127.0.0.1:9001:9001" in text
     assert "127.0.0.1:8005:8000" not in text
     assert "127.0.0.1:8006:8000" not in text
     assert "mem_limit: 256m" in text

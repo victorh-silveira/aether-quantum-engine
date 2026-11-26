@@ -1,13 +1,17 @@
-# Configuracao operacional SSOT
+# Settings SSOT (`config/settings.json`)
 
-`config/settings.json` define a rota de compras. O bloco `pullback_strategy` deve ter `enabled=true`, `variant=dual_sniper` (ou `senior_institutional` em rollback), `period_seconds=900`, `duration=15`, `entry_window_seconds=60` e a versao produzida por `version_for_variant`. A ancora configurada e `OTC_SSMI`. O stream micro/MINI do motor ainda usa 300 s para pesquisa legada; ele nao fornece direcao operacional.
+O arquivo `config/settings.json` e a fonte unica de verdade (SSOT) para configuracao operacional do motor continuo Laya no `R_10` M5.
 
-`never_skip`, `organic_direction`, `stream_fallback` e `invert_signal` ficam desativados (`max_fallback_candidates=3`, `allow_closed_markets=true` para os 12 ativos OTC). Com `dynamic_rotation=true`, o motor avalia todos os sinais M15 institucionais validados pelo indicador nos 12 indices mundiais OTC, rotacionando dinamicamente quando a ancora nao apresentar sinal valido. A rota pullback exige a ultima vela M15 fechada, a janela de entrada, a versao exata do setup e o lado publicado. H1 e D1 nao geram contratos.
+## Secoes Principais
 
-O indicador usa apenas OHLC publico da Deriv para a serie do setup. A referencia da sessao UTC usa preco tipico por vela, sem volume; nao e VWAP. A avaliacao opera 24h sem veto horario de Killzone. O perfil horario do treino e apenas diagnostico.
+- `anchor` e `symbols`: fixados em `"R_10"` e `["R_10"]`.
+- `stream`: `micro_granularity: 300` (M5), `ticks_limit` e `buffer_size` para warmup causal.
+- `laya`: `enabled: true`, `model_id: "convaiinnovations/laya"`, `device: "auto"`, `context_candles: 12`, `stake_min: 1.0`, `min_stake_pct: 0.01`, `max_stake_pct: 0.05`.
+- `risk_management.params`: `duration: 5`, `duration_unit: "m"`, `payout_estimate`, `stake_min: 1.0`, `min_stake_pct: 0.01`, `max_stake_pct: 0.05`.
+- `orchestrator`: `engine_mode: "execute"`, intervalos de reconciliacao e cadencia M5 sem bloqueios ou vetos de horario/regime/stop-win.
+- `infra` e `telemetry`: configuracao de Redis, TimescaleDB, MinIO e servidor Prometheus local.
+- `trading`: `mode` (`demo` ou `real`) e `deriv_app_id` (lido em conjunto com variaveis de ambiente).
 
-`make app-train` registra o proxy de velas e seu ranking, sem escrever em `config/settings.json` ou promover `pullback_registry`. O servico do indicador cria novas versoes como `piloto` e a promocao para `ativo` depende de 200 compras e liquidacoes DEMO unicas, atribuidas a ativo, periodo e versao, com limite inferior unilateral de 95% positivo. A rota REAL verifica essa evidencia novamente e exige EV positivo com margem de 0,01 na proposta final.
+## Sanitizacao
 
-A stake base e 1% da banca disponivel. A recuperacao usa o payout liquido cotado com amortizacao suave em etapas e teto de 5% por ordem (`loss_cooldown_candles=0`, `consecutive_loss_cooldown_candles=0`, `operate_all_signals=true`, `breakeven_floor=0.55`, `min_prob_threshold=0.55`). Nao ha stop loss nem teto acumulado de perda. TCN, meta e loss-classifier nao alteram o lado nem a stake desta rota.
-
-Para alterar um parametro operacional, atualize parser/consumidor, testes, este documento, regras e skills. Consulte [setup](strategy-pullback.md) e [arquitetura](arquitetura.md).
+Antes de enviar `settings.json` ao contexto do `LayaDecisionAdapter`, chaves sensiveis (`token`, `api_token`, `pat`, `secret`, `password`, `dsn`, `key`, `app_id`) sao removidas recursivamente por `sanitize_settings_context`.

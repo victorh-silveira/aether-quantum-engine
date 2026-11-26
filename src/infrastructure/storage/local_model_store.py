@@ -8,7 +8,6 @@ import shutil
 from pathlib import Path
 from typing import Any
 
-from src.infrastructure.storage.torchscript_sanity import verify_torchscript_artifact_async
 from src.shared.paths import repo_path
 
 
@@ -71,25 +70,6 @@ class LocalModelStore:
             return payload if isinstance(payload, dict) else {}
         except (OSError, json.JSONDecodeError, TypeError, ValueError):
             return {}
-
-    async def sanity_check_torchscript(
-        self,
-        dest_ts: Path,
-        *,
-        lookback: int,
-        feature_dim: int,
-        symbol: str = "",
-        manifest: dict[str, Any] | None = None,
-    ) -> None:
-        """Valida forward pass do TorchScript local."""
-        await verify_torchscript_artifact_async(
-            dest_ts,
-            lookback=lookback,
-            feature_dim=feature_dim,
-            manifest=manifest,
-        )
-        label = symbol or dest_ts.stem
-        logger.debug("LOCAL: sanity ok %s", label)
 
     async def head(self) -> bool:
         """Verifica se diretorio base existe."""

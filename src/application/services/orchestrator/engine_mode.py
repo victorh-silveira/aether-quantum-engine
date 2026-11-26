@@ -1,55 +1,20 @@
-"""Modos de operacao do motor: treino dedicado ou execucao de trades."""
+"""Modo unico de operacao continua (execucao via Laya System 1)."""
 
-from src.application.services.deep_learning.dl_horizon import resolve_label_horizon_bars
-from src.application.services.deep_learning.dl_params_timeframe import resolve_dl_granularity
-from src.application.services.orchestrator.config_symbols import resolve_dl_train_symbols
+from __future__ import annotations
+
+from typing import Any
 
 
-ENGINE_MODE_TRAIN = "train"
 ENGINE_MODE_EXECUTE = "execute"
 
 
-def resolve_engine_mode(config: dict) -> str:
-    """Retorna train ou execute a partir de orchestrator.engine_mode."""
-    orch = config.get("orchestrator")
-    if not isinstance(orch, dict):
-        return ENGINE_MODE_EXECUTE
-    raw = str(orch.get("engine_mode", ENGINE_MODE_EXECUTE)).strip().lower()
-    if raw in ("train", "training"):
-        return ENGINE_MODE_TRAIN
+def resolve_engine_mode(config: dict[str, Any] | None = None) -> str:
+    """Retorna sempre execute na arquitetura Laya continua."""
+    _ = config
     return ENGINE_MODE_EXECUTE
 
 
-def apply_engine_mode(config: dict, mode: str) -> dict:
-    """Grava engine_mode e alinha label_horizon ao contrato na granularidade de treino."""
-    chunk = config.get("orchestrator")
-    if not isinstance(chunk, dict):
-        chunk = {}
-        config["orchestrator"] = chunk
-    chunk["engine_mode"] = mode
-
-    if mode == ENGINE_MODE_TRAIN:
-        dl = config.get("deep_learning")
-        if not isinstance(dl, dict):
-            dl = {}
-            config["deep_learning"] = dl
-        train_symbols = dl.get("train_symbols")
-        if isinstance(train_symbols, list) and train_symbols:
-            symbols = resolve_dl_train_symbols(config)
-            dl["train_symbols"] = symbols
-            config["symbols"] = symbols
-            config["anchor"] = symbols[0]
-            indicator_cfg = config.get("indicator_consensus")
-            if isinstance(indicator_cfg, dict):
-                indicator_cfg["auto_symbols"] = False
-        data = config.get("data_handler") if isinstance(config.get("data_handler"), dict) else {}
-        risk = config.get("risk_management") if isinstance(config.get("risk_management"), dict) else {}
-        params = risk.get("params") if isinstance(risk.get("params"), dict) else {}
-        gran = resolve_dl_granularity(dl, data)
-        dl["label_horizon_bars"] = resolve_label_horizon_bars(gran, params, {})
-    return config
-
-
-def training_enabled(orch) -> bool:
-    """Indica se o orquestrador esta em modo de treino."""
-    return resolve_engine_mode(orch.config) == ENGINE_MODE_TRAIN
+def training_enabled(orch: Any = None) -> bool:
+    """Modo treino dedicado removido na arquitetura Laya continua."""
+    _ = orch
+    return False

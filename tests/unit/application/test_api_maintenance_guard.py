@@ -125,8 +125,7 @@ async def test_schedule_api_maintenance_hibernation_sets_deadline(orch_ready):
 def test_handle_broker_maintenance_error_returns_false_for_other_errors(orch_ready):
     orch = orch_ready
     assert handle_broker_maintenance_error(orch, RuntimeError("network timeout")) is False
-    orch.config["pullback_strategy"] = {"enabled": True, "dynamic_rotation": True}
-    assert handle_broker_maintenance_error(orch, RuntimeError("This market is presently closed.")) is False
+    assert handle_broker_maintenance_error(orch, RuntimeError("invalid stake amount")) is False
 
 
 def test_log_api_maintenance_hibernation_deduplicates(orch_ready, caplog):
@@ -147,7 +146,7 @@ async def test_trading_cycle_skips_while_api_maintenance_active(orch_ready):
     loop = asyncio.get_running_loop()
     orch._api_maintenance_until = loop.time() + 60.0
     with patch(
-        f"{TRADING_CYCLE_MODULE}.collect_deep_learning_decisions",
+        f"{TRADING_CYCLE_MODULE}._execute_laya_cycle",
         new_callable=AsyncMock,
     ) as collect_mock:
         ran = await run_trading_cycle_if_ready(orch)

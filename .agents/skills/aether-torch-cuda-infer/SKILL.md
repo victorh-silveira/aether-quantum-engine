@@ -6,7 +6,7 @@ description: Inferencia e execucao assincrona com PyTorch, CUDA host e isolament
 # Inferência PyTorch e Gestão de Recursos no Host
 
 ## 1. Contexto e Pré-requisitos
-- Leia `docs/engineering-deep-learning.md` e `.agents/rules/aether-deep-learning.mdc`.
+- Leia `docs/strategy-laya.md` e `.agents/rules/aether-laya-decision.mdc`.
 
 ## 2. Procedimento Operacional Passo a Passo
 1. **Configuração de Device:**
@@ -21,7 +21,7 @@ description: Inferencia e execucao assincrona com PyTorch, CUDA host e isolament
 
 ## 3. Comandos de Verificação
 ```bash
-/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest app/tests/unit/infrastructure/test_torch*.py -v
+/mnt/c/Users/victor-silveira/anaconda3/envs/deriv-api/python.exe -m pytest tests/unit/infrastructure/test_laya_decision_adapter.py -v
 ```
 
 ## 4. Critérios de Aceite

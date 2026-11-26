@@ -263,8 +263,6 @@ async def _run_post_settlement_retry_loop(orch: Any, orch_cfg: dict, poll: float
             orch._post_settlement_incomplete_streak = 0
             orch._post_settlement_deadlock = False
             return
-        if orch.config.get("pullback_strategy", {}).get("enabled", False):
-            return
         failed_attempts += 1
         if time.monotonic() >= window_deadline or failed_attempts >= _MAX_POST_SETTLEMENT_CYCLE_ATTEMPTS:
             await _apply_tolerance_window_recovery(orch, window=window, failed_attempts=failed_attempts)

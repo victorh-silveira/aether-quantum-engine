@@ -1,266 +1,88 @@
-"""Envio de ordens e inscricao em atualizacoes de contrato aberto."""
+"""Envio continuo de ordens Rise/Fall 5m e inscricao de liquidacao."""
+
+from __future__ import annotations
 
 import asyncio
 import logging
+from typing import Any
 
-from src.application.services.market_audit_log import (
-    emit_audit_info,
-    format_execution_ticket_line,
-    format_kelly_audit_line,
-    resolve_meta_payoff_zscore,
-    resolve_predicted_edge,
-    resolve_stake_audit_context,
-    store_contract_audit,
+from src.application.services.orchestrator.api_maintenance_guard import handle_broker_maintenance_error
+from src.application.services.orchestrator.execution_proposal import (
+    is_retriable_proposal_error,
+    proposal_retry_scales,
+    proposal_stake_attempts,
 )
-from src.application.services.micro_hedge_monitor import register_contract_for_hedge
-from src.application.services.rise_fall_quote_guard import quoted_edge, resolve_effective_side_probability
-from src.domain.risk.checkpoint_stake_cap import checkpoint_stake_cap_pct
-from src.domain.risk.payout_observation import record_observed_payout
-from src.domain.risk.stop_win_target import resolve_stop_win_target
-from src.presentation.terminal.log_context import bind_log_context, get_log_context, restore_log_context
-
-from .api_maintenance_guard import handle_broker_maintenance_error
-from .execution_contract_registration import register_confirmed_contract
-from .execution_order_identity import attach_indicator_identity, set_indicator_duration
-from .execution_order_quote_guard import _attach_quote_guard_params
-from .execution_proposal import is_retriable_proposal_error, proposal_retry_scales, proposal_stake_attempts
-from .settlement_backfill import subscribe_open_contract
-from .settlement_rest import schedule_rest_contract_settlement
+from src.application.services.orchestrator.settlement_backfill import subscribe_open_contract
+from src.application.services.orchestrator.settlement_rest import schedule_rest_contract_settlement
+from src.domain.models.trade import Contract, TradeDirection
+from src.infrastructure.telemetry.otel_tracer import trace_span
 
 
-async def _subscribe_open_contract_background(ws, contract_id: int, *, timeout: float, cid: str) -> None:
-    """Inscreve liquidacao em background para nao bloquear o ciclo de execucao."""
+async def _subscribe_open_contract_background(ws: Any, contract_id: int, *, timeout: float, cid: str) -> None:
+    """Inscreve liquidacao em background para nao bloquear o ciclo."""
     logger = logging.getLogger("AETH")
     try:
         await subscribe_open_contract(ws, int(contract_id), timeout=timeout)
-    except Exception as e:
-        logger.warning("[%s] SETTLE.settle_subscribe: subscribe cid=%s falhou: %s", cid, int(contract_id), e)
+    except Exception as exc:
+        logger.warning("[%s] SETTLE.settle_subscribe: subscribe cid=%s falhou: %s", cid, int(contract_id), exc)
 
 
-def _emit_execution_ticket(executor, *, cycle_id: int, symbol, direction, stake, contract, metrics) -> None:
-    """Emite linha EXEC e persiste auditoria do contrato."""
+async def place_order(
+    executor: Any,
+    symbol: str,
+    direction: TradeDirection,
+    stake: float,
+    duration: int = 5,
+    metrics: dict[str, Any] | None = None,
+) -> Contract | None:
+    """Envia proposta e compra Rise/Fall 5m via Deriv e agenda liquidacao."""
     logger = logging.getLogger("AETH")
-    prev_cid, prev_sym = get_log_context()
-    bind_log_context(cycle_id=cycle_id, symbol=str(symbol))
-    try:
-        audit = resolve_stake_audit_context(
-            executor.orch.risk_manager,
-            balance_fallback=getattr(getattr(executor.orch, "state", None), "balance", None),
-        )
-        metrics_dict = metrics if isinstance(metrics, dict) else {}
-        mode_tag = str(metrics_dict.get("indicator_stake_mode") or audit.get("mode_tag") or "EXPLORE_KELLY")
-        observed_rate = record_observed_payout(
-            executor.orch.risk_manager.risk_params,
-            payout=float(contract.payout),
-            buy_price=float(contract.buy_price),
-        )
-        if observed_rate is not None:
-            metrics_dict["payout_observed"] = observed_rate
-        haircut = float(
-            executor.orch.config.get("orchestrator", {}).get("execution", {}).get("quote_probability_haircut", 0.0)
-        )
-        setup_pilot = bool(metrics_dict.get("indicator_demo_pilot")) and str(
-            metrics_dict.get("indicator_model_version", "")
-        ).startswith("pullback-1-")
-        quote_ev = (
-            None
-            if setup_pilot
-            else quoted_edge(metrics_dict, direction.name, observed_rate, probability_haircut=haircut)
-        )
-        metrics_dict["quote_edge"] = quote_ev
-        if quote_ev is not None and quote_ev <= 0.0:
-            logger.warning(
-                "QUOTE | compra confirmada com EV estimado negativo | cid=%s lado=%s EV=%.4f rate=%.4f",
-                int(contract.contract_id),
-                direction.name,
-                quote_ev,
-                float(observed_rate),
-            )
-        if metrics_dict.get("indicator_stake_mode"):
-            if setup_pilot:
-                prob_desc = "n/a"
-            else:
-                side_prob = resolve_effective_side_probability(metrics_dict, direction.name)
-                prob_fallback = metrics_dict.get("calibrated_prob") or metrics_dict.get("trade_score")
-                prob_desc = (
-                    f"{side_prob:.4f}"
-                    if side_prob is not None
-                    else (f"{float(prob_fallback):.4f} (Beta)" if prob_fallback is not None else "n/a")
-                )
-            logger.info(
-                "[INDICATOR_STAKE] %s | p_side=%s | stake=%.2f (%s)",
-                direction.name,
-                prob_desc,
-                float(stake),
-                mode_tag,
-            )
-        else:
-            emit_audit_info(
-                logger, format_kelly_audit_line(metrics_dict, stake=float(stake), mode_tag=mode_tag, audit=audit)
-            )
-        versao = metrics_dict.get("indicator_model_version")
-        emit_audit_info(
-            logger,
-            format_execution_ticket_line(
-                cycle_id,
-                direction=direction.name,
-                symbol=str(symbol),
-                stake=float(stake),
-                mode_tag=mode_tag,
-                pending=float(audit.get("pending", 0.0)),
-                bankroll=float(audit.get("bankroll", 0.0)),
-                contract_id=int(contract.contract_id),
-                payout=float(contract.payout),
-                linear=int(audit.get("linear", 0)),
-                cap=float(audit.get("cap", 0.0)),
-                recovery_infeasible=bool(audit.get("recovery_infeasible", False)),
-                motivo="setup" if str(versao or "").startswith("pullback-1-") else None,
-            ),
-        )
-    finally:
-        restore_log_context(prev_cid, prev_sym)
-    store_contract_audit(
-        executor.orch,
-        int(contract.contract_id),
-        symbol=str(symbol),
-        direction=direction.name,
-        edge=resolve_predicted_edge(metrics if isinstance(metrics, dict) else {}),
-        meta_payoff_edge_zscore=resolve_meta_payoff_zscore(metrics if isinstance(metrics, dict) else None),
-        raw_prob=(
-            float(metrics.get("tcn_raw_prob", metrics.get("raw_prob")))
-            if isinstance(metrics, dict) and metrics.get("tcn_raw_prob", metrics.get("raw_prob")) is not None
-            else None
-        ),
-    )
-
-
-async def place_order(executor, symbol, direction, stake, duration=None, metrics=None):
-    """Compra contrato com parametros de risco e registra assinatura de liquidacao."""
-    cid = f"C{int(executor.orch._active_cycle_id):04d}"
-    logger = logging.getLogger("AETH")
-    params = executor.orch.config.get("risk_management", {}).get("params", {}).copy()
-    if duration:
-        params["duration"] = duration
-    set_indicator_duration(params, metrics)
-    if params.get("contract_type") == "MULTIPLIER":
-        target_total = resolve_stop_win_target(
-            executor.orch.config.get("risk_management"), executor.orch.risk_manager.initial_bankroll
-        )
-        current_profit = executor.orch.risk_manager.total_session_profit
-        remaining = target_total - current_profit
-        if remaining > 0:
-            lo = dict(params.get("limit_order") or {})
-            max_tp = float(stake) * 50.0
-            tp_val = min(float(remaining), max_tp)
-            lo["take_profit"] = round(tp_val, 2)
-            lo.pop("stop_loss", None)
-            params["limit_order"] = lo
+    cid = f"C{int(getattr(executor.orch, '_active_cycle_id', 1)):04d}"
     exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
-    _attach_quote_guard_params(
-        params,
-        metrics,
-        direction,
-        exec_cfg,
-        trading_mode=str(executor.orch.config.get("trading", {}).get("mode", "demo")),
-    )
-    attach_indicator_identity(params, metrics)
-    pb_cfg = executor.orch.config.get("pullback_strategy") if isinstance(executor.orch.config, dict) else {}
-    if isinstance(pb_cfg, dict) and pb_cfg.get("entry_window_seconds") is not None:
-        params["entry_window_seconds"] = int(pb_cfg["entry_window_seconds"])
-    setup = isinstance(metrics, dict) and str(metrics.get("indicator_model_version", "")).startswith("pullback-1-")
-    if setup:
-        params["_pullback_stake_cap"] = float(metrics.get("_pullback_stake_cap") or 0.0)
-        params["_pullback_quote_rate"] = float(metrics.get("indicator_quote_rate") or 0.0)
-        params["_pullback_recovery_amount"] = float(metrics.get("_pullback_recovery_amount") or 0.0)
-        if metrics.get("_prequoted_proposal_id"):
-            params["_prequoted_proposal_id"] = str(metrics["_prequoted_proposal_id"])
-            params["_prequoted_ask_price"] = float(metrics.get("_prequoted_ask_price") or 0.0)
-            params["_prequoted_payout"] = float(metrics.get("_prequoted_payout") or 0.0)
-            params["_prequoted_rate"] = float(metrics.get("_prequoted_rate") or 0.0)
-            params["_prequoted_timestamp"] = float(metrics.get("_prequoted_timestamp") or 0.0)
-        if float(stake) > params["_pullback_stake_cap"] + 1e-9:
-            raise RuntimeError("Stake do pullback excede teto da banca disponivel")
-    rm_cfg = executor.orch.config.get("risk_management", {})
-    max_stake_cap = float(
-        rm_cfg.get("kelly", {}).get("max_stake", 0.0) or rm_cfg.get("params", {}).get("max_stake", 0.0)
-    )
-    if max_stake_cap > 0.0:
-        stake = min(float(stake), max_stake_cap)
-    stake_min = float(params.get("stake_min", 1.0))
-    attempts = (
-        proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
-        if float(stake) + 1e-9 >= stake_min
-        else []
-    )
-    if isinstance(metrics, dict) and metrics.get("checkpoint_exploration"):
-        cap_pct = checkpoint_stake_cap_pct(metrics)
-        cap = float(executor.orch.state.balance) * cap_pct
-        if cap + 1e-9 < stake_min:
-            raise RuntimeError("Checkpoint nao qualificado: stake minimo excede teto")
-        attempts = [
-            attempt
-            for attempt in proposal_stake_attempts(min(float(stake), cap), stake_min, proposal_retry_scales(exec_cfg))
-            if attempt <= cap + 1e-9
-        ]
-    contract = None
+    laya_cfg = executor.orch.config.get("laya") if isinstance(executor.orch.config.get("laya"), dict) else {}
+    stake_min = float(laya_cfg.get("stake_min", 1.0))
+    _ = metrics
+    params: dict[str, Any] = {
+        "contract_type": "CALL",
+        "duration": int(duration),
+        "duration_unit": "m",
+        "stake_min": stake_min,
+    }
+    attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))
+    if not attempts:
+        return None
+    contract: Contract | None = None
     last_error: Exception | None = None
-    from src.infrastructure.telemetry.otel_tracer import trace_span  # noqa: PLC0415
-
-    with trace_span(
-        "trade.place_order", attributes={"symbol": str(symbol), "direction": str(getattr(direction, "name", direction))}
-    ):
+    with trace_span("trade.place_order", attributes={"symbol": str(symbol), "direction": direction.name}):
         for attempt_stake in attempts:
             try:
                 contract = await executor.orch.trade_handler.buy_with_parameters(
                     symbol, direction, attempt_stake, params=params
                 )
-                if attempt_stake + 1e-9 < float(stake):
-                    logger.debug(
-                        "[PROPOSAL] || RETRY %s stake $%.2f -> $%.2f",
-                        symbol,
-                        float(stake),
-                        float(attempt_stake),
-                    )
                 stake = float(attempt_stake)
                 break
             except RuntimeError as exc:
                 last_error = exc
-                if "perdeu vantagem" in str(exc).lower() or "compra bloqueada" in str(exc).lower():
-                    logger.warning(
-                        "[PROPOSAL] || Compra bloqueada pelo guard de EV para %s (%s) | origem=%s | modelo=%s: %s",
-                        symbol,
-                        getattr(direction, "name", str(direction)),
-                        "indicador"
-                        if isinstance(metrics, dict) and metrics.get("indicator_controls_execution")
-                        else "TCN",
-                        metrics.get("indicator_model_version", "-") if isinstance(metrics, dict) else "-",
-                        exc,
-                    )
-                    return None
                 if handle_broker_maintenance_error(executor.orch, exc):
                     raise
                 if not is_retriable_proposal_error(exc) or attempt_stake == attempts[-1]:
                     raise
     if contract is None:
         raise last_error or RuntimeError("Erro na proposta: falha desconhecida")
-    if isinstance(metrics, dict) and metrics.get("_register_before_tracking"):
-        await register_confirmed_contract(executor.orch, contract, str(symbol), float(contract.buy_price))
-    _emit_execution_ticket(
-        executor,
-        cycle_id=int(executor.orch._active_cycle_id),
-        symbol=symbol,
-        direction=direction,
-        stake=stake,
-        contract=contract,
-        metrics=metrics,
+    logger.info(
+        "EXEC | %s %s | stake=$%.2f | payout=$%.2f | cid=%s",
+        symbol,
+        direction.name,
+        float(contract.buy_price or stake),
+        float(contract.payout or 0.0),
+        int(contract.contract_id),
     )
     inst = getattr(executor.orch, "business_instrumentor", None)
     if inst is not None:
-        inst.record_cycle(str(symbol), is_execution=True, reason="setup_confirmado")
+        inst.record_cycle(str(symbol), is_execution=True, reason="laya_continuo")
         if hasattr(inst, "runtime"):
             inst.runtime.record_quote_payout(str(symbol), float(contract.buy_price), float(contract.payout))
     executor.orch.risk_manager.contract_to_symbol[contract.contract_id] = symbol
-    exec_cfg = executor.orch.config.get("orchestrator", {}).get("execution", {})
     req_timeout = float(exec_cfg.get("settlement_request_timeout_seconds", 30.0))
     if str(getattr(executor.orch, "trading_transport", "ws")).lower() == "rest":
         base_bal = float(getattr(executor.orch.state, "balance", 0.0) or 0.0)
@@ -279,20 +101,9 @@ async def place_order(executor, symbol, direction, stake, duration=None, metrics
             logger.warning("[%s] SETTLE_REST: refresh saldo pos-compra falhou: %s", cid, exc)
         schedule_rest_contract_settlement(executor.orch, contract, balance_after_buy=balance_after)
     else:
-        coro = _subscribe_open_contract_background(
-            executor.orch.ws, int(contract.contract_id), timeout=req_timeout, cid=cid
+        asyncio.create_task(
+            _subscribe_open_contract_background(
+                executor.orch.ws, int(contract.contract_id), timeout=req_timeout, cid=cid
+            )
         )
-        asyncio.create_task(coro)
-    unit = str(params.get("duration_unit", "m")).lower()
-    dur_sec = int(params.get("duration", 5)) * 60 if unit == "m" else int(params.get("duration", 300))
-    register_contract_for_hedge(
-        executor.orch,
-        int(contract.contract_id),
-        symbol=str(symbol),
-        direction=direction,
-        entry_spot=float(getattr(contract, "entry_spot", 0.0) or 0.0),
-        entry_time=getattr(contract, "entry_time", None),
-        stake=float(contract.stake),
-        duration=dur_sec,
-    )
     return contract

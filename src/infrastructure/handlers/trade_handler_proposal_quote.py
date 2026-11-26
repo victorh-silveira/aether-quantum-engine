@@ -1,22 +1,25 @@
-"""Consulta de cotacao Rise/Fall sem executar compra."""
+"""Calculo de taxa de payout observado e consulta de cotacao Rise/Fall."""
 
 from __future__ import annotations
 
 import logging
+import math
 import time
 from typing import Any
 
 from src.domain.models.trade import TradeDirection
-from src.domain.risk.payout_observation import (
-    cap_stake_for_max_payout,
-    contract_profit_rate,
-    parse_max_payout_rejection,
-)
 from src.infrastructure.handlers.trade_handler_requests import build_proposal_request
 
 
-def _parse_quote_snapshot(handler: Any, response: Any, *, max_payout_cap: float | None = None) -> dict[str, Any] | None:
-    """Extrai snapshot estruturado de uma resposta de proposal sem erro."""
+def contract_profit_rate(payout: float, buy_price: float) -> float | None:
+    """Calcula taxa liquida de retorno sobre o preco pago."""
+    if not (math.isfinite(payout) and math.isfinite(buy_price)) or buy_price <= 0.0 or payout <= buy_price:
+        return None
+    return (payout - buy_price) / buy_price
+
+
+def _parse_quote_snapshot(handler: Any, response: Any) -> dict[str, Any] | None:
+    """Extrai snapshot estruturado de uma resposta de proposal."""
     proposal = response.get("proposal") if isinstance(response, dict) else None
     if not isinstance(proposal, dict):
         return None
@@ -26,15 +29,12 @@ def _parse_quote_snapshot(handler: Any, response: Any, *, max_payout_cap: float 
     if rate is None:
         return None
     handler.latest_payout_rate = rate
-    result: dict[str, Any] = {
+    return {
         "proposal_id": str(proposal.get("id") or ""),
         "price": price,
         "payout": payout,
         "rate": rate,
     }
-    if max_payout_cap is not None:
-        result["max_payout"] = max_payout_cap
-    return result
 
 
 async def fetch_proposal_snapshot(
@@ -42,40 +42,10 @@ async def fetch_proposal_snapshot(
 ) -> dict | None:
     """Retorna preco, payout, taxa e ID validos da cotacao observada."""
     config = params if params is not None else handler.config.get("risk_management", {}).get("params", {})
-    stake_min = float(handler.config.get("risk_management", {}).get("params", {}).get("stake_min", 1.0))
     request = build_proposal_request(symbol, direction, stake, config)
     try:
         response = await handler.ws.send(request, timeout=int(handler.ws.request_timeout))
-        if not isinstance(response, dict):
-            return None
-        if "error" in response:
-            err = response.get("error", {})
-            msg = str(err.get("message", "erro"))
-            parsed = parse_max_payout_rejection(msg)
-            if parsed is not None:
-                max_payout_cap, cur_payout = parsed
-                scaled = (
-                    cap_stake_for_max_payout(float(stake), max_payout_cap, cur_payout, stake_min)
-                    if cur_payout > max_payout_cap
-                    else cap_stake_for_max_payout(float(stake), max_payout_cap, 1.0, stake_min, is_rate=True)
-                )
-                if scaled > 0.0 and scaled + 1e-9 < float(stake):
-                    logging.getLogger("AETH").info(
-                        "QUOTE: ajustando stake de %s (%.2f -> %.2f) pelo teto de payout %.2f",
-                        symbol,
-                        float(stake),
-                        scaled,
-                        max_payout_cap,
-                    )
-                    retry_req = build_proposal_request(symbol, direction, scaled, config)
-                    retry_resp = await handler.ws.send(retry_req, timeout=int(handler.ws.request_timeout))
-                    return _parse_quote_snapshot(handler, retry_resp, max_payout_cap=max_payout_cap)
-            logging.getLogger("AETH").warning(
-                "QUOTE: proposta Deriv recusada para %s: %s (code=%s)",
-                symbol,
-                msg,
-                err.get("code", "-"),
-            )
+        if not isinstance(response, dict) or "error" in response:
             return None
         return _parse_quote_snapshot(handler, response)
     except Exception:
@@ -91,38 +61,25 @@ async def resolve_order_proposal(
     proposal_req: dict,
     timeout: int,
 ) -> tuple[str, float, float | None, dict]:
-    """Retorna prop_id, ask_price, payout e proposal com reaproveitamento de cotacao recente."""
-    _ = (symbol, direction)
-    cached_id = p_cfg.get("_prequoted_proposal_id")
-    cached_ts = float(p_cfg.get("_prequoted_timestamp", 0.0) or 0.0)
-    cached_ask = float(p_cfg.get("_prequoted_ask_price", 0.0) or 0.0)
-    cached_payout = float(p_cfg.get("_prequoted_payout", 0.0) or 0.0)
-    can_use_cache = bool(cached_id and (time.time() - cached_ts) <= 2.5 and abs(cached_ask - float(stake)) < 0.01)
-    if can_use_cache:
-        if p_cfg.get("_prequoted_rate"):
-            handler.latest_payout_rate = float(p_cfg["_prequoted_rate"])
-        proposal = {"id": str(cached_id), "ask_price": cached_ask, "payout": cached_payout}
-        return str(cached_id), cached_ask, cached_payout, proposal
-    proposal_resp = await handler.ws.send(proposal_req, timeout=timeout)
-    if "error" in proposal_resp:
-        msg = proposal_resp["error"].get("message", "Erro desconhecido")
-        raise RuntimeError(f"Erro na proposta: {msg}")
-    proposal = proposal_resp.get("proposal")
-    if not isinstance(proposal, dict):
-        raise RuntimeError("Erro na proposta: resposta sem proposal")
-    prop_id = proposal.get("id")
-    if not prop_id:
-        raise RuntimeError("Erro na proposta: id ausente")
-    if "_quote_guard_side_probability" in p_cfg and (
-        proposal.get("ask_price") is None or proposal.get("payout") is None
-    ):
-        raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout; compra bloqueada")
-    is_multiplier = str(p_cfg.get("contract_type", "")).upper() == "MULTIPLIER"
-    try:
-        raw_ask = proposal.get("ask_price")
-        ask_price = float(raw_ask if raw_ask is not None else stake)
-        raw_payout = proposal.get("payout")
-        payout_val = float(raw_payout) if raw_payout is not None else (0.0 if is_multiplier else None)
-    except (TypeError, ValueError) as exc:
-        raise RuntimeError("Cotacao final Rise/Fall sem preco ou payout valido; compra bloqueada") from exc
-    return str(prop_id), ask_price, payout_val, proposal
+    """Envia proposal na Deriv e retorna (proposal_id, ask_price, payout, proposal)."""
+    _ = p_cfg
+    t0 = time.monotonic()
+    prop_resp = await handler.ws.send(proposal_req, timeout=timeout)
+    if "error" in prop_resp:
+        err = prop_resp["error"]
+        raise RuntimeError(f"Erro na proposta: {err.get('message', 'Erro')} (code={err.get('code', 'unknown')})")
+    proposal = prop_resp.get("proposal") or {}
+    prop_id = str(proposal.get("id") or "")
+    ask_price = float(proposal.get("ask_price") or stake)
+    raw_payout = proposal.get("payout")
+    payout_val = float(raw_payout) if raw_payout is not None else None
+    logging.getLogger("AETH").debug(
+        "PROPOSAL | %s %s id=%s ask=%.2f payout=%s dt=%.2fs",
+        symbol,
+        direction.name,
+        prop_id,
+        ask_price,
+        payout_val,
+        time.monotonic() - t0,
+    )
+    return prop_id, ask_price, payout_val, proposal

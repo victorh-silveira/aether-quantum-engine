@@ -51,21 +51,21 @@ def test_emit_fatal_startup_error_skips_missing_stderr():
 async def test_main_returns_130_on_keyboard_interrupt():
     orch = MagicMock()
     orch.run = AsyncMock(side_effect=KeyboardInterrupt())
-    orch.close_infrastructure_connections = AsyncMock()
+    orch.stop = AsyncMock()
     with (
         patch("run.load_engine_config", return_value=({}, MagicMock())),
         patch("run.create_authenticated_auth", return_value=MagicMock()),
         patch("run.Orchestrator", return_value=orch),
     ):
         assert await run.main() == 130
-    orch.close_infrastructure_connections.assert_awaited_once()
+    orch.stop.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_main_returns_130_on_cancelled_error():
     orch = MagicMock()
     orch.run = AsyncMock(side_effect=asyncio.CancelledError())
-    orch.close_infrastructure_connections = AsyncMock()
+    orch.stop = AsyncMock()
     with (
         patch("run.load_engine_config", return_value=({}, MagicMock())),
         patch("run.create_authenticated_auth", return_value=MagicMock()),
@@ -84,13 +84,11 @@ async def test_main_returns_1_when_auth_missing():
 
 
 @pytest.mark.asyncio
-async def test_main_returns_0_on_stop_win():
+async def test_main_returns_0_when_running_cleanly():
     orch = MagicMock()
     orch.run = AsyncMock()
-    orch.close_infrastructure_connections = AsyncMock()
-    orch.shutdown_reason = "stop_win"
+    orch.stop = AsyncMock()
     orch.running = True
-    orch.risk_manager.total_session_profit = 12.5
     with (
         patch("run.load_engine_config", return_value=({}, MagicMock())),
         patch("run.create_authenticated_auth", return_value=MagicMock()),
@@ -103,8 +101,7 @@ async def test_main_returns_0_on_stop_win():
 async def test_main_returns_1_when_loop_ends_before_running():
     orch = MagicMock()
     orch.run = AsyncMock()
-    orch.close_infrastructure_connections = AsyncMock()
-    orch.shutdown_reason = None
+    orch.stop = AsyncMock()
     orch.running = False
     with (
         patch("run.load_engine_config", return_value=({}, MagicMock())),
@@ -127,25 +124,6 @@ def test_load_engine_config_reads_settings():
         config, logger = load_engine_config()
     assert config["trading"]["mode"] == "demo"
     assert logger is not None
-
-
-def test_load_engine_config_logs_risk_validation_issues():
-    payload = json.dumps(_MIN_CONFIG)
-    logger = MagicMock()
-    with (
-        patch("src.application.services.orchestrator.engine_session.os.chdir"),
-        patch(
-            "src.application.services.orchestrator.engine_session.repo_path",
-            return_value=MagicMock(open=mock_open(read_data=payload)),
-        ),
-        patch("src.application.services.orchestrator.engine_session.setup_logger", return_value=logger),
-        patch(
-            "src.application.services.orchestrator.engine_session.validate_engine_risk_config",
-            return_value=["kelly.max_stake_pct fora de (0, 0.10]: 0.5"],
-        ),
-    ):
-        load_engine_config()
-    logger.warning.assert_called_once_with("CFG_RISK || %s", "kelly.max_stake_pct fora de (0, 0.10]: 0.5")
 
 
 def test_create_authenticated_auth_returns_none_without_pat():

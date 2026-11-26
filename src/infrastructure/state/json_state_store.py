@@ -6,17 +6,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from src.domain.risk.dlambert_sizing import (
-    REDIS_DLAMBERT_LINEAR_LOSSES_KEY,
-    REDIS_DLAMBERT_UNIT_KEY,
-)
-from src.domain.risk.recovery_hurst_decay import REDIS_SKIP_COUNTER_KEY
-from src.domain.risk.stop_win_target import (
-    REDIS_SESSION_START_BALANCE_KEY,
-    REDIS_SESSION_TARGET_WIN_KEY,
-)
 from src.infrastructure.state.redis_ephemeral_ttl import REDIS_EPHEMERAL_SIG_TTL_SECONDS
 from src.shared.paths import repo_path
+
+
+REDIS_DLAMBERT_LINEAR_LOSSES_KEY = "risk:linear_losses"
+REDIS_DLAMBERT_UNIT_KEY = "risk:dlambert_unit"
+REDIS_SKIP_COUNTER_KEY = "risk:recovery_skip_counter"
+REDIS_SESSION_START_BALANCE_KEY = "session:start_balance"
+REDIS_SESSION_TARGET_WIN_KEY = "session:target_win"
 
 
 class JsonStateStore:

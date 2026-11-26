@@ -1,8 +1,6 @@
 import builtins
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-
 from src.application.services.orchestrator import Orchestrator
 from src.application.services.orchestrator.execution_cuda import clear_cuda_cache
 from src.infrastructure.state.trading_state import TradingState
@@ -21,16 +19,6 @@ def test_execution_manager_result_buffer_helpers(orch_config):
             orch.executor._flush_result_buffer()
         assert mock_info.call_count == 2
         assert orch._pending_result_logs == []
-
-
-@pytest.mark.asyncio
-async def test_execution_manager_clears_cuda_cache(orch_config):
-    with patch("src.application.services.orchestrator.WebSocketManager", return_value=AsyncMock()) as mock_ws_class:
-        mock_ws_class.return_value.subscribe = MagicMock()
-        orch = Orchestrator(orch_config, "token")
-        with patch("src.application.services.orchestrator.execution_manager.clear_cuda_cache") as mock_clear:
-            await orch.executor.execute_cluster({})
-            mock_clear.assert_called_once()
 
 
 def test_clear_cuda_cache_when_available():

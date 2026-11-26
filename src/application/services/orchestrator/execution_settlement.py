@@ -150,7 +150,7 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
         if await _wait_broker_offline_settlement(exec_mgr, poll):
             stagnant_polls = 0
             continue
-        if not await exec_mgr.reconcile():
+        if not await exec_mgr.reconcile_contracts():
             stagnant_polls = 0
             await _settlement_poll_delay(max(poll, 3.0))
             continue
@@ -166,7 +166,7 @@ async def wait_for_settlement(exec_mgr: "ExecutionManager", timeout: int = 3600)
             continue
         if stagnant_action == "break":
             break
-        await exec_mgr.orch._save_full_state()
+        await exec_mgr.orch.save_full_state()
         await _settlement_poll_delay(poll)
     clear_log_channel(exec_mgr.orch, "settle_stagnant")
 

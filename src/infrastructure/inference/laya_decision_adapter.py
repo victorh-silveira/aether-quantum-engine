@@ -1,0 +1,178 @@
+"""Adapter de inferencia continua via Laya System 1 em GPU CUDA ou CPU."""
+
+from __future__ import annotations
+
+import asyncio
+import math
+import os
+import time
+import warnings
+from typing import Any
+
+from src.domain.models.laya_decision import LayaDecision
+from src.domain.models.market_data import Candle
+from src.domain.models.trade import TradeDirection
+
+
+_SENSITIVE_KEYS = frozenset({"token", "api_token", "pat", "secret", "password", "dsn", "key", "app_id"})
+
+_LAYA_QUESTIONS = {
+    "direction": {
+        "type": "choice",
+        "instructions": (
+            "Evaluate the closed M5 OHLC candles, all technical indicators, and bot settings "
+            "to predict the next 5-minute binary contract direction (CALL or PUT)."
+        ),
+        "criteria": {
+            "CALL": "Price closes higher in 5 minutes: bullish trend, upward momentum, or oversold bounce.",
+            "PUT": "Price closes lower in 5 minutes: bearish trend, downward momentum, or overbought reversal.",
+        },
+    }
+}
+
+
+def sanitize_settings_context(config: dict[str, Any]) -> dict[str, Any]:
+    """Remove credenciais e campos sensiveis do settings.json antes de enviar ao Laya."""
+
+    def _clean(obj: Any) -> Any:
+        """Percorre dicionarios e listas removendo chaves sensiveis."""
+        if isinstance(obj, dict):
+            return {
+                k: _clean(v) for k, v in obj.items() if not any(secret in str(k).lower() for secret in _SENSITIVE_KEYS)
+            }
+        if isinstance(obj, list):
+            return [_clean(item) for item in obj]
+        return obj
+
+    return _clean(config)
+
+
+def _format_candles_summary(candles: list[Candle], limit: int = 12) -> list[dict[str, float | int]]:
+    """Formata ultimas velas fechadas de forma compacta para o estado do Laya."""
+    tail = candles[-max(1, limit) :]
+    return [
+        {
+            "epoch": bar.epoch,
+            "open": round(bar.open, 5),
+            "high": round(bar.high, 5),
+            "low": round(bar.low, 5),
+            "close": round(bar.close, 5),
+        }
+        for bar in tail
+    ]
+
+
+def _extract_choice_probs(
+    raw: dict[str, Any], indicators: dict[str, float]
+) -> tuple[TradeDirection, float, float, float]:
+    """Extrai direcao binaria continua (nunca SKIP) e probabilidades normalizadas."""
+    answers = raw.get("answers") if isinstance(raw.get("answers"), dict) else {}
+    entry = answers.get("direction") if isinstance(answers.get("direction"), dict) else {}
+    dir_probs = entry.get("probabilities") if isinstance(entry.get("probabilities"), dict) else {}
+    if not dir_probs:
+        probs_map = raw.get("probabilities") or {}
+        dir_probs = probs_map.get("direction") if isinstance(probs_map, dict) else {}
+    if not isinstance(dir_probs, dict):
+        dir_probs = {}
+    p_call = float(dir_probs.get("CALL", 0.5) or 0.5)
+    p_put = float(dir_probs.get("PUT", 0.5) or 0.5)
+    if not math.isfinite(p_call) or p_call < 0.0:
+        p_call = 0.5
+    if not math.isfinite(p_put) or p_put < 0.0:
+        p_put = 0.5
+    total = p_call + p_put
+    if total <= 1e-12:
+        p_call, p_put = 0.5, 0.5
+    else:
+        p_call /= total
+        p_put /= total
+    raw_conf = entry.get("answer_confidence", entry.get("confidence"))
+    if raw_conf is None:
+        conf_map = raw.get("confidence") or {}
+        raw_conf = conf_map.get("direction") if isinstance(conf_map, dict) else None
+    conf = float(raw_conf) if raw_conf is not None else max(p_call, p_put)
+    if not math.isfinite(conf):
+        conf = max(p_call, p_put)
+    if abs(p_call - p_put) <= 1e-9:
+        ema20 = float(indicators.get("ema_20", 0.0))
+        ema50 = float(indicators.get("ema_50", 0.0))
+        direction = TradeDirection.CALL if ema20 >= ema50 else TradeDirection.PUT
+    else:
+        direction = TradeDirection.CALL if p_call > p_put else TradeDirection.PUT
+    return direction, p_call, p_put, conf
+
+
+class LayaDecisionAdapter:
+    """Adapter de decisao binaria continua usando laya.load(..., vegaml=False)."""
+
+    def __init__(
+        self,
+        model_id: str = "convaiinnovations/laya",
+        device: str = "auto",
+        context_candles: int = 12,
+        agent: Any | None = None,
+    ) -> None:
+        self.model_id = model_id
+        self.device = device
+        self.context_candles = max(1, int(context_candles))
+        self._agent = agent
+
+    def _ensure_agent(self) -> Any:
+        """Carrega o modelo Laya pre-treinado sob demanda com suporte a CUDA."""
+        if self._agent is not None:
+            return self._agent
+        os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+        os.environ.setdefault("TQDM_DISABLE", "1")
+        warnings.filterwarnings(
+            "ignore",
+            message=r"laya: this checkpoint ships invalid temperatures.*",
+            category=RuntimeWarning,
+        )
+        import laya  # noqa: PLC0415
+        import torch  # noqa: PLC0415
+
+        resolved_device = ("cuda" if torch.cuda.is_available() else "cpu") if self.device == "auto" else self.device
+        self._agent = laya.load(self.model_id, device=resolved_device, vegaml=False)
+        return self._agent
+
+    def _predict_sync(
+        self,
+        symbol: str,
+        candles: list[Candle],
+        indicators: dict[str, float],
+        settings_context: dict[str, Any],
+    ) -> LayaDecision:
+        """Executa inferencia sincrona em um unico forward pass System 1."""
+        agent = self._ensure_agent()
+        state = {
+            "symbol": symbol,
+            "timeframe_seconds": 300,
+            "recent_candles": _format_candles_summary(candles, self.context_candles),
+            "indicators": {k: round(float(v), 6) for k, v in indicators.items()},
+            "settings": sanitize_settings_context(settings_context),
+        }
+        t0 = time.perf_counter()
+        raw = agent.system_one(state, _LAYA_QUESTIONS)
+        latency_ms = (time.perf_counter() - t0) * 1000.0
+        direction, p_call, p_put, conf = _extract_choice_probs(raw if isinstance(raw, dict) else {}, indicators)
+        win_prob = p_call if direction is TradeDirection.CALL else p_put
+        return LayaDecision(
+            symbol=symbol,
+            direction=direction,
+            probability=win_prob,
+            prob_call=p_call,
+            prob_put=p_put,
+            confidence=conf,
+            latency_ms=latency_ms,
+            indicators=dict(indicators),
+        )
+
+    async def decide(
+        self,
+        symbol: str,
+        candles: list[Candle],
+        indicators: dict[str, float],
+        settings_context: dict[str, Any],
+    ) -> LayaDecision:
+        """Executa decisao do Laya fora do event loop asyncio."""
+        return await asyncio.to_thread(self._predict_sync, symbol, candles, indicators, settings_context)

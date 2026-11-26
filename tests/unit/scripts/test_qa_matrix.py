@@ -35,7 +35,7 @@ def test_is_ci_reads_env(monkeypatch):
 def test_json_lint_validate_test(tmp_path: Path):
     config = tmp_path / "config"
     config.mkdir()
-    (config / "settings.json").write_text('{"symbols": ["1HZ75V"], "deep_learning": {}}', encoding="utf-8")
+    (config / "settings.json").write_text('{"symbols": ["R_10"], "laya": {}}', encoding="utf-8")
     (config / "python.json").write_text('{"conda_env": "deriv-api"}', encoding="utf-8")
     run_json("lint", tmp_path)
     run_json("validate", tmp_path)

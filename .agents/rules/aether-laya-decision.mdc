@@ -1,0 +1,13 @@
+---
+description: "Autoridade 100% da decisao binaria continua CALL/PUT via Laya System 1 no R_10 M5."
+alwaysApply: true
+---
+
+# Regra Laya System 1 Continuo (`R_10` M5)
+
+- **Decisao Unica:** Toda escolha `CALL` ou `PUT` pertence exclusivamente ao `LayaDecisionAdapter` (`laya==0.5.5`, `convaiinnovations/laya`, `vegaml=False`).
+- **Zero SKIP:** Nunca retorne `SEM SINAL` ou `SKIP` por filtros de regime, horario, EV, streak ou stop-win.
+- **Ativo e Timeframe:** `R_10` em velas M5 fechadas (`300s`), contrato Rise/Fall de 5 minutos (`duration=5`, `duration_unit="m"`).
+- **Entrada para o Laya:** enviar velas OHLC fechadas, pacote completo de `compute_indicators` e configuracoes sanitizadas de `config/settings.json`.
+- **Stake Dinamica:** escalada linearmente em `[1%, 5%]` via `calculate_laya_stake` pela probabilidade do Laya, sem recuperacao 1/1, Martingale, Kelly ou D'Alembert.
+- **Logs Obrigatorios:** `make app-run` deve registrar `INDICATORS | ...` e `LAYA_DECISION | ...` a cada ciclo M5.

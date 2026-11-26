@@ -26,6 +26,18 @@ class InfraServices:
     model_store: Any
 
 
+def _resolve_redis_url(redis_cfg: dict[str, Any]) -> str:
+    """Resolve URL do Redis respeitando AETHER_REDIS_URL ou REDIS_PORT do .env."""
+    env_url = (os.getenv("AETHER_REDIS_URL") or "").strip()
+    if env_url:
+        return env_url
+    url = str(redis_cfg.get("url", "redis://127.0.0.1:6379/0"))
+    redis_port = (os.getenv("REDIS_PORT") or "").strip()
+    if redis_port and ":6379" in url:
+        return url.replace(":6379", f":{redis_port}", 1)
+    return url
+
+
 def _infra_cfg(config: dict[str, Any]) -> dict[str, Any]:
     """Extrai bloco infra da configuracao raiz."""
     chunk = config.get("infra") if isinstance(config, dict) else {}
@@ -55,7 +67,7 @@ def create_infra_services(config: dict[str, Any]) -> InfraServices:
     ts_cfg = cfg.get("timescale") if isinstance(cfg.get("timescale"), dict) else {}
     minio_cfg = cfg.get("minio") if isinstance(cfg.get("minio"), dict) else {}
     state_store = RedisStateStore(
-        url=str(redis_cfg.get("url", "redis://127.0.0.1:6379/0")),
+        url=_resolve_redis_url(redis_cfg),
         key_prefix=str(redis_cfg.get("key_prefix", "aether")),
         socket_connect_timeout=float(redis_cfg.get("socket_connect_timeout_seconds", 2.0)),
         socket_timeout=float(redis_cfg.get("socket_timeout_seconds", 15.0)),
@@ -94,12 +106,16 @@ async def validate_infra_services(services: InfraServices, config: dict[str, Any
     cfg = _infra_cfg(config)
     fail_fast = bool(cfg.get("fail_fast", True)) and services.fail_fast
     checks = [
-        ("Redis", services.state_store.ping()),
-        ("TimescaleDB", services.market_writer.ping()),
-        ("MinIO", services.model_store.head()),
+        ("Redis", services.state_store.ping),
+        ("TimescaleDB", services.market_writer.ping),
+        ("MinIO", services.model_store.head),
     ]
-    for label, coro in checks:
-        ok = await coro
+    for label, check_fn in checks:
+        try:
+            ok = await check_fn()
+        except Exception as exc:
+            logger.warning("INFRA: falha ao validar %s (%s)", label, exc)
+            ok = False
         if ok:
             logger.debug("INFRA: %s ok", label)
             continue

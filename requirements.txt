@@ -18,7 +18,5 @@ asyncpg>=0.30                  # Driver de conexão assíncrono de alta performa
 minio>=7.2                     # SDK para integração com armazenamento de objetos compatível com AWS S3
 
 # ---- DEEP LEARNING & INFERENCIA ----
-torch>=2.6.0                   # Framework principal de Deep Learning (PyTorch) para criação e execução de redes neurais
-scikit-learn==1.9.1            # Metricas e baselines lineares de pre-flight (sklearn.dummy, LogisticRegression)
-optuna==5.1.0                  # Framework de otimizacao de hiperparametros automatizada (WalkForwardOptimizer)
-joblib==1.6.0                  # Serializacao explicita e execucao paralela
+torch>=2.6.0                   # Framework principal de Deep Learning (PyTorch) para GPU CUDA
+laya==0.5.5                    # Motor System 1 nao-autoregressivo para decisao binaria calibrada CALL/PUT
