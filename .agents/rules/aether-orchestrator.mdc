@@ -1,5 +1,5 @@
 ---
-description: Orquestrador assincrono, ciclo M15, warmup de buffers e supervisao por watchdog
+description: Orquestrador assincrono, ciclo M5, warmup de buffers e supervisao por watchdog
 alwaysApply: true
 ---
 
@@ -9,8 +9,9 @@ alwaysApply: true
 O servico de orquestracao em src/application/services/orchestrator/ coordena os ciclos operacionais do motor, o warmup de mercado e a execucao temporal sincronizada.
 
 ## 2. Hard Gates Inegociáveis
-- **Warmup Obrigatório:** O motor nao processa sinais antes de preencher completamente os buffers historicos de candles M15 necessarios para calculo confiavel de ATR14, EMA20 e EMA50.
-- **Sincronização com o Relógio M15:** O ciclo principal opera sincronizado com os limites exatos de 900 segundos das velas M15, garantindo avaliacao precisa nos primeiros 60 segundos da abertura.
+- **Warmup Obrigatório:** Exigir pelo menos 51 velas M5 fechadas via `get_closed_candles(symbol, 300)`, sem fallback D1, com epochs unicos e ordenados.
+- **Sincronização M5:** Passar o orquestrador a fronteira de 300 segundos e preservar a mesma serie durante inferencia, execucao e persistencia. Nao repetir a mesma vela apos liquidacao ou reconexao.
+- **Contexto Completo:** Dimensionar o contexto com tokenizer real e rejeitar respostas truncadas. Registrar epoch, assinatura, tokens e todos os indicadores em INFO. Preservar CALL/PUT continuo sem vetos de estrategia.
 - **Watchdog Ativo:** Um servico de watchdog monitora continuamente a saude do loop assincrono e dos streams; estagnacao prolongada dispara alertas e safe-shutdown defensivo.
 
 ## 3. Padrões de Implementação
@@ -18,5 +19,5 @@ O servico de orquestracao em src/application/services/orchestrator/ coordena os 
 - **Transição de Estados:** Estados operacionais (STARTING, WARMING_UP, ACTIVE, PAUSED, STOPPING) gerenciados por maquina de estados finita.
 
 ## 4. Proibições Estritas
-- Nunca operar sem conclusao integral do warmup de buffers.
+- Nunca operar sem conclusao integral do warmup de buffers M5 fechados.
 - Nunca congelar o ciclo aguardando respostas sincronas de rede.

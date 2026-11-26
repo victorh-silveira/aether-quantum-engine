@@ -641,7 +641,7 @@ async def test_tail_final_40_lines_for_100_percent():
         ),
         patch("src.application.services.orchestrator.trading_cycle_entry.log_laya_cycle_decision"),
     ):
-        assert await tce._execute_laya_cycle(o_tce) is False
+        assert await tce._execute_laya_cycle(o_tce, o_tce.stream.get_closed_candles("R_10", 300)) is False
 
     o_tce.executor = SimpleNamespace(execute_laya_order=AsyncMock(side_effect=RuntimeError("order err")))
     with (
@@ -665,7 +665,7 @@ async def test_tail_final_40_lines_for_100_percent():
         ),
         patch("src.application.services.orchestrator.trading_cycle_entry.log_laya_cycle_decision"),
     ):
-        assert await tce._execute_laya_cycle(o_tce) is False
+        assert await tce._execute_laya_cycle(o_tce, o_tce.stream.get_closed_candles("R_10", 300)) is False
 
     o_guard = SimpleNamespace(
         running=True,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 from datetime import UTC, datetime
 from types import SimpleNamespace
@@ -87,19 +88,24 @@ async def test_laya_decision_adapter_decide_async(monkeypatch):
         def __init__(self):
             self.last_state = None
 
-        def system_one(self, state, questions):
-            self.last_state = (state, questions)
+        def system_one(self, state, questions, **kwargs):
+            self.last_state = (json.loads(state), questions)
             return {
+                "usage": {"truncated": False, "state_tokens": 100, "state_tokens_dropped": 0},
                 "answers": {
                     "direction": {
                         "choice": "PUT",
                         "probabilities": {"CALL": 0.30, "PUT": 0.70},
                         "answer_confidence": 0.70,
                     }
-                }
+                },
             }
 
     fake = _FakeAgent()
+    monkeypatch.setattr(
+        "src.infrastructure.inference.laya_decision_adapter.encode_laya_context",
+        lambda agent, state, questions: (json.dumps(state), 512, "test"),
+    )
     adapter = LayaDecisionAdapter(agent=fake)
     dec = await adapter.decide(
         "R_10", _sample_candles(), {"ema_20": 100.0, "ema_50": 101.0}, {"anchor": "R_10", "api_key": "x"}

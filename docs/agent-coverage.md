@@ -22,6 +22,7 @@ A sincronizacao e testada automaticamente em `tests/unit/repo/test_agent_coverag
 | Doutrina / sessao continua | [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-llm-doctrine.mdc` | `aether-session-review` |
 | Gestao de capital dinamica [1%, 5%] | [strategy-laya.md](strategy-laya.md) + [llm-trading-doctrine.md](llm-trading-doctrine.md) | `aether-risk-sizing.mdc` | `aether-session-review` |
 | Orchestrator / ciclo M5 | [engineering-orchestrator.md](engineering-orchestrator.md) | `aether-orchestrator.mdc` | `aether-cycle-debug` |
+| Integridade M5 e contexto Laya sem truncamento | [engineering-orchestrator.md](engineering-orchestrator.md) + [strategy-laya.md](strategy-laya.md) | `aether-orchestrator.mdc` + `aether-laya-decision.mdc` | `aether-cycle-debug` + `aether-laya-engine` |
 | Settlement / Redis fila | [engineering-settlement.md](engineering-settlement.md) | `aether-settlement.mdc` | `aether-settlement-debug` |
 | Infra Docker / state / storage / market | [infra-docker.md](infra-docker.md) | `aether-infra.mdc` | `aether-infra-stack` |
 | DevOps / CloudOps senior (Compose, Redis, TS, MinIO) | [engineering-devops-cloudops-senior.md](engineering-devops-cloudops-senior.md) | `aether-infra.mdc` | `aether-devops-cloudops` |

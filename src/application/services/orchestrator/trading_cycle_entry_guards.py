@@ -26,7 +26,7 @@ def mark_cycle_attempt_complete(orch: Any) -> None:
 
 def mark_boundary_cycle_evaluated(orch: Any) -> None:
     """Registra epoch de fronteira M5 avaliado para evitar reentrada na mesma vela."""
-    orch._last_evaluated_boundary_epoch = m5_boundary_epoch(time.time())
+    orch._last_evaluated_boundary_epoch = m5_boundary_epoch(orch)
 
 
 def commit_trading_cycle_data_signature(orch: Any) -> None:
@@ -55,7 +55,7 @@ def trading_cycle_entry_allowed(orch: Any) -> bool:
         return False
     if getattr(orch.state, "active_contracts", None):
         return False
-    boundary = m5_boundary_epoch(time.time())
+    boundary = m5_boundary_epoch(orch)
     if int(getattr(orch, "_last_evaluated_boundary_epoch", 0) or 0) == boundary:
         return False
     sig = get_data_state_signature(orch)

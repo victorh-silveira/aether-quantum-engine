@@ -129,7 +129,6 @@ async def test_engine_mode_persistence_reconnect_and_cycle_entry_edges():
     from src.application.services.orchestrator.reconnect_cycle_release import release_trading_cycle_after_reconnect
     from src.application.services.orchestrator.trading_cycle_entry import (
         _closed_m5_candles,
-        _execute_laya_cycle,
         run_trading_cycle_if_ready,
     )
     from src.application.services.orchestrator.trading_cycle_entry_guards import (
@@ -202,7 +201,7 @@ async def test_engine_mode_persistence_reconnect_and_cycle_entry_edges():
         _api_maintenance_until=0.0,
         _session_persistence_write_active=False,
         config={"stream": {"micro_granularity": 300}},
-        stream=SimpleNamespace(candles={"R_10": []}, is_synchronized=False),
+        stream=SimpleNamespace(get_closed_candles=lambda s, g: [], is_synchronized=False),
         ws=SimpleNamespace(is_running=False),
         state=SimpleNamespace(balance=0.0, active_contracts={}),
         laya=SimpleNamespace(decide=AsyncMock()),
@@ -210,8 +209,8 @@ async def test_engine_mode_persistence_reconnect_and_cycle_entry_edges():
         logger=MagicMock(),
     )
     assert _closed_m5_candles(orch_c, "R_10") == []
-    assert _closed_m5_candles(SimpleNamespace(stream=SimpleNamespace()), "R_10") == []
-    assert await _execute_laya_cycle(orch_c) is False
+    with pytest.raises(AttributeError):
+        _closed_m5_candles(SimpleNamespace(stream=SimpleNamespace()), "R_10")
     with (
         patch("src.application.services.orchestrator.trading_cycle_entry.process_redis_settlement_queue", AsyncMock()),
         patch(

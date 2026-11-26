@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Any
 
 import numpy as np
@@ -241,6 +242,21 @@ class StreamHandler:
     def get_last_candle_epoch(self, symbol: str) -> int | None:
         """Retorna epoch da ultima vela macro."""
         return self._last_epoch_from_store(self.macro_candles, symbol)
+
+    def get_closed_candles(self, symbol: str, granularity: int) -> list[Candle]:
+        """Retorna copia ordenada e unica das velas fechadas da granularidade exata."""
+        stores = {
+            self.macro_granularity: self.macro_candles,
+            self.mini_granularity: self.mini_candles,
+            self.micro_granularity: self.micro_candles,
+        }
+        if granularity not in stores:
+            raise ValueError(f"granularidade sem buffer: {granularity}")
+        local_now = time.time()
+        broker_now = self.tick_buffer.latest_tick_epoch(symbol)
+        now = broker_now if broker_now is not None and abs(local_now - broker_now) <= 30 else local_now
+        unique = {bar.epoch: bar for bar in stores[granularity].get(symbol, []) if bar.epoch + granularity <= now}
+        return [unique[epoch] for epoch in sorted(unique)]
 
     def get_last_micro_candle_epoch(self, symbol: str) -> int | None:
         """Retorna epoch da ultima vela micro."""

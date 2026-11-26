@@ -39,24 +39,12 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
 
 def _closed_m5_candles(orch: Any, symbol: str) -> list[Any]:
     """Extrai serie de velas M5 fechadas para o simbolo informado."""
-    getter = getattr(orch.stream, "get_closed_candles", None)
-    if callable(getter):
-        return list(getter(symbol, 300) or [])
-    candles_map = getattr(orch.stream, "candles", None)
-    if isinstance(candles_map, dict):
-        return list(candles_map.get((symbol, 300)) or candles_map.get(symbol) or [])
-    return []
+    return list(orch.stream.get_closed_candles(symbol, 300))
 
 
-async def _execute_laya_cycle(orch: Any) -> bool:
+async def _execute_laya_cycle(orch: Any, candles: list[Any]) -> bool:
     """Calcula indicadores, consulta Laya, registra logs e envia ordem continua."""
     symbol = str(getattr(orch, "anchor", "R_10") or "R_10")
-    candles = _closed_m5_candles(orch, symbol)
-    if len(candles) < 2:
-        orch.logger.warning(
-            "[C%04d] STRM: velas M5 insuficientes para %s (%d)", orch._active_cycle_id, symbol, len(candles)
-        )
-        return False
     snapshot = compute_indicators(candles)
     decision = await orch.laya.decide(symbol, candles, snapshot.to_dict(), orch.config)
     laya_cfg = orch.config.get("laya") if isinstance(orch.config.get("laya"), dict) else {}
@@ -94,16 +82,26 @@ async def run_trading_cycle_if_ready(orch: Any) -> bool:
         if not orch.ws.is_running or not orch.stream.is_synchronized:
             orch.logger.debug("STRM: aguardando sincronia...")
             return False
+        candles = _closed_m5_candles(orch, orch.anchor)
+        if len(candles) < 51:
+            orch.logger.warning("STRM: warmup M5 | %s | %d/51 velas fechadas", orch.anchor, len(candles))
+            return False
+        last_epoch = max(
+            int(getattr(orch, "_last_processed_epoch", 0) or 0),
+            int(getattr(orch, "_last_laya_candle_epoch", 0) or 0),
+        )
+        if candles[-1].epoch <= last_epoch:
+            return False
         orch._cycle_seq += 1
         orch._active_cycle_id = orch._cycle_seq
         bind_log_context(cycle_id=orch._active_cycle_id, symbol=orch.anchor)
         mark_boundary_cycle_evaluated(orch)
         with trace_span("aether.trading_cycle", attributes={"cycle_id": orch._active_cycle_id, "symbol": orch.anchor}):
-            executed = await _execute_laya_cycle(orch)
+            executed = await _execute_laya_cycle(orch, candles)
         commit_trading_cycle_data_signature(orch)
-        candles = _closed_m5_candles(orch, orch.anchor)
-        if candles:
-            await mark_bar_processed(orch, orch.anchor, candles[-1].epoch)
+        await mark_bar_processed(orch, orch.anchor, candles[-1].epoch)
+        orch._last_processed_epoch = candles[-1].epoch
+        orch._last_laya_candle_epoch = candles[-1].epoch
         orch._last_cycle_cluster_executed = executed
         ran = True
         return executed

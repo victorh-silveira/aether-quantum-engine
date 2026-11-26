@@ -38,7 +38,7 @@ def log_laya_cycle_decision(
             snapshot.hurst_14,
             snapshot.streak,
         )
-        orch.logger.debug(
+        orch.logger.info(
             "INDICATORS_FULL | %s M5 close=%.4f | EMA9=%.4f EMA20=%.4f EMA21=%.4f EMA50=%.4f "
             "spread=%.3fATR sl20=%.3f sl50=%.3f | RSI7=%.2f RSI14=%.2f | "
             "MACD=%.4f sig=%.4f hist=%.4f dHist=%+.4f | ADX14=%.2f (+DI=%.2f -DI=%.2f dDI=%+.2f) "
@@ -87,11 +87,14 @@ def log_laya_cycle_decision(
             snapshot.streak,
         )
         orch.logger.info(
-            "LAYA_DECISION | %s M5 dir=%s | P(CALL)=%.1f%% P(PUT)=%.1f%% | lat=%.0fms | stake=$%.2f (%.2f%%) | banca=$%.2f",
+            "LAYA_DECISION | %s M5 dir=%s | P(CALL)=%.6f%% P(PUT)=%.6f%% | prob=%.6f conf=%.6f | "
+            "lat=%.0fms | stake=$%.2f (%.2f%%) | banca=$%.2f",
             decision.symbol,
             decision.direction.name,
             decision.prob_call * 100.0,
             decision.prob_put * 100.0,
+            decision.probability,
+            decision.confidence,
             decision.latency_ms,
             stake,
             stake_pct * 100.0,

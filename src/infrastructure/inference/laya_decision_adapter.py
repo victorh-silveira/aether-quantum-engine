@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import os
 import time
@@ -12,9 +13,23 @@ from typing import Any
 from src.domain.models.laya_decision import LayaDecision
 from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection
+from src.infrastructure.inference.laya_context import encode_laya_context, validate_laya_usage
 
 
 _SENSITIVE_KEYS = frozenset({"token", "api_token", "pat", "secret", "password", "dsn", "key", "app_id"})
+
+
+def _finite_probability(value: Any, default: float = 0.5) -> float:
+    """Preserva zero legitimo e sinaliza fallback para valores invalidos."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        number = math.nan
+    if not math.isfinite(number) or not 0.0 <= number <= 1.0:
+        logging.getLogger("AETH").warning("LAYA_RESPONSE | probabilidade invalida; fallback=%.6f", default)
+        return default
+    return number
+
 
 _LAYA_QUESTIONS = {
     "direction": {
@@ -74,14 +89,11 @@ def _extract_choice_probs(
         dir_probs = probs_map.get("direction") if isinstance(probs_map, dict) else {}
     if not isinstance(dir_probs, dict):
         dir_probs = {}
-    p_call = float(dir_probs.get("CALL", 0.5) or 0.5)
-    p_put = float(dir_probs.get("PUT", 0.5) or 0.5)
-    if not math.isfinite(p_call) or p_call < 0.0:
-        p_call = 0.5
-    if not math.isfinite(p_put) or p_put < 0.0:
-        p_put = 0.5
+    p_call = _finite_probability(dir_probs.get("CALL"))
+    p_put = _finite_probability(dir_probs.get("PUT"))
     total = p_call + p_put
     if total <= 1e-12:
+        logging.getLogger("AETH").warning("LAYA_RESPONSE | soma nula; fallback=0.5/0.5")
         p_call, p_put = 0.5, 0.5
     else:
         p_call /= total
@@ -90,10 +102,8 @@ def _extract_choice_probs(
     if raw_conf is None:
         conf_map = raw.get("confidence") or {}
         raw_conf = conf_map.get("direction") if isinstance(conf_map, dict) else None
-    conf = float(raw_conf) if raw_conf is not None else max(p_call, p_put)
-    if not math.isfinite(conf):
-        conf = max(p_call, p_put)
-    if abs(p_call - p_put) <= 1e-9:
+    conf = _finite_probability(raw_conf, max(p_call, p_put)) if raw_conf is not None else max(p_call, p_put)
+    if p_call == p_put:
         ema20 = float(indicators.get("ema_20", 0.0))
         ema50 = float(indicators.get("ema_50", 0.0))
         direction = TradeDirection.CALL if ema20 >= ema50 else TradeDirection.PUT
@@ -147,13 +157,25 @@ class LayaDecisionAdapter:
         state = {
             "symbol": symbol,
             "timeframe_seconds": 300,
-            "recent_candles": _format_candles_summary(candles, self.context_candles),
             "indicators": {k: round(float(v), 6) for k, v in indicators.items()},
+            "recent_candles": _format_candles_summary(candles, self.context_candles),
             "settings": sanitize_settings_context(settings_context),
         }
+        context, max_len, signature = encode_laya_context(agent, state, _LAYA_QUESTIONS)
         t0 = time.perf_counter()
-        raw = agent.system_one(state, _LAYA_QUESTIONS)
+        raw = agent.system_one(context, _LAYA_QUESTIONS, max_len=max_len)
         latency_ms = (time.perf_counter() - t0) * 1000.0
+        usage = validate_laya_usage(raw)
+        logging.getLogger("AETH").info(
+            "LAYA_CONTEXT | %s g=300s bars=%d epoch=%d sig=%s tokens=%s dropped=%s max_len=%d",
+            symbol,
+            len(candles),
+            candles[-1].epoch,
+            signature,
+            usage.get("state_tokens"),
+            usage.get("state_tokens_dropped", 0),
+            max_len,
+        )
         direction, p_call, p_put, conf = _extract_choice_probs(raw if isinstance(raw, dict) else {}, indicators)
         win_prob = p_call if direction is TradeDirection.CALL else p_put
         return LayaDecision(

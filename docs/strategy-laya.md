@@ -22,6 +22,10 @@ Calculado em `src/domain/indicators/technical_indicators.py` sobre velas M5 fech
 
 Alem dos indicadores, o adapter envia as ultimas 12 velas OHLC fechadas e as configuracoes sanitizadas de `config/settings.json` (sem chaves ou tokens).
 
+O contexto e serializado de forma compacta, com indicadores antes das velas. O orcamento inclui pergunta, opcoes, estado e separadores; `max_len` e calculado com o tokenizer real e limitado pela capacidade do encoder (8.192 posicoes no checkpoint atual). O limite padrao de 512 tokens nao e usado para cortar o contexto. Respostas com `usage.truncated` ou tokens descartados sao rejeitadas como erro tecnico. Os scores de escolha e confianca nao comprovam calibracao de acerto financeiro.
+
+A verificacao offline pode ser reproduzida com `python -m tools.laya_inference_probe` no runtime Conda `deriv-api`, via WSL. Ela exige pesos locais, compara cenarios sinteticos e nao conecta um executor de ordens.
+
 ---
 
 ## 3. Dimensionamento de Stake (`1%` a `5%`)
