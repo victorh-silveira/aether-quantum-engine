@@ -22,11 +22,12 @@ def main() -> None:
     parser.add_argument("--cutoff", type=int, default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--device", choices=("cuda", "cpu"), default="cuda")
+    parser.add_argument("--profile", choices=("auto", "head", "full"), default="auto")
     args = parser.parse_args()
     if args.command == "prepare":
         result = asyncio.run(prepare(args.data, read_json(args.settings), args.cutoff or int(time.time())))
     elif args.command == "train":
-        result = train(args.data, args.run, dry_run=args.dry_run)
+        result = train(args.data, args.run, dry_run=args.dry_run, profile=args.profile)
     elif args.command == "evaluate":
         result = evaluate(args.data, args.run, args.device)
     else:

@@ -35,7 +35,7 @@ Logs de um servico: `make docker-logs DOCKER_SERVICE=<alias>`. Aliases Make → 
 | `make docker-rebuild` | `indicator` | Reconstroi a imagem do indicador |
 | `make docker-reset` | — | Sanitiza run e volumes, recriando a stack |
 
-Pipeline `docker-up`: `host-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate → smoke. Indicador e motor compartilham `aether-core-data-timescaledb:5432`, Prometheus e Grafana em `localhost:3000`. O indicador expoe metricas em `localhost:9102`; os dashboards de sinais ficam na pasta **Sinteticos**. `make app-train` garante a stack e diagnostica o setup institucional M15/M5.
+Pipeline `docker-up`: `host-prereq` → compose up → wait healthy → timescale-lifecycle → hydrate → smoke. Indicador e motor compartilham `aether-core-data-timescaledb:5432`, Prometheus e Grafana em `localhost:3000`. O indicador expoe metricas em `localhost:9102`; os dashboards de sinais ficam na pasta **Sinteticos**. `make app-train` treina o Laya offline no host CUDA, usando os artefatos preparados por `make app-prepare`; nao depende de subir Docker ou enviar ordens.
 
 ## Variaveis (`.env`)
 

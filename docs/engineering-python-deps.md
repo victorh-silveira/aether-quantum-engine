@@ -1,5 +1,11 @@
 # Dependencias Python (SSOT sênior)
 
+## PyTorch CUDA no host Laya
+
+O host usa CPython 3.13 e PyTorch 2.15.0. `make app-cuda-install` instala `torch==2.15.0+cu132` a partir do indice oficial fixado em requirements-cuda.txt, incluindo runtime CUDA 13.2. O driver NVIDIA deve estar acessivel ao host Windows usado pelo Python Conda, mesmo que os comandos sejam disparados pelo WSL.
+
+Validar com `make app-cuda-check` (tensor e Laya na GPU) e `make app-cuda-train-check` (backward e otimizador sem salvar pesos). `make app-run` e `make app-train` verificam CUDA antes de iniciar. A RTX 4060 de 8 GiB utiliza o perfil head por padrao; detalhes em [laya-training.md](laya-training.md).
+
 Pins: [`app/requirements.txt`](../app/requirements.txt), [`app/requirements-dev.txt`](../app/requirements-dev.txt), Docker `infra/docker/*/requirements.txt`. Runtime: [`engineering-python-313-runtime.md`](engineering-python-313-runtime.md). CloudOps: [`engineering-devops-cloudops-senior.md`](engineering-devops-cloudops-senior.md).
 
 O ambiente do indicador declara `httpx==0.28.1` em `indicator/app/requirements.txt` para o modulo residual `real_market_feed` e seus testes; o treino institucional usa apenas OHLC publico da Deriv.
@@ -19,7 +25,7 @@ Rule: `aether-python-deps.mdc`. Skill: `aether-python-deps` (+ `aether-polars-ar
 | redis[hiredis] | >=5.0 | estado + settlement |
 | asyncpg | >=0.30 | Timescale |
 | minio | >=7.2 | artefatos S3 |
-| torch | 2.6.0 | TCN CUDA host |
+| torch | 2.15.0 / 2.15.0+cu132 | Laya CUDA host / CI |
 | lightgbm | 4.7.0 | meta/loss tabular |
 | optuna | 5.0.0 | HPO offline |
 | scikit-learn | 1.9.1 | metricas |

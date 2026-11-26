@@ -27,7 +27,7 @@ _HOST_PIN_MARKERS = (
     "httpx==0.28.1",
     "numpy==2.5.5",
     "polars==2.1.0",
-    "torch>=2.6.0",
+    "torch==2.15.0",
 )
 
 
@@ -48,6 +48,7 @@ def _requirement_files() -> list[Path]:
     return [
         repo_path("requirements.txt"),
         repo_path("requirements-dev.txt"),
+        repo_path("requirements-cuda.txt"),
     ]
 
 
@@ -71,6 +72,9 @@ def test_host_requirements_keep_senior_pins():
     text = repo_path("requirements.txt").read_text(encoding="utf-8")
     for marker in _HOST_PIN_MARKERS:
         assert marker in text, f"pin ausente: {marker}"
+    cuda = repo_path("requirements-cuda.txt").read_text(encoding="utf-8")
+    assert "--index-url https://download.pytorch.org/whl/cu132" in cuda
+    assert "torch==2.15.0+cu132" in cuda
 
 
 def test_first_party_has_no_pandas_import():

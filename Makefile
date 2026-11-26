@@ -30,6 +30,12 @@ PYTHON := $(RESOLVE_PY)
 INDICATOR_PYTHON ?= $(PYTHON)
 INDICATOR_TRAIN_MEMORY_MB ?= 3072
 QA_PYTHON ?= $(INDICATOR_PYTHON)
+LAYA_DATA ?= .cache/laya-r10-gpu-20261126
+LAYA_RUN ?= .cache/laya-r10-gpu-run
+LAYA_SETTINGS ?= config/settings.json
+LAYA_DEVICE ?= cuda
+LAYA_TRAIN_PROFILE ?= auto
+LAYA_ARGS ?=
 
 GREEN  := \033[1;32m
 YELLOW := \033[1;33m
@@ -41,6 +47,7 @@ RESET  := \033[0m
 .DEFAULT_GOAL := help
 
 .PHONY: app-run app-test app-lint app-workflows-lint app-validate app-security app-build app-clean app-install \
+	app-prepare app-train app-train-dry-run app-evaluate app-promote app-cuda-install app-cuda-check app-cuda-runtime-check app-cuda-train-check \
 	app-pre-commit app-pre-commit-run app-commit app-setup-wsl help docker-up docker-down \
 	docker-restart docker-reset docker-clean docker-ps docker-logs \
 	docker-smoke docker-bash docker-hydrate docker-timescale-lifecycle lint test
@@ -56,8 +63,15 @@ help:
 	@echo -e ""
 	@echo -e "$(YELLOW)App:$(RESET)"
 	@echo -e "  $(GREEN)app-run$(RESET)            - Sobe o motor em execucao real/demo (run.py)"
-	@echo -e "  $(GREEN)app-train$(RESET)          - Sobe a stack e diagnostica setup M5/M15/H1"
-	@echo -e "  $(GREEN)app-research-ml$(RESET)    - Pesquisa quantitativa TCN/ML separada da execucao"
+	@echo -e "  $(GREEN)app-prepare$(RESET)        - Prepara 90 dias R_10 M5 e particoes temporais"
+	@echo -e "  $(GREEN)app-train$(RESET)          - Treina Laya na GPU; LAYA_TRAIN_PROFILE=auto|head|full"
+	@echo -e "  $(GREEN)app-train-dry-run$(RESET)  - Valida dados e tokens sem carregar pesos"
+	@echo -e "  $(GREEN)app-evaluate$(RESET)       - Avalia candidato selecionado no teste final"
+	@echo -e "  $(GREEN)app-promote$(RESET)        - Aprova checkpoint sem ativar o motor"
+	@echo -e "  $(GREEN)app-cuda-install$(RESET)   - Instala PyTorch CUDA no ambiente Conda selecionado"
+	@echo -e "  $(GREEN)app-cuda-check$(RESET)     - Valida GPU e inferencia real do Laya sem ordens"
+	@echo -e "  $(GREEN)app-cuda-train-check$(RESET) - Valida backward e otimizador do Laya na GPU"
+	@echo -e "  Dados: LAYA_DATA=$(LAYA_DATA) | Run: LAYA_RUN=$(LAYA_RUN)"
 	@echo -e "  $(GREEN)app-lint$(RESET)           - Lint Python/JSON/YAML/Docker/Shell/Rust/Workflows + indicador"
 	@echo -e "  $(GREEN)app-validate$(RESET)       - Valida codigo, configs, Compose, Shell e Rust"
 	@echo -e "  $(GREEN)app-security$(RESET)       - Seguranca Python/Docker/Rust + indicador"
@@ -147,7 +161,36 @@ app-rust-build:
 app-clean:
 	$(PYTHON) scripts/operations/clean_workspace.py --stage clean
 
-app-run:
+app-cuda-install:
+	$(PYTHON) -m pip install --upgrade -r requirements-cuda.txt
+	$(PYTHON) -m pip check
+	@$(MAKE) --no-print-directory app-cuda-runtime-check
+
+app-cuda-runtime-check:
+	$(PYTHON) -m tools.laya_cuda_check --mode runtime --settings "$(LAYA_SETTINGS)"
+
+app-cuda-check:
+	$(PYTHON) -m tools.laya_cuda_check --mode laya --settings "$(LAYA_SETTINGS)"
+
+app-cuda-train-check:
+	$(PYTHON) -m tools.laya_cuda_check --mode training --settings "$(LAYA_SETTINGS)"
+
+app-prepare:
+	$(PYTHON) -m tools.laya_workflow prepare --data "$(LAYA_DATA)" --settings "$(LAYA_SETTINGS)" $(LAYA_ARGS)
+
+app-train: app-cuda-runtime-check
+	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --profile "$(LAYA_TRAIN_PROFILE)" $(LAYA_ARGS)
+
+app-train-dry-run:
+	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --dry-run $(LAYA_ARGS)
+
+app-evaluate:
+	$(PYTHON) -m tools.laya_workflow evaluate --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --device "$(LAYA_DEVICE)" $(LAYA_ARGS)
+
+app-promote:
+	$(PYTHON) -m tools.laya_workflow promote --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" $(LAYA_ARGS)
+
+app-run: app-cuda-runtime-check
 	$(PYTHON) run.py
 
 app-pre-commit:

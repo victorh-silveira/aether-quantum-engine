@@ -18,5 +18,5 @@ asyncpg>=0.30                  # Driver de conexão assíncrono de alta performa
 minio>=7.2                     # SDK para integração com armazenamento de objetos compatível com AWS S3
 
 # ---- DEEP LEARNING & INFERENCIA ----
-torch>=2.6.0                   # Framework principal de Deep Learning (PyTorch) para GPU CUDA
+torch==2.15.0                  # Host/CI; variante NVIDIA em requirements-cuda.txt
 laya==0.5.5                    # Motor System 1 nao-autoregressivo para decisao binaria calibrada CALL/PUT

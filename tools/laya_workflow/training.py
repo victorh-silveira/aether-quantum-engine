@@ -18,9 +18,20 @@ def cuda_preflight(torch) -> dict:
             "CUDA indisponivel: execute train em runtime PyTorch CUDA; use train --dry-run nesta maquina"
         )
     free, total = torch.cuda.mem_get_info()
-    if free < 8 * 1024**3:
-        raise RuntimeError("Treinamento exige pelo menos 8 GiB livres na GPU")
+    if free < 3 * 1024**3:
+        raise RuntimeError("Treinamento exige pelo menos 3 GiB livres na GPU")
     return {"device": torch.cuda.get_device_name(0), "free_bytes": free, "total_bytes": total}
+
+
+def resolve_training_profile(gpu: dict, profile: str = "auto") -> str:
+    """Escolhe head em GPUs de ate 12 GiB; full exige margem para gradientes e Adam."""
+    if profile not in {"auto", "head", "full"}:
+        raise ValueError("Perfil de treinamento invalido")
+    selected = "head" if profile == "auto" and gpu["total_bytes"] <= 12 * 1024**3 else profile
+    selected = "full" if selected == "auto" else selected
+    if selected == "full" and gpu["free_bytes"] < 12 * 1024**3:
+        raise RuntimeError("Perfil full exige 12 GiB livres; use LAYA_TRAIN_PROFILE=head nesta GPU")
+    return selected
 
 
 def token_preflight(directory: Path, base: str = "convaiinnovations/laya") -> dict:
@@ -59,12 +70,20 @@ def token_preflight(directory: Path, base: str = "convaiinnovations/laya") -> di
     }
 
 
-def train(directory: Path, output: Path, *, dry_run: bool = False, base: str = "convaiinnovations/laya") -> dict:
+def train(
+    directory: Path, output: Path, *, dry_run: bool = False, base: str = "convaiinnovations/laya", profile: str = "auto"
+) -> dict:
     """Treina tres seeds sem consumir teste; calibra exclusivamente na faixa reservada."""
     import torch  # noqa: PLC0415
 
     verify_dataset(directory)
     gpu = None if dry_run else cuda_preflight(torch)
+    selected_profile = None if dry_run else resolve_training_profile(gpu, profile)
+    if gpu is not None:
+        print(
+            f"TRAIN_DEVICE | {gpu['device']} | profile={selected_profile} | livres={gpu['free_bytes'] / 1024**3:.2f}GiB",
+            flush=True,
+        )
     if (directory / "test_consumed.json").exists():
         raise ValueError("Teste ja consumido: nao ajustar novos candidatos neste dataset")
     budget = token_preflight(directory, base)
@@ -115,6 +134,7 @@ def train(directory: Path, output: Path, *, dry_run: bool = False, base: str = "
             loss="rlcd",
             amp=True,
             gradient_checkpointing=True,
+            freeze_encoder=selected_profile == "head",
             seed=seed,
             max_len=cfg["max_len"],
             head_max_len=cfg["head_max_len"],
@@ -146,6 +166,7 @@ def train(directory: Path, output: Path, *, dry_run: bool = False, base: str = "
                 "epochs": 4,
                 "history": history,
                 "gpu": gpu,
+                "profile": selected_profile,
                 "dataset_sha256": file_digest(directory / "manifest.json"),
                 **budget,
             },
@@ -168,6 +189,7 @@ def train(directory: Path, output: Path, *, dry_run: bool = False, base: str = "
         "dataset_sha256": file_digest(directory / "manifest.json"),
         "base_checkpoint": str(local),
         "gpu": gpu,
+        "profile": selected_profile,
         **budget,
     }
     write_json(output / "selection.json", result)

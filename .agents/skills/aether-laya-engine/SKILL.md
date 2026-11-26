@@ -23,4 +23,4 @@ description: "Execucao, diagnostico e manutencao do motor continuo Laya System 1
 
 ## Treinamento e Promocao
 
-Usar `python -m tools.laya_workflow` para prepare/train/evaluate/promote. Treino exige CUDA; --dry-run nao carrega pesos. Seguir divisao temporal 60/10/10/20 e criterios de `docs/laya-training.md`. Nao consumir teste para selecionar seeds ou ativar checkpoint sem `approval.json` integro.
+Usar `make app-prepare`, `make app-train`, `make app-evaluate` e `make app-promote`. Treino exige CUDA; `make app-train-dry-run` nao carrega pesos. Perfil auto=head na RTX 4060 de 8 GiB; full exige 12 GiB livres. Validar CUDA com `make app-cuda-check` e `make app-cuda-train-check`. Seguir divisao temporal 60/10/10/20 e criterios de `docs/laya-training.md`. Nao consumir teste para selecionar seeds ou ativar checkpoint sem `approval.json` integro.

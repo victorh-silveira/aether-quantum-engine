@@ -79,7 +79,7 @@ def test_gpu_check_precedes_any_weight_load(prepared, tmp_path, monkeypatch):
         training.cuda_preflight(fake)
     fake.cuda.is_available = lambda: True
     fake.cuda.mem_get_info = lambda: (1, 1)
-    with pytest.raises(RuntimeError, match="8 GiB"):
+    with pytest.raises(RuntimeError, match="3 GiB"):
         training.cuda_preflight(fake)
     fake.cuda.mem_get_info = lambda: (16 * 1024**3, 16 * 1024**3)
     fake.cuda.get_device_name = lambda index: "GPU test"
@@ -88,6 +88,17 @@ def test_gpu_check_precedes_any_weight_load(prepared, tmp_path, monkeypatch):
     monkeypatch.setattr(training, "token_preflight", MagicMock(side_effect=AssertionError("nao carregar")))
     with pytest.raises(RuntimeError, match="no GPU"):
         training.train(prepared, tmp_path / "run")
+
+
+def test_gpu_profile_fits_rtx4060_and_rejects_unsafe_full():
+    gpu = {"total_bytes": 8 * 1024**3, "free_bytes": 6 * 1024**3}
+    assert training.resolve_training_profile(gpu) == "head"
+    assert training.resolve_training_profile(gpu, "head") == "head"
+    with pytest.raises(RuntimeError, match="12 GiB"):
+        training.resolve_training_profile(gpu, "full")
+    with pytest.raises(ValueError, match="invalido"):
+        training.resolve_training_profile(gpu, "bad")
+    assert training.resolve_training_profile({"total_bytes": 24 * 1024**3, "free_bytes": 20 * 1024**3}) == "full"
 
 
 def test_dry_run_uses_full_context_without_loading_weights(prepared, tmp_path, monkeypatch):
@@ -210,7 +221,11 @@ def test_three_seeds_use_only_train_and_reserved_calibration(prepared, tmp_path,
     (base / "model.safetensors").write_bytes(b"base")
     budget = {"max_len": 2048, "head_max_len": 192, "base_checkpoint": str(base), "base_revision": "test"}
     monkeypatch.setattr(training, "token_preflight", lambda *args: budget)
-    monkeypatch.setattr(training, "cuda_preflight", lambda *args: {"device": "fake CUDA"})
+    monkeypatch.setattr(
+        training,
+        "cuda_preflight",
+        lambda *args: {"device": "fake CUDA", "total_bytes": 16 * 1024**3, "free_bytes": 16 * 1024**3},
+    )
     monkeypatch.setattr(torch.cuda, "empty_cache", lambda: None)
     monkeypatch.setattr(laya.train, "load_checkpoint", lambda path: (SimpleNamespace(to=lambda d: None), None, {}))
     monkeypatch.setattr(laya.train, "items_from_rows", lambda tok, rows, *args: (rows, {}))

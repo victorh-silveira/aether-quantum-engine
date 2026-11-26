@@ -40,6 +40,7 @@ Ponto de entrada unico e soberano para agentes autonomos de IA e desenvolvedores
 - **Piso Continuo:** Manter 1% da banca e minimo $1,00 mesmo com Kelly nulo ou negativo, por mandato do operador. Registrar `FLOOR` explicitamente.
 - **Recuperacao por Payout:** Adaptacao da main `460c4f41`, com divida reduzida apenas pelo lucro realizado, amortizacao em etapas e teto absoluto de 5% por ordem. Nao aplicar Martingale 2x ou progressao geometrica.
 - **Treinamento GPU:** Preparar 90 dias R_10 M5, dividir temporalmente 60/10/10/20 e calibrar fora do treino. Promover apenas candidato aprovado no teste final; treinamento exige CUDA. Referencia: `docs/laya-training.md`.
+- **Make e CUDA:** `make app-cuda-install` instala PyTorch CUDA; `app-cuda-check` e `app-cuda-train-check` validam inferencia e backward sem ordens. Usar `app-prepare`, `app-train`, `app-evaluate`, `app-promote` e `app-run`; perfil auto=head em GPUs de ate 12 GiB. Full exige 12 GiB livres, head exige 3 GiB livres. Runtime e treino verificam CUDA antes de iniciar pelo Makefile.
 
 ---
 

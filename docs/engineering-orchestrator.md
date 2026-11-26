@@ -1,6 +1,6 @@
 # Orchestrator e Ciclo Continuo M5 (`R_10`)
 
-O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo no `R_10` com velas M5 fechadas (`period_seconds=300`), sem `make app-train`, sem TCN e sem vetos ou `SKIP`.
+O orquestrador (`src/application/services/orchestrator/`) opera em loop continuo no `R_10` com velas M5 fechadas (`period_seconds=300`), sem TCN e sem vetos ou `SKIP`. `make app-run` verifica CUDA e inicia o motor; `make app-train` executa o treinamento offline separado, sem enviar ordens.
 
 ## Fluxo de Cada Ciclo M5
 
