@@ -5,10 +5,11 @@ import os
 from pathlib import Path
 from typing import Any
 
-from src.infrastructure.api.deriv_pat_binding import DerivPatBindingError, discover_app_id_for_pat
-
-
-LEGACY_DERIV_APP_IDS = frozenset({"1089", "16929", "36544"})
+from src.infrastructure.api.deriv_pat_binding import (
+    LEGACY_DERIV_APP_IDS,
+    DerivPatBindingError,
+    discover_app_id_for_pat,
+)
 
 
 def _load_settings_deriv_app_id(repo_root: Path | None) -> str:

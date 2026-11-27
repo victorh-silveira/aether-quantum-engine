@@ -35,7 +35,7 @@ Pre-commit e desenvolvimento: instalar hooks com `make app-pre-commit` na config
 
 app-clean, docker-reset e docker-clean sao operacoes de manutencao; nao fazem parte da sequencia de inicializacao.
 
-O Makefile resolve o Python do Conda `deriv-api` e usa `LAYA_DATA=.cache/laya-r10-gpu-20261126`, `LAYA_RUN=.cache/laya-r10-gpu-run` e `LAYA_TRAIN_PROFILE=auto` por padrao. Alterar diretorios com `make app-train LAYA_DATA="caminho dos dados" LAYA_RUN="nova execucao"`. Preparacao de dados existentes nao deve ser repetida: o manifesto ja fixa o corte. `make app-evaluate LAYA_DEVICE=cpu` permite avaliacao explicitamente em CPU. `LAYA_ARGS` acrescenta argumentos de uma etapa, como `--cutoff` no prepare.
+O Makefile resolve o Python do Conda `deriv-api` e usa `LAYA_DATA=.cache/laya-r10-gpu-20261126`, `LAYA_RUN=.cache/laya-r10-gpu-run-fast`, `LAYA_TRAIN_PROFILE=auto`, `LAYA_TRAIN_PRESET=fast` e `LAYA_WARM_START=.cache/laya-r10-gpu-run/seed-17/checkpoint_latest` por padrao. Alterar diretorios com `make app-train LAYA_DATA="caminho dos dados" LAYA_RUN="nova execucao"`. Preparacao de dados existentes nao deve ser repetida: o manifesto ja fixa o corte. `make app-evaluate LAYA_DEVICE=cpu` permite avaliacao explicitamente em CPU. `LAYA_ARGS` acrescenta argumentos de uma etapa, como `--cutoff` no prepare ou `--resume` para retomar uma execucao interrompida.
 
 `app-cuda-check` prova inferencia real no device CUDA; `app-cuda-train-check` prova backward e atualizacao de parametros em memoria, sem gravar pesos ou ordens. `app-run` verifica CUDA antes de executar run.py, que continua usando o checkpoint base ou o caminho aprovado configurado em settings. Promover nao ativa automaticamente um checkpoint.
 
@@ -49,9 +49,15 @@ Sao 90 dias mais 120 barras de aquecimento. A divisao por tempo e 60% treino, 10
 
 O dry-run verifica todos os tokens, sem pesos. O orcamento inclui pergunta e opcoes e nao pode ultrapassar a capacidade do encoder. Os dados de teste sao inspecionados apenas para integridade e comprimento nessa etapa.
 
-## Treinamento GPU e selecao
+## Treinamento GPU, presets e selecao
 
-Treinar seeds 17, 42 e 73 com RLCD, quatro epocas, microbatch 1, acumulacao 64, encoder LR 0,000025 e head LR 0,0001; usar precisao mista e gradient checkpointing. No perfil head, o encoder fica congelado e somente a cabeca aprende; o manifesto registra o perfil efetivo. Cada seed salva `checkpoint_latest` ao final de cada epoca para preservar pesos de diagnostico em caso de falha. O comando recusa sobrescrever uma execucao anterior; iniciar outra exige diretorio novo.
+O treinamento suporta `--preset fast` (padrao via `LAYA_TRAIN_PRESET=fast`: seed 17, 2 epocas totais) e `--preset complete` (modo explicito com seeds 17, 42 e 73, 4 epocas por seed). Em ambos os presets sao preservados os 90 dias de dados, as divisoes temporais 60/10/10/20, a calibracao externa e todos os criterios de avaliacao e promocao.
+
+No modo `fast`, se `LAYA_WARM_START` (`.cache/laya-r10-gpu-run/seed-17/checkpoint_latest`) existir, o fluxo valida estrutura, pesos, tokenizer e compatibilidade de contexto antes de carregar, registra 1 epoca herdada, reinicia o otimizador (pois o checkpoint legado guarda apenas pesos) e executa apenas a epoca restante, preservando integralmente `.cache/laya-r10-gpu-run`. Se o caminho legado estiver ausente, inicia 2 epocas a partir do modelo base; se estiver presente mas incompativel, encerra com diagnostico.
+
+No perfil `head`, o fluxo mede lotes de 1, 2 e 4 exemplos exclusivamente da particao de treino antes do treinamento, escolhe o maior lote com margem minima de 1 GiB (recuando em caso de OOM) e ajusta a acumulacao para 64, 32 ou 16, mantendo o lote efetivo de 64 exemplos, os learning rates (encoder LR 0,000025 e head LR 0,0001) e o objetivo RLCD com precisao mista e gradient checkpointing. Apos o benchmark de lote, pesos da cabeca, buffers e RNGs sao restaurados. Os exemplos de treino sao tokenizados uma vez por execucao e reutilizados entre epocas.
+
+O acompanhamento exibe separadamente as fases de preparacao, treinamento, calibracao, selecao e gravacao, com epoca, amostras processadas/total, exemplos por segundo, tempo decorrido e ETA (exibindo `calculando` antes de haver amostras suficientes). Um lock exclusivo impede executar dois treinamentos simultaneos na GPU. Os novos checkpoints salvam tambem epoca, posicao, otimizador, scheduler, GradScaler e estados aleatorios para retomada exata via `make app-train LAYA_ARGS=--resume`, distinguindo nos manifestos (`run.json`, `training.json`, `selection.json`) `exact_resume` de `legacy_warm_start` e `fresh`, alem de registrar hash e origem do checkpoint, reinicio do otimizador, perfil, lote e identidade do dataset.
 
 A calibracao usa exclusivamente a faixa temporal reservada, sem sorteio do holdout padrao da biblioteca. Selecionar maior acuracia na faixa de selecao, desempatar pelo menor Brier e depois pela ordem das seeds. Salvar pesos, tokenizer, perguntas, temperaturas, identidade da base e manifesto de treinamento.
 
@@ -61,6 +67,6 @@ A calibracao usa exclusivamente a faixa temporal reservada, sem sorteio do holdo
 
 Aprovacao exige simultaneamente: melhora de pelo menos 1 ponto percentual de acuracia sobre a base, acuracia superior a classe majoritaria, balanced accuracy maior que 50%, recall minimo de 45% nas duas classes e Brier nao superior ao da base. Nao ha criterios sobre stake ou PnL artificial.
 
-`promote` revalida os hashes e os criterios e grava `approval.json`. Nao altera settings ou inicia o motor. Para ativar, configurar `laya.approved_checkpoint` com o caminho aprovado e reiniciar. O runtime verifica integridade antes de carregar e registra a versao na decisao e na auditoria do contrato.
+`promote` revalida os hashes e os criterios e grava `approval.json`. Por padrao, exige aprovacao completa no teste reservado; para testes experimentais em conta demo, `make app-promote LAYA_ARGS=--allow-unapproved-override` permite override explicito do operador mantendo `approved: false`, registrando `operator_override: true` e preservando toda a validacao de integridade dos hashes. Nao altera settings ou inicia o motor. Para ativar, configurar `laya.approved_checkpoint` com o caminho aprovado e reiniciar. O runtime verifica integridade antes de carregar e registra a versao na decisao e na auditoria do contrato.
 
 O alvo proximo fechamento M5 aproxima o contrato real: compra e expiracao ocorrem depois da inferencia. A auditoria guarda tempos/precos reais de entrada e saida e versao do modelo para avaliar essa diferenca. Resultados historicos nao comprovam rentabilidade, e o piso operacional de 1% continua ativo mesmo com Kelly negativo por decisao do operador.

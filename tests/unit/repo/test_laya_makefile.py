@@ -39,7 +39,13 @@ def test_make_routes_commands_and_preserves_paths_with_spaces(target, expected):
     assert expected in result.stdout
     if target in {"app-train", "app-evaluate", "app-promote", "app-prepare", "app-train-dry-run"}:
         assert '--data ".cache/dados com espacos"' in result.stdout
+    if target in {"app-train", "app-evaluate", "app-promote"}:
+        assert '--run ".cache/nova run"' in result.stdout
     if target == "app-train":
         assert '--profile "head"' in result.stdout
+        assert '--preset "fast"' in result.stdout
+        assert '--warm-start-auto ".cache/laya-r10-gpu-run/seed-17/checkpoint_latest"' in result.stdout
+    if target == "app-train-dry-run":
+        assert '--preset "fast"' in result.stdout
     if target in {"app-run", "app-train"}:
         assert result.stdout.index("laya_cuda_check --mode runtime") < result.stdout.index(expected)

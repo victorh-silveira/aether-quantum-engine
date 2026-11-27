@@ -7,6 +7,7 @@ import logging
 import time
 from typing import Any
 
+from src.application.ports.outbound import LayaDecisionPort
 from src.application.services.auth_manager import AuthManager
 from src.application.services.orchestrator.config_symbols import normalize_symbols_and_anchor
 from src.application.services.orchestrator.execution_manager import ExecutionManager
@@ -68,7 +69,7 @@ class Orchestrator:
         )
         self.trade_handler = TradeHandler(self.ws, config, auth=self.auth, market_writer=self.market_writer)
         laya_cfg = config.get("laya") if isinstance(config.get("laya"), dict) else {}
-        self.laya = (
+        self.laya: LayaDecisionPort = (
             laya
             if laya is not None
             else LayaDecisionAdapter(

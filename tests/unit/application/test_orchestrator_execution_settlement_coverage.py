@@ -235,8 +235,25 @@ async def test_execution_settlement_and_outcome_branches():
     process_contract_outcome(orch, {"balance_after": 1009.5}, contract, 303, 9.5, log_cluster_summary=called_summary)
     called_summary.assert_called_once()
     assert orch._session_wins == 1
+    # Aceita balance_after real da Deriv mesmo com salto > $2.00 (ex.: contrato externo liquidado)
+    process_contract_outcome(orch, {"balance_after": 1677.08}, contract, 305, 10.0)
+    assert orch.state.balance == pytest.approx(1677.08)
     process_contract_outcome(orch, {}, contract, 304, -10.0)
     assert orch._session_losses == 1
     assert sync_state_manager_session(orch) is False
     assert sync_state_manager_session(SimpleNamespace()) is False
     assert check_session_limits_before_post_settlement(orch) is False
+
+    # Stop-win atingido com StateManager real baseado no lucro realizado da sessao
+    mgr = StateManager()
+    mgr.persistence = SimpleNamespace(load=lambda: None, save=lambda _d: None)
+    mgr.reset_session_metrics(100.0, 5.0)
+    orch_sw = SimpleNamespace(
+        state_mgr=mgr,
+        state=SimpleNamespace(balance=800.0),
+        risk_manager=SimpleNamespace(initial_bankroll=100.0, total_session_profit=6.0),
+        logger=MagicMock(),
+    )
+    assert sync_state_manager_session(orch_sw, target=5.0) is True
+    assert check_session_limits_before_post_settlement(orch_sw) is True
+    assert any("STOP_WIN |" in call.args[0] for call in orch_sw.logger.info.call_args_list)

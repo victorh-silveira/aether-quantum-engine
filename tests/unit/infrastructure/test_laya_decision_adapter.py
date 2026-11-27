@@ -13,9 +13,11 @@ from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.laya_decision_adapter import (
     LayaDecisionAdapter,
+    _compact_trading_settings,
     _extract_choice_probs,
     sanitize_settings_context,
 )
+from src.infrastructure.inference.laya_narrative import build_technical_narrative
 
 
 def _sample_candles() -> list[Candle]:
@@ -44,6 +46,103 @@ def test_sanitize_settings_removes_sensitive_keys():
     assert cleaned["anchor"] == "R_10"
     assert "deriv_app_id" not in cleaned
     assert cleaned["nested"] == {"symbols": ["R_10"]}
+
+    compact = _compact_trading_settings(
+        {
+            "anchor": "R_10",
+            "infra": {"redis": {"url": "redis://localhost"}},
+            "api_config": {"rest_base_url": "https://api.derivws.com"},
+            "logging": {"level": "INFO"},
+            "telemetry": {"port": 9100},
+            "orchestrator": {"cycle_interval_seconds": 300},
+            "data_handler": {"history_bars": 120},
+            "risk_management": {"params": {"min_stake_pct": 0.01}},
+        }
+    )
+    assert compact == {"mode": "demo", "duration_m": 5}
+
+
+def test_build_technical_narrative_covers_all_regimes():
+    candles = _sample_candles()
+    bull = build_technical_narrative(
+        "R_10",
+        {
+            "close": 105.0,
+            "ema_9": 104.0,
+            "ema_20": 102.0,
+            "ema_50": 100.0,
+            "ema_spread_atr": 1.0,
+            "ema20_slope": 0.2,
+            "adx_14": 26.0,
+            "di_diff_14": 5.0,
+            "hurst_14": 0.65,
+            "macd_hist": 0.5,
+            "macd_hist_delta": 0.1,
+            "rsi_7": 72.0,
+            "rsi_14": 70.0,
+            "stoch_k": 85.0,
+            "cci_14": 120.0,
+            "bollinger_pct_b": 0.9,
+            "atr_14": 2.0,
+            "streak": 2.0,
+            "body_atr": 0.5,
+        },
+        candles,
+    )
+    assert (
+        "bullish (rising, price above EMA9/EMA20)" in bull
+        and "strong trend" in bull
+        and "overbought" in bull
+        and "near upper band" in bull
+    )
+    bear = build_technical_narrative(
+        "R_10",
+        {
+            "close": 95.0,
+            "ema_9": 97.0,
+            "ema_20": 98.0,
+            "ema_50": 100.0,
+            "ema20_slope": -0.2,
+            "adx_14": 21.0,
+            "di_diff_14": -4.0,
+            "hurst_14": 0.40,
+            "macd_hist": -0.5,
+            "macd_hist_delta": -0.1,
+            "rsi_14": 30.0,
+            "bollinger_pct_b": 0.1,
+            "atr_ratio": 1.20,
+        },
+        candles,
+    )
+    assert (
+        "bearish (falling, price below EMA9/EMA20)" in bear
+        and "moderate trend" in bear
+        and "oversold" in bear
+        and "near lower band" in bear
+        and "expanding" in bear
+    )
+    neutral = build_technical_narrative(
+        "R_10",
+        {
+            "close": 99.0,
+            "ema_9": 100.0,
+            "ema_20": 98.0,
+            "ema_50": 97.0,
+            "ema20_slope": -0.1,
+            "macd_hist": 0.2,
+            "macd_hist_delta": -0.1,
+            "atr_ratio": 0.80,
+        },
+        candles,
+    )
+    assert (
+        "mixed/transition (falling, price between EMA9/EMA20)" in neutral
+        and "weak ranging" in neutral
+        and "bullish fading" in neutral
+        and "neutral" in neutral
+        and "mid-band" in neutral
+        and "compressed" in neutral
+    )
 
 
 def test_extract_choice_probs_handles_real_schema_and_ties():
@@ -112,8 +211,27 @@ async def test_laya_decision_adapter_decide_async(monkeypatch):
     )
     assert dec.direction is TradeDirection.PUT
     assert dec.probability == pytest.approx(0.70)
-    assert "api_key" not in fake.last_state[0]["settings"]
+    assert "mode" in fake.last_state[0]["settings"]
     assert len(fake.last_state[0]["recent_candles"]) == 5
+
+    # Inferencia simetrica neutraliza vies posicional e desempata por EMA20 >= EMA50
+    class _BiasedAgent:
+        def system_one(self, _state, questions, **kwargs):
+            first = next(iter(questions["direction"]["criteria"]))
+            probs = {"CALL": 0.60, "PUT": 0.40} if first == "CALL" else {"CALL": 0.40, "PUT": 0.60}
+            return {
+                "usage": {"truncated": False, "state_tokens": 100, "state_tokens_dropped": 0},
+                "answers": {"direction": {"probabilities": probs, "answer_confidence": 0.60}},
+            }
+
+    monkeypatch.setattr(
+        "src.infrastructure.inference.laya_decision_adapter.encode_laya_context",
+        lambda _a, state, _q: (json.dumps(state), 512, "sym"),
+    )
+    sym_adapter = LayaDecisionAdapter(agent=_BiasedAgent())
+    sym_dec = await sym_adapter.decide("R_10", _sample_candles(), {"ema_20": 99.0, "ema_50": 101.0}, {})
+    assert sym_dec.direction is TradeDirection.PUT
+    assert sym_dec.prob_call == pytest.approx(0.5) and sym_dec.prob_put == pytest.approx(0.5)
 
     # Testa _ensure_agent lazy load via monkeypatch
     called = {}

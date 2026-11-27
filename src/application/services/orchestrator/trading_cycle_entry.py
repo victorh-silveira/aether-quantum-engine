@@ -1,4 +1,4 @@
-"""Entrada do ciclo continuo M5 no R_10 com decisao binaria 100% Laya (zero SKIP)."""
+"""Entrada do ciclo continuo M5 no R_10 com decisao binaria 100% Laya e SKIP configuravel."""
 
 from __future__ import annotations
 
@@ -16,6 +16,8 @@ from src.application.services.orchestrator.trading_cycle_entry_guards import (
     trading_cycle_entry_allowed,
 )
 from src.domain.indicators.technical_indicators import compute_indicators
+from src.domain.risk.kelly_recovery import sizing_from_config
+from src.domain.services.laya_skip_policy import evaluate_laya_skip
 from src.infrastructure.telemetry.otel_tracer import flush_otlp_spans_async, trace_span
 from src.presentation.terminal.log_context import bind_log_context, clear_log_context
 
@@ -34,7 +36,14 @@ def prepare_orchestrator_run_loop(orch: Any) -> None:
     orch._warm_up_logged_until = 0.0
     orch._settlement_wait_logged = False
     orch.running = True
-    orch.logger.info("INIT: Laya System 1 continuo ativo | simbolo=%s | timeframe=M5 (300s) | zero SKIP", orch.anchor)
+    skip_enabled = bool(
+        (getattr(orch, "config", None) or {}).get("laya", {}).get("skip_policy", {}).get("enabled", False)
+    )
+    orch.logger.info(
+        "INIT: Laya System 1 ativo | simbolo=%s | timeframe=M5 (300s) | skip_policy=%s",
+        orch.anchor,
+        "ativo" if skip_enabled else "desativado",
+    )
 
 
 def _closed_m5_candles(orch: Any, symbol: str) -> list[Any]:
@@ -49,8 +58,34 @@ async def _execute_laya_cycle(orch: Any, candles: list[Any]) -> bool:
     snapshot = compute_indicators(candles)
     decision = await orch.laya.decide(symbol, candles, snapshot.to_dict(), orch.config)
     balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
+    verdict = evaluate_laya_skip(decision, snapshot, orch.config)
+    if verdict.should_skip:
+        stake = (
+            sizing_from_config(
+                balance,
+                decision.probability,
+                0.78,
+                float(orch.risk_manager.pending_loss),
+                orch.config.get("risk_management", {}),
+            ).stake
+            if balance > 0.0
+            else 0.0
+        )
+        stake_pct = (stake / balance) if balance > 0.0 else 0.0
+        log_laya_cycle_decision(orch, snapshot, decision, stake, stake_pct, balance)
+        orch.logger.info(
+            "SKIP | %s M5 | dir=%s | prob=%.2f%% | motivo=%s",
+            decision.symbol,
+            decision.direction.name,
+            decision.probability * 100.0,
+            verdict.reason,
+        )
+        if (inst := getattr(orch, "business_instrumentor", None)) is not None:
+            inst.record_cycle(str(symbol), is_execution=False, reason=verdict.reason)
+        return False
     sizing = await quote_laya_sizing(orch, decision)
-    stake, stake_pct = sizing.stake, sizing.stake / balance
+    stake = sizing.stake
+    stake_pct = (stake / balance) if balance > 0.0 else 0.0
     log_laya_cycle_decision(orch, snapshot, decision, stake, stake_pct, balance)
     if stake <= 0.0 or session_persistence_blocks_trading_cycle(orch):
         return False

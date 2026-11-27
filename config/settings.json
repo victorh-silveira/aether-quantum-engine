@@ -9,8 +9,16 @@
   "laya": {
     "model_id": "convaiinnovations/laya",
     "device": "auto",
-    "context_candles": 12,
-    "approved_checkpoint": ""
+    "context_candles": 6,
+    "approved_checkpoint": "",
+    "skip_policy": {
+      "enabled": true,
+      "min_probability": 0.0,
+      "min_body_atr": 0.15,
+      "block_counter_momentum": true,
+      "block_strong_counter_trend": false,
+      "max_counter_streak": 0
+    }
   },
   "api_config": {
     "deriv_app_id": "",
@@ -128,10 +136,12 @@
       "duration_unit": "m",
       "stake_min": 1.0,
       "min_stake_pct": 0.01,
-      "max_stake_pct": 0.05
+      "max_stake_pct": 0.05,
+      "stop_win_pct": 0.05
     },
     "kelly": {
-      "fraction": 0.25
+      "fraction": 0.05,
+      "max_base_pct": 0.0125
     },
     "recovery": {
       "enabled": true,

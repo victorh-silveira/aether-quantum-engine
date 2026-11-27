@@ -22,6 +22,7 @@ class SessionState:
         self.daily_stop_win_target = 0.0
         self.total_trades_today = 0
         self.stop_win_triggered = False
+        self.realized_session_pnl: float | None = None
 
     @property
     def session_start_balance(self) -> float:
@@ -56,6 +57,8 @@ class SessionState:
     @property
     def session_profit(self) -> float:
         """Lucro acumulado da sessao ativa."""
+        if self.realized_session_pnl is not None:
+            return float(self.realized_session_pnl)
         return self.current_balance - self.initial_balance
 
 
@@ -94,6 +97,7 @@ class StateManager:
         self.state.daily_stop_win_target = float(target)
         self.state.total_trades_today = 0
         self.state.stop_win_triggered = False
+        self.state.realized_session_pnl = 0.0
         self.save_state()
 
     def check_session_limits(self) -> bool:
@@ -118,6 +122,8 @@ class StateManager:
             self.state.daily_stop_win_target = float(data.get("daily_stop_win_target", 0.0))
             self.state.total_trades_today = int(data.get("total_trades_today", 0))
             self.state.stop_win_triggered = bool(data.get("stop_win_triggered", False))
+            raw_pnl = data.get("realized_session_pnl")
+            self.state.realized_session_pnl = None if raw_pnl is None else float(raw_pnl)
             return True
         return False
 
@@ -129,5 +135,6 @@ class StateManager:
             "daily_stop_win_target": self.state.daily_stop_win_target,
             "total_trades_today": self.state.total_trades_today,
             "stop_win_triggered": self.state.stop_win_triggered,
+            "realized_session_pnl": self.state.realized_session_pnl,
         }
         self.persistence.save(data)

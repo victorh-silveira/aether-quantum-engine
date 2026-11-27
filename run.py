@@ -151,14 +151,17 @@ async def main() -> int:
         return 1
 
     orchestrator = Orchestrator(config, auth)
+    ran_cleanly = False
     try:
         await orchestrator.run()
+        reason = getattr(orchestrator, "shutdown_reason", None)
+        ran_cleanly = bool(orchestrator.running or (isinstance(reason, str) and reason.strip()))
     except (asyncio.CancelledError, KeyboardInterrupt):
         return 130
     finally:
         await orchestrator.stop()
 
-    if not orchestrator.running:
+    if not ran_cleanly:
         logger.error(
             "Motor encerrou antes do loop principal. Veja INIT (PAT, OTP, stream) e %s",
             REPO_ROOT / ".env",

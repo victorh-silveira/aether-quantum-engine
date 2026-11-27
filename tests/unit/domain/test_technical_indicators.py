@@ -70,11 +70,15 @@ def test_compute_indicators_edge_and_short_series():
     assert _wilder_atr(short, 0) == 0.0
     assert _wilder_adx(short, 14) == (0.0, 0.0, 0.0, 0.0)
     assert _calc_rsi([10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0], 7) == 100.0
+    wilder_rsi = _calc_rsi([10.0, 11.0, 12.0, 11.5, 12.5, 13.0, 12.0, 13.5, 14.0, 13.2], 7)
+    assert 50.0 < wilder_rsi < 100.0
     assert _calc_rsi([10.0] * 10, 7) == 50.0
     assert _calc_macd([10.0] * 10) == (0.0, 0.0, 0.0, 0.0)
     assert _calc_stochastic(short, 14, 3) == (50.0, 50.0)
     assert _calc_cci_cmo_wr_roc(short, [10.0, 10.0, 10.0], 14) == (0.0, 0.0, -50.0, 0.0)
     assert _calc_bands_and_hurst([10.0] * 5, 10.0, 0.0) == (0.5, 0.0, 0.5, 0.5)
+    _, _, _, hurst_50 = _calc_bands_and_hurst([100.0 + i * 0.5 for i in range(60)], 125.0, 1.0)
+    assert 0.0 <= hurst_50 <= 1.0
     flat_bars = [
         Candle(
             "R_10",

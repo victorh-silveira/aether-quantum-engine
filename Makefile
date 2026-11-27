@@ -31,10 +31,12 @@ INDICATOR_PYTHON ?= $(PYTHON)
 INDICATOR_TRAIN_MEMORY_MB ?= 3072
 QA_PYTHON ?= $(INDICATOR_PYTHON)
 LAYA_DATA ?= .cache/laya-r10-gpu-20261126
-LAYA_RUN ?= .cache/laya-r10-gpu-run
+LAYA_RUN ?= .cache/laya-r10-gpu-run-fast
 LAYA_SETTINGS ?= config/settings.json
 LAYA_DEVICE ?= cuda
 LAYA_TRAIN_PROFILE ?= auto
+LAYA_TRAIN_PRESET ?= fast
+LAYA_WARM_START ?= .cache/laya-r10-gpu-run/seed-17/checkpoint_latest
 LAYA_ARGS ?=
 
 GREEN  := \033[1;32m
@@ -180,10 +182,10 @@ app-prepare:
 	$(PYTHON) -m tools.laya_workflow prepare --data "$(LAYA_DATA)" --settings "$(LAYA_SETTINGS)" $(LAYA_ARGS)
 
 app-train: app-cuda-runtime-check
-	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --profile "$(LAYA_TRAIN_PROFILE)" $(LAYA_ARGS)
+	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --profile "$(LAYA_TRAIN_PROFILE)" --preset "$(LAYA_TRAIN_PRESET)" --warm-start-auto "$(LAYA_WARM_START)" $(LAYA_ARGS)
 
 app-train-dry-run:
-	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --dry-run $(LAYA_ARGS)
+	$(PYTHON) -m tools.laya_workflow train --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --dry-run --preset "$(LAYA_TRAIN_PRESET)" --warm-start-auto "$(LAYA_WARM_START)" $(LAYA_ARGS)
 
 app-evaluate:
 	$(PYTHON) -m tools.laya_workflow evaluate --data "$(LAYA_DATA)" --run "$(LAYA_RUN)" --device "$(LAYA_DEVICE)" $(LAYA_ARGS)

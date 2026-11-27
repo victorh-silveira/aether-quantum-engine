@@ -15,12 +15,14 @@ from tests.unit.infrastructure.test_trade_handler_laya import _handler
 async def test_final_quote_recalculates_amount_and_emits_audit(caplog):
     handler = SimpleNamespace(ws=SimpleNamespace(send=AsyncMock(return_value={"balance": {"balance": 1000}})))
     resolver = AsyncMock(side_effect=[("p1", 20, 36, {}), ("p2", 10, 18, {})])
-    params = {"_laya_sizing": {"probability": 0.5, "pending": 0, "config": {}}}
+    synced_balances: list[float] = []
+    params = {"_laya_sizing": {"probability": 0.5, "pending": 0, "config": {}, "on_balance": synced_balances.append}}
     with caplog.at_level("INFO", logger="AETH"):
         result = await resize_laya_proposal(
             handler, "R_10", TradeDirection.CALL, 20, params, {"amount": 20}, 10, resolver
         )
     assert result[0] == "p2"
+    assert synced_balances == [1000.0, 1000.0]
     assert resolver.await_args.args[5]["amount"] == 10
     assert "source=FLOOR" in caplog.text and "RECOVERY | pending=$0.00" in caplog.text
 
@@ -102,7 +104,13 @@ async def test_order_passes_financial_context_to_final_quote(monkeypatch):
     handler = SimpleNamespace(
         buy_with_parameters=AsyncMock(return_value=SimpleNamespace(contract_id=1, buy_price=10, payout=18))
     )
-    orch = SimpleNamespace(config={}, risk_manager=RiskManager(), trade_handler=handler, ws=SimpleNamespace())
+    orch = SimpleNamespace(
+        config={},
+        risk_manager=RiskManager(),
+        trade_handler=handler,
+        ws=SimpleNamespace(),
+        state=SimpleNamespace(balance=0.0),
+    )
     executor = SimpleNamespace(orch=orch)
     monkeypatch.setattr(
         "src.application.services.orchestrator.execution_orders._subscribe_open_contract_background", AsyncMock()
@@ -113,3 +121,5 @@ async def test_order_passes_financial_context_to_final_quote(monkeypatch):
     params = handler.buy_with_parameters.await_args.kwargs["params"]
     assert params["_laya_sizing"]["probability"] == 0.5
     assert params["_indicator_model_version"] == "test-model"
+    params["_laya_sizing"]["on_balance"](1234.56)
+    assert orch.state.balance == 1234.56

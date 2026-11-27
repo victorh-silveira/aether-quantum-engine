@@ -1,42 +1,29 @@
-# Inventario de logging Aether
+# Inventario de Logging Aether
 
-Mapa SSOT das fontes de log. Contrato normativo: [`engineering-observability.md`](engineering-observability.md).
+Mapa SSOT das fontes de log do motor continuo Laya System 1. Contrato normativo: [`engineering-observability.md`](engineering-observability.md).
 
-## Camadas
+## Camadas e Fontes Atuais
 
-| Camada | Volume (aprox.) | Padrao | Notas |
-|--------|-----------------|--------|-------|
-| Runtime `app/src` `logger.*` | ~208 calls / ~72 arquivos | `logging.getLogger("AETH")` apos `setup_logger` | **0** `print(` |
-| Presentation | [`logger.py`](../src/presentation/terminal/logger.py) | `setup_logger` / `get_logger` | filtros Blank / Settlement |
-| Contexto | [`log_context.py`](../src/presentation/terminal/log_context.py) | `bind_log_context` | prefixo `[cN|SYM]` |
-| SSOT knobs | `config/settings.json` → `logging` | `resolve_logging_config` | level, log_file, quiet_channels |
-| Audit ciclo | `market_audit_log.py`, `dl_cycle_log.py` | tags CLUSTER/IND/EXEC/RESOLVED | CLUSTER SKIP (incl. `NEUTRAL_ZONE`) leva Margin/Edge/raw_edge/be; dedupe via `log_dedupe.py` |
-| SETTLE | `settle_log.py` + orquestrador | `SETTLE.{canal}:` | rate-limit por canal+tick |
-| Scripts treino | `train_meta_*`, `check_dl_checkpoint` | logger `AETH.meta` / `AETH.train` | sem print no caminho critico |
-| Scripts QA | `clean_workspace.py` | `print` (~22) | fora do escopo de polimento live |
-| Infra meta | `infra/docker/meta-classifier/app.py` | ~18 logs | sidecar; inventario apenas |
+| Camada | Modulo | Padrao / Eventos | Notas |
+| --- | --- | --- | --- |
+| Presentation | [`logger.py`](../src/presentation/terminal/logger.py) | `setup_logger` / `get_logger` | logger `AETH`, zero emojis |
+| Contexto | [`log_context.py`](../src/presentation/terminal/log_context.py) | `bind_log_context` | prefixo `[cN|SYM|t=...]` |
+| SSOT knobs | `config/settings.json` (`logging`) | `resolve_logging_config` | `level`, `log_file`, `quiet_channels` |
+| Ciclo Laya | [`cycle_indicators_logger.py`](../src/application/services/orchestrator/cycle_indicators_logger.py) | `INDICATORS`, `LAYA_DECISION`, `MODELO` | bloco multi-linha com 2 casas decimais |
+| Decisao & Skip | [`trading_cycle_entry.py`](../src/application/services/orchestrator/trading_cycle_entry.py) | `INIT`, `SKIP \| ...`, `EXEC_ERR` | `SKIP` registrado sem chamada `proposal` |
+| Sizing & Ordem | [`laya_quote_sizing.py`](../src/infrastructure/handlers/laya_quote_sizing.py) e [`execution_orders.py`](../src/application/services/orchestrator/execution_orders.py) | `KELLY`, `RECOVERY`, `EXEC` | stake final revalidada na Deriv |
+| Liquidacao & Stop | [`settlement_outcome.py`](../src/application/services/orchestrator/settlement_outcome.py) e [`settle_log.py`](../src/presentation/terminal/settle_log.py) | `SETTLE`, `STOP_WIN` | `STOP_WIN` disparado por `realized_session_pnl` |
+| Treino GPU | `tools/laya_workflow/` | `TRAIN_*`, `CALIB_*`, `EVAL_*` | pipeline offline CUDA (`app-prepare`, `app-train`, `app-evaluate`) |
+| Scripts QA | `scripts/operations/clean_workspace.py` | `print` estruturado | lint, validate, test e security |
 
-## Hotspots runtime (poluicao historica)
-
-| Arquivo | Papel |
-|---------|-------|
-| `orchestrator/ws_bootstrap.py` | AUTH / STRM / SETTLE subscribe |
-| `orchestrator/settlement_queue_ops.py` | fila Redis SETTLE |
-| `infrastructure/api/websocket_manager.py` | WSS (preferir DEBUG em poll) |
-| `infrastructure/handlers/stream_handler.py` | DATA / STREAM sync |
-| `deep_learning/dl_bootstrap_train.py` | bootstrap treino |
-
-## Nomes de logger
+## Nomes de Logger
 
 | Nome | Uso |
-|------|-----|
-| `AETH` | motor live (`run.py` / `engine_session`) |
-| `AETH.meta` | treino meta offline |
-| `AETH.train` | gate deploy DL / scripts de treino pontuais |
-| `AETH.ops` | ensure_timescale e ops auxiliares |
+| --- | --- |
+| `AETH` | motor live (`run.py` / `engine_session` / orquestrador) |
+| `AETH.ops` | operacoes auxiliares e TimescaleDB |
 
-## Telemetria nativa
+## Telemetria Nativa
 
-- OpenTelemetry / Prometheus embutido (:9100 no host, :9090 Prometheus)
-- Dashboards Grafana provisionados (:3000)
-- Migrar `print` de `clean_workspace.py` fora de escopo operacional
+- OpenTelemetry / Prometheus embutido (`:9100/metrics` no host, `:9090` Prometheus) via `otel_business_instrumentor.py` e `prometheus_business_format.py`.
+- Dashboards Grafana provisionados (`:3000`) e traces no Tempo (`:4318`).

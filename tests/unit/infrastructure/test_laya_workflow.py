@@ -74,6 +74,9 @@ def test_manifest_tampering(prepared):
 
 
 def test_gpu_check_precedes_any_weight_load(prepared, tmp_path, monkeypatch):
+    from tools.laya_workflow import run_guard
+
+    monkeypatch.setattr(run_guard, "other_training_pids", lambda: [])
     fake = SimpleNamespace(cuda=SimpleNamespace(is_available=lambda: False))
     with pytest.raises(RuntimeError, match="CUDA indisponivel"):
         training.cuda_preflight(fake)
@@ -156,7 +159,7 @@ def test_test_partition_consumed_once_and_promotion_rechecks_integrity(prepared,
         },
     )
 
-    def score(agent, rows):
+    def score(agent, rows, *, batch_size=1):
         return {
             "n": len(rows),
             "accuracy": 0.7 if agent == "base" else 0.8,
@@ -216,6 +219,8 @@ def test_three_seeds_use_only_train_and_reserved_calibration(prepared, tmp_path,
     import laya.train
     import torch
 
+    from tools.laya_workflow import run_guard, training_run
+
     base = tmp_path / "base"
     base.mkdir()
     (base / "model.safetensors").write_bytes(b"base")
@@ -226,27 +231,33 @@ def test_three_seeds_use_only_train_and_reserved_calibration(prepared, tmp_path,
         "cuda_preflight",
         lambda *args: {"device": "fake CUDA", "total_bytes": 16 * 1024**3, "free_bytes": 16 * 1024**3},
     )
+    monkeypatch.setattr(run_guard, "other_training_pids", lambda: [])
     monkeypatch.setattr(torch.cuda, "empty_cache", lambda: None)
-    monkeypatch.setattr(laya.train, "load_checkpoint", lambda path: (SimpleNamespace(to=lambda d: None), None, {}))
+    monkeypatch.setattr(
+        laya.train,
+        "load_checkpoint",
+        lambda path: (SimpleNamespace(to=lambda d: None), SimpleNamespace(pad_token_id=0), {}),
+    )
     monkeypatch.setattr(laya.train, "items_from_rows", lambda tok, rows, *args: (rows, {}))
+    monkeypatch.setattr(laya.train, "encode_item", lambda tok, item, *args: item)
+    monkeypatch.setattr(training_run, "configure_model", lambda *args, **kwargs: None)
     seen_seeds = []
 
-    def train_model(model, tok, rows, config, device, max_len, head_max_len, **kwargs):
-        assert rows == artifacts.read_rows(prepared / "train.jsonl")
-        assert config.epochs == 4 and config.micro_batch == 1 and config.grad_accum == 64
-        assert config.amp and config.gradient_checkpointing
-        seen_seeds.append(config.seed)
-        kwargs["on_epoch_end"](1, 0.5)
+    def fake_run_training(model, tok, encoded, options, device, **kwargs):
+        assert encoded == artifacts.read_rows(prepared / "train.jsonl")
+        assert options.epochs == 4 and options.micro_batch == 1 and options.grad_accum == 64
+        assert options.amp and options.gradient_checkpointing
+        seen_seeds.append(options.seed)
         return [0.5]
 
-    monkeypatch.setattr(laya.train, "train_model", train_model)
+    monkeypatch.setattr(training_run, "run_training", fake_run_training)
 
     def calibrate(model, tok, rows, *args, **kwargs):
         assert rows == artifacts.read_rows(prepared / "calibration.jsonl")
-        assert kwargs["batch_size"] == 1
+        assert kwargs["batch_size"] == 1 and kwargs["amp"] is True
         return ["calibration"]
 
-    monkeypatch.setattr(laya.train, "calibration_records", calibrate)
+    monkeypatch.setattr(training_run, "collect_calibration_records", calibrate)
     monkeypatch.setattr(
         laya.calibrate, "fit_temperature_map", lambda records: {"temperature": [1, 1, 1], "temperature_by_options": {}}
     )
@@ -262,15 +273,15 @@ def test_three_seeds_use_only_train_and_reserved_calibration(prepared, tmp_path,
     monkeypatch.setattr(laya.train, "save_checkpoint", save)
     monkeypatch.setattr(laya, "load", lambda path, **kwargs: path)
 
-    def score(agent, rows):
+    def score(agent, rows, *, batch_size=1):
         assert rows == artifacts.read_rows(prepared / "selection.jsonl")
         return {"accuracy": 0.7 if str(agent).endswith("seed-42") else 0.6, "brier": 0.2}
 
-    monkeypatch.setattr(training, "score_rows", score)
+    monkeypatch.setattr(training_run, "score_rows", score)
     output = tmp_path / "run"
-    result = training.train(prepared, output)
+    result = training.train(prepared, output, preset="complete")
     assert seen_seeds == [17, 42, 73]
     assert result["candidate"] == "seed-42"
     assert not (prepared / "test_consumed.json").exists()
     with pytest.raises(ValueError, match="ja existe"):
-        training.train(prepared, output)
+        training.train(prepared, output, preset="complete")

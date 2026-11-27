@@ -15,9 +15,21 @@ from src.domain.models.market_data import Candle
 from src.domain.models.trade import TradeDirection
 from src.infrastructure.inference.laya_checkpoint import resolve_approved_checkpoint
 from src.infrastructure.inference.laya_context import encode_laya_context, validate_laya_usage
+from src.infrastructure.inference.laya_narrative import build_technical_narrative
 
 
 _SENSITIVE_KEYS = frozenset({"token", "api_token", "pat", "secret", "password", "dsn", "key", "app_id"})
+_INFRA_SETTINGS_KEYS = frozenset(
+    {
+        "infra",
+        "api_config",
+        "logging",
+        "telemetry",
+        "orchestrator",
+        "orchestrator_timing_config",
+        "data_handler",
+    }
+)
 
 
 def _finite_probability(value: Any, default: float = 0.5) -> float:
@@ -35,13 +47,20 @@ def _finite_probability(value: Any, default: float = 0.5) -> float:
 _LAYA_QUESTIONS = {
     "direction": {
         "type": "choice",
-        "instructions": (
-            "Evaluate the closed M5 OHLC candles, all technical indicators, and bot settings "
-            "to predict the next 5-minute binary contract direction (CALL or PUT)."
-        ),
+        "instructions": "Based on the technical analysis below, will the next 5-minute candle close higher (CALL) or lower (PUT)?",
         "criteria": {
-            "CALL": "Price closes higher in 5 minutes: bullish trend, upward momentum, or oversold bounce.",
-            "PUT": "Price closes lower in 5 minutes: bearish trend, downward momentum, or overbought reversal.",
+            "CALL": "Bullish continuation or oversold rebound; price closes higher.",
+            "PUT": "Bearish continuation or overbought pullback; price closes lower.",
+        },
+    }
+}
+_LAYA_QUESTIONS_REVERSED = {
+    "direction": {
+        "type": "choice",
+        "instructions": "Based on the technical analysis below, will the next 5-minute candle close higher (CALL) or lower (PUT)?",
+        "criteria": {
+            "PUT": "Bearish continuation or overbought pullback; price closes lower.",
+            "CALL": "Bullish continuation or oversold rebound; price closes higher.",
         },
     }
 }
@@ -63,29 +82,29 @@ def sanitize_settings_context(config: dict[str, Any]) -> dict[str, Any]:
     return _clean(config)
 
 
-def _format_candles_summary(candles: list[Candle], limit: int = 12) -> list[dict[str, float | int]]:
-    """Formata ultimas velas fechadas de forma compacta para o estado do Laya."""
-    tail = candles[-max(1, limit) :]
-    return [
-        {
-            "epoch": bar.epoch,
-            "open": round(bar.open, 5),
-            "high": round(bar.high, 5),
-            "low": round(bar.low, 5),
-            "close": round(bar.close, 5),
-        }
-        for bar in tail
-    ]
-
-
-def build_laya_state(symbol: str, candles: list[Candle], indicators: dict, settings: dict, limit: int = 12) -> dict:
-    """Monta a entrada causal comum ao dataset e ao motor de execucao."""
+def _compact_trading_settings(config: dict[str, Any]) -> dict[str, Any]:
+    """Mantem apenas parametros minimos de trading no contexto Laya."""
+    cfg = sanitize_settings_context({k: v for k, v in (config or {}).items() if k not in _INFRA_SETTINGS_KEYS})
+    params = cfg.get("risk_management", {}).get("params", {})
     return {
-        "symbol": symbol,
-        "timeframe_seconds": 300,
-        "indicators": {k: round(float(v), 6) for k, v in indicators.items()},
+        "mode": cfg.get("trading", {}).get("mode", "demo"),
+        "duration_m": int(params.get("duration", 5) or 5),
+    }
+
+
+def _format_candles_summary(candles: list[Candle], limit: int = 6) -> list[dict[str, float | int]]:
+    """Formata fechamentos e epochs das ultimas velas fechadas."""
+    tail = candles[-max(1, limit) :]
+    return [{"epoch": bar.epoch, "c": round(bar.close, 2)} for bar in tail]
+
+
+def build_laya_state(symbol: str, candles: list[Candle], indicators: dict, settings: dict, limit: int = 6) -> dict:
+    """Monta a entrada causal comum ao dataset e ao motor de execucao."""
+    tail = candles[-max(1, limit) :]
+    return {
+        "analysis": build_technical_narrative(symbol, indicators, tail),
         "recent_candles": _format_candles_summary(candles, limit),
-        "settings": sanitize_settings_context(settings),
+        "settings": _compact_trading_settings(settings),
     }
 
 
@@ -131,7 +150,7 @@ class LayaDecisionAdapter:
         self,
         model_id: str = "convaiinnovations/laya",
         device: str = "auto",
-        context_candles: int = 12,
+        context_candles: int = 6,
         agent: Any | None = None,
         approved_checkpoint: str = "",
     ) -> None:
@@ -168,14 +187,16 @@ class LayaDecisionAdapter:
         indicators: dict[str, float],
         settings_context: dict[str, Any],
     ) -> LayaDecision:
-        """Executa inferencia sincrona em um unico forward pass System 1."""
+        """Executa inferencia simetrica (CALL/PUT + PUT/CALL) para eliminar vies posicional."""
         agent = self._ensure_agent()
         state = build_laya_state(symbol, candles, indicators, settings_context, self.context_candles)
         context, max_len, signature = encode_laya_context(agent, state, _LAYA_QUESTIONS)
         t0 = time.perf_counter()
-        raw = agent.system_one(context, _LAYA_QUESTIONS, max_len=max_len)
+        raw_cp = agent.system_one(context, _LAYA_QUESTIONS, max_len=max_len)
+        raw_pc = agent.system_one(context, _LAYA_QUESTIONS_REVERSED, max_len=max_len)
         latency_ms = (time.perf_counter() - t0) * 1000.0
-        usage = validate_laya_usage(raw)
+        usage = validate_laya_usage(raw_cp)
+        validate_laya_usage(raw_pc)
         logging.getLogger("AETH").info(
             "LAYA_CONTEXT | %s g=300s bars=%d epoch=%d sig=%s tokens=%s dropped=%s max_len=%d",
             symbol,
@@ -186,7 +207,19 @@ class LayaDecisionAdapter:
             usage.get("state_tokens_dropped", 0),
             max_len,
         )
-        direction, p_call, p_put, conf = _extract_choice_probs(raw if isinstance(raw, dict) else {}, indicators)
+        _, pc1, pp1, c1 = _extract_choice_probs(raw_cp if isinstance(raw_cp, dict) else {}, indicators)
+        _, pc2, pp2, c2 = _extract_choice_probs(raw_pc if isinstance(raw_pc, dict) else {}, indicators)
+        p_call = (pc1 + pc2) / 2.0
+        p_put = (pp1 + pp2) / 2.0
+        conf = (c1 + c2) / 2.0
+        if p_call == p_put:
+            direction = (
+                TradeDirection.CALL
+                if float(indicators.get("ema_20", 0.0)) >= float(indicators.get("ema_50", 0.0))
+                else TradeDirection.PUT
+            )
+        else:
+            direction = TradeDirection.CALL if p_call > p_put else TradeDirection.PUT
         win_prob = p_call if direction is TradeDirection.CALL else p_put
         return LayaDecision(
             symbol=symbol,

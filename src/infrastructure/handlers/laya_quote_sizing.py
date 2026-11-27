@@ -15,6 +15,8 @@ async def resize_laya_proposal(handler, symbol, direction, stake, params, reques
         balance = float(response.get("balance", {}).get("balance", 0))
         if not math.isfinite(balance) or balance <= 0 or "error" in response:
             raise RuntimeError("LAYA_SIZING saldo atual invalido")
+        if callable(on_balance := context.get("on_balance")):
+            on_balance(balance)
         proposal = await resolve(handler, symbol, direction, stake, {}, request, timeout)
         prop_id, ask, payout, _ = proposal
         rate = contract_profit_rate(payout, ask) if payout is not None else None
@@ -26,7 +28,7 @@ async def resize_laya_proposal(handler, symbol, direction, stake, params, reques
         if abs(ask - sizing.stake) < 0.005 and abs(stake - sizing.stake) < 0.005:
             logger = logging.getLogger("AETH")
             logger.info(
-                "KELLY | source=%s base=$%.2f stake=$%.2f f=%.2f payout=%.2f edge=%.2f banca=$%.2f",
+                "KELLY | source=%s | base=$%.2f | stake=$%.2f | f=%.2f | payout=%.2f | edge=%.2f | banca=$%.2f",
                 sizing.source,
                 sizing.base_stake,
                 sizing.stake,
@@ -36,7 +38,7 @@ async def resize_laya_proposal(handler, symbol, direction, stake, params, reques
                 balance,
             )
             logger.info(
-                "RECOVERY | pending=$%.2f parcela=$%.2f etapas=%d cap=%s",
+                "RECOVERY | pending=$%.2f | parcela=$%.2f | etapas=%d | cap=%s",
                 sizing.pending_loss,
                 sizing.recovery_slice,
                 sizing.recovery_steps,

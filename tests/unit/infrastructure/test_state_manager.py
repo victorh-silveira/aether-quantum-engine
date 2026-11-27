@@ -37,6 +37,13 @@ def test_state_manager_check_session_limits(tmp_path):
     assert mgr.check_session_limits() is True
     mgr.state.current_balance = 1040.0
     assert mgr.check_session_limits() is False
+    # Credito externo eleva saldo real, mas lucro realizado da sessao ainda abaixo da meta
+    mgr.state.current_balance = 1700.0
+    mgr.state.realized_session_pnl = 25.0
+    assert mgr.state.session_profit == 25.0
+    assert mgr.check_session_limits() is False
+    mgr.state.realized_session_pnl = 50.0
+    assert mgr.check_session_limits() is True
 
 
 def test_state_manager_save_load_cycle(tmp_path):
@@ -47,11 +54,13 @@ def test_state_manager_save_load_cycle(tmp_path):
     mgr.state.daily_stop_win_target = 100.0
     mgr.state.total_trades_today = 3
     mgr.state.stop_win_triggered = True
+    mgr.state.realized_session_pnl = 75.5
     mgr.save_state()
     new_mgr = StateManager(file_path=file_path)
     assert new_mgr.load_state() is True
     assert new_mgr.state.daily_stop_win_target == 100.0
     assert new_mgr.state.stop_win_triggered is True
+    assert new_mgr.state.realized_session_pnl == 75.5
 
 
 def test_state_manager_legacy_aliases(tmp_path):

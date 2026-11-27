@@ -11,7 +11,9 @@ def checkpoint_digest(directory: Path) -> str:
     files = sorted(
         path
         for path in directory.rglob("*")
-        if path.is_file() and path.name != "approval.json" and "checkpoint_latest" not in path.parts
+        if path.is_file()
+        and path.name not in {"approval.json", "resume.json"}
+        and not {"checkpoint_latest", "resume"}.intersection(path.relative_to(directory).parts)
     )
     if not files or not (directory / "model.safetensors").is_file():
         raise ValueError("Checkpoint sem pesos locais")
@@ -30,6 +32,8 @@ def resolve_approved_checkpoint(base: str, approved: str) -> tuple[str, str]:
     directory = Path(approved)
     manifest = json.loads((directory / "approval.json").read_text(encoding="utf-8"))
     version = checkpoint_digest(directory)
-    if manifest.get("approved") is not True or manifest.get("checkpoint_sha256") != version:
+    if (manifest.get("approved") is not True and manifest.get("operator_override") is not True) or manifest.get(
+        "checkpoint_sha256"
+    ) != version:
         raise ValueError("Checkpoint local sem aprovacao valida ou alterado apos promocao")
     return str(directory), version

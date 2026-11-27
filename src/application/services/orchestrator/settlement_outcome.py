@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 
@@ -25,8 +26,7 @@ def process_contract_outcome(
     api_balance = c.get("balance_after")
     orch.state.balance = (
         float(api_balance)
-        if api_balance is not None
-        and (orch.state.balance <= 0 or abs(float(api_balance) - (orch.state.balance + profit)) <= 2.0)
+        if api_balance is not None and math.isfinite(float(api_balance)) and float(api_balance) > 0.0
         else float(orch.state.balance + profit)
     )
     sym = orch.risk_manager.contract_to_symbol.get(c_id, c.get("underlying", "R_10"))
@@ -62,22 +62,47 @@ def process_contract_outcome(
         log_cluster_summary(orch)
 
 
+def _sync_realized_pnl(orch: Any, state_mgr: Any) -> None:
+    """Sincroniza lucro realizado da sessao sem misturar creditos externos de saldo."""
+    rm = getattr(orch, "risk_manager", None)
+    pnl = getattr(rm, "total_session_profit", None)
+    if isinstance(pnl, (int, float)) and not isinstance(pnl, bool):
+        state_mgr.state.realized_session_pnl = float(pnl)
+
+
 def sync_state_manager_session(orch: Any, target: float = 0.0, *, increment_trades: bool = True) -> bool:
-    """Sincroniza StateManager com saldo corrente sem bloquear continuidade."""
-    _ = target
+    """Sincroniza StateManager com saldo corrente e avalia stop-win."""
     state_mgr = getattr(orch, "state_mgr", None)
     if state_mgr is None or type(state_mgr).__name__ != "StateManager":
         return False
     state_mgr.state.current_balance = float(orch.state.balance)
     if state_mgr.state.initial_balance <= 0.0:
         state_mgr.state.initial_balance = float(orch.risk_manager.initial_bankroll)
+    if target > 0.0:
+        state_mgr.state.daily_stop_win_target = float(target)
     if increment_trades:
         state_mgr.state.total_trades_today += 1
+    _sync_realized_pnl(orch, state_mgr)
+    triggered = bool(state_mgr.check_session_limits())
     state_mgr.save_state()
-    return False
+    return triggered
 
 
 def check_session_limits_before_post_settlement(orch: Any) -> bool:
-    """Modo continuo nunca interrompe o ciclo por stop-win."""
-    _ = orch
-    return False
+    """Retorna True quando o lucro da sessao atinge o stop-win configurado."""
+    state_mgr = getattr(orch, "state_mgr", None)
+    if state_mgr is None or not hasattr(state_mgr, "check_session_limits"):
+        return False
+    state_mgr.state.current_balance = float(
+        getattr(getattr(orch, "state", None), "balance", state_mgr.state.current_balance)
+    )
+    _sync_realized_pnl(orch, state_mgr)
+    if not state_mgr.check_session_limits():
+        return False
+    orch.logger.info(
+        "STOP_WIN | Meta atingida | lucro=$%.2f >= alvo=$%.2f | banca=$%.2f | encerrando sessao",
+        state_mgr.state.session_profit,
+        state_mgr.state.daily_stop_win_target,
+        state_mgr.state.current_balance,
+    )
+    return True

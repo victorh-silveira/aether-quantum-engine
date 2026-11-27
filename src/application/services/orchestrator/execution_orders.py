@@ -52,6 +52,7 @@ async def place_order(
             "probability": metrics["laya_probability"],
             "pending": executor.orch.risk_manager.pending_loss,
             "config": risk_cfg,
+            "on_balance": lambda bal: setattr(executor.orch.state, "balance", float(bal)),
         }
         params["_indicator_model_version"] = metrics.get("laya_model_version", "convaiinnovations/laya")
     attempts = proposal_stake_attempts(float(stake), stake_min, proposal_retry_scales(exec_cfg))

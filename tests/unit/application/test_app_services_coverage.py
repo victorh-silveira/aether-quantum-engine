@@ -110,6 +110,44 @@ async def test_session_target_bootstrap_and_atomic_state():
     orch.state_store = SimpleNamespace(delete_key=AsyncMock())
     await clear_current_session_redis_keys(orch)
 
+    # Bootstrap com stop_win_pct=5% e restauracao de target_win
+    orch_sw = SimpleNamespace(
+        _session_targets_bootstrapped=False,
+        config={"risk_management": {"params": {"stop_win_pct": 0.05}}},
+        state_mgr=SimpleNamespace(
+            state=SimpleNamespace(initial_balance=0.0, daily_stop_win_target=0.0),
+            reset_session_metrics=MagicMock(),
+        ),
+        risk_manager=SimpleNamespace(initial_bankroll=0.0, reset_session=MagicMock()),
+        business_metrics=SimpleNamespace(set_session_targets=MagicMock(), update_balance=MagicMock()),
+        state_store=SimpleNamespace(
+            get_string=AsyncMock(side_effect=["100.0", "5.0"]),
+            set_string=AsyncMock(),
+            delete_key=AsyncMock(),
+        ),
+        logger=MagicMock(),
+    )
+    await bootstrap_active_session_targets(orch_sw, 100.0)
+    orch_sw.state_mgr.reset_session_metrics.assert_called_once_with(100.0, 5.0)
+    orch_sw.business_metrics.set_session_targets.assert_called_once_with(100.0, 5.0)
+    assert orch_sw.state_store.set_string.await_count == 2
+    await restore_current_session_targets(orch_sw)
+    assert orch_sw.state_mgr.state.daily_stop_win_target == 5.0
+    await clear_current_session_redis_keys(orch_sw)
+    assert orch_sw.state_store.delete_key.await_count == 2
+
+    # Bootstrap com stop_win_pct=0.0
+    orch_cont = SimpleNamespace(
+        _session_targets_bootstrapped=False,
+        config={"risk_management": {"params": {"stop_win_pct": 0.0}}},
+        state_mgr=None,
+        risk_manager=SimpleNamespace(initial_bankroll=0.0, reset_session=MagicMock()),
+        state_store=None,
+        logger=MagicMock(),
+    )
+    await bootstrap_active_session_targets(orch_cont, 200.0)
+    assert orch_cont._session_targets_bootstrapped is True
+
     async with orchestrator_atomic_state_context(orch):
         assert orchestrator_balance_snapshot(orch) == 250.0
     assert _caller_function_name() != ""

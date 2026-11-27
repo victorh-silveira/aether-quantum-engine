@@ -25,6 +25,17 @@ def test_kelly_floor_positive_and_recovery():
     disabled = size_kelly_recovery(1000, 0.5, 0.8, 100, recovery_enabled=False)
     assert disabled.stake == 10 and disabled.recovery_slice == 0
     assert sizing_from_config(100, 0.5, 0.8, 0, {}).stake == 1
+    base_capped = size_kelly_recovery(1000, 0.9, 0.8, fraction=0.25, max_base_pct=0.02)
+    assert (
+        base_capped.base_stake == 20
+        and base_capped.stake == 20
+        and base_capped.capped
+        and base_capped.source == "KELLY"
+    )
+    rec_over_base = size_kelly_recovery(1000, 0.9, 0.8, 100, fraction=0.25, max_base_pct=0.02)
+    assert rec_over_base.base_stake == 20 and rec_over_base.stake == 41.67 and rec_over_base.source == "RECOVERY"
+    from_cfg = sizing_from_config(1000, 0.9, 0.8, 0, {"kelly": {"fraction": 0.08, "max_base_pct": 0.02}})
+    assert from_cfg.stake == 20 and from_cfg.source == "KELLY"
 
 
 @pytest.mark.parametrize(
@@ -36,6 +47,8 @@ def test_kelly_floor_positive_and_recovery():
         ((100, 0.5, 0), {}),
         ((100, 0.5, 0.8, -1), {}),
         ((100, 0.5, 0.8), {"max_pct": 0.06}),
+        ((100, 0.5, 0.8), {"max_base_pct": 0.005}),
+        ((100, 0.5, 0.8), {"max_base_pct": 0.06}),
         ((100, 0.5, 0.8), {"fraction": 0}),
         ((100, 0.5, 0.8), {"stake_min": 0.1}),
         ((10, 0.5, 0.8), {}),

@@ -73,12 +73,15 @@ def _wilder_adx(bars: list[Candle], period: int) -> tuple[float, float, float, f
 
 
 def _calc_rsi(closes: list[float], period: int) -> float:
-    """Calcula RSI causal no periodo informado."""
+    """Calcula RSI causal com suavizacao de Wilder no periodo informado."""
     if len(closes) < period + 1:
         return 50.0
-    deltas = [curr - prev for prev, curr in zip(closes[-period - 1 : -1], closes[-period:], strict=True)]
-    avg_g = sum(max(0.0, d) for d in deltas) / period
-    avg_l = sum(max(0.0, -d) for d in deltas) / period
+    deltas = [curr - prev for prev, curr in zip(closes[:-1], closes[1:], strict=True)]
+    avg_g = sum(max(0.0, d) for d in deltas[:period]) / period
+    avg_l = sum(max(0.0, -d) for d in deltas[:period]) / period
+    for d in deltas[period:]:
+        avg_g = ((period - 1) * avg_g + max(0.0, d)) / period
+        avg_l = ((period - 1) * avg_l + max(0.0, -d)) / period
     if avg_l <= 1e-12:
         return 100.0 if avg_g > 0.0 else 50.0
     return 100.0 - (100.0 / (1.0 + avg_g / avg_l))
@@ -154,17 +157,18 @@ def _calc_bands_and_hurst(closes: list[float], ema20: float, atr14: float) -> tu
     kc_b = (closes[-1] - (ema20 - 2.0 * atr14)) / kc_width if kc_width > 1e-12 else 0.5
     hurst = 0.5
     if len(closes) >= 14:
-        ser = closes[-14:]
-        mean = sum(ser) / 14.0
+        win_len = min(len(closes), 50)
+        ser = closes[-win_len:]
+        mean = sum(ser) / float(win_len)
         devs = [x - mean for x in ser]
         cum, acc = [], 0.0
         for d in devs:
             acc += d
             cum.append(acc)
         r = max(cum) - min(cum)
-        s = (sum(d * d for d in devs) / 14.0) ** 0.5
+        s = (sum(d * d for d in devs) / float(win_len)) ** 0.5
         if r > 1e-10 and s > 1e-10:
-            hurst = min(1.0, max(0.0, float(log(r / s) / log(14.0))))
+            hurst = min(1.0, max(0.0, float(log(r / s) / log(float(win_len)))))
     return bb_b, bb_w, kc_b, hurst
 
 
