@@ -51,7 +51,15 @@ def build_technical_narrative(symbol: str, indicators: dict[str, Any], candles: 
         else ("bullish fading" if hist > 0.0 else ("bearish falling" if dhist < 0.0 else "bearish fading"))
     )
     rsi_s = "overbought" if rsi14 >= 65.0 else ("oversold" if rsi14 <= 35.0 else "neutral")
-    bb_s = "near upper band" if bb_pct >= 0.8 else ("near lower band" if bb_pct <= 0.2 else "mid-band")
+    bb_s = (
+        "overextended above upper band"
+        if bb_pct >= 0.95
+        else (
+            "overextended below lower band"
+            if bb_pct <= 0.05
+            else ("near upper band" if bb_pct >= 0.8 else ("near lower band" if bb_pct <= 0.2 else "mid-band"))
+        )
+    )
     hurst_s = "trending" if hurst >= 0.55 else ("mean-reverting" if hurst <= 0.45 else "random")
     vol_s = "expanding" if atr_ratio >= 1.15 else ("compressed" if atr_ratio <= 0.85 else "normal")
     seq = ", ".join(f"{'UP' if bar.close >= bar.open else 'DOWN'}({bar.close - bar.open:+.2f})" for bar in candles[-6:])

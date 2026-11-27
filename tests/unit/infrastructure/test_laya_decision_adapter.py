@@ -143,6 +143,10 @@ def test_build_technical_narrative_covers_all_regimes():
         and "mid-band" in neutral
         and "compressed" in neutral
     )
+    over_up = build_technical_narrative("R_10", {"bollinger_pct_b": 0.98}, candles)
+    assert "overextended above upper band" in over_up
+    over_dn = build_technical_narrative("R_10", {"bollinger_pct_b": 0.02}, candles)
+    assert "overextended below lower band" in over_dn
 
 
 def test_extract_choice_probs_handles_real_schema_and_ties():

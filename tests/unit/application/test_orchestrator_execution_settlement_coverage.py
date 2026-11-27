@@ -253,7 +253,10 @@ async def test_execution_settlement_and_outcome_branches():
         state=SimpleNamespace(balance=800.0),
         risk_manager=SimpleNamespace(initial_bankroll=100.0, total_session_profit=6.0),
         logger=MagicMock(),
+        _session_wins=2,
+        _session_losses=1,
     )
     assert sync_state_manager_session(orch_sw, target=5.0) is True
     assert check_session_limits_before_post_settlement(orch_sw) is True
+    assert any("SESSION_STATS |" in call.args[0] for call in orch_sw.logger.info.call_args_list)
     assert any("STOP_WIN |" in call.args[0] for call in orch_sw.logger.info.call_args_list)

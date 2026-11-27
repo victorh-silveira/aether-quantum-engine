@@ -47,6 +47,16 @@ async def test_bad_final_quotes_never_buy(balance, proposal, match):
 
 
 @pytest.mark.asyncio
+async def test_low_payout_never_buys():
+    handler = SimpleNamespace(ws=SimpleNamespace(send=AsyncMock(return_value={"balance": {"balance": 1000}})))
+    params = {"_laya_sizing": {"probability": 0.5, "pending": 0, "config": {"params": {"min_payout_rate": 0.75}}}}
+    with pytest.raises(RuntimeError, match="payout abaixo do minimo"):
+        await resize_laya_proposal(
+            handler, "R_10", TradeDirection.CALL, 10, params, {}, 10, AsyncMock(return_value=("p", 10, 16.5, {}))
+        )
+
+
+@pytest.mark.asyncio
 async def test_real_proposal_router_reads_balance_then_validates_quote():
     handler = SimpleNamespace(
         ws=SimpleNamespace(

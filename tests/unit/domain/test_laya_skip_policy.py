@@ -90,6 +90,54 @@ def test_skip_policy_counter_momentum_blocks_call_and_put():
     assert call_verdict.should_skip is True and call_verdict.reason == "contra_momentum_vela_e_macd"
     put_verdict = evaluate_laya_skip(_decision(TradeDirection.PUT), _snapshot(candle_dir=1.0, macd_hist_delta=0.1), cfg)
     assert put_verdict.should_skip is True and put_verdict.reason == "contra_momentum_vela_e_macd"
+    put_hist_only = evaluate_laya_skip(
+        _decision(TradeDirection.PUT), _snapshot(candle_dir=1.0, macd_hist_delta=0.0), cfg
+    )
+    assert put_hist_only.should_skip is True and put_hist_only.reason == "contra_momentum_vela_e_macd"
+
+
+def test_skip_policy_bb_extreme_margin_blocks_chasing():
+    from dataclasses import replace
+
+    cfg = {"laya": {"skip_policy": {"enabled": True, "bb_extreme_margin": 0.05}}}
+    snap_high = replace(_snapshot(), bollinger_pct_b=0.96)
+    assert evaluate_laya_skip(_decision(TradeDirection.CALL), snap_high, cfg).reason == "extremo_banda(BB%B=0.96)"
+    snap_low = replace(_snapshot(), bollinger_pct_b=0.01)
+    assert evaluate_laya_skip(_decision(TradeDirection.PUT), snap_low, cfg).reason == "extremo_banda(BB%B=0.01)"
+    snap_mid = replace(_snapshot(), bollinger_pct_b=0.50)
+    assert evaluate_laya_skip(_decision(TradeDirection.CALL), snap_mid, cfg).should_skip is False
+
+
+def test_skip_policy_delay_wick_and_volatility_guards():
+    from dataclasses import replace
+
+    cfg = {
+        "laya": {
+            "skip_policy": {
+                "enabled": True,
+                "max_entry_delay_seconds": 30,
+                "max_counter_wick_atr": 0.75,
+                "min_atr_ratio": 0.7,
+                "max_atr_ratio": 1.8,
+            }
+        }
+    }
+    snap = _snapshot()
+    delayed = evaluate_laya_skip(_decision(TradeDirection.CALL), snap, cfg, entry_delay_seconds=45.0)
+    assert delayed.should_skip is True and delayed.reason == "atraso_vela(45s>30s)"
+
+    call_wick = replace(snap, upper_wick_atr=0.85, body_atr=0.30)
+    assert evaluate_laya_skip(_decision(TradeDirection.CALL), call_wick, cfg).reason == "pavio_rejeicao(0.85ATR>=0.75)"
+    put_wick = replace(snap, lower_wick_atr=0.90, body_atr=0.25)
+    assert evaluate_laya_skip(_decision(TradeDirection.PUT), put_wick, cfg).reason == "pavio_rejeicao(0.90ATR>=0.75)"
+
+    low_vol = replace(snap, atr_ratio=0.55)
+    assert evaluate_laya_skip(_decision(TradeDirection.CALL), low_vol, cfg).reason == "volatilidade_anomala(ratio=0.55)"
+    high_vol = replace(snap, atr_ratio=2.10)
+    assert evaluate_laya_skip(_decision(TradeDirection.PUT), high_vol, cfg).reason == "volatilidade_anomala(ratio=2.10)"
+
+    ok = evaluate_laya_skip(_decision(TradeDirection.CALL), snap, cfg, entry_delay_seconds=10.0)
+    assert ok.should_skip is False
 
 
 def test_skip_policy_counter_streak_blocks_and_aligned_passes():

@@ -22,6 +22,9 @@ async def resize_laya_proposal(handler, symbol, direction, stake, params, reques
         rate = contract_profit_rate(payout, ask) if payout is not None else None
         if not prop_id or rate is None:
             raise RuntimeError("LAYA_SIZING proposta sem payout ou ID valido")
+        min_rate = float(context.get("config", {}).get("params", {}).get("min_payout_rate", 0.0) or 0.0)
+        if min_rate > 0.0 and rate < min_rate:
+            raise RuntimeError(f"LAYA_SIZING payout abaixo do minimo: {rate:.2f} < {min_rate:.2f}")
         sizing = sizing_from_config(
             balance, float(context["probability"]), rate, float(context["pending"]), context["config"]
         )

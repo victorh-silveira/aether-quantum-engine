@@ -85,6 +85,25 @@ def sync_state_manager_session(orch: Any, target: float = 0.0, *, increment_trad
     _sync_realized_pnl(orch, state_mgr)
     triggered = bool(state_mgr.check_session_limits())
     state_mgr.save_state()
+    if increment_trades and hasattr(orch, "logger"):
+        wins = int(getattr(orch, "_session_wins", 0) or 0)
+        losses = int(getattr(orch, "_session_losses", 0) or 0)
+        total = wins + losses
+        if total > 0:
+            wr = (wins / total) * 100.0
+            pnl = float(state_mgr.state.session_profit)
+            tgt = float(state_mgr.state.daily_stop_win_target)
+            prog = min(100.0, max(0.0, (pnl / tgt) * 100.0)) if tgt > 0.0 else 0.0
+            pending = float(getattr(getattr(orch, "risk_manager", None), "pending_loss", 0.0) or 0.0)
+            orch.logger.info(
+                "SESSION_STATS | W=%d L=%d WR=%.2f%% | PnL=%+.2f | meta=%.2f%% | pending=$%.2f",
+                wins,
+                losses,
+                wr,
+                pnl,
+                prog,
+                pending,
+            )
     return triggered
 
 

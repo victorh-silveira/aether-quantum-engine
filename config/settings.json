@@ -15,6 +15,11 @@
       "enabled": true,
       "min_probability": 0.0,
       "min_body_atr": 0.15,
+      "bb_extreme_margin": 0.05,
+      "max_counter_wick_atr": 0.75,
+      "min_atr_ratio": 0.7,
+      "max_atr_ratio": 1.8,
+      "max_entry_delay_seconds": 30,
       "block_counter_momentum": true,
       "block_strong_counter_trend": false,
       "max_counter_streak": 0
@@ -137,6 +142,7 @@
       "stake_min": 1.0,
       "min_stake_pct": 0.01,
       "max_stake_pct": 0.05,
+      "min_payout_rate": 0.75,
       "stop_win_pct": 0.05
     },
     "kelly": {

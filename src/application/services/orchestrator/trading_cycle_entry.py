@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from src.application.services.orchestrator.cycle_indicators_logger import log_laya_cycle_decision
@@ -58,7 +59,8 @@ async def _execute_laya_cycle(orch: Any, candles: list[Any]) -> bool:
     snapshot = compute_indicators(candles)
     decision = await orch.laya.decide(symbol, candles, snapshot.to_dict(), orch.config)
     balance = float(getattr(orch.state, "balance", 0.0) or 0.0)
-    verdict = evaluate_laya_skip(decision, snapshot, orch.config)
+    entry_delay = max(0.0, time.time() - float(candles[-1].epoch + 300))
+    verdict = evaluate_laya_skip(decision, snapshot, orch.config, entry_delay_seconds=entry_delay)
     if verdict.should_skip:
         stake = (
             sizing_from_config(
@@ -87,6 +89,19 @@ async def _execute_laya_cycle(orch: Any, candles: list[Any]) -> bool:
     stake = sizing.stake
     stake_pct = (stake / balance) if balance > 0.0 else 0.0
     log_laya_cycle_decision(orch, snapshot, decision, stake, stake_pct, balance)
+    min_rate = float(orch.config.get("risk_management", {}).get("params", {}).get("min_payout_rate", 0.0) or 0.0)
+    if min_rate > 0.0 and sizing.payout_rate < min_rate:
+        reason = f"payout_baixo({sizing.payout_rate:.2f}<{min_rate:.2f})"
+        orch.logger.info(
+            "SKIP | %s M5 | dir=%s | prob=%.2f%% | motivo=%s",
+            decision.symbol,
+            decision.direction.name,
+            decision.probability * 100.0,
+            reason,
+        )
+        if (inst := getattr(orch, "business_instrumentor", None)) is not None:
+            inst.record_cycle(str(symbol), is_execution=False, reason="payout_baixo")
+        return False
     if stake <= 0.0 or session_persistence_blocks_trading_cycle(orch):
         return False
     try:

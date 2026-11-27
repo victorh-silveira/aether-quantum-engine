@@ -1,55 +1,26 @@
-# Playbook de Execução Sênior: Opções Binárias Rise/Fall M15
+# Playbook de Execucao Senior: Opcoes Binarias Rise/Fall M5 (`R_10`)
 
-## 1. Princípios Operacionais Inegociáveis
+## 1. Principios Operacionais
 
-1. **Execução Baseada em Evidência:** Decisões de mercado são governadas por confluência matemática determinística.
-2. **Ativo Âncora Oficial:** `OTC_SSMI` (Swiss Market Index 20 / Deriv OTC).
-3. **Cadência Temporal:** Timeframe M15 fixo (900 segundos). Entrada autorizada exclusivamente nos primeiros 60 segundos da vela.
-4. **Respeito aos Hard Gates:** Se qualquer um dos 5 pilares falhar, a ação imediata é **SKIP** (não operar).
-
----
-
-## 2. Checklist de Validação do Sinal M15
-
-Antes de disparar a ordem, o motor valida a seguinte árvore de decisão:
-
-```
-[1] TENDÊNCIA ESTRUTURAL M15 ALINHADA?
-    ├── CALL: EMA20 > EMA50 (ascendentes)
-    ├── PUT:  EMA20 < EMA50 (descendentes)
-    └── SE NÃO ──> VETO (SKIP: Mercado sem Tendencia)
-
-[2] RETRAÇÃO DE VOLATILIDADE SAUDÁVEL?
-    ├── Recuo anterior controlado pela EMA20
-    ├── Sem fechar além da EMA50
-    └── SE NÃO ──> VETO (SKIP: Recuo Fora do Padrao)
-
-[3] PREÇO DA SESSÃO UTC DENTRO DE BANDAS?
-    ├── Fechamento favorável à média de preço típico
-    ├── Contido em +/- 1.5 desvios padrão da sessão
-    └── SE NÃO ──> VETO (SKIP: Exaustao Estatistica)
-
-[5] FAIR VALUE GAP MITIGADO?
-    ├── Imbalance entre t-2 e t testado pelo recuo
-    └── SE NÃO ──> VETO (SKIP: Desequilibrio Nao Mitigado)
-
-[6] JANELA TEMPORAL VÁLIDA?
-    ├── Timestamp atual <= 60s da abertura da vela M15
-    └── SE NÃO ──> VETO (SKIP: Timeout da Janela M15)
-
-[7] PROPOSTA DA CORRETORA VIÁVEL?
-    ├── Payout líquido cotado válido
-    ├── EV > 0 com margem >= 0.01 acima do break-even
-    └── SE NÃO ──> VETO (SKIP: Sem Edge Economico)
-```
+1. **Autoridade de Decisao:** **100% da direcao binaria (`CALL`/`PUT`)** pertence ao **Laya System 1** (`convaiinnovations/laya`, `vegaml=False`), alimentado por velas **M5 fechadas (`300s`)**, pacote completo de indicadores causais e narrativa tecnica em 3 estados.
+2. **Ativo Unico:** `R_10` (Volatility 10 Index — operacao 24/7 na Deriv).
+3. **Resiliencia & Filtros de Qualidade (`SKIP`):** Antes de enviar qualquer ordem, os filtros configuraveis em `laya.skip_policy` e `risk_management.params` garantem qualidade de execucao sem alterar probabilidades do Laya.
 
 ---
 
-## 3. Protocolo de Gestão de Risco e Sizing
+## 2. Checklist de Execucao do Ciclo M5
 
-- **Tamanho de Lote Normal (EXPLORE):**
-  $$	ext{Stake} = 0,01 	imes 	ext{Saldo Disponível}$$
-- **Recuperação Linear (RECOVER):**
-  $$	ext{Stake} = \min\left(rac{	ext{Prejuízo Pendente}}{	ext{Payout Cotado}}, 0,05 	imes 	ext{Saldo Disponível}ight)$$
-- **Cap de Proteção:** Teto máximo de 5% por ordem.
-- **Cooldown Pós-Loss e Sinais Simultâneos:** Sem cooldown pós-loss (`loss_cooldown_candles=0`, `consecutive_loss_cooldown_candles=0`), com `operate_all_signals=true` para operar todos os sinais elegíveis do ciclo M15.
+1. **Janela Temporal (`max_entry_delay_seconds: 30`):** rejeita entradas atrasadas apos o fechamento da vela M5 (`atraso_vela`).
+2. **Qualidade de Vela (`min_body_atr: 0.15`):** bloqueia velas doji/indecisao (`vela_doji`).
+3. **Extremos de Banda (`bb_extreme_margin: 0.05`):** bloqueia perseguicao de topo em `CALL` (`BB%B >= 0.95`) e fundo em `PUT` (`BB%B <= 0.05`) (`extremo_banda`).
+4. **Momentum e Rejeicao (`block_counter_momentum`, `max_counter_wick_atr: 0.75`):** bloqueia entradas contra vela+MACD e contra pavio de rejeicao dominante (`pavio_rejeicao`).
+5. **Regime de Volatilidade (`min_atr_ratio: 0.70`, `max_atr_ratio: 1.80`):** evita mercado excessivamente comprimido ou choques extremos (`volatilidade_anomala`).
+6. **Viabilidade Economica (`min_payout_rate: 0.75`):** valida payout liquido minimo na cotacao preliminar e final (`payout_baixo`), evitando degradacao de breakeven.
+
+---
+
+## 3. Gestao de Capital (`kelly_recovery`) e Telemetria
+
+- **Base Kelly:** `fraction: 0.05`, `max_base_pct: 0.0125` (`1.25%` maximo em entradas base) e piso continuo de **`1.00%`** (`$1.00` minimo).
+- **Recuperacao por Payout:** amortizacao da perda pendente (`pending_loss`) em etapas pelo payout real cotado, com teto absoluto de **`5.00%`** da banca por ordem (sem Martingale 2x).
+- **Stop-Win Realizado:** `stop_win_pct: 0.05` (`5%`), disparado exclusivamente pelo lucro realizado da sessao (`realized_session_pnl`), com saldo sincronizado via `balance_after` real e telemetria `SESSION_STATS | W=... L=... WR=...% | PnL=... | meta=...% | pending=...` a cada liquidacao.

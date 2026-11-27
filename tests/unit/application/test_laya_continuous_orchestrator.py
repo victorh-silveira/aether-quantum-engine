@@ -183,3 +183,73 @@ async def test_laya_cycle_skips_when_policy_blocks(monkeypatch):
     ]
     assert any("SKIP | R_10 M5" in line for line in logged)
     instrumentor.record_cycle.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_laya_cycle_skips_when_payout_below_minimum(monkeypatch):
+    candles = _m5_candles(70)
+    logger = MagicMock()
+    decision = LayaDecision(
+        symbol="R_10",
+        direction=TradeDirection.CALL,
+        probability=0.55,
+        prob_call=0.55,
+        prob_put=0.45,
+        confidence=0.55,
+        latency_ms=20.0,
+        indicators={"ema_20": 6560.0},
+    )
+    instrumentor = MagicMock()
+    orch = SimpleNamespace(
+        anchor="R_10",
+        config={
+            "anchor": "R_10",
+            "laya": {"skip_policy": {"enabled": False}},
+            "risk_management": {"params": {"min_payout_rate": 0.75}},
+            "orchestrator": {"signature_boundary_seconds": 300},
+        },
+        state=SimpleNamespace(balance=1000.0, active_contracts={}),
+        ws=SimpleNamespace(is_running=True),
+        stream=SimpleNamespace(is_synchronized=True, get_closed_candles=lambda sym, g: candles),
+        laya=SimpleNamespace(decide=AsyncMock(return_value=decision)),
+        trade_handler=SimpleNamespace(fetch_proposal_snapshot=AsyncMock(return_value={"rate": 0.65})),
+        risk_manager=SimpleNamespace(pending_loss=0.0),
+        executor=SimpleNamespace(execute_laya_order=AsyncMock(return_value=True)),
+        business_instrumentor=instrumentor,
+        logger=logger,
+        running=True,
+        is_trading=False,
+        _reconciliation_pending=False,
+        _cycle_seq=0,
+        _active_cycle_id=0,
+        _last_processed_epoch=0,
+        _last_evaluated_boundary_epoch=0,
+        last_data_signature="",
+        _last_cluster_cycle_end=0.0,
+        _last_cycle_cluster_executed=False,
+    )
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.trading_cycle_entry.process_redis_settlement_queue",
+        AsyncMock(),
+    )
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.trading_cycle_entry_guards.get_data_state_signature",
+        lambda _o: "sig_1",
+    )
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.trading_cycle_entry.commit_trading_cycle_data_signature",
+        lambda o: setattr(o, "last_data_signature", "sig_1"),
+    )
+    monkeypatch.setattr(
+        "src.application.services.orchestrator.trading_cycle_entry.mark_bar_processed",
+        AsyncMock(side_effect=lambda o, _sym, ep: setattr(o, "_last_processed_epoch", ep)),
+    )
+
+    ok = await run_trading_cycle_if_ready(orch)
+    assert ok is False
+    orch.executor.execute_laya_order.assert_not_awaited()
+    logged = [
+        call.args[0] % call.args[1:] if len(call.args) > 1 else call.args[0] for call in logger.info.call_args_list
+    ]
+    assert any("motivo=payout_baixo(0.65<0.75)" in line for line in logged)
+    instrumentor.record_cycle.assert_called_once()
